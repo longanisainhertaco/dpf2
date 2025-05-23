@@ -202,10 +202,6 @@ class PhysicsModels(ConfigSectionBase):
         validate_default=True,
     )
 
-    class Config:
-        extra = "forbid"
-        allow_population_by_field_name = True
-        alias_generator = to_camel_case
 
     # ------------------------------------------------------------------
     @classmethod
