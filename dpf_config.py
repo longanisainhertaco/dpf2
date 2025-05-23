@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Literal, Union
 from pydantic import BaseModel, Field, validator, root_validator
+from metadata import Metadata
 
 from experimental_variability import ExperimentalVariabilityModel
 
@@ -329,29 +330,6 @@ class ParallelSettings(BaseModel):
     @classmethod
     def with_defaults(cls):
         return cls(mpi_ranks=1, gpu_backend="None")
-
-class Metadata(BaseModel):
-    schema_version: str
-    sim_version: str
-    created_by: str
-    commit_hash: str
-    run_uuid: Optional[str] = None
-    creation_time: Optional[str] = None
-    campaign_mode_enabled: bool = False
-    ensemble_shot_configs: Optional[List[Dict[str, Any]]] = None
-    ml_metadata: Optional[Dict[str, Any]] = None
-    use_surrogate_model: bool = False
-    yield_targeting_enabled: bool = False
-    doc: Optional[str] = None
-
-    @classmethod
-    def with_defaults(cls):
-        return cls(
-            schema_version="1.0",
-            sim_version="0.1",
-            created_by="unknown",
-            commit_hash="none"
-        )
 
 # --- Top-level config ---
 
