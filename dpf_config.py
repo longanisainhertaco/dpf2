@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Literal, Union
 from pydantic import BaseModel, Field, validator, root_validator
 from metadata import Metadata
-
 from experimental_variability import ExperimentalVariabilityModel
+from grid_resolution import GridResolution
 
 def model_validator(*, mode: str = "after"):
     """Compatibility helper mirroring pydantic.v2 model_validator."""
@@ -60,26 +60,6 @@ class SimulationControl(BaseModel):
             raise ValueError("time_end must be greater than time_start")
         return values
 
-class GridResolution(BaseModel):
-    nx: int
-    ny: int
-    nz: int
-    x_min: float
-    x_max: float
-    y_min: float
-    y_max: float
-    z_min: float
-    z_max: float
-    doc: Optional[str] = None
-
-    @classmethod
-    def with_defaults(cls):
-        return cls(
-            nx=128, ny=1, nz=128,
-            x_min=0.0, x_max=1.0,
-            y_min=0.0, y_max=1.0,
-            z_min=0.0, z_max=1.0,
-        )
 
 class BreakdownModel(BaseModel):
     type: Literal["field_threshold", "hot_seed", "stochastic_delay", "beta_preionization"]
@@ -358,9 +338,11 @@ class DPFConfig(BaseModel):
 
     @classmethod
     def with_defaults(cls):
+        sc = SimulationControl.with_defaults()
+        gr = GridResolution.with_defaults(sc.geometry)
         return cls(
-            simulation_control=SimulationControl.with_defaults(),
-            grid_resolution=GridResolution.with_defaults(),
+            simulation_control=sc,
+            grid_resolution=gr,
             initial_conditions=InitialConditions.with_defaults(),
             physics_models=PhysicsModels.with_defaults(),
             circuit_config=CircuitConfig.with_defaults(),
