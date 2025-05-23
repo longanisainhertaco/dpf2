@@ -8,7 +8,36 @@ from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple, Union, 
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, root_validator
+
+def model_validator(*, mode: str = "after"):
+    """Compatibility helper implementing a subset of pydantic v2 behavior."""
+
+    def decorator(func):
+        if mode == "after":
+            def wrapper(cls, values):
+                inst = cls.construct(**values)
+                result = func(cls, inst)
+                return result.__dict__ if isinstance(result, cls) else values
+
+            return root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(wrapper)
+        else:
+            def wrapper(cls, values):
+                out = func(values)
+                return out if out is not None else values
+
+            return root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(wrapper)
+
+    return decorator
+
+if not hasattr(BaseModel, "model_validate"):
+    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+if not hasattr(BaseModel, "model_dump"):
+    BaseModel.model_dump = BaseModel.dict
+if not hasattr(BaseModel, "model_dump_json"):
+    BaseModel.model_dump_json = BaseModel.json
+if not hasattr(BaseModel, "model_copy"):
+    BaseModel.model_copy = BaseModel.copy
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -110,6 +139,15 @@ class InstabilityModel(str, Enum):
     RESISTIVE_MHD = "resistive_MHD"
     HALL_MHD = "Hall_MHD"
 
+
+class CircuitFaultTypeEnum(str, Enum):
+    """Enumerates possible circuit fault types."""
+
+    ARC = "arc"
+    TIMEOUT = "timeout"
+    NO_DISCHARGE = "no_discharge"
+    EARLY_TRIGGER = "early_trigger"
+
 # ---------------------------------------------------------------------------
 # Unit normalization helpers
 
@@ -148,13 +186,19 @@ class ConfigSectionBase(BaseModel):
 
     config_section_id: ClassVar[str]
 
-    model_config = ConfigDict(
+    model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         alias_generator=to_camel_case,
         populate_by_name=True,
+        allow_population_by_field_name=True,
         validate_default=True,
         frozen=True,
     )
+
+    class Config:
+        extra = "forbid"
+        allow_population_by_field_name = True
+        alias_generator = to_camel_case
 
     # ------------------------------------------------------------------
     @classmethod
@@ -467,4 +511,5 @@ __all__ = [
     "LineEscapeMethod",
     "RadiationGeometryModel",
     "InstabilityModel",
+    "CircuitFaultTypeEnum",
 ]

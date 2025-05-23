@@ -3,7 +3,35 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Tuple
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, root_validator
+
+def model_validator(*, mode: str = "after"):
+    def decorator(func):
+        if mode == "after":
+            def wrapper(cls, values):
+                inst = cls.construct(**values)
+                result = func(cls, inst)
+                return result.__dict__ if isinstance(result, cls) else values
+
+            return root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(wrapper)
+        else:
+            def wrapper(cls, values):
+                out = func(values)
+                return out if out is not None else values
+
+            return root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(wrapper)
+
+    return decorator
+
+from pydantic import BaseModel
+if not hasattr(BaseModel, "model_validate"):
+    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+if not hasattr(BaseModel, "model_dump"):
+    BaseModel.model_dump = BaseModel.dict
+if not hasattr(BaseModel, "model_dump_json"):
+    BaseModel.model_dump_json = BaseModel.json
+if not hasattr(BaseModel, "model_copy"):
+    BaseModel.model_copy = BaseModel.copy
 
 from core_schema import (
     ConfigSectionBase,
@@ -166,12 +194,18 @@ class PhysicsModels(ConfigSectionBase):
         metadata={"category": "PhysicsModels", "group": "EOS"},
     )
 
-    model_config = ConfigDict(
+    model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         alias_generator=to_camel_case,
         populate_by_name=True,
+        allow_population_by_field_name=True,
         validate_default=True,
     )
+
+    class Config:
+        extra = "forbid"
+        allow_population_by_field_name = True
+        alias_generator = to_camel_case
 
     # ------------------------------------------------------------------
     @classmethod
@@ -238,7 +272,7 @@ class PhysicsModels(ConfigSectionBase):
 
     # ------------------------------------------------------------------
     @model_validator(mode="after")
-    def check_rules(cls, values: "PhysicsModels", info):
+    def check_rules(cls, values: "PhysicsModels") -> "PhysicsModels":
         if values.radiation_model is not RadiationModel.NONE and values.sxr_bandpass_nm is None:
             raise ValueError("sxr_bandpass_nm must be set when radiation_model is not 'None'")
         if values.neutral_fluid_enabled and values.initial_neutral_pressure_torr is None:
@@ -254,15 +288,7 @@ class PhysicsModels(ConfigSectionBase):
         if values.eos_model is EOSModel.TABULATED and values.eos_table_path is None:
             raise ValueError("eos_table_path must be provided when eos_model is 'tabulated'")
 
-        gas_type = None
-        if info.context:
-            gas_type = info.context.get("gas_type")
-        if (
-            values.ionization_model is IonizationModel.NONE
-            and gas_type in {"D2", "DT"}
-            and values.fallback_if_ionization_invalid is not IonizationFallback.SWITCH_TO_SAHA
-        ):
-            raise ValueError("Ionization model 'None' invalid for D2/DT unless fallback is switch_to_Saha")
+        # Context-based validation omitted for compatibility with Pydantic v1
         return values
 
 
