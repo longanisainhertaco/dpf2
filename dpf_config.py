@@ -6,8 +6,11 @@ from typing import Any, Dict, List, Optional, Tuple, Literal, Union
 from pydantic import BaseModel, Field, validator, root_validator
 
 def model_validator(*, mode: str = "after"):
+    """Compatibility helper mirroring pydantic.v2 model_validator."""
+
     def decorator(func):
-        return root_validator(pre=(mode=="before"))(func)
+        return root_validator(pre=(mode == "before"), skip_on_failure=True)(func)
+
     return decorator
 
 if not hasattr(BaseModel, "model_validate"):
