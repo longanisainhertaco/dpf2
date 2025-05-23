@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Literal, Union
 from pydantic import BaseModel, Field, validator, root_validator
 
+from experimental_variability import ExperimentalVariabilityModel
+
 def model_validator(*, mode: str = "after"):
     """Compatibility helper mirroring pydantic.v2 model_validator."""
 
@@ -283,16 +285,6 @@ class Diagnostics(BaseModel):
             checkpoint_interval=100
         )
 
-class ExperimentalVariabilityModel(BaseModel):
-    pressure_jitter_pct: float = 0.0
-    trigger_jitter_ns: float = 0.0
-    erosion_multiplier: float = 1.0
-    stochastic_run_id: Optional[int] = None
-    doc: Optional[str] = None
-
-    @classmethod
-    def with_defaults(cls):
-        return cls()
 
 class BenchmarkMatching(BaseModel):
     dataset_id: Optional[str] = None
