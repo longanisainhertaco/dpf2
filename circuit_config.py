@@ -66,11 +66,10 @@ if not hasattr(BaseModel, "model_copy"):
 from core_schema import (
     ConfigSectionBase,
     TimeVoltageProfile,
-    UnitsSystem,
-    UNIT_SCALE_MAP,
     to_camel_case,
     CircuitFaultTypeEnum,
 )
+from units_settings import UnitsSettings
 
 
 class CircuitConfig(ConfigSectionBase):
@@ -201,8 +200,9 @@ class CircuitConfig(ConfigSectionBase):
             f"Faults: [{', '.join(faults)}]"
         )
 
-    def normalize_units(self, base_units: UnitsSystem) -> "CircuitConfig":
-        scale = UNIT_SCALE_MAP.get(base_units, 1.0)
+    def normalize_units(self, units: UnitsSettings) -> "CircuitConfig":
+        unit_map = units.normalize_units()
+        scale = unit_map.get("temporal", 1.0)
         wf = None
         if self.waveform_profile is not None:
             wf = [(t * scale, v * scale) for t, v in self.waveform_profile]

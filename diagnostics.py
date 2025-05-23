@@ -39,10 +39,9 @@ if not hasattr(BaseModel, "model_copy"):
 from core_schema import (
     ConfigSectionBase,
     DetectorConfig,
-    UnitsSystem,
-    UNIT_SCALE_MAP,
     to_camel_case,
 )
+from units_settings import UnitsSettings
 
 
 # ---------------------------------------------------------------------------
@@ -208,8 +207,9 @@ class Diagnostics(ConfigSectionBase):
     def get_field_metadata(self) -> Dict[str, Dict[str, Any]]:
         return {name: field.json_schema_extra or {} for name, field in self.model_fields.items()}
 
-    def normalize_units(self, base_units: UnitsSystem) -> "Diagnostics":
-        scale = UNIT_SCALE_MAP.get(base_units, 1.0)
+    def normalize_units(self, units: UnitsSettings) -> "Diagnostics":
+        unit_map = units.normalize_units()
+        scale = unit_map.get("temporal", 1.0)
         bw = self.beam_pulse_width_estimate_ns
         if bw is not None:
             bw = bw * scale
