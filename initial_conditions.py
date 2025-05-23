@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, root_validator
+from units_settings import UnitsSettings
 
 def model_validator(*, mode: str = "after"):
     def decorator(func):

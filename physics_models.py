@@ -35,8 +35,6 @@ if not hasattr(BaseModel, "model_copy"):
 
 from core_schema import (
     ConfigSectionBase,
-    UnitsSystem,
-    UNIT_SCALE_MAP,
     EOSModel,
     ResistivityModel,
     IonizationModel,
@@ -47,6 +45,7 @@ from core_schema import (
     RadiationGeometryModel,
     InstabilityModel,
 )
+from units_settings import UnitsSettings
 
 
 def to_camel_case(string: str) -> str:
@@ -259,8 +258,9 @@ class PhysicsModels(ConfigSectionBase):
             parts.append("Instabilities: none")
         return "\n".join(parts)
 
-    def normalize_units(self, base_units: UnitsSystem) -> "PhysicsModels":
-        scale = UNIT_SCALE_MAP.get(base_units, 1.0)
+    def normalize_units(self, units: UnitsSettings) -> "PhysicsModels":
+        unit_map = units.normalize_units()
+        scale = unit_map.get("spatial", 1.0)
         band = self.sxr_bandpass_nm
         if band is not None:
             band = (band[0] * scale, band[1] * scale)
