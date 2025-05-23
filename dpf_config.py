@@ -3,7 +3,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Literal, Union
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, validator, root_validator
+
+def model_validator(*, mode: str = "after"):
+    def decorator(func):
+        return root_validator(pre=(mode=="before"))(func)
+    return decorator
+
+if not hasattr(BaseModel, "model_validate"):
+    BaseModel.model_validate = classmethod(lambda cls, d: cls.parse_obj(d))
+if not hasattr(BaseModel, "model_dump"):
+    BaseModel.model_dump = BaseModel.dict
+if not hasattr(BaseModel, "model_dump_json"):
+    BaseModel.model_dump_json = BaseModel.json
+if not hasattr(BaseModel, "model_copy"):
+    BaseModel.model_copy = BaseModel.copy
 
 # --- Submodels ---
 
@@ -35,8 +49,8 @@ class SimulationControl(BaseModel):
         )
 
     @model_validator(mode="after")
-    def check_times(cls, values: SimulationControl) -> SimulationControl:
-        if values.time_end <= values.time_start:
+    def check_times(cls, values):
+        if values["time_end"] <= values["time_start"]:
             raise ValueError("time_end must be greater than time_start")
         return values
 
@@ -362,12 +376,10 @@ class DPFConfig(BaseModel):
     metadata: Metadata
 
     @model_validator(mode="after")
-    def validate_cross_fields(cls, values: DPFConfig) -> DPFConfig:
-        # Enforce ny == 1 for 2D_RZ geometry
-        if (
-            values.simulation_control.geometry == "2D_RZ"
-            and values.grid_resolution.ny != 1
-        ):
+    def validate_cross_fields(cls, values):
+        sc = values.get("simulation_control")
+        gr = values.get("grid_resolution")
+        if sc and gr and sc.geometry == "2D_RZ" and gr.ny != 1:
             raise ValueError("ny must be 1 for 2D_RZ geometry")
         return values
 
@@ -409,6 +421,25 @@ class DPFConfig(BaseModel):
         data.update(updates)
         return self.__class__.model_validate(data)
 
+    def to_file(self, path: Union[str, Path], format: Literal["json", "yaml"] = "json") -> None:
+        if format == "json":
+            self.to_json(path)
+        elif format == "yaml":
+            self.to_yaml(path)
+        else:
+            raise ValueError("format must be 'json' or 'yaml'")
+
+    @classmethod
+    def validate_and_fill(cls, raw: Union[str, Path, Dict[str, Any]]):
+        if isinstance(raw, (str, Path)):
+            return cls.from_file(raw)
+        return cls.model_validate(raw)
+
+    def resolve_defaults(self) -> "DPFConfig":
+        defaults = self.with_defaults().model_dump()
+        defaults.update(self.model_dump())
+        return self.__class__.model_validate(defaults)
+
     def validate(self) -> None:
         _ = self.model_validate(self.model_dump())
 
@@ -420,7 +451,30 @@ class DPFConfig(BaseModel):
 
     def schema_export(self, path: Union[str, Path]) -> None:
         with open(path, "w") as f:
-            json.dump(self.model_json_schema(), f, indent=2)
+            if hasattr(self, "model_json_schema"):
+                schema = self.model_json_schema()
+            else:
+                schema = self.schema()
+            json.dump(schema, f, indent=2)
+
+    def to_json(self, path: Union[str, Path]) -> None:
+        Path(path).write_text(self.model_dump_json())
+
+    def to_yaml(self, path: Union[str, Path]) -> None:
+        try:
+            import yaml
+        except Exception as e:
+            raise ImportError("PyYAML required") from e
+        Path(path).write_text(yaml.safe_dump(self.model_dump()))
+
+    def summarize(self) -> str:
+        return (
+            "DPF Simulation Configuration Summary:"
+            f"\n  Mode: {self.simulation_control.mode}, Geometry: {self.simulation_control.geometry}"
+        )
+
+    def required_fields(self) -> List[str]:
+        return []
 
 __all__ = [
     "SimulationControl",
