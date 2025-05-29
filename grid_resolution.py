@@ -128,7 +128,7 @@ class GridResolution(ConfigSectionBase):
         return {name: (field.json_schema_extra or field.metadata or {}) for name, field in cls.model_fields.items()}
 
     def normalize_units(self, spatial_units: Literal["cm", "m"]) -> "GridResolution":
-        scale = 0.01 if spatial_units == "cm" else 1.0
+        scale = 0.01 if spatial_units == "m" else 1.0
         update = {
             "x_min": self.x_min * scale,
             "x_max": self.x_max * scale,
@@ -183,6 +183,8 @@ class GridResolution(ConfigSectionBase):
             raise ValueError("z_max must be > z_min")
         if values.y_max - values.y_min <= eps and values.ny > 1:
             raise ValueError("y_max must be > y_min")
+        if geometry == "2D_RZ" and values.y_max - values.y_min > eps:
+            raise ValueError("2D_RZ geometry requires y_max == y_min")
 
         valid_faces = {"xLow", "xHigh", "yLow", "yHigh", "zLow", "zHigh"}
         for face, count in values.padding_cells.items():
@@ -220,6 +222,11 @@ class GridResolution(ConfigSectionBase):
         context = kwargs.get("context") or {}
         obj = super().model_validate(data, context=context)
         object.__setattr__(obj, "_context", context)
+        # additional geometry-specific checks not accessible in validators
+        if context.get("geometry") == "2D_RZ" and obj.y_max - obj.y_min > 1e-8:
+            raise ValueError("2D_RZ geometry requires y_max == y_min")
+        # ensure hash is set after any modifications
+        object.__setattr__(obj, "grid_config_hash", obj.hash_grid_config())
         return obj
 
 

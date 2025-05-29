@@ -92,7 +92,10 @@ class NeutronYieldModel(ConfigSectionBase):
     # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> "NeutronYieldModel":
-        return cls(beam_ion_species="D+")
+        return cls(
+            beam_ion_species="D+",
+            reactivity_table_path=Path("reactivity.dat"),
+        )
 
     def resolve_defaults(self) -> "NeutronYieldModel":
         data = self.model_dump()

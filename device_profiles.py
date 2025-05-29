@@ -61,7 +61,7 @@ class DeviceEntry(BaseModel):
     )
     reference_shot_ids: Optional[List[str]] = Field(None, alias="referenceShotIds")
     primary_observables: Optional[List[str]] = Field(None, alias="primaryObservables")
-    diagnostic_capabilities: Optional[Dict[str, Dict[str, Union[float, str]]]] = Field(
+    diagnostic_capabilities: Optional[Dict[str, Dict[str, Any]]] = Field(
         None, alias="diagnosticCapabilities"
     )
 
