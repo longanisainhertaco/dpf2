@@ -6,6 +6,9 @@ from typing import Iterable
 import numpy as np
 from scipy.integrate import solve_ivp
 
+from .eos import RealGasEOS
+from .fusion import bosch_hale_dd
+
 __all__ = ["PinchModelBase", "PinchResult", "AnalyticPinchModel", "SemiAnalyticPinchModel"]
 
 
@@ -54,12 +57,16 @@ class SemiAnalyticPinchModel(PinchModelBase):
         mass: float = 1e-6,
         ext_pressure: float = 1e5,
         damping: float = 0.0,
+        gamma: float = 1.4,
+        zeff: float = 1.0,
     ) -> None:
         self.initial_radius = initial_radius
         self.initial_axial = initial_axial
         self.mass = mass
         self.ext_pressure = ext_pressure
         self.damping = damping
+        self.eos = RealGasEOS(gamma=gamma)
+        self.zeff = zeff
 
     def _dynamics(self, t: float, y: np.ndarray, current: np.ndarray, time: np.ndarray) -> np.ndarray:
         r, vr, z, vz = y
@@ -78,8 +85,12 @@ class SemiAnalyticPinchModel(PinchModelBase):
         r = sol.y[0]
         z = sol.y[2]
         temperature = 1e3 * (I / 1e4) ** 2 + 0.1 * r ** -1
-        pressure = self.ext_pressure + 0.5 * (I ** 2) * 1e-6
-        yield_integrand = (temperature / 1e3) ** 3 * I ** 2
-        neutron_yield = float(np.trapz(yield_integrand, t) * 1e-20)
+        volume = np.pi * r ** 2 * z
+        density = self.mass / np.maximum(volume, 1e-12)
+        pressure = self.eos.pressure(density, temperature)
+        n_i = density / (3.344e-27)  # deuterium ions per m^3
+        reactivity = bosch_hale_dd(temperature / 1e3)
+        rate = 0.25 * n_i ** 2 * reactivity * volume
+        neutron_yield = float(np.trapz(rate, t))
         return PinchResult(t, r, temperature, pressure, neutron_yield, axial_position=z)
 
