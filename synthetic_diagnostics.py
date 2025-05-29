@@ -123,7 +123,7 @@ class SyntheticDiagnostics(ConfigSectionBase):
     # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> "SyntheticDiagnostics":
-        return cls()
+        return cls(apply_time_response=False, apply_energy_filter=False)
 
     def resolve_defaults(self) -> "SyntheticDiagnostics":
         data = self.model_dump()

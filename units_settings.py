@@ -106,15 +106,13 @@ class UnitsSettings(ConfigSectionBase):
     # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> "UnitsSettings":
-        data = {
-            "base_units": "SI",
-            "spatial_units": "m",
-            "temporal_units": "ns",
-            "baseUnits": "SI",
-            "spatialUnits": "m",
-            "temporalUnits": "ns",
-        }
-        return cls.model_validate(data)
+        return cls.model_validate(
+            {
+                "base_units": "SI",
+                "spatial_units": "m",
+                "temporal_units": "ns",
+            }
+        )
 
     def resolve_defaults(self) -> "UnitsSettings":
         data = self.model_dump()
