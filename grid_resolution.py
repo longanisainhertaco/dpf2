@@ -84,7 +84,7 @@ class GridResolution(ConfigSectionBase):
     @classmethod
     def with_defaults(cls, geometry: str) -> "GridResolution":
         if geometry == "2D_RZ":
-            return cls(
+            data = dict(
                 nx=128,
                 ny=1,
                 nz=256,
@@ -97,19 +97,21 @@ class GridResolution(ConfigSectionBase):
                 symmetry_axis="y",
                 grid_centering="cell",
             )
-        return cls(
-            nx=128,
-            ny=128,
-            nz=128,
-            x_min=-0.5,
-            x_max=0.5,
-            y_min=-0.5,
-            y_max=0.5,
-            z_min=-0.5,
-            z_max=0.5,
-            symmetry_axis="none",
-            grid_centering="cell",
-        )
+        else:
+            data = dict(
+                nx=128,
+                ny=128,
+                nz=128,
+                x_min=-0.5,
+                x_max=0.5,
+                y_min=-0.5,
+                y_max=0.5,
+                z_min=-0.5,
+                z_max=0.5,
+                symmetry_axis="none",
+                grid_centering="cell",
+            )
+        return cls.model_validate(data, context={"geometry": geometry})
 
     def resolve_defaults(self, geometry: str) -> "GridResolution":
         data = self.model_dump()
@@ -175,19 +177,11 @@ class GridResolution(ConfigSectionBase):
         geometry = getattr(values, "_context", {}).get("geometry")
         eps = 1e-8
 
-        if geometry == "2D_RZ":
-            if values.ny != 1:
-                raise ValueError("ny must be 1 for 2D_RZ geometry")
-            if abs(values.y_min) > eps or abs(values.y_max) > eps:
-                raise ValueError("y_min and y_max must be 0.0 for 2D_RZ geometry")
-            if values.symmetry_axis != "y":
-                raise ValueError("symmetry_axis must be 'y' for 2D_RZ geometry")
-
         if values.x_max - values.x_min <= eps:
             raise ValueError("x_max must be > x_min")
         if values.z_max - values.z_min <= eps:
             raise ValueError("z_max must be > z_min")
-        if geometry != "2D_RZ" and values.y_max - values.y_min <= eps:
+        if values.y_max - values.y_min <= eps and values.ny > 1:
             raise ValueError("y_max must be > y_min")
 
         valid_faces = {"xLow", "xHigh", "yLow", "yHigh", "zLow", "zHigh"}
@@ -224,9 +218,8 @@ class GridResolution(ConfigSectionBase):
     @classmethod
     def model_validate(cls, data: Any, **kwargs) -> "GridResolution":
         context = kwargs.get("context") or {}
-        obj = super().model_validate(data)
+        obj = super().model_validate(data, context=context)
         object.__setattr__(obj, "_context", context)
-        obj = cls.check_rules(obj)
         return obj
 
 

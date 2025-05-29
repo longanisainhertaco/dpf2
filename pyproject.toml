@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dpf2"
+version = "0.1.0"
+description = "Minimal Dense Plasma Focus simulator"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pydantic",
+    "matplotlib",
+]
+
+[project.scripts]
+dpf2 = "dpf2.cli:main"
