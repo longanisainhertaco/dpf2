@@ -18,6 +18,12 @@ def build_parser() -> argparse.ArgumentParser:
     sim.add_argument("config", type=Path, help="Path to JSON/YAML configuration")
     sim.add_argument("-o", "--output", type=Path, default=Path("results.json"), help="Output file")
     sim.add_argument("--method", choices=["analytical", "ode"], default="analytical", help="Circuit solver method")
+    sim.add_argument(
+        "--pinch-model",
+        choices=["analytic", "semi-analytic"],
+        default="analytic",
+        help="Pinch dynamics model",
+    )
     return parser
 
 
@@ -28,7 +34,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "simulate":
         cfg = DPFConfig.from_file(args.config)
         engine = SimulationEngine(cfg)
-        results = engine.run(method=args.method)
+        results = engine.run(method=args.method, pinch_model=args.pinch_model)
         args.output.write_text(json.dumps(results.to_dict(), indent=2))
     else:
         parser.print_help()
