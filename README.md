@@ -36,4 +36,5 @@ Run the unit and integration tests with:
 pytest
 ```
 
-Contributions are welcome.
+Contributions are welcome.  For ideas on how the code could evolve into a high-
+performance multi-physics tool see `docs/HPC_DESIGN.md`.
