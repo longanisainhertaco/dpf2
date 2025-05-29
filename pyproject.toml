@@ -15,4 +15,10 @@ dependencies = [
 ]
 
 [project.scripts]
-dpf2 = "dpf2.cli:main"
+dpf2 = "dpf2.cli.main:main"
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
