@@ -11,7 +11,7 @@ from dpf_config import DPFConfig
 from circuit_config import CircuitConfig
 
 from .circuit_solver import RLCCircuit, CircuitSolver
-from .plasma_model import AnalyticPinchModel
+from .pinch_models import AnalyticPinchModel, SemiAnalyticPinchModel, PinchModelBase
 
 __all__ = ["SimulationEngine"]
 
@@ -24,6 +24,7 @@ class SimulationResults:
     temperature: np.ndarray
     pressure: np.ndarray
     neutron_yield: float
+    axial_position: np.ndarray | None = None
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -33,6 +34,7 @@ class SimulationResults:
             "temperature": self.temperature.tolist(),
             "pressure": self.pressure.tolist(),
             "neutron_yield": self.neutron_yield,
+            **({"axial_position": self.axial_position.tolist()} if self.axial_position is not None else {}),
         }
 
 
@@ -54,14 +56,19 @@ class SimulationEngine:
         return CircuitSolver(circuit)
 
     # ------------------------------------------------------------------
-    def run(self, method: str = "analytical") -> SimulationResults:
+    def run(self, method: str = "analytical", pinch_model: str = "analytic") -> SimulationResults:
         sc = self.config.simulation_control
         dt = sc.min_dt or 1e-9
         t_end = sc.time_end - sc.time_start
         circuit = self._setup_circuit()
         t, current = circuit.solve(t_end, dt, method=method)
 
-        plasma = AnalyticPinchModel()
+        if pinch_model == "analytic":
+            plasma: PinchModelBase = AnalyticPinchModel()
+        elif pinch_model == "semi-analytic":
+            plasma = SemiAnalyticPinchModel()
+        else:
+            raise ValueError("pinch_model must be 'analytic' or 'semi-analytic'")
         pres = plasma.run(t, current)
 
         return SimulationResults(
@@ -71,4 +78,5 @@ class SimulationEngine:
             temperature=pres.temperature,
             pressure=pres.pressure,
             neutron_yield=pres.neutron_yield,
+            axial_position=pres.axial_position,
         )
