@@ -28,6 +28,13 @@ See `examples/quickstart.ipynb` for a walk-through in a Jupyter notebook.
 - `tests/` – unit and integration tests
 - `examples/` – example scripts and notebook
 
+## AI Surrogate Models
+
+The package defines a flexible `SurrogateModel` interface allowing
+inference with PyTorch or ONNX models. Surrogates can be plugged into
+simulations to replace expensive physics modules. See the `dpf2.ai`
+module for details.
+
 ## Development
 
 Run the unit and integration tests with:
