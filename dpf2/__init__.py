@@ -3,6 +3,8 @@
 from .circuit_solver import RLCCircuit, CircuitSolver
 from .pinch_models import AnalyticPinchModel, SemiAnalyticPinchModel
 from .simulation_engine import SimulationEngine
+from .core import PlasmaSolverBase, CircuitSolverBase, DiagnosticsBase
+from .ai import SurrogateModel, TorchSurrogateModel, ONNXSurrogateModel
 
 __all__ = [
     "RLCCircuit",
@@ -10,4 +12,10 @@ __all__ = [
     "AnalyticPinchModel",
     "SemiAnalyticPinchModel",
     "SimulationEngine",
+    "PlasmaSolverBase",
+    "CircuitSolverBase",
+    "DiagnosticsBase",
+    "SurrogateModel",
+    "TorchSurrogateModel",
+    "ONNXSurrogateModel",
 ]
