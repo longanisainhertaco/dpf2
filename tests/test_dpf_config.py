@@ -31,7 +31,17 @@ def test_roundtrip_json(tmp_path):
     json_path = tmp_path / "cfg.json"
     cfg.to_json(json_path)
     cfg2 = DPFConfig.from_file(json_path)
-    assert cfg2.simulation_control.mode == cfg.simulation_control.mode
+    assert cfg2.model_dump() == cfg.model_dump()
+
+
+def test_roundtrip_yaml(tmp_path):
+    if not YAML_AVAILABLE:
+        pytest.skip("PyYAML not installed")
+    cfg = DPFConfig.with_defaults()
+    yaml_path = tmp_path / "cfg.yaml"
+    cfg.to_yaml(yaml_path)
+    cfg2 = DPFConfig.from_file(yaml_path)
+    assert cfg2.model_dump() == cfg.model_dump()
 
 
 def test_validation_failure():
