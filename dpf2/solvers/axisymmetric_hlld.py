@@ -29,7 +29,7 @@ from typing import Dict
 
 import numpy as np
 
-from ..core.bases import PlasmaSolverBase
+from dpf2.core.bases import PlasmaSolverBase
 
 State = Dict[str, np.ndarray]
 
