@@ -362,11 +362,23 @@ class CollisionModel(CollisionOperator):
 
     def checkpoint(self):
         self.checkpoint_data = {
-            'crn_state': getattr(self.crn, 'rates', None)
+            'ionization_cross_section': self.ionization_cross_section,
+            'dd_fusion_cross_section': self.dd_fusion_cross_section,
+            'crn_state': self.crn,
         }
         return self.checkpoint_data
 
     def restart(self, data):
+        if not isinstance(data, dict):
+            raise ValueError("Restart data must be a dictionary")
+
+        self.ionization_cross_section = data.get(
+            'ionization_cross_section', self.ionization_cross_section
+        )
+        self.dd_fusion_cross_section = data.get(
+            'dd_fusion_cross_section', self.dd_fusion_cross_section
+        )
         if 'crn_state' in data:
-            # no stateful items currently
-            pass
+            self.crn = data['crn_state']
+
+        self.checkpoint_data = data
