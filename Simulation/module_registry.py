@@ -3,8 +3,6 @@ import importlib
 import inspect
 import logging
 import os
-import sys
-from abc import ABC
 from typing import Dict, Type, Any, List, Optional
 from pydantic import BaseModel, ValidationError
 
@@ -46,9 +44,9 @@ class ModuleRegistry:
         if not inspect.isclass(module_class):
             raise TypeError("module_class must be a class.")
 
-        # Check if module_class is a subclass of ABC
-        if not issubclass(module_class, ABC):
-            raise TypeError("module_class must be a subclass of ABC (Abstract Base Class).")
+        # Check if module_class is a subclass of PhysicsModule
+        if not issubclass(module_class, PhysicsModule):
+            raise TypeError("module_class must be a subclass of PhysicsModule.")
 
         self.modules[module_class] = {
             'config_schema': config_schema,
