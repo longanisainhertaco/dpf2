@@ -15,6 +15,9 @@ from typing import Any
 import numpy as np
 
 from .core import PlasmaSolverBase
+from .eos import EOSBase, IdealGasEOS
+from .chemistry import ChemistryModel, SahaEquilibrium
+from .radiation import RadiationBase
 
 __all__ = ["MHDState", "HallMHDSolver"]
 
@@ -92,14 +95,17 @@ class HallMHDSolver(PlasmaSolverBase):
     """
 
     mesh: Any = field(default=None)
+    eos: EOSBase = field(default_factory=IdealGasEOS)
+    chemistry: ChemistryModel = field(default_factory=SahaEquilibrium)
+    radiation: RadiationBase | None = None
     eta: float = 0.0
     hall_coeff: float = 0.0
-    rad_coeff: float = 0.0
+    last_pressure: np.ndarray | None = field(init=False, default=None)
+    last_ionization: np.ndarray | None = field(init=False, default=None)
+    last_rad_loss: np.ndarray | None = field(init=False, default=None)
 
     def step(self, state: MHDState, dt: float) -> MHDState:  # pragma: no cover - skeleton
         """Advance the state by ``dt`` seconds using a simplified MHD update."""
-
-        gamma = 5.0 / 3.0
 
         rho = state.rho.copy()
         mom = state.mom.copy()
@@ -110,7 +116,19 @@ class HallMHDSolver(PlasmaSolverBase):
         B2 = np.sum(B**2, axis=-1)
         kinetic = 0.5 * rho * np.sum(v**2, axis=-1)
         magnetic = 0.5 * B2
-        p = (gamma - 1.0) * (energy - kinetic - magnetic)
+        e_internal = energy - kinetic - magnetic
+        specific_e = e_internal / rho
+        p = self.eos.pressure(rho, specific_e)
+        T = self.eos.temperature(rho, specific_e)
+        zbar = self.chemistry.ionization_state(rho, T)
+        if self.radiation is not None:
+            rad_loss = self.radiation.loss(rho, T * zbar)
+            energy -= dt * rad_loss
+            self.last_rad_loss = rad_loss
+        else:
+            self.last_rad_loss = None
+        self.last_pressure = p
+        self.last_ionization = zbar
 
         # --- Flux computation (Lax-Friedrichs style) ---
         flux_rho = np.zeros((3,) + rho.shape)
@@ -148,8 +166,6 @@ class HallMHDSolver(PlasmaSolverBase):
         # --- Source terms ---
         if self.eta != 0.0:
             energy += dt * self.eta * np.sum(J**2, axis=-1)
-        if self.rad_coeff != 0.0:
-            energy -= dt * self.rad_coeff * energy
 
         return MHDState(
             rho=rho,

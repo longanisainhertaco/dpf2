@@ -1,0 +1,11 @@
+{
+  "physics": {
+    "eosModel": "tabulated",
+    "eosTablePath": "tests/data/sesame_dummy.csv",
+    "ionizationModel": "FLYCHK",
+    "ionizationTablePath": "tests/data/flychk_dummy.csv",
+    "radiationModel": "Bremsstrahlung",
+    "radiationTransportModel": "MonteCarlo",
+    "gamma": 1.6666666667
+  }
+}
