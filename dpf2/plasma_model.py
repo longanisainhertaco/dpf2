@@ -7,5 +7,13 @@ from .pinch_models import (
     SemiAnalyticPinchModel,
     PinchModelBase,
 )
+from .ablation import ablation_mass_energy_source, insulator_sleeve_area
 
-__all__ = ["AnalyticPinchModel", "PinchResult", "SemiAnalyticPinchModel", "PinchModelBase"]
+__all__ = [
+    "AnalyticPinchModel",
+    "PinchResult",
+    "SemiAnalyticPinchModel",
+    "PinchModelBase",
+    "ablation_mass_energy_source",
+    "insulator_sleeve_area",
+]

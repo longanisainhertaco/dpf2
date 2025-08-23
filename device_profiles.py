@@ -39,6 +39,22 @@ if not hasattr(BaseModel, "model_copy"):
 from core_schema import ConfigSectionBase, to_camel_case
 
 
+class InsulatorSleeve(BaseModel):
+    """Geometry specification for the insulator sleeve."""
+
+    inner_radius_cm: float = Field(..., alias="innerRadiusCm", ge=0.0)
+    thickness_cm: float = Field(..., alias="thicknessCm", ge=0.0)
+    length_cm: float = Field(..., alias="lengthCm", ge=0.0)
+    material: Optional[str] = Field(None, alias="material")
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        alias_generator=to_camel_case,
+        populate_by_name=True,
+        validate_default=True,
+    )
+
+
 class DeviceEntry(BaseModel):
     """Single device entry describing geometry and circuit parameters."""
 
@@ -52,6 +68,9 @@ class DeviceEntry(BaseModel):
     anode_length_cm: float = Field(..., alias="anodeLengthCm", ge=0.0)
     insulator_length_cm: float = Field(..., alias="insulatorLengthCm", ge=0.0)
     insulator_material: Optional[str] = Field(None, alias="insulatorMaterial")
+    insulator_sleeve: Optional[InsulatorSleeve] = Field(
+        None, alias="insulatorSleeve"
+    )
     breakdown_voltage_kV: Optional[float] = Field(
         None, alias="breakdownVoltageKV", ge=0.0
     )
@@ -88,6 +107,14 @@ class DeviceEntry(BaseModel):
             values.anode_length_cm,
             values.insulator_length_cm,
         ]
+        if values.insulator_sleeve:
+            geom.extend(
+                [
+                    values.insulator_sleeve.inner_radius_cm,
+                    values.insulator_sleeve.thickness_cm,
+                    values.insulator_sleeve.length_cm,
+                ]
+            )
         if any(g <= 0 for g in geom):
             raise ValueError("geometry dimensions must be positive")
         return values
@@ -128,6 +155,12 @@ class DeviceProfiles(ConfigSectionBase):
                     "anodeLengthCm": 16.0,
                     "insulatorLengthCm": 5.0,
                     "insulatorMaterial": "alumina",
+                    "insulatorSleeve": {
+                        "innerRadiusCm": 2.5,
+                        "thicknessCm": 0.5,
+                        "lengthCm": 5.0,
+                        "material": "alumina",
+                    },
                     "breakdownVoltageKV": 25.0,
                     "fuelMixture": {"D": 0.9, "Ar": 0.1},
                     "regimeCategory": "MJ_scale",
@@ -157,12 +190,22 @@ class DeviceProfiles(ConfigSectionBase):
         factor = 0.01 if spatial_units == "m" else 1.0
         scaled: Dict[str, DeviceEntry] = {}
         for k, d in self.devices.items():
+            sleeve_scaled = None
+            if d.insulator_sleeve:
+                sleeve_scaled = d.insulator_sleeve.model_copy(
+                    update={
+                        "inner_radius_cm": d.insulator_sleeve.inner_radius_cm * factor,
+                        "thickness_cm": d.insulator_sleeve.thickness_cm * factor,
+                        "length_cm": d.insulator_sleeve.length_cm * factor,
+                    }
+                )
             scaled[k] = d.model_copy(
                 update={
                     "anode_radius_cm": d.anode_radius_cm * factor,
                     "cathode_radius_cm": d.cathode_radius_cm * factor,
                     "anode_length_cm": d.anode_length_cm * factor,
                     "insulator_length_cm": d.insulator_length_cm * factor,
+                    "insulator_sleeve": sleeve_scaled,
                 }
             )
         return self.model_copy(update={"devices": scaled})
@@ -203,4 +246,4 @@ class DeviceProfiles(ConfigSectionBase):
         return values
 
 
-__all__ = ["DeviceProfiles", "DeviceEntry"]
+__all__ = ["DeviceProfiles", "DeviceEntry", "InsulatorSleeve"]
