@@ -284,11 +284,20 @@ class RadiationModel(PhysicsModule):
         if self.opacity_model == "constant":
             return np.array(self.opacity_params.get("constant_opacity", 1.0))
         elif self.opacity_model == "temperature_dependent":
-            # ... (implementation for temperature-dependent opacity) ...
-            pass
+            base = self.opacity_params.get("base", 0.0)
+            alpha = self.opacity_params.get("alpha", 1.0)
+            beta = self.opacity_params.get("beta", 1.0)
+            return np.array(base + alpha * np.power(Te, beta))
         elif self.opacity_model == "density_dependent":
-            # ... (implementation for density-dependent opacity) ...
-            pass
+            base = self.opacity_params.get("base", 0.0)
+            alpha = self.opacity_params.get("alpha", 1.0)
+            if self.opacity_params.get("use_Z", False):
+                exponent = self.opacity_params.get("Z_exponent", 1.0)
+                quantity = Z
+            else:
+                exponent = self.opacity_params.get("ne_exponent", 1.0)
+                quantity = ne
+            return np.array(base + alpha * np.power(quantity, exponent))
         else:
             raise ValueError(f"Unknown opacity model: {self.opacity_model}")
 
