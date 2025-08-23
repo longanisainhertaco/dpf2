@@ -6,7 +6,7 @@ import numpy as np
 sim_path = Path(__file__).resolve().parents[1] / 'Simulation'
 sys.path.append(str(sim_path))
 
-from sheath_model import BohmSheath, e_charge
+from sheath_model import BohmSheath, e_charge, m_e
 from utils import FieldManager, SimulationState
 
 
@@ -42,8 +42,21 @@ def test_apply_updates_field_manager():
     state, fm = make_state()
     sheath = BohmSheath(electron_temperature=5.0, ion_mass=1.67e-27)
     sheath.apply(state)
+    mass_ratio = 1.67e-27 / (2 * np.pi * m_e)
+    sheath_potential = 5.0 * np.log(np.sqrt(mass_ratio))
+    expected_field = sheath_potential / fm.dz
+    assert np.allclose(fm.get_E()[2, :, :, -1], expected_field)
+
+
+def test_apply_updates_state_velocity_and_potential():
+    state, _ = make_state()
+    sheath = BohmSheath(electron_temperature=5.0, ion_mass=1.67e-27)
+    sheath.apply(state)
     v_bohm = np.sqrt(e_charge * 5.0 / 1.67e-27)
-    assert np.allclose(fm.get_E()[2, :, :, -1], v_bohm)
+    mass_ratio = 1.67e-27 / (2 * np.pi * m_e)
+    sheath_potential = 5.0 * np.log(np.sqrt(mass_ratio))
+    assert np.allclose(state.velocity[2, :, :, -1], v_bohm)
+    assert np.allclose(state.potential[:, :, -1], sheath_potential)
 
 
 def test_apply_updates_momentum_array():

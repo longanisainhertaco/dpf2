@@ -95,10 +95,28 @@ class BohmSheath:
         return np.sqrt(Te_joule / self.ion_mass)
 
     # ------------------------------------------------------------------
-    def _apply_to_field_manager(self, fm: Any, v_bohm: float) -> None:
+    def _sheath_potential(self) -> float:
+        r"""Compute the sheath potential drop using the Bohm criterion.
+
+        A very simple estimate for the potential drop at a floating wall is
+        obtained by equating the ion and electron fluxes, yielding
+
+        .. math::
+
+            \phi_s = T_e \ln\sqrt{m_i/(2\pi m_e)}.
+
+        The electron temperature ``T_e`` is provided in electron-volts, so the
+        resulting potential is also in volts.
+        """
+
+        mass_ratio = self.ion_mass / (2 * np.pi * m_e)
+        return self.electron_temperature * np.log(np.sqrt(mass_ratio))
+
+    # ------------------------------------------------------------------
+    def _apply_to_field_manager(self, fm: Any, sheath_field: float) -> None:
         """Apply boundary condition directly to a FieldManager."""
         E = fm.get_E()
-        E[self.axis, :, :, -1] = v_bohm
+        E[self.axis, :, :, -1] = sheath_field
         fm.update_E(E)
 
     # ------------------------------------------------------------------
@@ -114,17 +132,40 @@ class BohmSheath:
         """
 
         v_bohm = self._bohm_velocity()
+        phi_s = self._sheath_potential()
+
+        # Determine grid spacing along the sheath-normal axis for field estimate
+        dz = 1.0
+        if hasattr(target, 'dz'):
+            dz = getattr(target, 'dz', 1.0)
+        elif hasattr(target, 'field_manager') and hasattr(target.field_manager, 'dz'):
+            dz = target.field_manager.dz
+        sheath_field = phi_s / dz
 
         # Case 1: target is a SimulationState holding a FieldManager
         if hasattr(target, "field_manager"):
             fm = getattr(target, "field_manager", None)
             if fm is not None:
-                self._apply_to_field_manager(fm, v_bohm)
+                self._apply_to_field_manager(fm, sheath_field)
+
+                # Update velocity field if present or create one
+                vel = getattr(target, 'velocity', None)
+                if vel is None:
+                    vel = np.zeros((3,) + target.grid_shape)
+                    target.velocity = vel
+                vel[self.axis, :, :, -1] = v_bohm
+
+                # Update electrostatic potential field
+                phi = getattr(target, 'potential', None)
+                if phi is None:
+                    phi = np.zeros(target.grid_shape)
+                    target.potential = phi
+                phi[:, :, -1] = phi_s
             return
 
         # Case 2: target is itself a FieldManager
         if hasattr(target, "get_E") and hasattr(target, "update_E"):
-            self._apply_to_field_manager(target, v_bohm)
+            self._apply_to_field_manager(target, sheath_field)
             return
 
         # Case 3: raw arrays -- modify the momentum to satisfy Bohm velocity
