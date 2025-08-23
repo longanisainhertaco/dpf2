@@ -289,10 +289,13 @@ class DPFSimulatorBackend:
         # Print estimated total steps
         try:
             total_steps = int(np.ceil(self.sim_time / float(self.dt)))
-            print(f"Estimated total steps: {total_steps}")
+            logger.info("Estimated total steps: %d", total_steps)
         except Exception as e:
-            logger.warning(f"Failed to estimate total steps: {e}")
-            total_steps = 0
+            msg = f"Failed to estimate total steps: {e}"
+            logger.warning(msg)
+            raise ValueError(
+                f"Invalid dt={self.dt}: unable to estimate total steps"
+            ) from e
 
     def compute_global_dt(self):
         """Compute global dt satisfying CFL condition."""

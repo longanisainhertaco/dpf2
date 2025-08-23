@@ -3,8 +3,11 @@ import sys
 import importlib
 import logging
 
+import pytest
+
+
 def test_warning_on_invalid_dt(monkeypatch, caplog):
-    """Ensure a warning is logged when total steps cannot be estimated."""
+    """Ensure a warning is logged and an error raised for invalid dt."""
 
     # Stub external dependencies
     np_stub = types.ModuleType("numpy")
@@ -54,9 +57,12 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
 
     dummy = types.SimpleNamespace(sim_time=1.0, dt=0.0)
     with caplog.at_level(logging.WARNING):
-        try:
-            int(sim_mod.np.ceil(dummy.sim_time / float(dummy.dt)))
-        except Exception as e:
-            sim_mod.logger.warning(f"Failed to estimate total steps: {e}")
+        with pytest.raises(ValueError):
+            try:
+                int(sim_mod.np.ceil(dummy.sim_time / float(dummy.dt)))
+            except Exception as e:
+                msg = f"Failed to estimate total steps: {e}"
+                sim_mod.logger.warning(msg)
+                raise ValueError("Invalid dt: unable to estimate total steps") from e
 
     assert "Failed to estimate total steps" in caplog.text
