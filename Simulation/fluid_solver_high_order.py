@@ -77,16 +77,18 @@ def weno5_reconstruct(u, eps, gamma0, gamma1, gamma2, nx, flux):
     for i in prange(2, nx-2):
         # stencils
         b0 = (13/12)*(u[i-2] - 2*u[i-1] + u[i])**2 + (1/4)*(u[i-2] - 4*u[i-1] + 3*u[i])**2
-            b1 = (13/12)*(u[i-1] - 2*u[i] + u[i+1])**2 + (1/4)*(u[i-1] - u[i+1])**2
-            b2 = (13/12)*(u[i] - 2*u[i+1] + u[i+2])**2 + (1/4)*(3*u[i] - 4*u[i+1] + u[i+2])**2
+        b1 = (13/12)*(u[i-1] - 2*u[i] + u[i+1])**2 + (1/4)*(u[i-1] - u[i+1])**2
+        b2 = (13/12)*(u[i] - 2*u[i+1] + u[i+2])**2 + (1/4)*(3*u[i] - 4*u[i+1] + u[i+2])**2
         a0 = gamma0/((eps + b0)**2)
         a1 = gamma1/((eps + b1)**2)
         a2 = gamma2/((eps + b2)**2)
         s = a0 + a1 + a2
         w0, w1, w2 = a0/s, a1/s, a2/s
-            flux[i] = (w0*(2*u[i-2] - 7*u[i-1] + 11*u[i]) +
-                       w1*(-u[i-1] + 5*u[i] + 2*u[i+1]) +
-                       w2*(2*u[i] + 5*u[i+1] - u[i+2]))/6.0
+        flux[i] = (
+            w0 * (2 * u[i - 2] - 7 * u[i - 1] + 11 * u[i])
+            + w1 * (-u[i - 1] + 5 * u[i] + 2 * u[i + 1])
+            + w2 * (2 * u[i] + 5 * u[i + 1] - u[i + 2])
+        ) / 6.0
 
 @njit(parallel=True)
 def weno5_reconstruct_3d(u, eps, gamma0, gamma1, gamma2, nx, ny, nz, flux):
