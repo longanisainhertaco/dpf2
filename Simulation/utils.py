@@ -37,6 +37,8 @@ class FieldManager:
         self.E = np.zeros((3, self.nx, self.ny, self.nz))  # Electric field (3 components)
         self.B = np.zeros((3, self.nx, self.ny, self.nz))  # Magnetic field (3 components)
         self.J = np.zeros((3, self.nx, self.ny, self.nz))  # Current density (3 components)
+        if not hasattr(self, 'rho'):
+            self.rho = np.zeros((self.nx, self.ny, self.nz))  # Charge density
 
         logger.info("FieldManager initialized.")
 
@@ -225,9 +227,12 @@ class FieldManager:
     def deposit_charge(self, charge_density: np.ndarray):
         """Deposits charge from particles to the grid."""
         if charge_density.shape != (self.nx, self.ny, self.nz):
-            raise ValueError(f"Invalid shape for charge_density: expected {(self.nx, self.ny, self.nz)}, got {charge_density.shape}")
-        # self.rho += charge_density # No longer storing rho in FieldManager
-        pass # No longer storing rho in FieldManager
+            raise ValueError(
+                f"Invalid shape for charge_density: expected {(self.nx, self.ny, self.nz)}, got {charge_density.shape}"
+            )
+        if not hasattr(self, 'rho'):
+            self.rho = np.zeros((self.nx, self.ny, self.nz))
+        self.rho += charge_density
 
     def deposit_current(self, current_density: np.ndarray):
         """Deposits current from particles to the grid."""
@@ -250,7 +255,7 @@ class FieldManager:
                 'E': self.E.tolist(),
                 'B': self.B.tolist(),
                 'J': self.J.tolist(),
-                # 'rho': self.rho.tolist() # No longer checkpointing rho
+                'rho': self.rho.tolist()
             }
             return checkpoint_data
         except Exception as e:
@@ -263,7 +268,9 @@ class FieldManager:
             self.E = np.array(data.get('E', self.E))
             self.B = np.array(data.get('B', self.B))
             self.J = np.array(data.get('J', self.J))
-            # self.rho = np.array(data.get('rho', self.rho)) # No longer restarting rho
+            if not hasattr(self, 'rho'):
+                self.rho = np.zeros((self.nx, self.ny, self.nz))
+            self.rho = np.array(data.get('rho', self.rho))
         except Exception as e:
             logger.error(f"Error during restart: {e}")
 
