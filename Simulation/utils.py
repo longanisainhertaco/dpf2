@@ -64,23 +64,91 @@ class FieldManager:
         """Returns the current density."""
         return self.J
 
+    # ------------------------------------------------------------------
+    # Finite-difference utilities
+    # ------------------------------------------------------------------
+    def _yee_derivative(self,
+                        f: np.ndarray,
+                        axis: int,
+                        h: float,
+                        bc_lo: str,
+                        bc_hi: str) -> np.ndarray:
+        """Compute a Yee-style derivative along a given axis.
+
+        A central difference is used in the interior while the
+        boundaries honour the specified boundary conditions.
+
+        Args:
+            f: Field component to differentiate.
+            axis: Axis along which to take the derivative.
+            h: Grid spacing for the axis.
+            bc_lo: Boundary condition on the low side ('periodic',
+                'neumann', 'dirichlet', or 'outflow').
+            bc_hi: Boundary condition on the high side.
+
+        Returns:
+            Array of the same shape as ``f`` containing df/dx_axis.
+        """
+
+        # Start with periodic central differences using ``np.roll``
+        df = (np.roll(f, -1, axis=axis) - np.roll(f, 1, axis=axis)) / (2 * h)
+
+        # Helper to index first/last cell along ``axis``
+        def slc(idx):
+            s = [slice(None)] * f.ndim
+            s[axis] = idx
+            return tuple(s)
+
+        # Low-side boundary
+        if bc_lo == 'dirichlet':
+            df[slc(0)] = (f[slc(1)] - 0.0) / h
+        elif bc_lo in {'neumann', 'outflow'}:
+            df[slc(0)] = (f[slc(1)] - f[slc(0)]) / h
+
+        # High-side boundary
+        if bc_hi == 'dirichlet':
+            df[slc(-1)] = (0.0 - f[slc(-2)]) / h
+        elif bc_hi in {'neumann', 'outflow'}:
+            df[slc(-1)] = (f[slc(-1)] - f[slc(-2)]) / h
+
+        return df
+
     def compute_divergence(self, field: np.ndarray) -> np.ndarray:
-        """Computes the divergence of a field."""
-        # Implement divergence calculation here
-        # This is a placeholder; replace with a more accurate calculation
-        div = np.gradient(field[0], self.dx, axis=0) + \
-              np.gradient(field[1], self.dy, axis=1) + \
-              np.gradient(field[2], self.dz, axis=2)
-        return div
+        """Computes the divergence of a field using Yee-style differences."""
+        bx_lo = self.boundary_conditions.get('x_lo', 'periodic')
+        bx_hi = self.boundary_conditions.get('x_hi', 'periodic')
+        by_lo = self.boundary_conditions.get('y_lo', 'periodic')
+        by_hi = self.boundary_conditions.get('y_hi', 'periodic')
+        bz_lo = self.boundary_conditions.get('z_lo', 'periodic')
+        bz_hi = self.boundary_conditions.get('z_hi', 'periodic')
+
+        div_x = self._yee_derivative(field[0], 0, self.dx, bx_lo, bx_hi)
+        div_y = self._yee_derivative(field[1], 1, self.dy, by_lo, by_hi)
+        div_z = self._yee_derivative(field[2], 2, self.dz, bz_lo, bz_hi)
+
+        return div_x + div_y + div_z
 
     def compute_curl(self, field: np.ndarray) -> np.ndarray:
-        """Computes the curl of a field."""
-        # Implement curl calculation here
-        # This is a placeholder; replace with a more accurate calculation
-        curl = np.array([np.gradient(field[2], self.dy, axis=1) - np.gradient(field[1], self.dz, axis=2),
-                         np.gradient(field[0], self.dz, axis=2) - np.gradient(field[2], self.dx, axis=0),
-                         np.gradient(field[1], self.dx, axis=0) - np.gradient(field[0], self.dy, axis=1)])
-        return curl
+        """Computes the curl of a field using Yee-style differences."""
+        bx_lo = self.boundary_conditions.get('x_lo', 'periodic')
+        bx_hi = self.boundary_conditions.get('x_hi', 'periodic')
+        by_lo = self.boundary_conditions.get('y_lo', 'periodic')
+        by_hi = self.boundary_conditions.get('y_hi', 'periodic')
+        bz_lo = self.boundary_conditions.get('z_lo', 'periodic')
+        bz_hi = self.boundary_conditions.get('z_hi', 'periodic')
+
+        dFz_dy = self._yee_derivative(field[2], 1, self.dy, by_lo, by_hi)
+        dFy_dz = self._yee_derivative(field[1], 2, self.dz, bz_lo, bz_hi)
+        dFx_dz = self._yee_derivative(field[0], 2, self.dz, bz_lo, bz_hi)
+        dFz_dx = self._yee_derivative(field[2], 0, self.dx, bx_lo, bx_hi)
+        dFy_dx = self._yee_derivative(field[1], 0, self.dx, bx_lo, bx_hi)
+        dFx_dy = self._yee_derivative(field[0], 1, self.dy, by_lo, by_hi)
+
+        curl_x = dFz_dy - dFy_dz
+        curl_y = dFx_dz - dFz_dx
+        curl_z = dFy_dx - dFx_dy
+
+        return np.array([curl_x, curl_y, curl_z])
 
     def apply_boundary_conditions(self, state: "SimulationState"):
         """Applies boundary conditions to the fields."""
