@@ -36,7 +36,8 @@ class ConfigurationError(Exception):
 class InitializationError(Exception):
     pass
 
-class RuntimeError(Exception):
+class SimulationRuntimeError(Exception):
+    """Raised for runtime errors occurring during simulation execution."""
     pass
 
 class DPFSimulation:
@@ -159,7 +160,9 @@ class DPFSimulation:
                 logger.info(f"Step {self.step_count}: time={self.current_time:.3e}")
 
         except Exception as e:
-            raise RuntimeError(f"Simulation failed at step {self.step_count}: {e}")
+            raise SimulationRuntimeError(
+                f"Simulation failed at step {self.step_count}: {e}"
+            )
 
     def finalize(self):
         """Finalizes the simulation."""
@@ -218,7 +221,7 @@ def main():
     except InitializationError as e:
         logger.error(f"Initialization failed: {e}")
         sys.exit(1)
-    except RuntimeError as e:
+    except SimulationRuntimeError as e:
         logger.error(f"Simulation failed: {e}")
         sys.exit(1)
     except Exception as e:
