@@ -19,6 +19,40 @@ from .core import PlasmaSolverBase
 __all__ = ["MHDState", "HallMHDSolver"]
 
 
+def _dd(f: np.ndarray, axis: int) -> np.ndarray:
+    """Centered difference with periodic boundaries and unit spacing."""
+    return (np.roll(f, -1, axis) - np.roll(f, 1, axis)) * 0.5
+
+
+def _divergence(vec: np.ndarray) -> np.ndarray:
+    """Compute the discrete divergence of a vector field."""
+    return _dd(vec[..., 0], 0) + _dd(vec[..., 1], 1) + _dd(vec[..., 2], 2)
+
+
+def _curl(vec: np.ndarray) -> np.ndarray:
+    """Compute the discrete curl of a vector field."""
+    cx = _dd(vec[..., 2], 1) - _dd(vec[..., 1], 2)
+    cy = _dd(vec[..., 0], 2) - _dd(vec[..., 2], 0)
+    cz = _dd(vec[..., 1], 0) - _dd(vec[..., 0], 1)
+    return np.stack((cx, cy, cz), axis=-1)
+
+
+def _project_div_free(B: np.ndarray) -> np.ndarray:
+    """Project a magnetic field onto its divergence-free component."""
+    nx, ny, nz, _ = B.shape
+    B_hat = np.fft.fftn(B, axes=(0, 1, 2))
+    kx = 2 * np.pi * np.fft.fftfreq(nx)
+    ky = 2 * np.pi * np.fft.fftfreq(ny)
+    kz = 2 * np.pi * np.fft.fftfreq(nz)
+    kx, ky, kz = np.meshgrid(kx, ky, kz, indexing="ij")
+    k2 = kx**2 + ky**2 + kz**2
+    k2[0, 0, 0] = 1.0  # avoid divide-by-zero for mean mode
+    k_dot_B = kx * B_hat[..., 0] + ky * B_hat[..., 1] + kz * B_hat[..., 2]
+    for i, k in enumerate((kx, ky, kz)):
+        B_hat[..., i] -= k * k_dot_B / k2
+    return np.fft.ifftn(B_hat, axes=(0, 1, 2)).real
+
+
 @dataclass
 class MHDState:
     """State container for the MHD variables.
@@ -58,31 +92,70 @@ class HallMHDSolver(PlasmaSolverBase):
     """
 
     mesh: Any = field(default=None)
-    eta: float = 0.0  # Simple resistivity coefficient for placeholder updates
+    eta: float = 0.0
+    hall_coeff: float = 0.0
+    rad_coeff: float = 0.0
 
     def step(self, state: MHDState, dt: float) -> MHDState:  # pragma: no cover - skeleton
-        """Advance the state by ``dt`` seconds.
+        """Advance the state by ``dt`` seconds using a simplified MHD update."""
 
-        The full Hall-MHD algorithm is complex; for now we provide a
-        minimal physically motivated placeholder that applies a simple
-        resistive decay to the magnetic field while leaving other
-        conserved quantities unchanged.  This makes the method
-        side-effect free yet provides a concrete example of how state
-        updates should occur.
-        """
+        gamma = 5.0 / 3.0
 
-        new_state = MHDState(
-            rho=state.rho.copy(),
-            mom=state.mom.copy(),
-            energy=state.energy.copy(),
-            B=state.B.copy(),
+        rho = state.rho.copy()
+        mom = state.mom.copy()
+        energy = state.energy.copy()
+        B = state.B.copy()
+
+        v = mom / rho[..., None]
+        B2 = np.sum(B**2, axis=-1)
+        kinetic = 0.5 * rho * np.sum(v**2, axis=-1)
+        magnetic = 0.5 * B2
+        p = (gamma - 1.0) * (energy - kinetic - magnetic)
+
+        # --- Flux computation (Lax-Friedrichs style) ---
+        flux_rho = np.zeros((3,) + rho.shape)
+        flux_mom = np.zeros((3,) + mom.shape)
+        flux_energy = np.zeros((3,) + energy.shape)
+        vdotB = np.sum(v * B, axis=-1)
+
+        for i in range(3):
+            flux_rho[i] = rho * v[..., i]
+            for j in range(3):
+                flux_mom[i][..., j] = mom[..., j] * v[..., i]
+                if i == j:
+                    flux_mom[i][..., j] += p + magnetic
+                flux_mom[i][..., j] -= B[..., i] * B[..., j]
+            flux_energy[i] = (energy + p + magnetic) * v[..., i] - vdotB * B[..., i]
+
+        def div_flux(F):
+            return _dd(F[0], 0) + _dd(F[1], 1) + _dd(F[2], 2)
+
+        rho -= dt * div_flux(flux_rho)
+        new_mom = np.empty_like(mom)
+        for j in range(3):
+            new_mom[..., j] = mom[..., j] - dt * div_flux(flux_mom[:, ..., j])
+        mom = new_mom
+        energy -= dt * div_flux(flux_energy)
+
+        # --- Constrained transport via electric fields ---
+        J = _curl(B)
+        E = -np.cross(v, B) + self.eta * J
+        if self.hall_coeff != 0.0:
+            E += self.hall_coeff * np.cross(J, B) / rho[..., None]
+        B -= dt * _curl(E)
+        B = _project_div_free(B)
+
+        # --- Source terms ---
+        if self.eta != 0.0:
+            energy += dt * self.eta * np.sum(J**2, axis=-1)
+        if self.rad_coeff != 0.0:
+            energy -= dt * self.rad_coeff * energy
+
+        return MHDState(
+            rho=rho,
+            mom=mom,
+            energy=energy,
+            B=B,
             Te=None if state.Te is None else state.Te.copy(),
             Ti=None if state.Ti is None else state.Ti.copy(),
         )
-
-        # Apply a simple resistive decay to the magnetic field
-        if self.eta > 0.0:
-            decay = np.exp(-self.eta * dt)
-            new_state.B *= decay
-
-        return new_state
