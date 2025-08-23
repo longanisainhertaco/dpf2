@@ -3,7 +3,7 @@
 from .circuit_solver import RLCCircuit, CircuitSolver
 from .pinch_models import AnalyticPinchModel, SemiAnalyticPinchModel
 from .simulation_engine import SimulationEngine
-from .core import PlasmaSolverBase, CircuitSolverBase, DiagnosticsBase
+from .core.bases import PlasmaSolverBase, CircuitSolverBase, DiagnosticsBase
 from .ai import SurrogateModel, TorchSurrogateModel, ONNXSurrogateModel
 from .hall_mhd_solver import HallMHDSolver, MHDState
 
