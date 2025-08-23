@@ -162,6 +162,36 @@ class AdvancedOptions(ConfigSectionBase):
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
 
+    def export_diagnostics_stub_files(self, output_dir: Path) -> List[Path]:
+        """Write deterministic stub diagnostics for tooling or CI.
+
+        Parameters
+        ----------
+        output_dir:
+            Directory where stub files will be written. Created if necessary.
+
+        Returns
+        -------
+        List[Path]
+            Paths to the generated files, or an empty list if stubs are disabled.
+        """
+        if not self.export_diagnostics_stub:
+            return []
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        summary_path = output_dir / "summary.json"
+        waveform_path = output_dir / "current.csv"
+
+        summary_data = {
+            "neutron_yield": 0.0,
+            "max_b_field_T": 0.0,
+            "pinch_time_ns": 0.0,
+        }
+        summary_path.write_text(json.dumps(summary_data, indent=2, sort_keys=True))
+        waveform_path.write_text("time_ns,current_kA\n0,0\n")
+        return [summary_path, waveform_path]
+
     # ------------------------------------------------------------------
     @model_validator(mode="after")
     def check_rules(cls, values: "AdvancedOptions") -> "AdvancedOptions":
