@@ -1,4 +1,5 @@
 import numpy as np
+import h5py
 
 from dpf2.eos import TabulatedEOS, create_eos
 from dpf2.chemistry import FlychkTable
@@ -7,12 +8,28 @@ from dpf2.hall_mhd_solver import HallMHDSolver, MHDState
 from core_schema import EOSModel
 
 
-def test_tabulated_eos_pressure():
-    eos = TabulatedEOS("tests/data/sesame_dummy.csv")
+def _make_test_table(path):
+    rho = np.array([1.0, 2.0])
+    e = np.array([100.0, 200.0])
+    p = rho[:, None] * e[None, :]
+    T = e[None, :] / rho[:, None]
+    with h5py.File(path, "w") as f:
+        f.create_dataset("rho", data=rho)
+        f.create_dataset("e", data=e)
+        f.create_dataset("p", data=p)
+        f.create_dataset("T", data=T)
+
+
+def test_tabulated_eos_pressure(tmp_path):
+    file_path = tmp_path / "eos.h5"
+    _make_test_table(file_path)
+    eos = TabulatedEOS(file_path)
     rho = np.array([1.5])
-    e = np.array([450.0])
+    e = np.array([150.0])
     p = eos.pressure(rho, e)
-    assert np.allclose(p, rho * 450.0)
+    T = eos.temperature(rho, e)
+    assert np.allclose(p, rho * e)
+    assert np.allclose(T, e / rho)
 
 
 def test_flychk_interpolation():
@@ -31,8 +48,10 @@ def test_monte_carlo_radiation_loss():
     assert loss.min() >= 0
 
 
-def test_hall_mhd_solver_with_models():
-    eos = create_eos(EOSModel.TABULATED, table_path="tests/data/sesame_dummy.csv")
+def test_hall_mhd_solver_with_models(tmp_path):
+    file_path = tmp_path / "eos.h5"
+    _make_test_table(file_path)
+    eos = create_eos(EOSModel.TABULATED, table_path=file_path)
     chem = FlychkTable("tests/data/flychk_dummy.csv")
     rad = MonteCarloRadiation(BremsstrahlungModel(coeff=1e-6), rng_seed=0)
     solver = HallMHDSolver(eos=eos, chemistry=chem, radiation=rad)
