@@ -25,7 +25,8 @@ class ConfigurationError(Exception):
 class InitializationError(Exception):
     pass
 
-class RuntimeError(Exception):
+class SimulationRuntimeError(Exception):
+    """Raised when the simulation cannot proceed due to runtime conditions."""
     pass
 
 def _generate_boundary_conditions(domain_lo, domain_hi, bc_config=None):
@@ -275,7 +276,9 @@ class DPFSimulatorBackend:
                 logger.warning(f"Exception occurred at t={self.current_time:.3e}: {e}. Reducing dt and retrying.")
                 self.dt *= 0.5
                 if self.dt < self.dt_min:
-                    raise RuntimeError(f"Simulation aborted at t={self.current_time:.6e}: {e}")
+                    raise SimulationRuntimeError(
+                        f"Simulation aborted at t={self.current_time:.6e}: {e}"
+                    )
                 continue
 
         # Finalize WarpX / PIC
