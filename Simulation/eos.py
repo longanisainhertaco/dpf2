@@ -1,7 +1,8 @@
 import numpy as np
 import h5py
 import logging
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict, Optional, Union
 from scipy.interpolate import RegularGridInterpolator
 
 logger = logging.getLogger(__name__)
@@ -10,47 +11,83 @@ class TabulatedEOS:
     """
     Tabulated Equation of State (EOS) for plasma simulations.
 
-    This class loads EOS data from an HDF5 file and provides methods for
+    This class loads EOS data from HDF5 files and provides methods for
     interpolating thermodynamic quantities such as pressure and energy
-    as functions of density and temperature.
+    as functions of density and temperature. When ``mixture_fractions``
+    are supplied, tables for multiple species are combined into a single
+    weighted EOS.
     """
 
-    def __init__(self, filename, mixture_fractions: Optional[Dict[str, float]] = None):
-        """Initializes the TabulatedEOS with data from an HDF5 file.
+    def __init__(self, filename: Union[str, Path, Dict[str, Union[str, Path]]], mixture_fractions: Optional[Dict[str, float]] = None):
+        """Initializes the TabulatedEOS with data from one or more HDF5 files.
 
         Args:
-            filename (str): Path to the HDF5 file containing the EOS data.
-            mixture_fractions (Optional[Dict[str, float]]): Optional mixture
-                composition. Mixtures are not currently supported and will
-                result in a :class:`NotImplementedError` if provided.
+            filename (Union[str, Path, Dict[str, Union[str, Path]]]): Path to the HDF5
+                file containing the EOS data for a single species or a mapping of
+                species names to file paths when ``mixture_fractions`` is supplied.
+            mixture_fractions (Optional[Dict[str, float]]): Optional mixture composition
+                where keys are species names and values are their fractions.
         """
-        if mixture_fractions:
-            raise NotImplementedError(
-                "Mixture EOS is not implemented for TabulatedEOS"
-            )
 
-        try:
-            with h5py.File(filename, 'r') as f:
+        def _load_table(path: Union[str, Path]):
+            with h5py.File(path, 'r') as f:
                 if not all(key in f for key in ['rho', 'T', 'p', 'e']):
                     raise ValueError("EOS table is missing required datasets.")
-                self.rho_grid = f['rho'][:]
-                self.T_grid = f['T'][:]
-                self.p_table = f['p'][:]
-                self.e_table = f['e'][:]
+                rho_grid = f['rho'][:]
+                T_grid = f['T'][:]
+                p_table = f['p'][:]
+                e_table = f['e'][:]
                 if not (
-                    self.rho_grid.ndim == 1
-                    and self.T_grid.ndim == 1
-                    and self.p_table.ndim == 2
-                    and self.e_table.ndim == 2
+                    rho_grid.ndim == 1
+                    and T_grid.ndim == 1
+                    and p_table.ndim == 2
+                    and e_table.ndim == 2
                 ):
                     raise ValueError("EOS table has incorrect dimensions.")
-                if self.p_table.shape != (len(self.rho_grid), len(self.T_grid)) or self.e_table.shape != (
-                    len(self.rho_grid), len(self.T_grid)
+                if p_table.shape != (len(rho_grid), len(T_grid)) or e_table.shape != (
+                    len(rho_grid), len(T_grid)
                 ):
                     raise ValueError("EOS table has inconsistent dimensions.")
+            return rho_grid, T_grid, p_table, e_table
+
+        try:
+            if mixture_fractions:
+                if isinstance(filename, (str, Path)):
+                    base = Path(filename)
+                    species_files = {sp: base / f"{sp}.h5" for sp in mixture_fractions}
+                elif isinstance(filename, dict):
+                    species_files = {sp: Path(path) for sp, path in filename.items()}
+                else:
+                    raise TypeError("filename must be a path or mapping when mixture_fractions are provided")
+
+                first = True
+                for species, path in species_files.items():
+                    rho, T, p_tab, e_tab = _load_table(path)
+                    weight = mixture_fractions.get(species, 0.0)
+                    if first:
+                        self.rho_grid = rho
+                        self.T_grid = T
+                        self.p_table = weight * p_tab
+                        self.e_table = weight * e_tab
+                        first = False
+                    else:
+                        if not (
+                            np.array_equal(self.rho_grid, rho)
+                            and np.array_equal(self.T_grid, T)
+                        ):
+                            raise ValueError("EOS grids for different species do not match.")
+                        self.p_table += weight * p_tab
+                        self.e_table += weight * e_tab
+                logger.info("Mixture EOS tables loaded for species: %s", ", ".join(species_files.keys()))
+            else:
+                rho, T, p_tab, e_tab = _load_table(filename)
+                self.rho_grid = rho
+                self.T_grid = T
+                self.p_table = p_tab
+                self.e_table = e_tab
+                logger.info(f"EOS table loaded from {filename}")
             self.p_interp = RegularGridInterpolator((self.rho_grid, self.T_grid), self.p_table)
             self.e_interp = RegularGridInterpolator((self.rho_grid, self.T_grid), self.e_table)
-            logger.info(f"EOS table loaded from {filename}")
         except Exception as e:
             logger.error(f"Error loading EOS table: {e}")
             raise

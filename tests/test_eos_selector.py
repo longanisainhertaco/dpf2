@@ -8,33 +8,35 @@ import pytest
 # Ensure Simulation modules are importable
 sys.path.append(str(Path(__file__).resolve().parents[1] / "Simulation"))
 from eos_selector import select_eos  # type: ignore
+from eos import TabulatedEOS  # type: ignore
 
 
-def _create_dummy_eos_file(tmp_path: Path) -> Path:
-    file_path = tmp_path / "eos.h5"
+def _create_species_eos_file(tmp_path: Path, species: str, p_val: float = 1.0, e_val: float = 1.0) -> Path:
+    file_path = tmp_path / f"{species}.h5"
     with h5py.File(file_path, "w") as f:
         f.create_dataset("rho", data=np.array([1.0, 2.0]))
         f.create_dataset("T", data=np.array([3.0, 4.0]))
-        f.create_dataset("p", data=np.ones((2, 2)))
-        f.create_dataset("e", data=np.ones((2, 2)))
+        f.create_dataset("p", data=np.full((2, 2), p_val))
+        f.create_dataset("e", data=np.full((2, 2), e_val))
     return file_path
 
 
 def test_select_eos_valid_mixture(tmp_path):
-    file_path = _create_dummy_eos_file(tmp_path)
-    with pytest.raises(NotImplementedError):
-        select_eos(
-            "tabulated",
-            table_file=str(file_path),
-            mixture_fractions="A:0.5,B:0.5",
-        )
+    _create_species_eos_file(tmp_path, "A")
+    _create_species_eos_file(tmp_path, "B")
+    eos = select_eos(
+        "tabulated",
+        table_file=str(tmp_path),
+        mixture_fractions="A:0.5,B:0.5",
+    )
+    assert isinstance(eos, TabulatedEOS)
 
 
 def test_select_eos_mixture_missing_data(tmp_path):
-    file_path = _create_dummy_eos_file(tmp_path)
+    _create_species_eos_file(tmp_path, "A")
     with pytest.raises(ValueError):
         select_eos(
             "tabulated",
-            table_file=str(file_path),
-            mixture_fractions="A:0.5",
+            table_file=str(tmp_path),
+            mixture_fractions="A:0.5,B:0.5",
         )

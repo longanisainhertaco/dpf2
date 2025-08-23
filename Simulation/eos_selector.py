@@ -3,6 +3,7 @@
 Selects and initializes the appropriate Equation of State (EOS) model.
 """
 import logging
+from pathlib import Path
 from typing import Optional, Dict, Any, Union
 from eos import TabulatedEOS  # Assuming TabulatedEOS is the primary implementation
 
@@ -109,8 +110,18 @@ def select_eos(
             logger.error("Tabulated EOS backend selected, but 'table_file' not provided.")
             raise ValueError("Missing 'table_file' for tabulated EOS backend.")
         try:
-            parsed_mixture = _parse_mixture_fractions(mixture_fractions) if mixture_fractions is not None else None
-            eos_instance = TabulatedEOS(filename=table_file, mixture_fractions=parsed_mixture)
+            parsed_mixture = _parse_mixture_fractions(mixture_fractions) if mixture_fractions is not None else {}
+            if parsed_mixture:
+                base = Path(table_file)
+                species_files: Dict[str, str] = {}
+                for species in parsed_mixture:
+                    species_path = base / f"{species}.h5"
+                    if not species_path.is_file():
+                        raise ValueError(f"Missing EOS data for species '{species}'")
+                    species_files[species] = str(species_path)
+                eos_instance = TabulatedEOS(filename=species_files, mixture_fractions=parsed_mixture)
+            else:
+                eos_instance = TabulatedEOS(filename=table_file)
             logger.info(f"Instantiated TabulatedEOS from file: {table_file}")
             return eos_instance
         except FileNotFoundError:
