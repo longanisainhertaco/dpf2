@@ -31,12 +31,18 @@ except Exception:  # pragma: no cover - numba not available
 
 from typing import Dict, Any
 
-from models import PhysicsModule, SimulationState
+try:  # Prefer package-relative imports but fall back for legacy usage
+    from .models import PhysicsModule, SimulationState  # type: ignore
+except Exception:  # pragma: no cover - imported as standalone module
+    from models import PhysicsModule, SimulationState  # type: ignore
 
 try:  # pragma: no cover - config schema depends on pydantic
-    from config_schema import SheathConfig  # type: ignore
-except Exception:  # pragma: no cover - when pydantic v2 not present
-    SheathConfig = Any  # type: ignore
+    from .config_schema import SheathConfig  # type: ignore
+except Exception:  # pragma: no cover - when pydantic v2 not present or standalone import
+    try:  # type: ignore
+        from config_schema import SheathConfig  # type: ignore
+    except Exception:  # pragma: no cover - ultimate fallback
+        SheathConfig = Any  # type: ignore
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -114,9 +120,23 @@ class BohmSheath:
 
     # ------------------------------------------------------------------
     def _apply_to_field_manager(self, fm: Any, sheath_field: float) -> None:
-        """Apply boundary condition directly to a FieldManager."""
+        """Apply boundary condition directly to a ``FieldManager``.
+
+        The electric field array ``E`` stored in the :class:`FieldManager` has
+        the shape ``(3, Nx, Ny, Nz)`` with the first index corresponding to the
+        field component.  Only the component normal to the sheath and the cells
+        adjacent to the boundary should be modified.  ``axis`` indicates both
+        which field component to touch and which spatial dimension's high-side
+        boundary to update.
+        """
+
         E = fm.get_E()
-        E[self.axis, :, :, -1] = sheath_field
+        if self.axis == 0:
+            E[0, -1, :, :] = sheath_field
+        elif self.axis == 1:
+            E[1, :, -1, :] = sheath_field
+        else:  # default z
+            E[2, :, :, -1] = sheath_field
         fm.update_E(E)
 
     # ------------------------------------------------------------------
@@ -153,14 +173,24 @@ class BohmSheath:
                 if vel is None:
                     vel = np.zeros((3,) + target.grid_shape)
                     target.velocity = vel
-                vel[self.axis, :, :, -1] = v_bohm
+                if self.axis == 0:
+                    vel[0, -1, :, :] = v_bohm
+                elif self.axis == 1:
+                    vel[1, :, -1, :] = v_bohm
+                else:
+                    vel[2, :, :, -1] = v_bohm
 
                 # Update electrostatic potential field
                 phi = getattr(target, 'potential', None)
                 if phi is None:
                     phi = np.zeros(target.grid_shape)
                     target.potential = phi
-                phi[:, :, -1] = phi_s
+                if self.axis == 0:
+                    phi[-1, :, :] = phi_s
+                elif self.axis == 1:
+                    phi[:, -1, :] = phi_s
+                else:
+                    phi[:, :, -1] = phi_s
             return
 
         # Case 2: target is itself a FieldManager
@@ -175,7 +205,12 @@ class BohmSheath:
             return
 
         try:
-            momentum[self.axis, :, :, -1] = density[:, :, -1] * v_bohm
+            if self.axis == 0:
+                momentum[0, -1, :, :] = density[-1, :, :] * v_bohm
+            elif self.axis == 1:
+                momentum[1, :, -1, :] = density[:, -1, :] * v_bohm
+            else:
+                momentum[2, :, :, -1] = density[:, :, -1] * v_bohm
         except Exception as exc:  # pragma: no cover - defensive programming
             logger.error(f"Failed to apply Bohm sheath to arrays: {exc}")
 
