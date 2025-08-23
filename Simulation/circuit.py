@@ -281,7 +281,7 @@ class CircuitModel:
         logger.info("CircuitModel initialized.")
 
     def plasma_inductance(self, state: SimulationState) -> float:
-        """Compute the inductance of the plasma column.
+        r"""Compute the inductance of the plasma column.
 
         The model assumes a perfectly conducting, cylindrically symmetric plasma
         sheath propagating axially between coaxial electrodes of radii ``self.a``
