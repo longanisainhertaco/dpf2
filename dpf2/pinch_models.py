@@ -17,6 +17,7 @@ class PinchResult:
     time: np.ndarray
     radius: np.ndarray
     temperature: np.ndarray
+    density: np.ndarray
     pressure: np.ndarray
     neutron_yield: float
     axial_position: np.ndarray | None = None
@@ -42,9 +43,14 @@ class AnalyticPinchModel(PinchModelBase):
         radius = self.initial_radius * np.exp(-t / self.tau)
         pressure = 0.5 * (I ** 2) * 1e-6  # arbitrary scaling
         temperature = 1e3 * (I / 1e4) ** 2
+        # crude density model: assumes mass conservation with constant length
+        length = 0.1  # m
+        mass = 1e-6  # kg
+        volume = np.pi * radius**2 * length
+        density = np.full_like(radius, mass / (np.maximum(volume, 1e-12)))
         yield_integrand = (temperature / 1e3) ** 3 * I ** 2
         neutron_yield = float(np.trapz(yield_integrand, t) * 1e-20)
-        return PinchResult(t, radius, temperature, pressure, neutron_yield)
+        return PinchResult(t, radius, temperature, density, pressure, neutron_yield)
 
 
 class SemiAnalyticPinchModel(PinchModelBase):
@@ -92,5 +98,5 @@ class SemiAnalyticPinchModel(PinchModelBase):
         reactivity = bosch_hale_dd(temperature / 1e3)
         rate = 0.25 * n_i ** 2 * reactivity * volume
         neutron_yield = float(np.trapz(rate, t))
-        return PinchResult(t, r, temperature, pressure, neutron_yield, axial_position=z)
+        return PinchResult(t, r, temperature, density, pressure, neutron_yield, axial_position=z)
 

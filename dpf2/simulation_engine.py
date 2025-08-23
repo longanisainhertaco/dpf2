@@ -22,6 +22,7 @@ class SimulationResults:
     current: np.ndarray
     radius: np.ndarray
     temperature: np.ndarray
+    density: np.ndarray
     pressure: np.ndarray
     neutron_yield: float
     axial_position: np.ndarray | None = None
@@ -32,6 +33,7 @@ class SimulationResults:
             "current": self.current.tolist(),
             "pinch_radius": self.radius.tolist(),
             "temperature": self.temperature.tolist(),
+            "density": self.density.tolist(),
             "pressure": self.pressure.tolist(),
             "neutron_yield": self.neutron_yield,
             **({"axial_position": self.axial_position.tolist()} if self.axial_position is not None else {}),
@@ -76,6 +78,7 @@ class SimulationEngine:
             current=current,
             radius=pres.radius,
             temperature=pres.temperature,
+             density=pres.density,
             pressure=pres.pressure,
             neutron_yield=pres.neutron_yield,
             axial_position=pres.axial_position,
