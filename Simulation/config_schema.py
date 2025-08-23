@@ -176,6 +176,8 @@ class ServerConfig(BaseModel):
     max_simultaneous_simulations: int = Field(5, gt=0, description="Maximum number of simultaneous simulations")
     telemetry_interval: float = Field(0.1, gt=0, description="Interval for sending telemetry data [s]")
     data_directory: str = Field("data", description="Directory to store simulation data")
+    cpu_time_limit: int = Field(60, gt=0, description="CPU time limit per simulation in seconds")
+    memory_limit: int = Field(1024**3, gt=0, description="Address space limit per simulation in bytes")
     # Add other parameters as needed
 
 class SheathConfig(BaseModel):

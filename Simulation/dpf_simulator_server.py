@@ -69,8 +69,12 @@ class SimulationInterface:
         """
         try:
             self._sim.run()
+        except MemoryError as exc:
+            logger.exception("Simulation exceeded memory limit")
+            raise SimulationError("Simulation exceeded memory limit") from exc
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Simulation run failed: %s", exc)
+            raise SimulationError(f"Simulation run failed: {exc}") from exc
         finally:
             if hasattr(self._sim, "finalize"):
                 try:
@@ -127,6 +131,7 @@ class SimulationManager:
     def __init__(self):
         self.simulations: Dict[str, SimulationInterface] = {}
         self.sim_threads: Dict[str, threading.Thread] = {}
+        self.sim_errors: Dict[str, Exception] = {}
 
     def create_simulation(self, config: Dict[str, Any]) -> str:
         sim_id = str(uuid.uuid4())
@@ -152,7 +157,17 @@ class SimulationManager:
         sim = self.simulations.get(sim_id)
         if not sim:
             raise SimulationError(f"Simulation {sim_id} not found")
-        thread = threading.Thread(target=sim.run, daemon=True)
+
+        def _run_with_limits():
+            cpu_limit = app.config.get('CPU_TIME_LIMIT')
+            mem_limit = app.config.get('MEMORY_LIMIT')
+            apply_resource_limits(cpu_limit, mem_limit)
+            try:
+                sim.run()
+            except SimulationError as exc:
+                self.sim_errors[sim_id] = exc
+
+        thread = threading.Thread(target=_run_with_limits, daemon=True)
         self.sim_threads[sim_id] = thread
         thread.start()
 
@@ -214,6 +229,13 @@ def requires_auth(f):
     return decorated
 
 # ——— Resource Management ———
+def apply_resource_limits(cpu_seconds: int | None, memory_bytes: int | None) -> None:
+    """Apply CPU time and address space limits for the current process."""
+    if cpu_seconds is not None:
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+    if memory_bytes is not None:
+        resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+
 def limit_simulations(f):
     @wraps(f)
     def decorated(*args, **kwargs):
