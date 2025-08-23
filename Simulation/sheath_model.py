@@ -61,6 +61,9 @@ class PlasmaSheathFormation(PhysicsModule):
         self.bohm_velocity = 0.0
         self.checkpoint_data = {}
         self.plasma_edge_potential = config.plasma_edge_potential
+        self.secondary_emission_coefficient = config.secondary_emission_coefficient
+        self.electron_distribution = config.electron_distribution
+        self.electron_distribution_params = config.electron_distribution_params
 
         logger.info("PlasmaSheathFormation initialized.")
 
@@ -165,15 +168,26 @@ class PlasmaSheathFormation(PhysicsModule):
             return np.zeros_like(self.x_grid), np.zeros_like(self.x_grid)
 
     def _non_maxwellian_electron_flux(self):
-        """
-        Computes the electron flux to the surface using a more accurate approximation.
-        """
+        """Compute electron flux using a potentially non-Maxwellian distribution."""
         try:
-            # Example: Use a more accurate approximation based on the electron distribution function
-            # This is a placeholder; replace with a more sophisticated model
-            electron_velocity = np.sqrt(e_charge * self.electron_temperature / (m_e))
-            electron_flux = 0.5 * self.electron_density * electron_velocity * np.exp(-0.5)  # Example correction
-            return electron_flux
+            if self.electron_distribution == "analytic":
+                dist_fn = self.electron_distribution_params.get("distribution_fn")
+                if dist_fn is None:
+                    raise ValueError("distribution_fn must be provided for analytic distribution")
+                v_max = self.electron_distribution_params.get("v_max", 1e7)
+                num = self.electron_distribution_params.get("num_points", 1000)
+                v = np.linspace(0.0, v_max, num)
+                f = dist_fn(v)
+                # Normalize distribution to unity density
+                density_norm = np.trapz(4 * np.pi * v**2 * f, v)
+                if density_norm <= 0:
+                    return 0.0
+                flux = np.pi * np.trapz(v**3 * f, v)
+                return self.electron_density * flux / density_norm
+            else:
+                # Default Maxwellian result
+                v_th = np.sqrt(8 * e_charge * self.electron_temperature / (np.pi * m_e))
+                return 0.25 * self.electron_density * v_th
         except Exception as e:
             logger.error(f"Error computing non-Maxwellian electron flux: {e}")
             return 0.0
@@ -373,15 +387,16 @@ class PlasmaSheathFormation(PhysicsModule):
             logger.error(f"Error during restart: {e}")
 
     def analytic_sheath_drop(self):
-        """
-        Estimates the sheath potential drop using an analytical approximation.
-        (Simplified for now, needs refinement)
-        """
+        """Estimate the sheath potential drop using flux balance."""
         try:
-            # Simplified analytical estimate (needs improvement)
-            # This is just a placeholder and should be replaced with a more accurate formula
-            # (e.g., considering ion and electron temperatures, secondary emission, etc.)
-            sheath_drop = -2.5 * self.electron_temperature  # Rough estimate
+            Te = self.electron_temperature
+            Ti = self.ion_temperature
+            mi = self.ion_mass
+            delta = getattr(self, "secondary_emission_coefficient", 0.0)
+
+            c_s = np.sqrt(e_charge * (Te + Ti) / mi)
+            v_th = np.sqrt(8 * e_charge * Te / (np.pi * m_e))
+            sheath_drop = Te * np.log((1 - delta) * 4 * c_s / v_th)
             return sheath_drop
         except Exception as e:
             logger.error(f"Error computing analytical sheath drop: {e}")

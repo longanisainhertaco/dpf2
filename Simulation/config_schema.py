@@ -191,6 +191,15 @@ class SheathConfig(BaseModel):
     plasma_edge_potential: float = Field(0.0, description="Potential at the plasma edge")
     opacity_model: str = Field("constant", description="Model for opacity calculation")
     opacity_params: Dict[str, Any] = Field(default_factory=dict, description="Parameters for opacity model")
+    secondary_emission_coefficient: float = Field(0.0, description="Secondary electron emission coefficient")
+    electron_distribution: str = Field(
+        "maxwellian",
+        description="Electron distribution model ('maxwellian', 'analytic')",
+    )
+    electron_distribution_params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters for electron distribution function",
+    )
     # Add other parameters as needed
 
 class TurbulenceConfig(BaseModel):
