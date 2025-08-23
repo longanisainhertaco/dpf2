@@ -25,6 +25,7 @@ from solver_selector import select_solver
 from circuit import CircuitModel
 from utils import FieldManager, SimulationState # Import FieldManager and SimulationState
 from diagnostics import Diagnostics
+from pic_solver import PICSolver
 
 logger = logging.getLogger("DPFSimulationWrapper")
 
@@ -85,43 +86,64 @@ class DPFSimulation:
                 field_manager=self.field_manager  # Pass FieldManager to SimulationState
             )
 
-            self.solver = select_solver(backend=self.config.solver_backend,
-                                       grid_shape=tuple(self.config.grid_shape),
-                                       dx=self.config.dx,
-                                       nthreads=self.config.nthreads,
-                                       gpu_block_size=self.config.gpu_block_size,
-                                       implicit_tol=self.config.implicit_tol,
-                                       max_iter=self.config.max_implicit_iter,
-                                       field_manager=self.field_manager # Pass FieldManager to solver
-                                       )
+            self.solver = select_solver(
+                backend=self.config.solver_backend,
+                config={
+                    "grid_shape": tuple(self.config.grid_shape),
+                    "dx": self.config.dx,
+                    "dy": self.config.dy,
+                    "dz": self.config.dz,
+                },
+                field_manager=self.field_manager,
+            )
 
-            # Instantiate modules
+            self.pic_solver = (
+                PICSolver(config=self.config.pic.dict(), field_manager=self.field_manager)
+                if self.config.pic
+                else None
+            )
+
             if self.config.collision:
-                self.modules['collision'] = self.registry.create(CollisionModel, self.config.collision.dict(), field_manager=self.field_manager)
+                self.modules["collision"] = self.registry.create(
+                    CollisionModel, self.config.collision.dict(), field_manager=self.field_manager
+                )
             if self.config.radiation:
-                self.modules['radiation'] = self.registry.create(RadiationModel, self.config.radiation.dict(), field_manager=self.field_manager)
+                self.modules["radiation"] = self.registry.create(
+                    RadiationModel, self.config.radiation.dict(), field_manager=self.field_manager
+                )
+
+            self.circuit = CircuitModel(
+                collision_model=self.modules.get("collision"),
+                field_manager=self.field_manager,
+                **self.config.circuit.dict(),
+            )
+
             if self.config.hybrid:
                 hybrid_config = self.config.hybrid.dict()
-                hybrid_config['fluid_solver'] = self.solver
-                hybrid_config['pic_solver'] = None # TODO: add pic solver
-                hybrid_config['circuit_model'] = self.circuit
-                hybrid_config['radiation_model'] = self.modules.get('radiation')
-                hybrid_config['field_manager'] = self.field_manager # Pass FieldManager to HybridController
-                self.modules['hybrid'] = self.registry.create(HybridController, hybrid_config, field_manager=self.field_manager)
+                hybrid_config["fluid_solver"] = self.solver
+                hybrid_config["pic_solver"] = self.pic_solver
+                hybrid_config["circuit_model"] = self.circuit
+                hybrid_config["radiation_model"] = self.modules.get("radiation")
+                hybrid_config["field_manager"] = self.field_manager
+                self.modules["hybrid"] = self.registry.create(
+                    HybridController, hybrid_config, field_manager=self.field_manager
+                )
             if self.config.diagnostics:
-                self.modules['diagnostics'] = Diagnostics(
+                self.modules["diagnostics"] = Diagnostics(
                     hdf5_filename=self.config.diagnostics.hdf5_filename,
-                    config={**self.config.circuit.dict(), **self.config.collision.dict() if self.config.collision else {},
-                            **self.config.radiation.dict() if self.config.radiation else {}, **self.config.pic.dict() if self.config.pic else {}, **self.config.hybrid.dict() if self.config.hybrid else {}},
+                    config={
+                        **self.config.circuit.dict(),
+                        **(self.config.collision.dict() if self.config.collision else {}),
+                        **(self.config.radiation.dict() if self.config.radiation else {}),
+                        **(self.config.pic.dict() if self.config.pic else {}),
+                        **(self.config.hybrid.dict() if self.config.hybrid else {}),
+                    },
                     domain_lo=self.config.domain_lo,
                     grid_shape=self.config.grid_shape,
                     dx=self.config.dx,
                     gamma=self.solver.gamma,
-                    field_manager=self.field_manager
+                    field_manager=self.field_manager,
                 )
-
-            # Instantiate circuit
-            self.circuit = CircuitModel(collision_model=self.modules.get('collision'), field_manager=self.field_manager, **self.config.circuit.dict())
 
         except Exception as e:
             raise InitializationError(f"Failed to initialize modules: {e}")

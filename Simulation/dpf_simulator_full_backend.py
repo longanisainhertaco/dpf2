@@ -14,6 +14,7 @@ from pic_solver import PICSolver
 from hybrid_controller import HybridController
 from diagnostics import Diagnostics
 from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
+from sheath_model import PlasmaSheathFormation
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,9 @@ class DPFSimulatorBackend:
         self.collision = CollisionModel(**self.config.collision.dict()) if self.config.collision else None
         self.radiation = RadiationModel(geom=None, config=self.config.radiation.dict()) if self.config.radiation else None
         self.pic       = PICSolver(config=self.config.pic.dict(), field_manager=self.field_manager) if self.config.pic else None
+        self.sheath_model = None
+        if config.get('enable_sheath_model', False):
+            self.sheath_model = PlasmaSheathFormation(config.get('sheath_model', {}))
         self.hybrid    = HybridController(
             config=self.config.hybrid.dict(),
             fluid_solver=self.fluid,
@@ -124,17 +128,22 @@ class DPFSimulatorBackend:
             circuit_model=self.circuit,
             radiation_model=self.radiation,
             collision_model=self.collision,
-            sheath_model=None, # TODO
+            sheath_model=self.sheath_model,
             field_manager=self.field_manager
         ) if self.config.hybrid else None
         self.diagnostics = Diagnostics(
             hdf5_filename=self.config.diagnostics.hdf5_filename,
-            config={**self.config.circuit.dict(), **self.config.collision.dict() if self.config.collision else {},
-                    **self.config.radiation.dict() if self.config.radiation else {}, **self.config.pic.dict() if self.config.pic else {}, **self.config.hybrid.dict() if self.config.hybrid else {}},
+            config={
+                **self.config.circuit.dict(),
+                **(self.config.collision.dict() if self.config.collision else {}),
+                **(self.config.radiation.dict() if self.config.radiation else {}),
+                **(self.config.pic.dict() if self.config.pic else {}),
+                **(self.config.hybrid.dict() if self.config.hybrid else {}),
+            },
             domain_lo=self.domain_lo,
             grid_shape=self.grid_shape,
             dx=self.dx,
-            gamma=self.fluid.gamma
+            gamma=self.fluid.gamma,
         ) if self.config.diagnostics else None
 
         # Telemetry & checkpoint intervals
