@@ -516,9 +516,14 @@ except Exception:
 # ---------------------------------------------------------------------------
 # Example test stubs
 
-def test_round_trip():
-    cfg = DPFConfig.from_file("example.yml")
-    assert cfg.to_file("out.yml") is None
+def test_round_trip(tmp_path: Path) -> None:
+    """Ensure configuration can be written to disk and loaded again."""
+
+    cfg = DPFConfig.with_defaults()
+    path = tmp_path / "cfg.json"
+    cfg.to_file(path)
+    reloaded = DPFConfig.from_file(path)
+    assert reloaded.model_dump() == cfg.model_dump()
 
 def test_invalid_geometry():
     import pytest
