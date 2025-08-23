@@ -72,14 +72,21 @@ class PICCollisionHandler:
             f"Applying collisions between {species1_name} and {species2_name} with dt={dt}"
         )
 
+        # --- Retrieve particle containers -------------------------------------------------
+        if not hasattr(warp_instance, "get_particle_container"):
+            raise AttributeError("WarpX instance missing 'get_particle_container'")
+
         try:
             species1 = warp_instance.get_particle_container(species1_name)
             species2 = warp_instance.get_particle_container(species2_name)
-        except AttributeError as e:
-            logger.error(
-                "WarpX instance must provide 'get_particle_container' – %s", e
-            )
-            return
+        except Exception as exc:  # pragma: no cover - defensive programming
+            logger.error("Unsupported species requested: %s", exc)
+            raise ValueError(
+                f"Unknown species pair ({species1_name}, {species2_name})"
+            ) from exc
+
+        if not (hasattr(species1, "get_velocities") and hasattr(species2, "get_velocities")):
+            raise AttributeError("Particle containers must implement get_velocities")
 
         v1 = np.asarray(species1.get_velocities())
         v2 = np.asarray(species2.get_velocities())
@@ -88,19 +95,35 @@ class PICCollisionHandler:
             logger.debug("One of the species has no particles; skipping collisions")
             return
 
-        # Estimate plasma parameters: use particle counts for density and
-        # mean squared speed for a temperature proxy.  These are rough
-        # estimates sufficient for Monte‑Carlo style tests.
+        # --- Estimate plasma parameters ---------------------------------------------------
         n1 = v1.shape[0]
         n2 = v2.shape[0]
-        ne = max(n1, n2)
-        speeds1 = np.linalg.norm(v1, axis=1)
-        Te = np.mean(speeds1 ** 2)
 
-        freq = self.collision_freq_func(ne, Te)
+        volume = None
+        if hasattr(warp_instance, "get_volume"):
+            try:
+                volume = float(warp_instance.get_volume())
+            except Exception:  # pragma: no cover - best effort
+                volume = None
+        elif hasattr(warp_instance, "volume"):
+            volume = float(warp_instance.volume)
+
+        if volume and volume > 0.0:
+            ne = max(n1, n2) / volume
+        else:  # pragma: no cover - logging path
+            logger.warning("WarpX instance missing volume; using particle count for density")
+            ne = float(max(n1, n2))
+
+        k_B = 1.380649e-23  # Boltzmann constant
+        m1 = getattr(species1, "mass", 1.0)
+        speeds1 = np.linalg.norm(v1, axis=1)
+        Te = m1 * np.mean(speeds1**2) / (3.0 * k_B)
+
+        # Collision frequency and probability
+        freq = self.collision_freq_func(ne, Te, **self.kwargs)
         prob = 1.0 - np.exp(-freq * dt)
 
-        # Determine colliding pairs
+        # --- Determine colliding pairs ----------------------------------------------------
         num_pairs = min(n1, n2)
         if num_pairs == 0:
             return
@@ -108,19 +131,25 @@ class PICCollisionHandler:
         colliding = np.where(rand < prob)[0]
 
         if colliding.size:
-            # Generate random scattering directions keeping speeds constant
             def random_dirs(count: int) -> np.ndarray:
                 vec = np.random.normal(size=(count, 3))
                 norms = np.linalg.norm(vec, axis=1, keepdims=True)
                 norms[norms == 0] = 1.0
                 return vec / norms
 
-            dir1 = random_dirs(colliding.size)
-            dir2 = random_dirs(colliding.size)
-            spd1 = np.linalg.norm(v1[colliding], axis=1)
-            spd2 = np.linalg.norm(v2[colliding], axis=1)
-            v1[colliding] = dir1 * spd1[:, None]
-            v2[colliding] = dir2 * spd2[:, None]
+            m2 = getattr(species2, "mass", 1.0)
+            dir_rel = random_dirs(colliding.size)
+            rel_v = v1[colliding] - v2[colliding]
+            rel_speed = np.linalg.norm(rel_v, axis=1)
+
+            v_cm = (m1 * v1[colliding] + m2 * v2[colliding]) / (m1 + m2)
+            new_rel = dir_rel * rel_speed[:, None]
+            v1[colliding] = v_cm + (m2 / (m1 + m2)) * new_rel
+            v2[colliding] = v_cm - (m1 / (m1 + m2)) * new_rel
+
+        # --- Write updated velocities back ------------------------------------------------
+        if not hasattr(species1, "set_velocities") or not hasattr(species2, "set_velocities"):
+            raise AttributeError("Particle containers must implement set_velocities")
 
         species1.set_velocities(v1)
         species2.set_velocities(v2)
