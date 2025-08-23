@@ -3,6 +3,12 @@ import adios2
 import resource
 import logging
 import time
+import argparse
+import json
+try:  # pragma: no cover - optional MPI
+    from mpi4py import MPI  # type: ignore
+except Exception:  # pragma: no cover
+    MPI = None
 from catalyst import CatalystPipeline
 from dpf_simulator_full_backend import DPFSimulatorBackend
 from fluid_solver_high_order import FluidSolver3DAMReX
@@ -13,14 +19,50 @@ from circuit import CircuitModel
 from diagnostics import Diagnostics, mu0
 from sheath_model import PlasmaSheathFormation
 from load_balance_metrics import LoadBalanceMetrics
+from openpmd_io import OpenPMDWriter
 from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
 
 logger = logging.getLogger(__name__)
+
+
+class AMReXGridManager:
+    """Minimal grid manager emulating AMReX refinement"""
+
+    def __init__(self, grid_shape, max_level=1, criteria=None):
+        self.grid_shape = tuple(grid_shape)
+        self.max_level = max_level
+        self.criteria = criteria or {}
+        self.levels = [np.zeros(self.grid_shape)]
+
+    def refine(self, density):
+        thr = self.criteria.get("density")
+        if thr is None:
+            return
+        if np.any(density > thr) and len(self.levels) < self.max_level:
+            new_shape = tuple(s * 2 for s in self.grid_shape)
+            self.levels.append(np.zeros(new_shape))
+
+    def num_levels(self):
+        return len(self.levels)
+
 
 class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
     def __init__(self, config: dict, field_manager: FieldManager): # Add field_manager
         super().__init__(config)
         io_cfg = config.get('io', {})
+        self.refinement_criteria = config.get('refinement_criteria', {})
+        self.grid_manager = AMReXGridManager(
+            config.get('grid_shape', (1, 1, 1)),
+            config.get('amr_levels', 1),
+            self.refinement_criteria,
+        )
+
+        # MPI and GPU configuration
+        self.comm = MPI.COMM_WORLD if MPI else None
+        self.rank = self.comm.Get_rank() if self.comm else 0
+        self.nprocs = self.comm.Get_size() if self.comm else 1
+        self.use_gpu = config.get('performance', {}).get('use_gpu', False)
+        self._decompose_domain()
 
         # Telemetry variables (now configurable)
         self.telemetry_vars = config.get('telemetry', {}).get('variables', [
@@ -44,6 +86,15 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
         self.fine_plotfile_variables = io_cfg.get('fine_plotfile_variables', ['rho', 'B', 'mom', 'energy'])
         self.next_coarse = self.coarse_interval
         self.next_highres = self.highres_interval
+
+        # openPMD output control
+        self.openpmd_interval = io_cfg.get('openpmd_interval', 0)
+        self.next_openpmd = self.openpmd_interval
+        self.openpmd_writer = (
+            OpenPMDWriter(io_cfg.get('openpmd_filename', 'openpmd.h5'))
+            if self.openpmd_interval
+            else None
+        )
 
         # ADIOS2 for telemetry
         self.adios = adios2.ADIOS()
@@ -87,6 +138,8 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
         self.load_balance_metrics = None
         if config.get('enable_load_balance_metrics', False):
             self.load_balance_metrics = LoadBalanceMetrics(self.fluid_solver)
+            if self.comm:
+                self.load_balance_metrics.set_mpi_comm(self.comm)
 
         # Instantiate hybrid controller
         if self.mode=='hybrid':
@@ -113,6 +166,16 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
             field_manager=self.field_manager # Pass FieldManager to Diagnostics
         )
         self.provenance = config.get('provenance', {})
+
+    def _decompose_domain(self):
+        if self.comm:
+            nx = self.grid_shape[0]
+            chunk = max(1, nx // self.nprocs)
+            start = self.rank * chunk
+            end = nx if self.rank == self.nprocs - 1 else (self.rank + 1) * chunk
+            self.subdomain = (slice(start, end), slice(None), slice(None))
+        else:
+            self.subdomain = (slice(None), slice(None), slice(None))
 
     def run(self):
         self.t = getattr(self, 'time', 0.0)
@@ -141,6 +204,7 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
             else:
                 while self.t < self.sim_time:
                     dt = self.compute_global_dt()
+                    self.grid_manager.refine(self.state.density)
                     # Circuit half-step
                     if self.mode=='fluid':
                         Lp, Rp = self.fluid_solver.compute_plasma_LR()
@@ -200,11 +264,11 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
             # neutron yield
             tel['cumulative_neutron_count'] = sum(self.diagnostics.get_latest()['histogram']) if self.diagnostics.get_latest() and 'histogram' in self.diagnostics.get_latest() else 0
             # AMR & dt
-            tel['amr_levels'] = self.fluid_solver.num_levels()
+            tel['amr_levels'] = self.grid_manager.num_levels()
             tel['dt'] = dt or self.dt_base
             # load balance metrics
             if self.load_balance_metrics:
-                lb = self.load_balance_metrics.get_metrics()
+                lb = self.load_balance_metrics.update()
                 tel['cell_balance_min'] = lb['cell_min']
                 tel['cell_balance_max'] = lb['cell_max']
                 if hasattr(self, 'pic_solver'):
@@ -224,6 +288,18 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
 
             # In-situ Catalyst
             self.catalyst.execute(self.fluid_solver, getattr(self,'pic_solver',None))
+
+            # openPMD output
+            if self.openpmd_writer and self.t >= self.next_openpmd:
+                fields = {'E': self.field_manager.get_E(), 'B': self.field_manager.get_B()}
+                particles = {}
+                if self.mode!='fluid' and hasattr(self.pic_solver, 'get_particle_data'):
+                    particles = self.pic_solver.get_particle_data()
+                step = int(self.t / (dt or self.dt_base))
+                self.openpmd_writer.write_fields(step, fields)
+                if particles:
+                    self.openpmd_writer.write_particles(step, particles)
+                self.next_openpmd += self.openpmd_interval
 
             # Hierarchical outputs
             if self.t >= self.next_coarse:
@@ -247,6 +323,8 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
 
     def _finalize(self):
         self.bp_engine.Close()
+        if self.openpmd_writer:
+            self.openpmd_writer.close()
         self.diagnostics.to_hdf5()
         logger.info(f"[AMReX Backend] Simulation complete at t={self.t:.3e}")
 
@@ -257,3 +335,38 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
         state = super().get_state()
         state['provenance'] = self.provenance
         return state
+
+
+def _parse_cli(args=None):
+    parser = argparse.ArgumentParser(description="DPF AMReX backend")
+    parser.add_argument("config", help="Simulation configuration JSON file")
+    parser.add_argument(
+        "--diag-frequency",
+        type=int,
+        dest="diag_frequency",
+        default=None,
+        help="openPMD diagnostic frequency",
+    )
+    return parser.parse_args(args=args)
+
+
+def main():
+    args = _parse_cli()
+    with open(args.config) as f:
+        cfg = json.load(f)
+    if args.diag_frequency is not None:
+        cfg.setdefault('io', {})['openpmd_interval'] = args.diag_frequency
+    fm = FieldManager(
+        tuple(cfg['grid_shape']),
+        cfg.get('dx', 1.0),
+        cfg.get('dy', cfg.get('dx', 1.0)),
+        cfg.get('dz', cfg.get('dx', 1.0)),
+        tuple(cfg.get('domain_lo', (0.0, 0.0, 0.0))),
+        cfg.get('boundary_conditions', {}),
+    )
+    sim = DPFSimulatorAMReXBackend(cfg, fm)
+    sim.run()
+
+
+if __name__ == "__main__":
+    main()
