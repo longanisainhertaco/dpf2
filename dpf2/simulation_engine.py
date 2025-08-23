@@ -11,7 +11,12 @@ from dpf_config import DPFConfig
 from circuit_config import CircuitConfig
 
 from .circuit_solver import RLCCircuit, CircuitSolver
-from .pinch_models import AnalyticPinchModel, SemiAnalyticPinchModel, PinchModelBase
+from .pinch_models import (
+    AnalyticPinchModel,
+    SemiAnalyticPinchModel,
+    PinchModelBase,
+    MHDPinchModel,
+)
 
 __all__ = ["SimulationEngine"]
 
@@ -67,8 +72,12 @@ class SimulationEngine:
             plasma: PinchModelBase = AnalyticPinchModel()
         elif pinch_model == "semi-analytic":
             plasma = SemiAnalyticPinchModel()
+        elif pinch_model == "mhd":
+            plasma = MHDPinchModel()
         else:
-            raise ValueError("pinch_model must be 'analytic' or 'semi-analytic'")
+            raise ValueError(
+                "pinch_model must be 'analytic', 'semi-analytic', or 'mhd'"
+            )
         pres = plasma.run(t, current)
 
         return SimulationResults(
