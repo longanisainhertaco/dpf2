@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal
 
+import numpy as np
+
 from pydantic import BaseModel, ConfigDict, Field, root_validator
 
 
@@ -196,4 +198,78 @@ class ValidationSuite(ConfigSectionBase):
         return values
 
 
-__all__ = ["ValidationSuite"]
+def _load_profile_csv(path: Path) -> Tuple[np.ndarray, np.ndarray]:
+    """Load a time-series profile from a two-column CSV file."""
+    data = np.loadtxt(path, delimiter=",", skiprows=1)
+    if data.ndim == 1:
+        data = data.reshape(1, -1)
+    return data[:, 0], data[:, 1]
+
+
+def load_benchmark_dataset(dataset_dir: Path) -> Dict[str, Any]:
+    """Return benchmark GV timing and L(t)/I(t) profiles from ``dataset_dir``."""
+    gv_path = dataset_dir / "gv_timing.json"
+    current_path = dataset_dir / "current_profile.csv"
+    inductance_path = dataset_dir / "inductance_profile.csv"
+    benchmark = {
+        "gv_time_us": json.loads(gv_path.read_text())["gv_time_us"],
+        "I": _load_profile_csv(current_path),
+        "L": _load_profile_csv(inductance_path),
+    }
+    return benchmark
+
+
+def compare_gv_timing(sim_gv_us: float, ref_gv_us: float) -> float:
+    """Absolute difference between simulated and reference GV timing."""
+    return abs(sim_gv_us - ref_gv_us)
+
+
+def compare_profiles(
+    sim_profile: Tuple[np.ndarray, np.ndarray],
+    ref_profile: Tuple[np.ndarray, np.ndarray],
+) -> float:
+    """RMSE between a simulated profile and reference profile."""
+    sim_t, sim_v = sim_profile
+    ref_t, ref_v = ref_profile
+    interp_v = np.interp(ref_t, sim_t, sim_v)
+    return float(np.sqrt(np.mean((interp_v - ref_v) ** 2)))
+
+
+def compute_error_metrics(
+    sim_outputs: Dict[str, Any], dataset_dir: Path, tolerances: Dict[str, float]
+) -> Dict[str, Any]:
+    """Compute error metrics for GV timing and L(t)/I(t) profiles.
+
+    Parameters
+    ----------
+    sim_outputs:
+        Mapping containing ``gv_time_us`` and profile tuples ``I`` and ``L``.
+    dataset_dir:
+        Directory with benchmark CSV/JSON files.
+    tolerances:
+        Acceptable error bounds for ``gv_timing_us``, ``I(t)`` and ``L(t)``.
+    """
+
+    bench = load_benchmark_dataset(dataset_dir)
+    errors = {
+        "gv_timing_us": compare_gv_timing(
+            sim_outputs["gv_time_us"], bench["gv_time_us"]
+        ),
+        "I_rmse": compare_profiles(sim_outputs["I"], bench["I"]),
+        "L_rmse": compare_profiles(sim_outputs["L"], bench["L"]),
+    }
+    errors["passed"] = (
+        errors["gv_timing_us"] <= tolerances.get("gv_timing_us", float("inf"))
+        and errors["I_rmse"] <= tolerances.get("I(t)", float("inf"))
+        and errors["L_rmse"] <= tolerances.get("L(t)", float("inf"))
+    )
+    return errors
+
+
+__all__ = [
+    "ValidationSuite",
+    "load_benchmark_dataset",
+    "compare_gv_timing",
+    "compare_profiles",
+    "compute_error_metrics",
+]
