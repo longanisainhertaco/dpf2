@@ -49,6 +49,21 @@ def test_apply_collisions_scatter_velocities():
     assert not np.allclose(v_i_before, v_i_after)
 
 
+def test_no_collisions_when_zero_probability():
+    """Collisions should leave velocities unchanged when the rate is zero."""
+    np.random.seed(1)
+    warp = SimpleWarpX()
+    handler = PICCollisionHandler(lambda ne, Te, Z=1.0: 0.0)
+
+    v_e_before = warp.get_particle_container("e").get_velocities()
+    v_i_before = warp.get_particle_container("i").get_velocities()
+
+    handler.apply_collisions("e", "i", warp, dt=0.1)
+
+    assert np.allclose(v_e_before, warp.get_particle_container("e").get_velocities())
+    assert np.allclose(v_i_before, warp.get_particle_container("i").get_velocities())
+
+
 def test_apply_collisions_unknown_species():
     warp = SimpleWarpX()
     handler = PICCollisionHandler(lambda ne, Te: 1.0)
