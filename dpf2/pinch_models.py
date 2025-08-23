@@ -8,8 +8,15 @@ from scipy.integrate import solve_ivp
 
 from .eos import RealGasEOS
 from .fusion import bosch_hale_dd
+from .hall_mhd_solver import HallMHDSolver, MHDState
 
-__all__ = ["PinchModelBase", "PinchResult", "AnalyticPinchModel", "SemiAnalyticPinchModel"]
+__all__ = [
+    "PinchModelBase",
+    "PinchResult",
+    "AnalyticPinchModel",
+    "SemiAnalyticPinchModel",
+    "MHDPinchModel",
+]
 
 
 @dataclass
@@ -20,6 +27,7 @@ class PinchResult:
     pressure: np.ndarray
     neutron_yield: float
     axial_position: np.ndarray | None = None
+    energy: np.ndarray | None = None
 
 
 class PinchModelBase:
@@ -93,4 +101,88 @@ class SemiAnalyticPinchModel(PinchModelBase):
         rate = 0.25 * n_i ** 2 * reactivity * volume
         neutron_yield = float(np.trapz(rate, t))
         return PinchResult(t, r, temperature, pressure, neutron_yield, axial_position=z)
+
+
+class MHDPinchModel(PinchModelBase):
+    """Pinch model driven by the simplified Hall-MHD solver."""
+
+    def __init__(
+        self,
+        grid_shape: tuple[int, int, int] = (8, 8, 8),
+        init_density: float = 1.0,
+        init_pressure: float = 1e5,
+        current_norm: float = 1e4,
+    ) -> None:
+        self.grid_shape = grid_shape
+        self.init_density = init_density
+        self.init_pressure = init_pressure
+        self.current_norm = current_norm
+        nx, ny, nz = grid_shape
+        x = np.arange(nx) - nx / 2
+        y = np.arange(ny) - ny / 2
+        z = np.arange(nz) - nz / 2
+        X, Y, _ = np.meshgrid(x, y, z, indexing="ij")
+        self.r2 = X**2 + Y**2
+        self.volume = float(nx * ny * nz)
+
+    def run(self, time: Iterable[float], current: Iterable[float]) -> PinchResult:
+        t = np.asarray(time)
+        I = np.asarray(current)
+        gamma = 5.0 / 3.0
+        solver = HallMHDSolver()
+
+        rho = np.full(self.grid_shape, self.init_density)
+        mom = np.zeros(self.grid_shape + (3,))
+        B_pattern = np.zeros(self.grid_shape + (3,))
+        B_pattern[..., 2] = 1.0
+        B = B_pattern * (I[0] / self.current_norm)
+        p0 = np.full(self.grid_shape, self.init_pressure)
+        internal = p0 / (gamma - 1.0)
+        energy = internal + 0.5 * np.sum(B**2, axis=-1)
+        state = MHDState(rho=rho, mom=mom, energy=energy, B=B)
+
+        def diagnostics(s: MHDState) -> tuple[float, float, float, float]:
+            v = s.mom / s.rho[..., None]
+            kinetic = 0.5 * s.rho * np.sum(v**2, axis=-1)
+            magnetic = 0.5 * np.sum(s.B**2, axis=-1)
+            internal = s.energy - kinetic - magnetic
+            p = (gamma - 1.0) * internal
+            T = p / s.rho
+            rad = np.sqrt(np.sum(s.rho * self.r2) / np.sum(s.rho))
+            return rad, float(np.mean(T)), float(np.mean(p)), float(np.sum(s.energy))
+
+        radius = []
+        temperature = []
+        pressure = []
+        energy_hist = []
+
+        rad, temp, pres, Etot = diagnostics(state)
+        radius.append(rad)
+        temperature.append(temp)
+        pressure.append(pres)
+        energy_hist.append(Etot)
+
+        neutron_yield = 0.0
+        for k in range(len(t) - 1):
+            dt = t[k + 1] - t[k]
+            state = solver.step(state, dt)
+            rad, temp, pres, Etot = diagnostics(state)
+            radius.append(rad)
+            temperature.append(temp)
+            pressure.append(pres)
+            energy_hist.append(Etot)
+            n_i = np.mean(state.rho) / (3.344e-27)
+            reactivity = bosch_hale_dd(max(temp, 0.0) / 1e3)
+            mag = np.mean(np.sum(state.B**2, axis=-1))
+            rate = 0.25 * n_i**2 * reactivity * mag * self.volume
+            neutron_yield += rate * dt
+
+        return PinchResult(
+            time=t,
+            radius=np.asarray(radius),
+            temperature=np.asarray(temperature),
+            pressure=np.asarray(pressure),
+            neutron_yield=float(neutron_yield),
+            energy=np.asarray(energy_hist),
+        )
 

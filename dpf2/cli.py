@@ -20,7 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     sim.add_argument("--method", choices=["analytical", "ode"], default="analytical", help="Circuit solver method")
     sim.add_argument(
         "--pinch-model",
-        choices=["analytic", "semi-analytic"],
+        choices=["analytic", "semi-analytic", "mhd"],
         default="analytic",
         help="Pinch dynamics model",
     )
