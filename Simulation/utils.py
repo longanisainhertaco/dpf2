@@ -201,19 +201,18 @@ class FieldManager:
                 field = np.roll(field, shift=g, axis=axis)
             return field
 
-        # Apply boundary conditions to each field component
-        self.E = np.stack([apply_bc(self.E[i], f"{axis}_{side}", axis_num)
-                           for axis_num, axis in enumerate(['x', 'y', 'z'])
-                           for side in ['lo', 'hi']
-                           for i in range(3)], axis=0)
-        self.B = np.stack([apply_bc(self.B[i], f"{axis}_{side}", axis_num)
-                           for axis_num, axis in enumerate(['x', 'y', 'z'])
-                           for side in ['lo', 'hi']
-                           for i in range(3)], axis=0)
-        self.J = np.stack([apply_bc(self.J[i], f"{axis}_{side}", axis_num)
-                           for axis_num, axis in enumerate(['x', 'y', 'z'])
-                           for side in ['lo', 'hi']
-                           for i in range(3)], axis=0)
+        # Apply boundary conditions to each field component in-place
+        for field in (self.E, self.B, self.J):
+            for i in range(3):
+                for axis_num, axis in enumerate(['x', 'y', 'z']):
+                    for side in ['lo', 'hi']:
+                        field[i] = apply_bc(field[i], f"{axis}_{side}", axis_num)
+
+        # Verify field shapes remain intact after boundary application
+        expected_shape = (3, self.nx, self.ny, self.nz)
+        for name, field in (('E', self.E), ('B', self.B), ('J', self.J)):
+            if field.shape != expected_shape:
+                raise ValueError(f"{name} has invalid shape {field.shape}; expected {expected_shape}")
 
         # Coordinate with sheath and circuit BCs (example - needs adaptation)
         # if self.sheath_model:
