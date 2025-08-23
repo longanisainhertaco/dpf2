@@ -151,10 +151,63 @@ class DPFSimulation:
     def run(self):
         """Runs the simulation."""
         try:
-            # Main loop
             while self.current_time < self.config.sim_time:
+                # --- determine timestep ---
+                if hasattr(self.solver, "compute_optimal_dt"):
+                    self.dt = self.solver.compute_optimal_dt()
+                elif hasattr(self.solver, "compute_dt"):
+                    self.dt = self.solver.compute_dt()
+                if self.dt is None or self.dt <= 0.0:
+                    raise RuntimeError("Invalid time step")
+                # clip to remaining simulation time
+                if self.current_time + self.dt > self.config.sim_time:
+                    self.dt = self.config.sim_time - self.current_time
+
+                # --- advance primary solver or hybrid controller ---
+                if "hybrid" in self.modules:
+                    try:
+                        self.modules["hybrid"].apply(self.state, self.dt)
+                    except Exception as exc:
+                        logger.error(f"Hybrid controller error: {exc}")
+                else:
+                    self.solver.step(self.dt)
+                    if self.pic_solver:
+                        self.pic_solver.step()
+
+                # --- collision and radiation modules ---
+                for name in ("collision", "radiation"):
+                    module = self.modules.get(name)
+                    if module:
+                        try:
+                            module.apply(self.state, self.dt)
+                        except Exception as exc:
+                            logger.error(f"{name.capitalize()} module error: {exc}")
+
+                # --- circuit update ---
+                try:
+                    self.circuit.step(self.state, self.dt)
+                except Exception as exc:
+                    logger.error(f"Circuit step failed: {exc}")
+
+                # --- diagnostics and checkpointing ---
+                checkpoint_data = {}
+                for name, module in self.modules.items():
+                    if hasattr(module, "checkpoint"):
+                        try:
+                            checkpoint_data[name] = module.checkpoint()
+                        except Exception as exc:
+                            logger.error(f"Checkpoint failed for {name}: {exc}")
+                diagnostics = self.modules.get("diagnostics")
+                if diagnostics:
+                    try:
+                        diagnostics.record(self.current_time, self.circuit, self.solver, self.pic_solver, self.modules.get("radiation"), checkpoint_id=self.step_count)
+                        if hasattr(diagnostics, "checkpoints"):
+                            diagnostics.checkpoints.append(checkpoint_data)
+                    except Exception as exc:
+                        logger.error(f"Diagnostics error: {exc}")
+
+                # --- advance time ---
                 self.step_count += 1
-                self.solver.step(self.dt)
                 self.current_time += self.dt
                 logger.info(f"Step {self.step_count}: time={self.current_time:.3e}")
 
