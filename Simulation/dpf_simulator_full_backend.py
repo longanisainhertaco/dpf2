@@ -4,7 +4,7 @@ from mpi4py import MPI
 import logging
 import time
 
-from config_schema import SimulationConfig
+from config_schema import SimulationConfig, SheathConfig
 from module_registry import ModuleRegistry
 from fluid_solver_high_order import FluidSolverHighOrder
 from circuit import CircuitModel
@@ -118,9 +118,8 @@ class DPFSimulatorBackend:
         self.collision = CollisionModel(**self.config.collision.dict()) if self.config.collision else None
         self.radiation = RadiationModel(geom=None, config=self.config.radiation.dict()) if self.config.radiation else None
         self.pic       = PICSolver(config=self.config.pic.dict(), field_manager=self.field_manager) if self.config.pic else None
-        self.sheath_model = None
-        if config.get('enable_sheath_model', False):
-            self.sheath_model = PlasmaSheathFormation(config.get('sheath_model', {}))
+        sheath_cfg = SheathConfig(**config.get('sheath_model', {}))
+        self.sheath_model = PlasmaSheathFormation(sheath_cfg)
         self.hybrid    = HybridController(
             config=self.config.hybrid.dict(),
             fluid_solver=self.fluid,
