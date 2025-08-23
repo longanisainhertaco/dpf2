@@ -3,10 +3,13 @@ import h5py
 import json
 import logging
 import time
-from scipy.constants import c, m_n, m_e, mu_0, e
+from scipy.constants import c, m_n, m_e, mu_0, e, epsilon_0, k as k_B
 from scipy.interpolate import interp1d
 from pyevtk.hl import imageToVTK
-from utils import FieldManager, SimulationState # Import FieldManager and SimulationState
+from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
+
+# Classical electron radius (m)
+r_e = e ** 2 / (4 * np.pi * epsilon_0 * m_e * c ** 2)
 
 logger = logging.getLogger(__name__)
 
@@ -154,19 +157,64 @@ class ThomsonScattering(Diagnostic):
         self.scattering_angle = scattering_angle
         self.position = np.array(position)
         self.data = []
+        # Precompute geometry factor for differential cross-section
+        self._geom_factor = (1 + np.cos(self.scattering_angle) ** 2) / 2
+        # Spectral grid will be created on first record
+        self._wavelength_grid = None
 
     def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
-        # Placeholder for Thomson scattering calculation
-        # This would involve calculating the scattered power spectrum
-        # based on electron density and temperature at the specified position.
-        # This is a complex calculation and is left as a placeholder here.
-        # You would need to implement the full Thomson scattering theory here.
-        self.data.append({'time': t, 'signal': 0.0})
+        """Calculate a simplified Thomson scattering spectrum.
+
+        The spectrum is approximated as a Gaussian profile whose width is
+        determined by the electron temperature (thermal broadening) and whose
+        amplitude scales with the local electron density and scattering
+        geometry.
+        """
+
+        if state is None:
+            return
+
+        # Extract local electron density and temperature
+        ne_grid = getattr(state, "electron_density", None)
+        if ne_grid is None:
+            ne_grid = getattr(state, "ion_density", state.density)
+        Te_grid = getattr(state, "electron_temperature", None)
+
+        dx, dy, dz = state.dx, state.dy, state.dz
+        x0, y0, z0 = state.domain_lo
+        xi = int((self.position[0] - x0) / dx)
+        yi = int((self.position[1] - y0) / dy)
+        zi = int((self.position[2] - z0) / dz)
+        ne = float(ne_grid[xi, yi, zi])
+        Te = float(Te_grid[xi, yi, zi]) if Te_grid is not None else 0.0
+
+        # Thermal broadening of wavelength
+        delta_lambda = self.laser_wavelength * np.sqrt(2 * k_B * max(Te, 1e-6) / m_e) / c
+        if self._wavelength_grid is None:
+            self._wavelength_grid = np.linspace(
+                self.laser_wavelength - 5 * delta_lambda,
+                self.laser_wavelength + 5 * delta_lambda,
+                100,
+            )
+        wl = self._wavelength_grid
+        width = delta_lambda if delta_lambda > 0 else self.laser_wavelength * 1e-9
+        spectrum = (
+            ne
+            * r_e ** 2
+            * self._geom_factor
+            * np.exp(-0.5 * ((wl - self.laser_wavelength) / width) ** 2)
+        )
+
+        self.data.append({"time": t, "wavelength": wl, "spectrum": spectrum})
 
     def to_hdf5(self, hdf5_group):
         grp = hdf5_group.create_group(self.name)
-        grp.create_dataset('time', data=[d['time'] for d in self.data])
-        grp.create_dataset('signal', data=[d['signal'] for d in self.data])
+        times = [d["time"] for d in self.data]
+        grp.create_dataset("time", data=times)
+        if self.data:
+            grp.create_dataset("wavelength", data=self.data[0]["wavelength"])
+            spectra = np.array([d["spectrum"] for d in self.data])
+            grp.create_dataset("spectrum", data=spectra)
 
 # --- Main Diagnostics Class ---
 class Diagnostics:
