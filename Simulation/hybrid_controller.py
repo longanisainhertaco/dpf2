@@ -242,30 +242,23 @@ class HybridController(PhysicsModule):
     def hybrid_step(self, state: SimulationState, regions, dt):
         """Advances the simulation by one time step using the hybrid fluid-PIC approach."""
         try:
-            # 1. Run PIC subcycles in selected regions
+            # 1. Fluid step
+            E_pre = self.fluid.get_total_energy()
+            self.fluid.step(dt)
+
+            # 2. Run PIC subcycles in selected regions
             fb = {}
             for reg in regions:
                 fluid_data = self._extract_fluid_data(state, reg)
                 fb[reg] = self._run_pic_subcycles(fluid_data, reg, dt)
 
-            # 2. Apply feedback from PIC to fluid
-            self._apply_feedback(state, fb, regions)
 
-            # 3. Circuit update
-            self.circuit.step(state, dt)
-
-            # 4. Radiation
-            self.radiation.apply(state, dt)
-
-            # 5. Energy correction
-            E_pre = self.fluid.get_total_energy()
-            self._energy_correction(E_pre)
         except Exception as e:
             logger.error(f"Error during hybrid step: {e}")
             raise
 
     def _extract_fluid_data(self, state: SimulationState, region):
-        """Extracts fluid data for the PIC solver in the specified region."""
+
         try:
             data = {
                 'density': state.density[region],

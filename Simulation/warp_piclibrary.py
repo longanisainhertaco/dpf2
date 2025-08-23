@@ -68,14 +68,62 @@ class PICCollisionHandler:
             warp_instance (Any): The WarpX simulation object (or relevant particle container).
             dt (float): Simulation time step.
         """
-        logger.warning(f"Placeholder: Applying collisions between {species1_name} and {species2_name}.")
-        # --- Placeholder Logic ---
-        # freq = self.collision_freq_func(ne_local, Te_local, Z_local) # Example call
-        # probability = 1.0 - np.exp(-freq * dt)
-        # For particles where random() < probability:
-        #    Apply velocity scattering logic...
-        # --- End Placeholder ---
-        pass
+        logger.info(
+            f"Applying collisions between {species1_name} and {species2_name} with dt={dt}"
+        )
+
+        try:
+            species1 = warp_instance.get_particle_container(species1_name)
+            species2 = warp_instance.get_particle_container(species2_name)
+        except AttributeError as e:
+            logger.error(
+                "WarpX instance must provide 'get_particle_container' – %s", e
+            )
+            return
+
+        v1 = np.asarray(species1.get_velocities())
+        v2 = np.asarray(species2.get_velocities())
+
+        if v1.size == 0 or v2.size == 0:
+            logger.debug("One of the species has no particles; skipping collisions")
+            return
+
+        # Estimate plasma parameters: use particle counts for density and
+        # mean squared speed for a temperature proxy.  These are rough
+        # estimates sufficient for Monte‑Carlo style tests.
+        n1 = v1.shape[0]
+        n2 = v2.shape[0]
+        ne = max(n1, n2)
+        speeds1 = np.linalg.norm(v1, axis=1)
+        Te = np.mean(speeds1 ** 2)
+
+        freq = self.collision_freq_func(ne, Te)
+        prob = 1.0 - np.exp(-freq * dt)
+
+        # Determine colliding pairs
+        num_pairs = min(n1, n2)
+        if num_pairs == 0:
+            return
+        rand = np.random.random(num_pairs)
+        colliding = np.where(rand < prob)[0]
+
+        if colliding.size:
+            # Generate random scattering directions keeping speeds constant
+            def random_dirs(count: int) -> np.ndarray:
+                vec = np.random.normal(size=(count, 3))
+                norms = np.linalg.norm(vec, axis=1, keepdims=True)
+                norms[norms == 0] = 1.0
+                return vec / norms
+
+            dir1 = random_dirs(colliding.size)
+            dir2 = random_dirs(colliding.size)
+            spd1 = np.linalg.norm(v1[colliding], axis=1)
+            spd2 = np.linalg.norm(v2[colliding], axis=1)
+            v1[colliding] = dir1 * spd1[:, None]
+            v2[colliding] = dir2 * spd2[:, None]
+
+        species1.set_velocities(v1)
+        species2.set_velocities(v2)
 
     def setup_warpx_collisions(self, warp_instance: Any, species_pairs: list):
         """
@@ -89,19 +137,31 @@ class PICCollisionHandler:
                                    of two species that should collide, e.g., [('electrons', 'ions')].
         """
         logger.info(f"Setting up WarpX collisions for pairs: {species_pairs}")
-        # Example using picmi (syntax might vary based on actual WarpX/picmi version)
-        # for sp1, sp2 in species_pairs:
-        #     try:
-        #         coll = picmi.MCCCollision(
-        #             name=f"coll_{sp1}_{sp2}",
-        #             species=[warp_instance.species[sp1], warp_instance.species[sp2]],
-        #             CoulombLog=self.kwargs.get('CoulombLog', 10.0) # Example parameter
-        #             # Add other necessary parameters for WarpX's collision module
-        #         )
-        #         warp_instance.add_collision(coll)
-        #     except Exception as e:
-        #         logger.error(f"Failed to add WarpX collision between {sp1} and {sp2}: {e}")
-        pass
+
+        for sp1, sp2 in species_pairs:
+            try:
+                if hasattr(warp_instance, "add_collision_operator"):
+                    warp_instance.add_collision_operator(
+                        sp1, sp2, self.collision_freq_func, self.kwargs
+                    )
+                else:
+                    import picmi  # type: ignore
+
+                    coll = picmi.MCCCollision(
+                        name=f"coll_{sp1}_{sp2}",
+                        species=[warp_instance.species[sp1], warp_instance.species[sp2]],
+                        **self.kwargs,
+                    )
+                    if hasattr(warp_instance, "add_collision"):
+                        warp_instance.add_collision(coll)
+                    else:
+                        # Fallback: store collision operator list on instance
+                        warp_instance.collisions = getattr(warp_instance, "collisions", [])
+                        warp_instance.collisions.append(coll)
+            except Exception as e:  # pragma: no cover - logging path
+                logger.warning(
+                    f"Failed to add WarpX collision between {sp1} and {sp2}: {e}"
+                )
 
 # --- Example Usage Pattern (as inferred from collision_model.py) ---
 # Assuming 'ne', 'Te', 'Z' are numpy arrays or floats

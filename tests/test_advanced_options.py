@@ -4,7 +4,6 @@ import pytest
 
 from advanced_options import AdvancedOptions
 
-
 def test_disable_validators_requires_reason():
     data = AdvancedOptions.with_defaults().model_dump(by_alias=True)
     data["disableAllValidators"] = True
@@ -50,3 +49,28 @@ def test_round_trip_serialization():
     dumped = json.loads(cfg.model_dump_json(by_alias=True))
     loaded = AdvancedOptions.model_validate(dumped)
     assert loaded == cfg
+
+
+def test_export_diagnostics_stub_toggle(tmp_path: Path):
+    cfg = AdvancedOptions.with_defaults().model_copy(update={"export_diagnostics_stub": True})
+    created = cfg.export_diagnostics_stub_files(tmp_path)
+
+    summary = tmp_path / "summary.json"
+    waveform = tmp_path / "current.csv"
+    assert summary.exists() and waveform.exists()
+    assert set(created) == {summary, waveform}
+
+    data = json.loads(summary.read_text())
+    assert data == {
+        "neutron_yield": 0.0,
+        "max_b_field_T": 0.0,
+        "pinch_time_ns": 0.0,
+    }
+    lines = waveform.read_text().splitlines()
+    assert lines == ["time_ns,current_kA", "0,0"]
+
+    cfg_off = cfg.model_copy(update={"export_diagnostics_stub": False})
+    out = tmp_path / "off"
+    result = cfg_off.export_diagnostics_stub_files(out)
+    assert result == []
+    assert not out.exists()
