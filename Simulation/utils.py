@@ -153,12 +153,36 @@ class FieldManager:
         return np.array([curl_x, curl_y, curl_z])
 
     def apply_boundary_conditions(self, state: "SimulationState"):
-        """Applies boundary conditions to the fields."""
-        g = 2  # Number of ghost cells
+        """Applies boundary conditions to the fields.
+
+        Supports standard boundary types (periodic, Neumann, Dirichlet, outflow)
+        as well as a simple perfectly matched layer (PML).  The PML damps field
+        components inside the ghost region according to configurable parameters:
+
+        ``pml_thickness``
+            Number of ghost cells over which to apply damping (default: 2).
+
+        ``pml_sigma``
+            Damping coefficient for the exponential profile (default: 2.0).
+
+        ``pml_profile``
+            Damping profile name.  Currently ``"exponential"`` (default) and
+            ``"linear"`` are recognised.
+        """
+
+        g = int(self.boundary_conditions.get("ghost_cells", 2))
+
+        def _pml_factors(thickness: int, sigma: float, profile: str) -> np.ndarray:
+            if profile == "linear":
+                factors = 1.0 - (np.arange(1, thickness + 1) / thickness) * sigma
+                return np.clip(factors, 0.0, 1.0)
+            # Default to exponential decay
+            return np.exp(-sigma * np.arange(1, thickness + 1))
 
         # Helper function to apply boundary conditions to a field
         def apply_bc(field, bc_key, axis):
             bc = self.boundary_conditions.get(bc_key, 'periodic')
+            side = 'lo' if bc_key.endswith('lo') else 'hi'
             if bc == 'periodic':
                 # Periodic boundary conditions
                 field = np.roll(field, shift=g, axis=axis)
@@ -196,8 +220,31 @@ class FieldManager:
                     field[:, :, :g] = field[:, :, g:2 * g]
                     field[:, :, -g:] = field[:, :, -2 * g:-g]
             elif bc == 'pml':
-                # PML (Perfectly Matched Layer) boundary conditions - not implemented here
-                logger.warning("PML boundary conditions not implemented in FieldManager.")
+                # Simple PML implemented via exponential damping in ghost cells
+                thickness = int(self.boundary_conditions.get('pml_thickness', g))
+                thickness = min(thickness, g)
+                sigma = float(self.boundary_conditions.get('pml_sigma', 2.0))
+                profile = self.boundary_conditions.get('pml_profile', 'exponential')
+                factors = _pml_factors(thickness, sigma, profile)
+
+                if axis == 0:
+                    interior_idx = thickness if side == 'lo' else -thickness - 1
+                    interior = np.copy(field[interior_idx, :, :])
+                    for j, fac in enumerate(factors):
+                        idx = thickness - 1 - j if side == 'lo' else -thickness + j
+                        field[idx, :, :] = interior * fac
+                elif axis == 1:
+                    interior_idx = thickness if side == 'lo' else -thickness - 1
+                    interior = np.copy(field[:, interior_idx, :])
+                    for j, fac in enumerate(factors):
+                        idx = thickness - 1 - j if side == 'lo' else -thickness + j
+                        field[:, idx, :] = interior * fac
+                elif axis == 2:
+                    interior_idx = thickness if side == 'lo' else -thickness - 1
+                    interior = np.copy(field[:, :, interior_idx])
+                    for j, fac in enumerate(factors):
+                        idx = thickness - 1 - j if side == 'lo' else -thickness + j
+                        field[:, :, idx] = interior * fac
             else:
                 logger.warning(f"Unknown boundary condition: {bc} - defaulting to periodic.")
                 field = np.roll(field, shift=g, axis=axis)
