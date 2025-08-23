@@ -1,33 +1,59 @@
 import numpy as np
-import sympy as sp
 import logging
+try:
+    import sympy as sp
+except ModuleNotFoundError:  # pragma: no cover - handled for environments without sympy
+    sp = None
 from scipy.special import erf, erfi
-from scipy.constants import mu_0, c, epsilon0
+from scipy.constants import mu_0, c
 from scipy.interpolate import interp1d
 from scipy.integrate import solve_ivp
 from typing import Dict, Any, Optional
-from models import SimulationState
-from utils import FieldManager
+from .utils import SimulationState, FieldManager
 
 # Physical constants (moved to the top)
-from constants import e, me, epsilon0
+from .constants import e, me, epsilon0
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# === Symbolic ODE Derivation for RLC ===
-# States: Q (charge on C), I (circuit current)
-# Equations:
-#   dQ/dt = -I
-#   dI/dt = [ -R_tot*I - Q/C ] / L_tot
-Q_sym, I_sym, R_sym, L_sym, C_sym, Lp_sym, Rp_sym, Ls_sym, Cs_sym = sp.symbols('Q I R L C Lp Rp Ls Cs')
-dQ_dt_expr = -I_sym
-dI_dt_expr = (-R_sym * I_sym - Q_sym / C_sym) / (L_sym + Ls_sym)
-# Lambdify for numeric evaluation
-_rhs = sp.lambdify((Q_sym, I_sym, R_sym, L_sym, C_sym, Lp_sym, Rp_sym, Ls_sym, Cs_sym),
-                   (dQ_dt_expr, dI_dt_expr), 'numpy')
-# Clean up
-del Q_sym, I_sym, R_sym, L_sym, C_sym, Lp_sym, Rp_sym, Ls_sym, Cs_sym, dQ_dt_expr, dI_dt_expr
+if sp is not None:
+    # === Symbolic ODE Derivation for RLC ===
+    # States: Q (charge on C), I (circuit current)
+    # Equations:
+    #   dQ/dt = -I
+    #   dI/dt = [ -R_tot*I - Q/C ] / L_tot
+    Q_sym, I_sym, R_sym, L_sym, C_sym, Lp_sym, Rp_sym, Ls_sym, Cs_sym = sp.symbols(
+        'Q I R L C Lp Rp Ls Cs'
+    )
+    dQ_dt_expr = -I_sym
+    dI_dt_expr = (-R_sym * I_sym - Q_sym / C_sym) / (L_sym + Ls_sym)
+    # Lambdify for numeric evaluation
+    _rhs = sp.lambdify(
+        (Q_sym, I_sym, R_sym, L_sym, C_sym, Lp_sym, Rp_sym, Ls_sym, Cs_sym),
+        (dQ_dt_expr, dI_dt_expr),
+        'numpy',
+    )
+    # Clean up
+    del (
+        Q_sym,
+        I_sym,
+        R_sym,
+        L_sym,
+        C_sym,
+        Lp_sym,
+        Rp_sym,
+        Ls_sym,
+        Cs_sym,
+        dQ_dt_expr,
+        dI_dt_expr,
+    )
+else:  # pragma: no cover - exercised only when sympy is unavailable
+    def _rhs(Q, I, R, L, C, Lp, Rp, Ls, Cs):
+        """Fallback circuit ODE right-hand side without sympy."""
+        dQ_dt = -I
+        dI_dt = (-R * I - Q / C) / (L + Ls)
+        return dQ_dt, dI_dt
 
 class SwitchModel:
     """
@@ -242,36 +268,53 @@ class CircuitModel:
             self.switch_model = switch_model
 
         # Transmission line model
+        self.transmission_line = transmission_line
         if self.transmission_line:
-            self.transmission_line_model = TransmissionLineModel(transmission_line_impedance, transmission_line_length, transmission_line_velocity_factor)
+            self.transmission_line_model = TransmissionLineModel(
+                transmission_line_impedance,
+                transmission_line_length,
+                transmission_line_velocity_factor,
+            )
         else:
             self.transmission_line_model = None
 
         logger.info("CircuitModel initialized.")
 
     def plasma_inductance(self, state: SimulationState) -> float:
-        """
-        Calculates the plasma inductance using a more sophisticated model.
+        """Compute the inductance of the plasma column.
+
+        The model assumes a perfectly conducting, cylindrically symmetric plasma
+        sheath propagating axially between coaxial electrodes of radii ``self.a``
+        (anode) and ``self.b`` (cathode).  The instantaneous axial position of
+        the sheath is provided by ``state.sheath_position``.  Under these
+        assumptions, the plasma behaves like a coaxial transmission line of
+        length ``z`` and its inductance is given by
+
+        .. math::
+
+            L = \frac{\mu_0}{2\pi} z \ln\left(\frac{b}{a}\right).
+
+        This expression neglects radial dynamics, finite conductivity effects,
+        and end corrections.
 
         Args:
-            state: The current state of the simulation.
+            state: Simulation state containing ``sheath_position`` in metres.
 
         Returns:
-            Plasma inductance [H].
+            Plasma inductance in henries.
         """
         try:
             z = state.sheath_position  # Access sheath position from SimulationState
-            if not isinstance(z, (int, float)) or z <= 0:
-                raise ValueError("Sheath position must be a positive number.")
+        except AttributeError as exc:
+            raise AttributeError(
+                "SimulationState object must have a 'sheath_position' attribute."
+            ) from exc
 
-            # More accurate inductance calculation (example)
-            # This is a placeholder; replace with a more sophisticated model
-            L_plasma = mu_0 / (2 * np.pi) * z * np.log(self.b / self.a) * (1 + 0.1 * np.sin(2 * np.pi * z / self.b))
-            return L_plasma
-        except AttributeError:
-            raise AttributeError("SimulationState object must have a 'sheath_position' attribute.")
-        except ValueError as e:
-            raise ValueError(f"Invalid sheath position: {e}")
+        if not isinstance(z, (int, float)) or z <= 0:
+            raise ValueError("Sheath position must be a positive number.")
+
+        L_plasma = mu_0 / (2 * np.pi) * z * np.log(self.b / self.a)
+        return L_plasma
 
     def plasma_resistance(self, state: SimulationState) -> float:
         """
