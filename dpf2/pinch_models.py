@@ -6,8 +6,13 @@ from typing import Iterable
 import numpy as np
 from scipy.integrate import solve_ivp
 
+from neutron_yield_model import (
+    BoschHaleTable,
+    DEFAULT_BOSCH_HALE_TABLE,
+    compute_dd_yield,
+)
+
 from .eos import RealGasEOS
-from .fusion import bosch_hale_dd
 
 __all__ = ["PinchModelBase", "PinchResult", "AnalyticPinchModel", "SemiAnalyticPinchModel"]
 
@@ -35,6 +40,9 @@ class AnalyticPinchModel(PinchModelBase):
     def __init__(self, initial_radius: float = 1e-2, tau: float = 50e-9) -> None:
         self.initial_radius = initial_radius
         self.tau = tau
+        self.table = BoschHaleTable.from_csv(DEFAULT_BOSCH_HALE_TABLE)
+        self.ion_density = 1e20  # m^-3
+        self.length = initial_radius
 
     def run(self, time: Iterable[float], current: Iterable[float]) -> PinchResult:
         t = np.asarray(time)
@@ -42,8 +50,9 @@ class AnalyticPinchModel(PinchModelBase):
         radius = self.initial_radius * np.exp(-t / self.tau)
         pressure = 0.5 * (I ** 2) * 1e-6  # arbitrary scaling
         temperature = 1e3 * (I / 1e4) ** 2
-        yield_integrand = (temperature / 1e3) ** 3 * I ** 2
-        neutron_yield = float(np.trapz(yield_integrand, t) * 1e-20)
+        volume = np.pi * radius ** 2 * self.length
+        n_i = np.full_like(radius, self.ion_density)
+        neutron_yield = compute_dd_yield(t, temperature, n_i, volume, self.table)
         return PinchResult(t, radius, temperature, pressure, neutron_yield)
 
 
@@ -67,6 +76,7 @@ class SemiAnalyticPinchModel(PinchModelBase):
         self.damping = damping
         self.eos = RealGasEOS(gamma=gamma)
         self.zeff = zeff
+        self.table = BoschHaleTable.from_csv(DEFAULT_BOSCH_HALE_TABLE)
 
     def _dynamics(self, t: float, y: np.ndarray, current: np.ndarray, time: np.ndarray) -> np.ndarray:
         r, vr, z, vz = y
@@ -89,8 +99,6 @@ class SemiAnalyticPinchModel(PinchModelBase):
         density = self.mass / np.maximum(volume, 1e-12)
         pressure = self.eos.pressure(density, temperature)
         n_i = density / (3.344e-27)  # deuterium ions per m^3
-        reactivity = bosch_hale_dd(temperature / 1e3)
-        rate = 0.25 * n_i ** 2 * reactivity * volume
-        neutron_yield = float(np.trapz(rate, t))
+        neutron_yield = compute_dd_yield(t, temperature, n_i, volume, self.table)
         return PinchResult(t, r, temperature, pressure, neutron_yield, axial_position=z)
 

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, root_validator
 
 # ---------------------------------------------------------------------------
@@ -197,4 +199,55 @@ class NeutronYieldModel(ConfigSectionBase):
         return values
 
 
-__all__ = ["NeutronYieldModel"]
+# ---------------------------------------------------------------------------
+# Bosch–Hale table utilities
+
+@dataclass
+class BoschHaleTable:
+    """Simple container for Bosch–Hale cross-section data."""
+
+    energy_MeV: np.ndarray
+    sigma_barn: np.ndarray
+
+    @classmethod
+    def from_csv(cls, path: Path) -> "BoschHaleTable":
+        data = np.loadtxt(path, delimiter=",", skiprows=1)
+        return cls(data[:, 0], data[:, 1])
+
+    def sigma(self, energy_MeV: np.ndarray | float) -> np.ndarray | float:
+        return np.interp(energy_MeV, self.energy_MeV, self.sigma_barn, left=0.0, right=0.0)
+
+
+DEFAULT_BOSCH_HALE_TABLE = (
+    Path(__file__).resolve().parent / "Reference" / "bosch_hale_dd.csv"
+)
+
+
+def compute_dd_yield(
+    time: np.ndarray,
+    temperature_keV: np.ndarray,
+    ion_density_m3: np.ndarray,
+    volume_m3: np.ndarray,
+    table: BoschHaleTable,
+) -> float:
+    """Integrate D-D neutron yield using a Bosch–Hale cross-section table."""
+
+    t = np.asarray(time)
+    T_keV = np.asarray(temperature_keV)
+    n_i = np.asarray(ion_density_m3)
+    vol = np.asarray(volume_m3)
+    energy_MeV = T_keV * 1e-3
+    sigma_m2 = table.sigma(energy_MeV) * 1e-28
+    E_J = energy_MeV * 1e6 * 1.602e-19
+    v_rel = np.sqrt(2.0 * E_J / 3.344e-27)
+    reactivity = sigma_m2 * v_rel
+    rate = 0.25 * n_i**2 * reactivity * vol
+    return float(np.trapz(rate, t))
+
+
+__all__ = [
+    "NeutronYieldModel",
+    "BoschHaleTable",
+    "compute_dd_yield",
+    "DEFAULT_BOSCH_HALE_TABLE",
+]

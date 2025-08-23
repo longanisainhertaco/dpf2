@@ -10,6 +10,12 @@ import numpy as np
 from dpf_config import DPFConfig
 from circuit_config import CircuitConfig
 
+from neutron_yield_model import (
+    BoschHaleTable,
+    DEFAULT_BOSCH_HALE_TABLE,
+    compute_dd_yield,
+)
+
 from .circuit_solver import RLCCircuit, CircuitSolver
 from .pinch_models import AnalyticPinchModel, SemiAnalyticPinchModel, PinchModelBase
 
@@ -71,12 +77,23 @@ class SimulationEngine:
             raise ValueError("pinch_model must be 'analytic' or 'semi-analytic'")
         pres = plasma.run(t, current)
 
+        table = BoschHaleTable.from_csv(DEFAULT_BOSCH_HALE_TABLE)
+        if pres.axial_position is not None:
+            length = pres.axial_position
+        else:
+            length = np.full_like(pres.radius, getattr(plasma, "length", 1.0))
+        volume = np.pi * pres.radius ** 2 * length
+        n_i = np.full_like(pres.radius, getattr(plasma, "ion_density", 1e20))
+        neutron_yield = compute_dd_yield(
+            pres.time, pres.temperature, n_i, volume, table
+        )
+
         return SimulationResults(
             time=pres.time,
             current=current,
             radius=pres.radius,
             temperature=pres.temperature,
             pressure=pres.pressure,
-            neutron_yield=pres.neutron_yield,
+            neutron_yield=neutron_yield,
             axial_position=pres.axial_position,
         )
