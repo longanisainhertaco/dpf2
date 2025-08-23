@@ -64,17 +64,55 @@ class TabulatedEOS:
     interpolation is performed using :class:`scipy.interpolate.RegularGridInterpolator`.
     """
 
-    def __init__(self, filename: str | Path, mixture_fractions: dict[str, float] | None = None):
+    def __init__(
+        self,
+        filename: str | Path | dict[str, str | Path],
+        mixture_fractions: dict[str, float] | None = None,
+    ):
         if mixture_fractions:
-            raise NotImplementedError("Mixture EOS is not implemented for TabulatedEOS")
+            if isinstance(filename, (str, Path)):
+                base = Path(filename)
+                species_files = {sp: base / f"{sp}.h5" for sp in mixture_fractions}
+            elif isinstance(filename, dict):
+                species_files = {sp: Path(path) for sp, path in filename.items()}
+            else:
+                raise TypeError(
+                    "filename must be a path or mapping when mixture_fractions are provided"
+                )
 
-        with h5py.File(filename, "r") as f:
-            if not all(key in f for key in ("rho", "e", "p", "T")):
-                raise ValueError("EOS table is missing required datasets.")
-            self.rho_grid = f["rho"][:]
-            self.e_grid = f["e"][:]
-            self.p_table = f["p"][:]
-            self.T_table = f["T"][:]
+            first = True
+            for species, path in species_files.items():
+                with h5py.File(path, "r") as f:
+                    if not all(key in f for key in ("rho", "e", "p", "T")):
+                        raise ValueError("EOS table is missing required datasets.")
+                    rho_grid = f["rho"][:]
+                    e_grid = f["e"][:]
+                    p_table = f["p"][:]
+                    T_table = f["T"][:]
+
+                weight = mixture_fractions.get(species, 0.0)
+                if first:
+                    self.rho_grid = rho_grid
+                    self.e_grid = e_grid
+                    self.p_table = weight * p_table
+                    self.T_table = weight * T_table
+                    first = False
+                else:
+                    if not (
+                        np.array_equal(self.rho_grid, rho_grid)
+                        and np.array_equal(self.e_grid, e_grid)
+                    ):
+                        raise ValueError("EOS grids for different species do not match.")
+                    self.p_table += weight * p_table
+                    self.T_table += weight * T_table
+        else:
+            with h5py.File(filename, "r") as f:
+                if not all(key in f for key in ("rho", "e", "p", "T")):
+                    raise ValueError("EOS table is missing required datasets.")
+                self.rho_grid = f["rho"][:]
+                self.e_grid = f["e"][:]
+                self.p_table = f["p"][:]
+                self.T_table = f["T"][:]
 
         if not (
             self.rho_grid.ndim == 1
