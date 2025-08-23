@@ -26,7 +26,21 @@ import logging
 import threading
 import queue
 from typing import Dict, Any, Optional, List
-import caliper  # Ribbon profiling
+try:
+    import caliper  # Ribbon profiling
+except Exception:  # pragma: no cover - fallback for test environment
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _noop(*args, **kwargs):
+        yield
+
+    class _CaliperStub:
+        def annotate(self, *args, **kwargs):
+            return _noop()
+
+    caliper = _CaliperStub()
+
 from sheath_model import PlasmaSheathFormation
 from scipy.ndimage import gaussian_filter, label
 from numba import njit, prange
@@ -149,7 +163,7 @@ class HybridController(PhysicsModule):
         try:
             # 1. Apply sheath boundary conditions
             with caliper.annotate('sheath_bc'):
-                self.apply_boundary_conditions(state)
+                self.apply_boundary_conditions(state, dt)
 
             # 2. Compute transition mask
             with caliper.annotate('compute_mask'):
@@ -182,13 +196,11 @@ class HybridController(PhysicsModule):
             logger.error(f"Error during HybridController step: {e}")
             raise
 
-    def apply_boundary_conditions(self, state: SimulationState):
-        """Applies boundary conditions to the fluid solver, including the Bohm sheath model."""
+    def apply_boundary_conditions(self, state: SimulationState, dt: float):
+        """Applies boundary conditions, delegating to the sheath model."""
         try:
-            # sheath boundary before fluid step
-            φ = self.circuit.get_current()
-            self.sheath.apply(state, φ)
-            logger.debug(f"Sheath BC applied with φ={φ:.3f}")
+            self.sheath.apply(state, dt)
+            logger.debug("Sheath BC applied")
         except Exception as e:
             logger.error(f"Error applying boundary conditions: {e}")
             raise
@@ -233,21 +245,27 @@ class HybridController(PhysicsModule):
             # 1. Run PIC subcycles in selected regions
             fb = {}
             for reg in regions:
-                # Extract relevant fluid data for PIC region (example)
                 fluid_data = self._extract_fluid_data(state, reg)
                 fb[reg] = self._run_pic_subcycles(fluid_data, reg, dt)
 
+            # 2. Apply feedback from PIC to fluid
+            self._apply_feedback(state, fb, regions)
+
+            # 3. Circuit update
+            self.circuit.step(state, dt)
+
+            # 4. Radiation
+            self.radiation.apply(state, dt)
+
+            # 5. Energy correction
+            E_pre = self.fluid.get_total_energy()
+            self._energy_correction(E_pre)
+        except Exception as e:
+            logger.error(f"Error during hybrid step: {e}")
+            raise
+
     def _extract_fluid_data(self, state: SimulationState, region):
-        """
-        Extracts fluid data for the PIC solver in the specified region.
-
-        Args:
-            state: The current simulation state.
-            region: A tuple of slices defining the region of interest.
-
-        Returns:
-            A dictionary containing the extracted fluid data.
-        """
+        """Extracts fluid data for the PIC solver in the specified region."""
         try:
             data = {
                 'density': state.density[region],
@@ -261,25 +279,6 @@ class HybridController(PhysicsModule):
         except Exception as e:
             logger.error(f"Error extracting fluid data: {e}")
             return {}
-
-            # 2. Apply feedback from PIC to fluid
-            self._apply_feedback(state, fb, regions)
-
-            # 3. Circuit update
-            #I_pic = sum(self.pic.get_total_current(fb[r]) for r in regions)
-            I_pic = self.field_manager.get_J()
-            self.circuit.step(state, dt)
-
-            # 4. Radiation
-            self.radiation.apply(state, dt)
-
-            # 5. Energy correction
-            E_pre = self.fluid.get_total_energy()
-            self._energy_correction(E_pre)
-
-        except Exception as e:
-            logger.error(f"Error during hybrid step: {e}")
-            raise
 
     def _select_regions(self, mask):
         """Selects connected regions in the transition mask for PIC simulation."""
