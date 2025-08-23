@@ -95,3 +95,32 @@ neutronYield:
     assert cfg == cfg2
     summary = cfg.summarize()
     assert "Beam-target" in summary and "Thermonuclear" in summary
+
+def test_missing_reactivity_table_path_for_lookup():
+    data = base_data()
+    data["reactivitySource"] = "look-up"
+    data["reactivityTablePath"] = None
+    with pytest.raises(ValueError, match="reactivity_table_path required"):
+        NeutronYieldModel.model_validate(data)
+
+
+def test_cross_section_table_required_for_tabulated():
+    data = base_data()
+    data["fusionCrossSectionModel"] = "tabulated"
+    data["crossSectionTablePath"] = None
+    with pytest.raises(ValueError, match="cross_section_table_path required"):
+        NeutronYieldModel.model_validate(data)
+
+
+def test_invalid_spectrum_bin_order():
+    data = base_data()
+    data["spectrumEnergyBinsMeV"] = [2.0, 1.0]
+    with pytest.raises(ValueError, match="monotonically increasing"):
+        NeutronYieldModel.model_validate(data)
+
+
+def test_invalid_integration_window():
+    data = base_data()
+    data["yieldIntegrationWindowUs"] = [1.0, 0.5]
+    with pytest.raises(ValueError, match="start < end"):
+        NeutronYieldModel.model_validate(data)
