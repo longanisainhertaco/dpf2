@@ -10,7 +10,7 @@ can proceed incrementally.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 from scipy.constants import mu_0
@@ -101,12 +101,25 @@ class HallMHDSolver(PlasmaSolverBase):
     radiation: RadiationBase | None = None
     eta: float = 0.0
     hall_coeff: float = 0.0
+    rad_coeff: float = 0.0
+    nu_par: float = 0.0
+    kappa_par: float = 0.0
+    bc: Callable[[MHDState], None] | None = None
+    refine: Callable[[MHDState], None] | None = None
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
 
     def step(self, state: MHDState, dt: float) -> MHDState:  # pragma: no cover - skeleton
-        """Advance the state by ``dt`` seconds using a simplified MHD update."""
+        """Advance the state by ``dt`` seconds using a simplified MHD update.
+
+        The numerical fluxes use a Rusanov (local Lax-Friedrichs)
+        approximation and a constrained-transport update keeps the
+        magnetic field divergence free.  Optional Braginskii transport
+        terms act along the magnetic-field direction.  The method remains
+        deliberately lightweight and is intended purely as a placeholder
+        for a more complete solver.
+        """
 
         rho = state.rho.copy()
         mom = state.mom.copy()
@@ -131,7 +144,7 @@ class HallMHDSolver(PlasmaSolverBase):
         self.last_pressure = p
         self.last_ionization = zbar
 
-        # --- Flux computation (Lax-Friedrichs style) ---
+        # --- Flux computation (approximate Rusanov style) ---
         flux_rho = np.zeros((3,) + rho.shape)
         flux_mom = np.zeros((3,) + mom.shape)
         flux_energy = np.zeros((3,) + energy.shape)
@@ -146,7 +159,18 @@ class HallMHDSolver(PlasmaSolverBase):
                 flux_mom[i][..., j] -= B[..., i] * B[..., j]
             flux_energy[i] = (energy + p + magnetic) * v[..., i] - vdotB * B[..., i]
 
-        def div_flux(F):
+        # simple Rusanov dissipation with estimate of fast-wave speed
+        gamma = getattr(self.eos, "gamma", 5.0 / 3.0)
+        cs = np.sqrt(gamma * p / rho)
+        ca = np.sqrt(B2 / rho)
+        cfast = np.sqrt(cs**2 + ca**2)
+        for i in range(3):
+            flux_rho[i] -= 0.5 * cfast * _dd(rho, i)
+            for j in range(3):
+                flux_mom[i][..., j] -= 0.5 * cfast * _dd(mom[..., j], i)
+            flux_energy[i] -= 0.5 * cfast * _dd(energy, i)
+
+        def div_flux(F: np.ndarray) -> np.ndarray:
             return _dd(F[0], 0) + _dd(F[1], 1) + _dd(F[2], 2)
 
         rho -= dt * div_flux(flux_rho)
@@ -164,11 +188,34 @@ class HallMHDSolver(PlasmaSolverBase):
         B -= dt * _curl(E)
         B = _project_div_free(B)
 
+        # --- Braginskii viscosity (parallel component) ---
+        if self.nu_par != 0.0:
+            b = B / np.sqrt(B2 + 1e-30)[..., None]
+            for comp in range(3):
+                grad_par = sum(b[..., i] * _dd(v[..., comp], i) for i in range(3))
+                visc_flux = self.nu_par * b * grad_par[..., None]
+                mom[..., comp] += dt * (
+                    _dd(visc_flux[..., 0], 0)
+                    + _dd(visc_flux[..., 1], 1)
+                    + _dd(visc_flux[..., 2], 2)
+                )
+                energy += dt * self.nu_par * grad_par**2 * rho
+
+        # --- Braginskii thermal conduction (parallel) ---
+        if self.kappa_par != 0.0:
+            T = p / rho
+            b = B / np.sqrt(B2 + 1e-30)[..., None]
+            gradT_par = sum(b[..., i] * _dd(T, i) for i in range(3))
+            q = -self.kappa_par * b * gradT_par[..., None]
+            energy -= dt * (
+                _dd(q[..., 0], 0) + _dd(q[..., 1], 1) + _dd(q[..., 2], 2)
+            )
+
         # --- Source terms ---
         if self.eta != 0.0:
             energy += dt * self.eta * np.sum(J**2, axis=-1)
 
-        return MHDState(
+        new_state = MHDState(
             rho=rho,
             mom=mom,
             energy=energy,
@@ -176,6 +223,13 @@ class HallMHDSolver(PlasmaSolverBase):
             Te=None if state.Te is None else state.Te.copy(),
             Ti=None if state.Ti is None else state.Ti.copy(),
         )
+
+        if self.bc is not None:
+            self.bc(new_state)
+        if self.refine is not None:
+            self.refine(new_state)
+
+        return new_state
 
     def compute_plasma_inductance(self, state: MHDState, current: float, cell_volume: float = 1.0) -> float:
         """Estimate plasma inductance from magnetic energy.
