@@ -282,20 +282,33 @@ class RadiationModel(PhysicsModule):
     def _compute_opacity(self, Te, ne, Z):
         """Computes the opacity based on the selected model."""
         if self.opacity_model == "constant":
-            return np.array(self.opacity_params.get("constant_opacity", 1.0))
+            if "constant_opacity" not in self.opacity_params:
+                raise ValueError("'constant_opacity' parameter required for constant opacity model")
+            return np.array(self.opacity_params["constant_opacity"])
         elif self.opacity_model == "temperature_dependent":
-            base = self.opacity_params.get("base", 0.0)
-            alpha = self.opacity_params.get("alpha", 1.0)
-            beta = self.opacity_params.get("beta", 1.0)
+            try:
+                base = self.opacity_params["base"]
+                alpha = self.opacity_params["alpha"]
+                beta = self.opacity_params["beta"]
+            except KeyError as exc:
+                raise ValueError(f"Missing opacity parameter for temperature_dependent model: {exc.args[0]}") from exc
             return np.array(base + alpha * np.power(Te, beta))
         elif self.opacity_model == "density_dependent":
-            base = self.opacity_params.get("base", 0.0)
-            alpha = self.opacity_params.get("alpha", 1.0)
+            try:
+                base = self.opacity_params["base"]
+                alpha = self.opacity_params["alpha"]
+            except KeyError as exc:
+                raise ValueError(f"Missing opacity parameter for density_dependent model: {exc.args[0]}") from exc
+
             if self.opacity_params.get("use_Z", False):
-                exponent = self.opacity_params.get("Z_exponent", 1.0)
+                if "Z_exponent" not in self.opacity_params:
+                    raise ValueError("'Z_exponent' parameter required when use_Z is True")
+                exponent = self.opacity_params["Z_exponent"]
                 quantity = Z
             else:
-                exponent = self.opacity_params.get("ne_exponent", 1.0)
+                if "ne_exponent" not in self.opacity_params:
+                    raise ValueError("'ne_exponent' parameter required when use_Z is False")
+                exponent = self.opacity_params["ne_exponent"]
                 quantity = ne
             return np.array(base + alpha * np.power(quantity, exponent))
         else:
