@@ -60,6 +60,7 @@ def test_hybrid_step_combines_fluid_and_pic():
         def __init__(self):
             self.state = {'density': density}
             self.step_called = False
+            self.energy_increments = []
 
         def get_total_energy(self):
             return 0.0
@@ -68,7 +69,7 @@ def test_hybrid_step_combines_fluid_and_pic():
             self.step_called = True
 
         def increment_internal_energy(self, corr):
-            pass
+            self.energy_increments.append(corr)
 
     class DummyPIC:
         def __init__(self):
@@ -86,16 +87,27 @@ def test_hybrid_step_combines_fluid_and_pic():
             }
 
     class DummyCircuit:
+        def __init__(self):
+            self.step_calls = 0
+
         def step(self, state, dt):
-            pass
+            self.step_calls += 1
+            state.circuit_steps = getattr(state, 'circuit_steps', 0) + 1
 
     class DummyRadiation:
+        def __init__(self):
+            self.apply_calls = 0
+
         def apply(self, state, dt):
-            pass
+            self.apply_calls += 1
+            state.radiation_calls = getattr(state, 'radiation_calls', 0) + 1
 
     class DummySheath:
+        def __init__(self):
+            self.apply_calls = 0
+
         def apply(self, state, phi):
-            pass
+            self.apply_calls += 1
 
     cfg = type('cfg', (), {})()
     cfg.criteria = type('criteria', (), {
@@ -116,12 +128,19 @@ def test_hybrid_step_combines_fluid_and_pic():
 
     fluid = DummyFluid()
     pic = DummyPIC()
-    controller = HybridController(cfg, fluid, pic, DummyCircuit(), DummyRadiation(), None, DummySheath(), fm)
+    circuit = DummyCircuit()
+    radiation = DummyRadiation()
+    sheath = DummySheath()
+    controller = HybridController(cfg, fluid, pic, circuit, radiation, None, sheath, fm)
 
     region = (slice(0, 2), slice(0, 2), slice(0, 2))
     controller.hybrid_step(state, [region], dt=1.0)
 
     assert fluid.step_called
     assert pic.step_calls > 0
+    assert circuit.step_calls == 1
+    assert radiation.apply_calls == 1
+    assert getattr(state, 'circuit_steps', 0) == 1
+    assert getattr(state, 'radiation_calls', 0) == 1
     assert np.allclose(state.velocity, 0.1)
     assert np.allclose(state.pressure, 0.2)

@@ -15,7 +15,9 @@ class DummyCollision:
 
 
 class DummyFieldManager:
-    pass
+    def get_J(self):
+        """Return a zero current density for testing."""
+        return 0.0
 
 
 def test_negative_parameters_raise():
