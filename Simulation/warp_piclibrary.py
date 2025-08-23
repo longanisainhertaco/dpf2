@@ -91,13 +91,25 @@ class PICCollisionHandler:
         v1 = np.asarray(species1.get_velocities())
         v2 = np.asarray(species2.get_velocities())
 
+        # Optional: retrieve particle weights if WarpX exposes them
+        w1 = (
+            np.asarray(species1.get_weights())
+            if hasattr(species1, "get_weights")
+            else None
+        )
+        w2 = (
+            np.asarray(species2.get_weights())
+            if hasattr(species2, "get_weights")
+            else None
+        )
+
         if v1.size == 0 or v2.size == 0:
             logger.debug("One of the species has no particles; skipping collisions")
             return
 
         # --- Estimate plasma parameters ---------------------------------------------------
-        n1 = v1.shape[0]
-        n2 = v2.shape[0]
+        n1 = float(np.sum(w1)) if w1 is not None else float(v1.shape[0])
+        n2 = float(np.sum(w2)) if w2 is not None else float(v2.shape[0])
 
         volume = None
         if hasattr(warp_instance, "get_volume"):
@@ -120,8 +132,11 @@ class PICCollisionHandler:
         Te = m1 * np.mean(speeds1**2) / (3.0 * k_B)
 
         # Collision frequency and probability
-        freq = self.collision_freq_func(ne, Te, **self.kwargs)
-        prob = 1.0 - np.exp(-freq * dt)
+        freq = float(self.collision_freq_func(ne, Te, **self.kwargs))
+        prob = np.clip(1.0 - np.exp(-freq * dt), 0.0, 1.0)
+        if prob <= 0.0:
+            logger.debug("Zero collision probability; skipping")
+            return
 
         # --- Determine colliding pairs ----------------------------------------------------
         num_pairs = min(n1, n2)
@@ -171,7 +186,7 @@ class PICCollisionHandler:
             try:
                 if hasattr(warp_instance, "add_collision_operator"):
                     warp_instance.add_collision_operator(
-                        sp1, sp2, self.collision_freq_func, self.kwargs
+                        sp1, sp2, self.collision_freq_func, **self.kwargs
                     )
                 else:
                     import picmi  # type: ignore
