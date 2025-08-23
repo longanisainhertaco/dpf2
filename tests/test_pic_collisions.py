@@ -5,8 +5,9 @@ from Simulation.warp_piclibrary import PICCollisionHandler
 
 
 class SimpleParticleContainer:
-    def __init__(self, velocities):
+    def __init__(self, velocities, mass=1.0):
         self._vel = np.array(velocities, dtype=float)
+        self.mass = mass
 
     def get_velocities(self):
         return self._vel.copy()
@@ -18,10 +19,11 @@ class SimpleParticleContainer:
 class SimpleWarpX:
     def __init__(self):
         self._species = {
-            "e": SimpleParticleContainer([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
-            "i": SimpleParticleContainer([[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]]),
+            "e": SimpleParticleContainer([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]], mass=1.0),
+            "i": SimpleParticleContainer([[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]], mass=1.0),
         }
         self.registered_ops = []
+        self.volume = 1.0
 
     def get_particle_container(self, name):
         return self._species[name]
@@ -31,7 +33,6 @@ class SimpleWarpX:
 
 
 def test_apply_collisions_scatter_velocities():
-    """Collisions should randomise particle velocities for both species."""
     np.random.seed(1)
     warp = SimpleWarpX()
     handler = PICCollisionHandler(lambda ne, Te, Z=1.0: 100.0)
@@ -46,6 +47,23 @@ def test_apply_collisions_scatter_velocities():
 
     assert not np.allclose(v_e_before, v_e_after)
     assert not np.allclose(v_i_before, v_i_after)
+
+
+def test_apply_collisions_unknown_species():
+    warp = SimpleWarpX()
+    handler = PICCollisionHandler(lambda ne, Te: 1.0)
+    with pytest.raises(ValueError):
+        handler.apply_collisions("e", "x", warp, dt=0.1)
+
+
+def test_apply_collisions_missing_hook():
+    class BrokenWarp:
+        pass
+
+    warp = BrokenWarp()
+    handler = PICCollisionHandler(lambda ne, Te: 1.0)
+    with pytest.raises(AttributeError):
+        handler.apply_collisions("e", "i", warp, dt=0.1)
 
 
 def test_setup_warpx_collisions_registers_ops():
