@@ -104,8 +104,8 @@ class DPFSimulatorAMReXBackend(DPFSimulatorBackend):
         # Instantiate diagnostics
         self.diagnostics = Diagnostics(
             hdf5_filename=config['diagnostics_params']['hdf5_filename'],
-            config={**config['circuit_params'], **config['collision_params'] if config.get('collision_params') else {},
-                    **config['radiation_params'] if config.get('radiation_params') else {}, **config['pic_params'] if config.get('pic_params') else {}, **config['hybrid_params'] if config.get('hybrid_params') else {}},
+            config={**config['circuit_params'], **(config['collision_params'] if config.get('collision_params') else {}),
+                    **(config['radiation_params'] if config.get('radiation_params') else {}), **(config['pic_params'] if config.get('pic_params') else {}), **(config['hybrid_params'] if config.get('hybrid_params') else {})},
             domain_lo=self.domain_lo,
             grid_shape=self.grid_shape,
             dx=self.dx,
