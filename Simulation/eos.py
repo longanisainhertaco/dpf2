@@ -1,6 +1,7 @@
 import numpy as np
 import h5py
 import logging
+from typing import Dict, Optional
 from scipy.interpolate import RegularGridInterpolator
 
 logger = logging.getLogger(__name__)
@@ -14,13 +15,20 @@ class TabulatedEOS:
     as functions of density and temperature.
     """
 
-    def __init__(self, filename):
-        """
-        Initializes the TabulatedEOS with data from an HDF5 file.
+    def __init__(self, filename, mixture_fractions: Optional[Dict[str, float]] = None):
+        """Initializes the TabulatedEOS with data from an HDF5 file.
 
         Args:
             filename (str): Path to the HDF5 file containing the EOS data.
+            mixture_fractions (Optional[Dict[str, float]]): Optional mixture
+                composition. Mixtures are not currently supported and will
+                result in a :class:`NotImplementedError` if provided.
         """
+        if mixture_fractions:
+            raise NotImplementedError(
+                "Mixture EOS is not implemented for TabulatedEOS"
+            )
+
         try:
             with h5py.File(filename, 'r') as f:
                 if not all(key in f for key in ['rho', 'T', 'p', 'e']):
@@ -29,9 +37,16 @@ class TabulatedEOS:
                 self.T_grid = f['T'][:]
                 self.p_table = f['p'][:]
                 self.e_table = f['e'][:]
-                if not (self.rho_grid.ndim == 1 and self.T_grid.ndim == 1 and self.p_table.ndim == 2 and self.e_table.ndim == 2):
+                if not (
+                    self.rho_grid.ndim == 1
+                    and self.T_grid.ndim == 1
+                    and self.p_table.ndim == 2
+                    and self.e_table.ndim == 2
+                ):
                     raise ValueError("EOS table has incorrect dimensions.")
-                if self.p_table.shape != (len(self.rho_grid), len(self.T_grid)) or self.e_table.shape != (len(self.rho_grid), len(self.T_grid)):
+                if self.p_table.shape != (len(self.rho_grid), len(self.T_grid)) or self.e_table.shape != (
+                    len(self.rho_grid), len(self.T_grid)
+                ):
                     raise ValueError("EOS table has inconsistent dimensions.")
             self.p_interp = RegularGridInterpolator((self.rho_grid, self.T_grid), self.p_table)
             self.e_interp = RegularGridInterpolator((self.rho_grid, self.T_grid), self.e_table)
