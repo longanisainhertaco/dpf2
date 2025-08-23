@@ -59,6 +59,29 @@ def test_apply_updates_state_velocity_and_potential():
     assert np.allclose(state.potential[:, :, -1], sheath_potential)
 
 
+def test_apply_preserves_interior_state():
+    """Applying the sheath should only modify the boundary-adjacent cells."""
+    state, _ = make_state()
+    state.velocity = np.zeros((3, 4, 4, 4))
+    state.potential = np.zeros((4, 4, 4))
+    sheath = BohmSheath(electron_temperature=5.0, ion_mass=1.67e-27)
+    sheath.apply(state)
+    # Interior (second-to-last) cells remain untouched
+    assert np.all(state.velocity[:, :, :, -2] == 0.0)
+    assert np.all(state.potential[:, :, -2] == 0.0)
+
+
+def test_apply_direct_field_manager():
+    """The sheath can operate on a FieldManager without a SimulationState."""
+    _, fm = make_state()
+    sheath = BohmSheath(electron_temperature=3.0, ion_mass=1.67e-27)
+    sheath.apply(fm)
+    mass_ratio = 1.67e-27 / (2 * np.pi * m_e)
+    phi_s = 3.0 * np.log(np.sqrt(mass_ratio))
+    expected_field = phi_s / fm.dz
+    assert np.allclose(fm.get_E()[2, :, :, -1], expected_field)
+
+
 def test_apply_updates_momentum_array():
     density = np.ones((4, 4, 4))
     momentum = np.zeros((3, 4, 4, 4))
