@@ -57,6 +57,11 @@ def _project_div_free(B: np.ndarray) -> np.ndarray:
     return np.fft.ifftn(B_hat, axes=(0, 1, 2)).real
 
 
+def _minmod(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Minmod limiter used for MUSCL reconstruction."""
+    return 0.5 * (np.sign(a) + np.sign(b)) * np.minimum(np.abs(a), np.abs(b))
+
+
 @dataclass
 class MHDState:
     """State container for the MHD variables.
@@ -89,6 +94,11 @@ class MHDState:
 class HallMHDSolver(PlasmaSolverBase):
     """Stub for a 3-D Hall-MHD solver with CT and AMR hooks.
 
+    The solver now uses a second-order Godunov (MUSCL-Hancock)
+    update with a constrained-transport magnetic-field advance and
+    an optional Hall term.  Boundary-condition and AMR refinement
+    hooks allow external customization of the update.
+
     Parameters
     ----------
     mesh : Any
@@ -110,16 +120,28 @@ class HallMHDSolver(PlasmaSolverBase):
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
 
-    def step(self, state: MHDState, dt: float) -> MHDState:  # pragma: no cover - skeleton
-        """Advance the state by ``dt`` seconds using a simplified MHD update.
+    def apply_boundary_conditions(self, state: MHDState) -> None:
+        """Invoke the boundary-condition hook if provided."""
+        if self.bc is not None:
+            self.bc(state)
 
-        The numerical fluxes use a Rusanov (local Lax-Friedrichs)
-        approximation and a constrained-transport update keeps the
-        magnetic field divergence free.  Optional Braginskii transport
-        terms act along the magnetic-field direction.  The method remains
-        deliberately lightweight and is intended purely as a placeholder
-        for a more complete solver.
+    def amr_refinement(self, state: MHDState) -> None:
+        """Invoke the refinement callback if provided."""
+        if self.refine is not None:
+            self.refine(state)
+
+    def step(self, state: MHDState, dt: float) -> MHDState:  # pragma: no cover - skeleton
+        """Advance the state by ``dt`` seconds using a higher-order MHD update.
+
+        The method employs a MUSCL-Hancock Godunov scheme with a
+        Rusanov solver for the fluid variables and a constrained
+        transport update for the magnetic field.  Hall physics enters
+        through the electric field used in the CT step.  Optional
+        Braginskii transport terms act along the magnetic-field
+        direction.
         """
+
+        self.apply_boundary_conditions(state)
 
         rho = state.rho.copy()
         mom = state.mom.copy()
@@ -144,41 +166,77 @@ class HallMHDSolver(PlasmaSolverBase):
         self.last_pressure = p
         self.last_ionization = zbar
 
-        # --- Flux computation (approximate Rusanov style) ---
+        # --- High-order Godunov fluxes (MUSCL-Hancock) ---
+        gamma = getattr(self.eos, "gamma", 5.0 / 3.0)
         flux_rho = np.zeros((3,) + rho.shape)
         flux_mom = np.zeros((3,) + mom.shape)
         flux_energy = np.zeros((3,) + energy.shape)
-        vdotB = np.sum(v * B, axis=-1)
 
+        prim_vars = [rho, v[..., 0], v[..., 1], v[..., 2], B[..., 0], B[..., 1], B[..., 2], p]
         for i in range(3):
-            flux_rho[i] = rho * v[..., i]
+            slopes = [_minmod(var - np.roll(var, 1, axis=i), np.roll(var, -1, axis=i) - var) for var in prim_vars]
+            left_states = [var - 0.5 * s for var, s in zip(prim_vars, slopes)]
+            right_states = [
+                np.roll(var, -1, axis=i) + 0.5 * np.roll(s, -1, axis=i)
+                for var, s in zip(prim_vars, slopes)
+            ]
+
+            rho_L, vx_L, vy_L, vz_L, Bx_L, By_L, Bz_L, p_L = [ls for ls in left_states]
+            rho_R, vx_R, vy_R, vz_R, Bx_R, By_R, Bz_R, p_R = [rs for rs in right_states]
+            v_L = np.stack((vx_L, vy_L, vz_L), axis=-1)
+            v_R = np.stack((vx_R, vy_R, vz_R), axis=-1)
+            B_L = np.stack((Bx_L, By_L, Bz_L), axis=-1)
+            B_R = np.stack((Bx_R, By_R, Bz_R), axis=-1)
+
+            B2_L = np.sum(B_L**2, axis=-1)
+            B2_R = np.sum(B_R**2, axis=-1)
+            kinetic_L = 0.5 * rho_L * np.sum(v_L**2, axis=-1)
+            kinetic_R = 0.5 * rho_R * np.sum(v_R**2, axis=-1)
+            energy_L = p_L / (gamma - 1.0) + kinetic_L + 0.5 * B2_L
+            energy_R = p_R / (gamma - 1.0) + kinetic_R + 0.5 * B2_R
+
+            mom_L = rho_L[..., None] * v_L
+            mom_R = rho_R[..., None] * v_R
+
+            vdotB_L = np.sum(v_L * B_L, axis=-1)
+            vdotB_R = np.sum(v_R * B_R, axis=-1)
+
+            F_rho_L = rho_L * v_L[..., i]
+            F_rho_R = rho_R * v_R[..., i]
+
+            F_mom_L = np.zeros_like(mom_L)
+            F_mom_R = np.zeros_like(mom_R)
             for j in range(3):
-                flux_mom[i][..., j] = mom[..., j] * v[..., i]
+                F_mom_L[..., j] = mom_L[..., j] * v_L[..., i]
+                F_mom_R[..., j] = mom_R[..., j] * v_R[..., i]
                 if i == j:
-                    flux_mom[i][..., j] += p + magnetic
-                flux_mom[i][..., j] -= B[..., i] * B[..., j]
-            flux_energy[i] = (energy + p + magnetic) * v[..., i] - vdotB * B[..., i]
+                    F_mom_L[..., j] += p_L + 0.5 * B2_L
+                    F_mom_R[..., j] += p_R + 0.5 * B2_R
+                F_mom_L[..., j] -= B_L[..., i] * B_L[..., j]
+                F_mom_R[..., j] -= B_R[..., i] * B_R[..., j]
 
-        # simple Rusanov dissipation with estimate of fast-wave speed
-        gamma = getattr(self.eos, "gamma", 5.0 / 3.0)
-        cs = np.sqrt(gamma * p / rho)
-        ca = np.sqrt(B2 / rho)
-        cfast = np.sqrt(cs**2 + ca**2)
+            F_energy_L = (energy_L + p_L + 0.5 * B2_L) * v_L[..., i] - vdotB_L * B_L[..., i]
+            F_energy_R = (energy_R + p_R + 0.5 * B2_R) * v_R[..., i] - vdotB_R * B_R[..., i]
+
+            cs_L = np.sqrt(gamma * p_L / rho_L)
+            cs_R = np.sqrt(gamma * p_R / rho_R)
+            ca_L = np.sqrt(B2_L / rho_L)
+            ca_R = np.sqrt(B2_R / rho_R)
+            a = np.maximum(np.sqrt(cs_L**2 + ca_L**2), np.sqrt(cs_R**2 + ca_R**2))
+
+            flux_rho_i = 0.5 * (F_rho_L + F_rho_R) - 0.5 * a * (rho_R - rho_L)
+            flux_energy_i = 0.5 * (F_energy_L + F_energy_R) - 0.5 * a * (energy_R - energy_L)
+            flux_mom_i = 0.5 * (F_mom_L + F_mom_R) - 0.5 * a[..., None] * (mom_R - mom_L)
+
+            flux_rho[i] = flux_rho_i
+            flux_energy[i] = flux_energy_i
+            flux_mom[i] = flux_mom_i
+
         for i in range(3):
-            flux_rho[i] -= 0.5 * cfast * _dd(rho, i)
+            rho -= dt * (flux_rho[i] - np.roll(flux_rho[i], 1, axis=i))
+            energy -= dt * (flux_energy[i] - np.roll(flux_energy[i], 1, axis=i))
             for j in range(3):
-                flux_mom[i][..., j] -= 0.5 * cfast * _dd(mom[..., j], i)
-            flux_energy[i] -= 0.5 * cfast * _dd(energy, i)
-
-        def div_flux(F: np.ndarray) -> np.ndarray:
-            return _dd(F[0], 0) + _dd(F[1], 1) + _dd(F[2], 2)
-
-        rho -= dt * div_flux(flux_rho)
-        new_mom = np.empty_like(mom)
-        for j in range(3):
-            new_mom[..., j] = mom[..., j] - dt * div_flux(flux_mom[:, ..., j])
-        mom = new_mom
-        energy -= dt * div_flux(flux_energy)
+                mom[..., j] -= dt * (flux_mom[i][..., j] - np.roll(flux_mom[i][..., j], 1, axis=i))
 
         # --- Constrained transport via electric fields ---
         J = _curl(B)
@@ -224,10 +282,8 @@ class HallMHDSolver(PlasmaSolverBase):
             Ti=None if state.Ti is None else state.Ti.copy(),
         )
 
-        if self.bc is not None:
-            self.bc(new_state)
-        if self.refine is not None:
-            self.refine(new_state)
+        self.apply_boundary_conditions(new_state)
+        self.amr_refinement(new_state)
 
         return new_state
 
