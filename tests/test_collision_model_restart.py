@@ -30,27 +30,27 @@ models_stub = types.SimpleNamespace(
 )
 sys.modules['models'] = models_stub
 
-from Simulation.collision_model import CollisionModel
+from Simulation.collision_model import CollisionModel, CrossSectionData
 
 
 def test_checkpoint_restart_roundtrip():
     cm1 = CollisionModel({})
-    ion_cs = types.SimpleNamespace(name='ion')
-    dd_cs = types.SimpleNamespace(name='dd')
+    ion_cs = CrossSectionData.from_dict({'energy': [1, 2], 'cross_section': [3, 4]})
+    dd_cs = CrossSectionData.from_dict({'energy': [5, 6], 'cross_section': [7, 8]})
     crn = types.SimpleNamespace(rates={'val': 1})
     cm1.ionization_cross_section = ion_cs
     cm1.dd_fusion_cross_section = dd_cs
     cm1.crn = crn
+    cm1.accumulators['steps'] = 10
+    cm1.caches['nu_ei'] = [0.1, 0.2]
 
     data = cm1.checkpoint()
 
     cm2 = CollisionModel({})
-    assert cm2.ionization_cross_section is not ion_cs
-    assert cm2.dd_fusion_cross_section is not dd_cs
-    assert cm2.crn is not crn
-
     cm2.restart(data)
 
-    assert cm2.ionization_cross_section is ion_cs
-    assert cm2.dd_fusion_cross_section is dd_cs
     assert cm2.crn is crn
+    assert list(cm2.ionization_cross_section.energy) == [1, 2]
+    assert list(cm2.dd_fusion_cross_section.cross_section) == [7, 8]
+    assert cm2.accumulators == cm1.accumulators
+    assert cm2.caches == cm1.caches

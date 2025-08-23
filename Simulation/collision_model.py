@@ -140,7 +140,28 @@ class CrossSectionData:
             self.interp = interp1d(self.energy, self.cross_section, bounds_error=False, fill_value=0.0)
         except Exception as e:
             logger.error(f"Error loading cross-section data from {filename}: {e}")
+            self.energy = []
+            self.cross_section = []
             self.interp = lambda E: 0.0  # Default: zero cross-section
+
+    def to_dict(self):
+        """Return a serializable representation of the table."""
+        return {
+            'energy': self.energy,
+            'cross_section': self.cross_section,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """Create a :class:`CrossSectionData` from checkpoint data."""
+        obj = cls.__new__(cls)
+        obj.energy = data.get('energy', [])
+        obj.cross_section = data.get('cross_section', [])
+        try:
+            obj.interp = interp1d(obj.energy, obj.cross_section, bounds_error=False, fill_value=0.0)
+        except Exception:
+            obj.interp = lambda E: 0.0
+        return obj
 
     def __call__(self, E):
         return self.interp(E)
@@ -300,6 +321,8 @@ class CollisionModel(CollisionOperator):
         self.adas_file = config.get('adas_file', None)
         self.crn = CollisionalRadiativeNetwork(self.adas_file) if self.adas_file is not None else None
         self.checkpoint_data = {}
+        self.accumulators = {}
+        self.caches = {}
         # Load cross-section data
         self.ionization_cross_section = CrossSectionData(config.get('ionization_cross_section_file', "ionization_cross_section.h5"))
         self.dd_fusion_cross_section = CrossSectionData(config.get('dd_fusion_cross_section_file', "dd_fusion_cross_section.h5"))
@@ -324,6 +347,8 @@ class CollisionModel(CollisionOperator):
 
             # implicit relaxation
             νei = nu_ei_spitzer(ne, Te)
+            self.caches['nu_ei'] = νei
+            self.accumulators['steps'] = self.accumulators.get('steps', 0) + 1
             Te_new, Ti_new = relax_ei_implicit(Te, Ti, νei, dt)
             state.electron_temperature, state.ion_temperature = Te_new, Ti_new
 
@@ -362,9 +387,11 @@ class CollisionModel(CollisionOperator):
 
     def checkpoint(self):
         self.checkpoint_data = {
-            'ionization_cross_section': self.ionization_cross_section,
-            'dd_fusion_cross_section': self.dd_fusion_cross_section,
+            'ionization_cross_section': getattr(self.ionization_cross_section, 'to_dict', lambda: self.ionization_cross_section)(),
+            'dd_fusion_cross_section': getattr(self.dd_fusion_cross_section, 'to_dict', lambda: self.dd_fusion_cross_section)(),
             'crn_state': self.crn,
+            'accumulators': self.accumulators,
+            'caches': self.caches,
         }
         return self.checkpoint_data
 
@@ -372,13 +399,22 @@ class CollisionModel(CollisionOperator):
         if not isinstance(data, dict):
             raise ValueError("Restart data must be a dictionary")
 
-        self.ionization_cross_section = data.get(
-            'ionization_cross_section', self.ionization_cross_section
-        )
-        self.dd_fusion_cross_section = data.get(
-            'dd_fusion_cross_section', self.dd_fusion_cross_section
-        )
+        ion_data = data.get('ionization_cross_section')
+        if isinstance(ion_data, dict):
+            self.ionization_cross_section = CrossSectionData.from_dict(ion_data)
+        elif ion_data is not None:
+            self.ionization_cross_section = ion_data
+
+        dd_data = data.get('dd_fusion_cross_section')
+        if isinstance(dd_data, dict):
+            self.dd_fusion_cross_section = CrossSectionData.from_dict(dd_data)
+        elif dd_data is not None:
+            self.dd_fusion_cross_section = dd_data
+
         if 'crn_state' in data:
             self.crn = data['crn_state']
+
+        self.accumulators = data.get('accumulators', {})
+        self.caches = data.get('caches', {})
 
         self.checkpoint_data = data
