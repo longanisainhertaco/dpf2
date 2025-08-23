@@ -5,10 +5,23 @@ import numpy as np
 
 
 class ResistiveMHD:
-    """Minimal representation of resistive MHD equations."""
+    """Minimal representation of resistive MHD equations.
 
-    def __init__(self, gamma: float = 5 / 3) -> None:
+    Extended with an anisotropic conductivity tensor and a simple Hall term to
+    demonstrate cross-field heat conduction and Hall-induced currents.
+    """
+
+    def __init__(
+        self,
+        gamma: float = 5 / 3,
+        sigma_parallel: float = 1.0,
+        sigma_perp: float = 1.0,
+        hall_param: float = 0.0,
+    ) -> None:
         self.gamma = gamma
+        self.sigma_parallel = sigma_parallel
+        self.sigma_perp = sigma_perp
+        self.hall_param = hall_param
         self.equations = [
             "density",
             "momentum_r",
@@ -18,6 +31,21 @@ class ResistiveMHD:
             "B_z",
             "B_phi",
         ]
+
+    def conductivity_tensor(self) -> np.ndarray:
+        """Return the anisotropic conductivity tensor."""
+        return np.diag([self.sigma_perp, self.sigma_perp, self.sigma_parallel])
+
+    def cross_field_conduction(self, grad_T: np.ndarray, B: np.ndarray) -> np.ndarray:
+        """Compute heat flux with anisotropic conductivity."""
+        b = B / (np.linalg.norm(B) + 1e-12)
+        grad_par = np.dot(grad_T, b) * b
+        grad_perp = grad_T - grad_par
+        return -self.sigma_parallel * grad_par - self.sigma_perp * grad_perp
+
+    def hall_current(self, J: np.ndarray, B: np.ndarray) -> np.ndarray:
+        """Return current including Hall-induced contribution."""
+        return J + self.hall_param * np.cross(J, B)
 
     def conservative_variables(self, primitives: np.ndarray) -> np.ndarray:
         """Convert primitive variables to conservative form."""

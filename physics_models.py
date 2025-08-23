@@ -98,6 +98,27 @@ class PhysicsModels(ConfigSectionBase):
         metadata={"category": "PhysicsModels", "group": "Resistivity"},
     )
 
+    anisotropic_conductivity_enabled: bool = Field(
+        False,
+        alias="anisotropicConductivityEnabled",
+        metadata={"category": "PhysicsModels", "group": "Transport"},
+    )
+    conductivity_parallel: Optional[float] = Field(
+        None,
+        alias="conductivityParallel",
+        metadata={"units": "S/m", "category": "PhysicsModels", "group": "Transport"},
+    )
+    conductivity_perpendicular: Optional[float] = Field(
+        None,
+        alias="conductivityPerpendicular",
+        metadata={"units": "S/m", "category": "PhysicsModels", "group": "Transport"},
+    )
+    hall_parameter: Optional[float] = Field(
+        None,
+        alias="hallParameter",
+        metadata={"category": "PhysicsModels", "group": "Transport"},
+    )
+
     ionization_model: IonizationModel = Field(
         IonizationModel.SAHA,
         alias="ionizationModel",
@@ -283,6 +304,12 @@ class PhysicsModels(ConfigSectionBase):
             raise ValueError("opacity_table_path is required for MonteCarlo radiation transport")
         if values.eos_model is EOSModel.TABULATED and values.eos_table_path is None:
             raise ValueError("eos_table_path must be provided when eos_model is 'tabulated'")
+        if values.anisotropic_conductivity_enabled and (
+            values.conductivity_parallel is None or values.conductivity_perpendicular is None
+        ):
+            raise ValueError(
+                "conductivity_parallel and conductivity_perpendicular must be set when anisotropic conductivity is enabled"
+            )
 
         # Context-based validation omitted for compatibility with Pydantic v1
         return values
