@@ -42,16 +42,85 @@ class ExportError(ServerError):
 
 # ——— Simulation Interface ———
 class SimulationInterface:
-    def __init__(self, config: Dict[str, Any]):
-        pass
-    def run(self):
-        raise NotImplementedError
-    def stop(self):
-        raise NotImplementedError
+    """Thread safe wrapper around :class:`DPFSimulation`.
+
+    The interface exposes a minimal set of controls used by the API
+    server while delegating attribute access to the underlying
+    ``DPFSimulation`` instance.  A re-entrant lock is used to guard
+    mutable state so that the simulation may be queried safely from
+    different threads.
+    """
+
+    def __init__(self, config: Dict[str, Any], field_manager: FieldManager | None = None):
+        self._lock = threading.RLock()
+        # Underlying simulation object
+        if field_manager is not None:
+            self._sim = DPFSimulation(config, field_manager=field_manager)
+        else:
+            self._sim = DPFSimulation(config)
+
+    # ------------------------------------------------------------------
+    def run(self) -> None:
+        """Execute the simulation.
+
+        The simulation is run in the current thread.  Any exception is
+        logged and the simulation is finalised to ensure resources are
+        released.
+        """
+        try:
+            self._sim.run()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("Simulation run failed: %s", exc)
+        finally:
+            if hasattr(self._sim, "finalize"):
+                try:
+                    self._sim.finalize()
+                except Exception:  # pragma: no cover - defensive
+                    logger.exception("Simulation finalization failed")
+
+    # ------------------------------------------------------------------
+    def stop(self) -> None:
+        """Request the simulation to stop.
+
+        Many components check ``config.sim_time`` each iteration.  By
+        updating this value to the current simulation time we ensure the
+        loop exits at the next check.
+        """
+        with self._lock:
+            if hasattr(self._sim, "config") and hasattr(self._sim, "current_time"):
+                try:
+                    self._sim.config.sim_time = self._sim.current_time
+                except Exception:  # pragma: no cover - defensive
+                    logger.debug("Unable to adjust sim_time during stop")
+
+    # ------------------------------------------------------------------
     def get_diagnostics(self):
-        raise NotImplementedError
+        """Return diagnostics object from the simulation, if available."""
+        with self._lock:
+            diag = getattr(self._sim, "diagnostics", None)
+            if diag is None and hasattr(self._sim, "modules"):
+                diag = self._sim.modules.get("diagnostics")
+            return diag
+
+    # ------------------------------------------------------------------
     def get_state(self):
-        raise NotImplementedError
+        """Return current simulation state, if available."""
+        with self._lock:
+            return getattr(self._sim, "state", None)
+
+    # ------------------------------------------------------------------
+    def __getattr__(self, item):  # pragma: no cover - simple delegation
+        """Delegate attribute access to the underlying simulation."""
+        return getattr(self._sim, item)
+
+    # Convenience properties -------------------------------------------------
+    @property
+    def diagnostics(self):  # pragma: no cover - thin wrapper
+        return self.get_diagnostics()
+
+    @property
+    def state(self):  # pragma: no cover - thin wrapper
+        return self.get_state()
 
 # ——— Simulation Manager ———
 class SimulationManager:
@@ -72,7 +141,7 @@ class SimulationManager:
                 domain_lo=tuple(config['domain_lo']),
                 boundary_conditions=field_manager_config.get('boundary_conditions', {})
             )
-            sim = DPFSimulation(config, field_manager=field_manager) # Pass FieldManager to DPFSimulation
+            sim = SimulationInterface(config, field_manager=field_manager)
             self.simulations[sim_id] = sim
             logger.info(f"Simulation {sim_id} created with parameters: {config}")
             return sim_id
@@ -92,7 +161,7 @@ class SimulationManager:
         if not sim:
             raise SimulationError(f"Simulation {sim_id} not found")
         logger.info(f"Stopping simulation {sim_id}...")
-        sim.sim_time = sim.current_time
+        sim.stop()
 
     def get_simulation(self, sim_id: str) -> SimulationInterface:
         sim = self.simulations.get(sim_id)
