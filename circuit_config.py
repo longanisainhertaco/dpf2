@@ -103,6 +103,23 @@ class CircuitConfig(ConfigSectionBase):
         ..., alias="switchDelay", metadata={"units": "ns", "category": "Circuit", "group": "LRC"}
     )
 
+    # --- Coupling & Plasma Effects ------------------------------------
+    plasma_inductance_profile: Optional[TimeVoltageProfile] = Field(
+        None,
+        alias="plasmaInductanceProfile",
+        metadata={"units": ["μs", "μH"], "category": "Circuit", "group": "Coupling"},
+    )
+    mutual_inductance_profile: Optional[TimeVoltageProfile] = Field(
+        None,
+        alias="mutualInductanceProfile",
+        metadata={"units": ["μs", "μH"], "category": "Circuit", "group": "Coupling"},
+    )
+    mutual_current_profile: Optional[TimeVoltageProfile] = Field(
+        None,
+        alias="mutualCurrentProfile",
+        metadata={"units": ["μs", "kA"], "category": "Circuit", "group": "Coupling"},
+    )
+
     # --- Switching Behavior --------------------------------------------
     switching_model: Literal["ideal", "jittered", "multi-bank"] = Field(
         ..., alias="switchingModel", metadata={"category": "Circuit", "group": "Switching"}
@@ -206,7 +223,23 @@ class CircuitConfig(ConfigSectionBase):
         wf = None
         if self.waveform_profile is not None:
             wf = [(t * scale, v * scale) for t, v in self.waveform_profile]
-        return self.model_copy(update={"waveform_profile": wf})
+        lp = None
+        if self.plasma_inductance_profile is not None:
+            lp = [(t * scale, L) for t, L in self.plasma_inductance_profile]
+        mp = None
+        if self.mutual_inductance_profile is not None:
+            mp = [(t * scale, L) for t, L in self.mutual_inductance_profile]
+        mc = None
+        if self.mutual_current_profile is not None:
+            mc = [(t * scale, i) for t, i in self.mutual_current_profile]
+        return self.model_copy(
+            update={
+                "waveform_profile": wf,
+                "plasma_inductance_profile": lp,
+                "mutual_inductance_profile": mp,
+                "mutual_current_profile": mc,
+            }
+        )
 
     # ------------------------------------------------------------------
     @model_validator(mode="after")

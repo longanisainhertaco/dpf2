@@ -86,6 +86,12 @@ class SyntheticDiagnostics(ConfigSectionBase):
     # Enabled diagnostics
     synthetic_current_waveform_enabled: bool = Field(True, alias="syntheticCurrentWaveformEnabled")
     synthetic_voltage_waveform_enabled: bool = Field(True, alias="syntheticVoltageWaveformEnabled")
+    synthetic_coupled_current_waveform_enabled: bool = Field(
+        False, alias="syntheticCoupledCurrentWaveformEnabled"
+    )
+    synthetic_coupled_voltage_waveform_enabled: bool = Field(
+        False, alias="syntheticCoupledVoltageWaveformEnabled"
+    )
     synthetic_rogowski_signal_enabled: bool = Field(True, alias="syntheticRogowskiSignalEnabled")
     synthetic_bdot_signal_enabled: bool = Field(True, alias="syntheticBdotSignalEnabled")
     synthetic_neutron_tof_enabled: bool = Field(True, alias="syntheticNeutronTofEnabled")
@@ -155,6 +161,8 @@ class SyntheticDiagnostics(ConfigSectionBase):
         diag_flags = [
             (self.synthetic_current_waveform_enabled, "Current"),
             (self.synthetic_voltage_waveform_enabled, "Voltage"),
+            (self.synthetic_coupled_current_waveform_enabled, "CoupledCurrent"),
+            (self.synthetic_coupled_voltage_waveform_enabled, "CoupledVoltage"),
             (self.synthetic_rogowski_signal_enabled, "Rogowski"),
             (self.synthetic_bdot_signal_enabled, "B-dot"),
             (self.synthetic_neutron_tof_enabled, "TOF"),

@@ -256,6 +256,8 @@ class Diagnostics:
 
             I = circuit.get_current()
             V = circuit.get_voltage()
+            coupled_currents = getattr(circuit, "get_coupled_currents", lambda: None)()
+            coupled_voltages = getattr(circuit, "get_coupled_voltages", lambda: None)()
 
             # compute dI/dt synthetic Rogowski
             if self._last_time is None:
@@ -306,6 +308,10 @@ class Diagnostics:
                 'timing': tdict,
                 'checkpoint': checkpoint_id
             }
+            if coupled_currents is not None:
+                rec['coupled_currents'] = coupled_currents
+            if coupled_voltages is not None:
+                rec['coupled_voltages'] = coupled_voltages
             self.summary.append(rec)
 
             # Call each diagnostic
