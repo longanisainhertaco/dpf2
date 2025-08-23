@@ -5,13 +5,28 @@ from typing import Tuple
 from circuit_config import CircuitConfig
 
 
-def run_circuit_simulation(cfg: CircuitConfig, t_end: float, num_points: int = 1000) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Run simple RLC discharge using cfg parameters.
+def _profile_to_interp(profile, t_scale: float, y_scale: float):
+    """Return interpolation functions for profile value and derivative."""
+    if profile is None:
+        return (lambda t: 0.0, lambda t: 0.0)
+    arr = np.asarray(profile, dtype=float)
+    t = arr[:, 0] * t_scale
+    y = arr[:, 1] * y_scale
+    dy_dt = np.gradient(y, t, edge_order=2)
+    def val(tt):
+        return np.interp(tt, t, y, left=y[0], right=y[-1])
+    def deriv(tt):
+        return np.interp(tt, t, dy_dt, left=dy_dt[0], right=dy_dt[-1])
+    return val, deriv
+
+
+def run_circuit_simulation(cfg: CircuitConfig, t_end: float, num_points: int = 1000) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Run RLC discharge with optional plasma and mutual inductance.
 
     Parameters
     ----------
     cfg : CircuitConfig
-        Circuit configuration with L_ext [uH], R_ext [mOhm], C_ext [uF], V0 [kV].
+        Circuit configuration including optional coupling profiles.
     t_end : float
         End time in microseconds.
     num_points : int, optional
@@ -20,40 +35,51 @@ def run_circuit_simulation(cfg: CircuitConfig, t_end: float, num_points: int = 1
     Returns
     -------
     tuple of ndarray
-        time [s], current [A], capacitor voltage [V].
+        time [s], current [A], capacitor voltage [V], mutual current [A],
+        mutual-induced voltage [V].
     """
-    # convert to SI units
-    L = cfg.L_ext * 1e-6
+    L_ext = cfg.L_ext * 1e-6
     R = cfg.R_ext * 1e-3
     C = cfg.C_ext * 1e-6
     V0 = cfg.V0 * 1e3
     delay = cfg.switch_delay * 1e-9
 
-    def rlc_ode(t, y):
+    lp_func, dlpdt_func = _profile_to_interp(cfg.plasma_inductance_profile, 1e-6, 1e-6)
+    m_func, _ = _profile_to_interp(cfg.mutual_inductance_profile, 1e-6, 1e-6)
+    im_func, dim_dt_func = _profile_to_interp(cfg.mutual_current_profile, 1e-6, 1e3)
+
+    def circuit_ode(t, y):
         I, Q = y
-        dIdt = -(R / L) * I - Q / (L * C)
+        Lp = lp_func(t)
+        dLpdt = dlpdt_func(t)
+        M = m_func(t)
+        dI_mutual_dt = dim_dt_func(t)
+        Ltot = L_ext + Lp
+        V_mutual = -M * dI_mutual_dt
+        dIdt = (V0 + V_mutual - R * I - Q / C - dLpdt * I) / Ltot
         dQdt = I
         return [dIdt, dQdt]
 
-    # time grid in seconds
     t_total = np.linspace(0.0, t_end * 1e-6, num_points)
 
     if t_end * 1e-6 <= delay:
-        # switch never closes
         current = np.zeros_like(t_total)
         voltage = np.full_like(t_total, V0)
-        return t_total, current, voltage
+        i_mutual = im_func(t_total)
+        v_mutual = -m_func(t_total) * dim_dt_func(t_total)
+        return t_total, current, voltage, i_mutual, v_mutual
 
-    # before switch closes
     mask_before = t_total < delay
     current = np.zeros_like(t_total)
     voltage = np.full_like(t_total, V0)
+    i_mutual = im_func(t_total)
+    v_mutual = -m_func(t_total) * dim_dt_func(t_total)
 
-    # integrate after delay
     t_eval = t_total[~mask_before]
     q0 = C * V0
-    sol = solve_ivp(rlc_ode, (delay, t_total[-1]), [0.0, q0], t_eval=t_eval, method="RK45")
+    sol = solve_ivp(circuit_ode, (delay, t_total[-1]), [0.0, q0], t_eval=t_eval, method="BDF")
+
     current[~mask_before] = sol.y[0]
     voltage[~mask_before] = sol.y[1] / C
 
-    return t_total, current, voltage
+    return t_total, current, voltage, i_mutual, v_mutual

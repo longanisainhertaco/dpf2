@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+from scipy.constants import mu_0
 
 from .core import PlasmaSolverBase
 
@@ -159,3 +160,26 @@ class HallMHDSolver(PlasmaSolverBase):
             Te=None if state.Te is None else state.Te.copy(),
             Ti=None if state.Ti is None else state.Ti.copy(),
         )
+
+    def compute_plasma_inductance(self, state: MHDState, current: float, cell_volume: float = 1.0) -> float:
+        """Estimate plasma inductance from magnetic energy.
+
+        Parameters
+        ----------
+        state : MHDState
+            Current plasma state.
+        current : float
+            Circuit current in amperes.
+        cell_volume : float, optional
+            Volume of a single cell, by default 1.0.
+
+        Returns
+        -------
+        float
+            Estimated inductance in henries.
+        """
+        B2 = np.sum(state.B ** 2)
+        magnetic_energy = B2 * cell_volume / (2 * mu_0)
+        if current == 0.0:
+            return 0.0
+        return 2 * magnetic_energy / (current ** 2)
