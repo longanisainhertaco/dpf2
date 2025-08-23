@@ -58,22 +58,31 @@ class HallMHDSolver(PlasmaSolverBase):
     """
 
     mesh: Any = field(default=None)
+    eta: float = 0.0  # Simple resistivity coefficient for placeholder updates
 
     def step(self, state: MHDState, dt: float) -> MHDState:  # pragma: no cover - skeleton
         """Advance the state by ``dt`` seconds.
 
-        This placeholder method documents the intended numerical
-        operations:
-
-        1. Compute fluxes using an HLLD Riemann solver.
-        2. Update conserved variables with a high-order Godunov scheme.
-        3. Apply constrained transport to maintain ∇·B = 0.
-        4. Add Hall, Nernst and resistive source terms (potentially
-           via IMEX).
-        5. Couple radiation and EOS modules through source terms.
-
-        The method currently returns the input state unchanged.
+        The full Hall-MHD algorithm is complex; for now we provide a
+        minimal physically motivated placeholder that applies a simple
+        resistive decay to the magnetic field while leaving other
+        conserved quantities unchanged.  This makes the method
+        side-effect free yet provides a concrete example of how state
+        updates should occur.
         """
 
-        # TODO: Implement full solver.
-        return state
+        new_state = MHDState(
+            rho=state.rho.copy(),
+            mom=state.mom.copy(),
+            energy=state.energy.copy(),
+            B=state.B.copy(),
+            Te=None if state.Te is None else state.Te.copy(),
+            Ti=None if state.Ti is None else state.Ti.copy(),
+        )
+
+        # Apply a simple resistive decay to the magnetic field
+        if self.eta > 0.0:
+            decay = np.exp(-self.eta * dt)
+            new_state.B *= decay
+
+        return new_state

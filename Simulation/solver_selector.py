@@ -3,8 +3,9 @@ from fluid_solver_high_order import FluidSolverHighOrder
 from pic_solver import PICSolver
 # from amrex_solver import FluidSolverAMReX  # Keep for potential future use, but comment out
 from utils import FieldManager  # Import FieldManager
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import logging
+from models import PhysicsModule
 
 logger = logging.getLogger(__name__)
 
