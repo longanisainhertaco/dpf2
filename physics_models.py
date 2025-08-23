@@ -47,6 +47,13 @@ from core_schema import (
 )
 from units_settings import UnitsSettings
 
+# Lightweight ionization model utilities
+from dpf2.ionization import (
+    equilibrium_electron_density as _equilibrium_electron_density,
+    collisional_radiative_rhs,
+    ionization_energy_sink as _ionization_energy_sink,
+)
+
 
 def to_camel_case(string: str) -> str:
     parts = string.split("_")
@@ -265,6 +272,35 @@ class PhysicsModels(ConfigSectionBase):
         if band is not None:
             band = (band[0] * scale, band[1] * scale)
         return self.model_copy(update={"sxr_bandpass_nm": band})
+
+    # ------------------------------------------------------------------
+    def equilibrium_electron_density(self, n_total: float, temperature: float) -> float:
+        """Return the equilibrium electron density for given conditions."""
+
+        if self.ionization_model is IonizationModel.NONE:
+            return 0.0
+        return _equilibrium_electron_density(n_total, temperature)
+
+    def electron_density_rate(self, ne: float, n_total: float, temperature: float) -> float:
+        """Time derivative d(ne)/dt from the CR model."""
+
+        if self.ionization_model is IonizationModel.NONE:
+            return 0.0
+        return collisional_radiative_rhs(ne, n_total, temperature)
+
+    def update_electron_density(
+        self, ne: float, n_total: float, temperature: float, dt: float
+    ) -> float:
+        """Advance the electron density using a forward-Euler step."""
+
+        return ne + self.electron_density_rate(ne, n_total, temperature) * dt
+
+    def ionization_energy_sink(self, ne: float, n_total: float, temperature: float) -> float:
+        """Energy sink due to ionization (J/m^3/s)."""
+
+        if self.ionization_model is IonizationModel.NONE:
+            return 0.0
+        return _ionization_energy_sink(ne, n_total, temperature)
 
     # ------------------------------------------------------------------
     @model_validator(mode="after")
