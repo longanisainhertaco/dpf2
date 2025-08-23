@@ -1,3 +1,5 @@
+"""Tests for parsing mixture fractions in ``select_eos``."""
+
 import sys
 from pathlib import Path
 
