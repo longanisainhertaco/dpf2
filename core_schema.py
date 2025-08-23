@@ -4,7 +4,18 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple, Union, Self
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    Self,
+    TYPE_CHECKING,
+)
 
 from enum import Enum
 
@@ -45,6 +56,23 @@ TimeVoltageProfile = List[Tuple[float, float]]
 DetectorConfig = Dict[str, Any]
 ConfigOverride = Dict[str, Union[float, str]]
 FieldUnit = str
+
+if TYPE_CHECKING:
+    from simulation_settings import SimulationSettings
+    from grid_resolution import GridResolution
+    from initial_conditions import InitialConditions
+    from physics_models import PhysicsModels
+    from circuit_config import CircuitConfig
+    from amrex_settings import AmrexSettings
+    from warpx_settings import WarpXSettings
+    from diagnostics import Diagnostics
+    from experimental_variability import ExperimentalVariabilityModel
+    from benchmark_matching import BenchmarkMatching
+    from boundary_conditions import BoundaryConditions
+    from parallel_settings import ParallelSettings
+    from metadata import Metadata
+    from advanced_options import AdvancedOptions
+    from units_settings import UnitsSettings
 
 # ---------------------------------------------------------------------------
 # Helper for camelCase aliasing
@@ -220,50 +248,50 @@ class ConfigSectionBase(BaseModel):
 class DPFConfig(BaseModel):
     """Root configuration object."""
 
-    # Required submodels (placeholders for actual definitions)
-    simulation: ConfigSectionBase = Field(
+    # Dedicated section models
+    simulation: SimulationSettings = Field(
         ..., alias="simulation", metadata={"units": "-", "category": "Model", "group": "Simulation"}
     )
-    grid: ConfigSectionBase = Field(
+    grid: GridResolution = Field(
         ..., alias="grid", metadata={"units": "-", "category": "Model", "group": "Grid"}
     )
-    initial: ConfigSectionBase = Field(
+    initial: InitialConditions = Field(
         ..., alias="initial", metadata={"units": "-", "category": "Model", "group": "Initial"}
     )
-    physics: ConfigSectionBase = Field(
+    physics: PhysicsModels = Field(
         ..., alias="physics", metadata={"units": "-", "category": "Model", "group": "Physics"}
     )
-    circuit: ConfigSectionBase = Field(
+    circuit: CircuitConfig = Field(
         ..., alias="circuit", metadata={"units": "-", "category": "Model", "group": "Circuit"}
     )
-    amrex: ConfigSectionBase = Field(
+    amrex: AmrexSettings = Field(
         ..., alias="amrex", metadata={"units": "-", "category": "Model", "group": "AMReX"}
     )
-    warpx: ConfigSectionBase = Field(
+    warpx: WarpXSettings = Field(
         ..., alias="warpx", metadata={"units": "-", "category": "Model", "group": "WarpX"}
     )
-    diagnostics: ConfigSectionBase = Field(
+    diagnostics: Diagnostics = Field(
         ..., alias="diagnostics", metadata={"units": "-", "category": "Model", "group": "Diagnostics"}
     )
-    variability: ConfigSectionBase = Field(
+    variability: ExperimentalVariabilityModel = Field(
         ..., alias="variability", metadata={"units": "-", "category": "Model", "group": "Variability"}
     )
-    benchmark: ConfigSectionBase = Field(
+    benchmark: BenchmarkMatching = Field(
         ..., alias="benchmark", metadata={"units": "-", "category": "Model", "group": "Benchmark"}
     )
-    boundary: ConfigSectionBase = Field(
+    boundary: BoundaryConditions = Field(
         ..., alias="boundary", metadata={"units": "-", "category": "Model", "group": "Boundary"}
     )
-    parallel: ConfigSectionBase = Field(
+    parallel: ParallelSettings = Field(
         ..., alias="parallel", metadata={"units": "-", "category": "Model", "group": "Parallel"}
     )
-    metadata: ConfigSectionBase = Field(
+    metadata: Metadata = Field(
         ..., alias="metadata", metadata={"units": "-", "category": "Model", "group": "Metadata"}
     )
-    advanced: ConfigSectionBase = Field(
+    advanced: AdvancedOptions = Field(
         ..., alias="advanced", metadata={"units": "-", "category": "Model", "group": "Advanced"}
     )
-    units: ConfigSectionBase = Field(
+    units: UnitsSettings = Field(
         ..., alias="units", metadata={"units": "-", "category": "Model", "group": "Units"}
     )
 
@@ -309,23 +337,47 @@ class DPFConfig(BaseModel):
     # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> Self:
+        from simulation_settings import SimulationSettings
+        from grid_resolution import GridResolution
+        from initial_conditions import InitialConditions
+        from physics_models import PhysicsModels
+        from circuit_config import CircuitConfig
+        from amrex_settings import AmrexSettings
+        from warpx_settings import WarpXSettings
+        from diagnostics import Diagnostics
+        from experimental_variability import ExperimentalVariabilityModel
+        from benchmark_matching import BenchmarkMatching
+        from boundary_conditions import BoundaryConditions
+        from parallel_settings import ParallelSettings
+        from metadata import Metadata
+        from advanced_options import AdvancedOptions
+        from units_settings import UnitsSettings
+
+        cls.model_rebuild()
+        sim = SimulationSettings.with_defaults()
         return cls(
-            simulation=ConfigSectionBase(config_section_id="simulation"),
-            grid=ConfigSectionBase(config_section_id="grid"),
-            initial=ConfigSectionBase(config_section_id="initial"),
-            physics=ConfigSectionBase(config_section_id="physics"),
-            circuit=ConfigSectionBase(config_section_id="circuit"),
-            amrex=ConfigSectionBase(config_section_id="amrex"),
-            warpx=ConfigSectionBase(config_section_id="warpx"),
-            diagnostics=ConfigSectionBase(config_section_id="diagnostics"),
-            variability=ConfigSectionBase(config_section_id="variability"),
-            benchmark=ConfigSectionBase(config_section_id="benchmark"),
-            boundary=ConfigSectionBase(config_section_id="boundary"),
-            parallel=ConfigSectionBase(config_section_id="parallel"),
-            metadata=ConfigSectionBase(config_section_id="metadata"),
-            advanced=ConfigSectionBase(config_section_id="advanced"),
-            units=ConfigSectionBase(config_section_id="units"),
-            run_uuid="0", schema_version="1.0", created_at=datetime.utcnow(),
+            simulation=sim,
+            grid=GridResolution.with_defaults(
+                sim.geometry.value if isinstance(sim.geometry, GeometryType) else sim.geometry
+            ),
+            initial=InitialConditions.with_defaults(),
+            physics=PhysicsModels.with_defaults(),
+            circuit=CircuitConfig.with_defaults(),
+            amrex=AmrexSettings.with_defaults(),
+            warpx=WarpXSettings.with_defaults(
+                sim.geometry.value if isinstance(sim.geometry, GeometryType) else sim.geometry
+            ),
+            diagnostics=Diagnostics.with_defaults(),
+            variability=ExperimentalVariabilityModel.with_defaults(),
+            benchmark=BenchmarkMatching.with_defaults(),
+            boundary=BoundaryConditions.with_defaults(),
+            parallel=ParallelSettings.with_defaults(),
+            metadata=Metadata.with_defaults(),
+            advanced=AdvancedOptions.with_defaults(),
+            units=UnitsSettings.with_defaults(),
+            run_uuid="0",
+            schema_version="1.0",
+            created_at=datetime.utcnow(),
             on_validation_error=ValidationPolicy.STRICT,
         )
 
@@ -425,10 +477,10 @@ class DPFConfig(BaseModel):
         grid = values.grid
         physics = values.physics
         diag = values.diagnostics
-        if getattr(sim, "geometry", None) == GeometryType.RZ_2D.value:
+        if getattr(sim, "geometry", None) == GeometryType.RZ_2D:
             if getattr(grid, "ny", 1) != 1:
                 raise ValueError("ny must be 1 for 2D_RZ geometry")
-        if getattr(sim, "mode", None) == ModeType.PIC.value:
+        if getattr(sim, "mode", None) == ModeType.PIC:
             if not getattr(physics, "neutral_fluid_enabled", False):
                 raise ValueError("neutral_fluid_enabled must be True in PIC mode")
         if getattr(diag, "neutron_fluence_map", False):
@@ -439,6 +491,27 @@ class DPFConfig(BaseModel):
             if getattr(values.circuit, "switch_feedback_delay_ns", None) is None:
                 raise ValueError("switch_feedback_delay_ns is required for multi-bank model")
         return values
+
+# Attempt to resolve forward references now that section models may be available
+try:  # pragma: no cover - optional import for forward refs
+    from simulation_settings import SimulationSettings
+    from grid_resolution import GridResolution
+    from initial_conditions import InitialConditions
+    from physics_models import PhysicsModels
+    from circuit_config import CircuitConfig
+    from amrex_settings import AmrexSettings
+    from warpx_settings import WarpXSettings
+    from diagnostics import Diagnostics
+    from experimental_variability import ExperimentalVariabilityModel
+    from benchmark_matching import BenchmarkMatching
+    from boundary_conditions import BoundaryConditions
+    from parallel_settings import ParallelSettings
+    from metadata import Metadata
+    from advanced_options import AdvancedOptions
+    from units_settings import UnitsSettings
+    DPFConfig.model_rebuild()
+except Exception:
+    pass
 
 # ---------------------------------------------------------------------------
 # Example test stubs
