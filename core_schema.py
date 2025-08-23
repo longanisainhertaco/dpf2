@@ -17,9 +17,13 @@ from typing import (
     TYPE_CHECKING,
 )
 
+import logging
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, root_validator
+
+
+logger = logging.getLogger(__name__)
 
 def model_validator(*, mode: str = "after"):
     """Compatibility helper implementing a subset of pydantic v2 behavior."""
@@ -510,8 +514,9 @@ try:  # pragma: no cover - optional import for forward refs
     from advanced_options import AdvancedOptions
     from units_settings import UnitsSettings
     DPFConfig.model_rebuild()
-except Exception:
-    pass
+except Exception as exc:
+    logger.exception("Failed to rebuild DPFConfig model")
+    raise RuntimeError("DPFConfig model rebuild failed") from exc
 
 # ---------------------------------------------------------------------------
 # Example test stubs
