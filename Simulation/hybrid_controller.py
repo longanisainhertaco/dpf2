@@ -252,6 +252,17 @@ class HybridController(PhysicsModule):
                 fluid_data = self._extract_fluid_data(state, reg)
                 fb[reg] = self._run_pic_subcycles(fluid_data, reg, dt)
 
+            # 3. Apply feedback from PIC to fluid state
+            self._apply_feedback(state, fb, regions)
+
+            # 4. Circuit update
+            self.circuit.step(state, dt)
+
+            # 5. Radiation effects
+            self.radiation.apply(state, dt)
+
+            # 6. Energy correction to maintain conservation
+            self._energy_correction(E_pre)
 
         except Exception as e:
             logger.error(f"Error during hybrid step: {e}")
