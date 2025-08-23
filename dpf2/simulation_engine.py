@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -12,6 +12,7 @@ from circuit_config import CircuitConfig
 
 from .circuit_solver import RLCCircuit, CircuitSolver
 from .pinch_models import AnalyticPinchModel, SemiAnalyticPinchModel, PinchModelBase
+from .radiation import K_B, total_radiation_loss
 
 __all__ = ["SimulationEngine"]
 
@@ -25,6 +26,7 @@ class SimulationResults:
     pressure: np.ndarray
     neutron_yield: float
     axial_position: np.ndarray | None = None
+    radiation_losses: Optional[Dict[str, np.ndarray]] = None
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -34,7 +36,16 @@ class SimulationResults:
             "temperature": self.temperature.tolist(),
             "pressure": self.pressure.tolist(),
             "neutron_yield": self.neutron_yield,
-            **({"axial_position": self.axial_position.tolist()} if self.axial_position is not None else {}),
+            **(
+                {"axial_position": self.axial_position.tolist()}
+                if self.axial_position is not None
+                else {}
+            ),
+            **(
+                {"radiation_losses": {k: v.tolist() for k, v in self.radiation_losses.items()}}
+                if self.radiation_losses is not None
+                else {}
+            ),
         }
 
 
@@ -71,12 +82,22 @@ class SimulationEngine:
             raise ValueError("pinch_model must be 'analytic' or 'semi-analytic'")
         pres = plasma.run(t, current)
 
+        zeff = getattr(plasma, "zeff", 1.0)
+        n_i = pres.pressure / ((zeff + 1.0) * K_B * pres.temperature)
+        n_e = zeff * n_i
+        losses = total_radiation_loss(pres.temperature, n_e, n_i, zeff)
+
+        dt_arr = np.diff(pres.time, prepend=pres.time[0])
+        dT = losses["total"] * dt_arr / (1.5 * (n_e + n_i) * K_B)
+        temperature = np.maximum(pres.temperature - np.cumsum(dT), 0.0)
+
         return SimulationResults(
             time=pres.time,
             current=current,
             radius=pres.radius,
-            temperature=pres.temperature,
+            temperature=temperature,
             pressure=pres.pressure,
             neutron_yield=pres.neutron_yield,
             axial_position=pres.axial_position,
+            radiation_losses=losses,
         )
