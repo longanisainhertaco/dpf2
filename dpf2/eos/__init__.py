@@ -12,7 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+import h5py
 import numpy as np
+from scipy.interpolate import RegularGridInterpolator
 
 from ..core_schema import EOSModel
 
@@ -53,30 +55,53 @@ class IdealGasEOS:
 RealGasEOS = IdealGasEOS
 
 
-@dataclass
 class TabulatedEOS:
-    """Very small placeholder for a tabulated SESAME-style EOS.
+    """Equation of state based on a tabulated 2-D data set.
 
-    The constructor reads a CSV file with three columns ``rho,T,P`` and
-    determines a single proportionality constant assuming
-    ``P = const * rho * T``.  Real implementations would perform bilinear
-    interpolation of the tabulated data; this lightweight approach keeps
-    dependencies minimal while exercising the code paths.
+    The table is expected to be stored in an HDF5 file with datasets
+    ``rho`` and ``e`` defining the grid axes and ``p`` and ``T`` providing
+    the pressure and temperature values on that grid.  Bilinear
+    interpolation is performed using :class:`scipy.interpolate.RegularGridInterpolator`.
     """
 
-    table_path: Path
-    cv: float = 1.0
+    def __init__(self, filename: str | Path, mixture_fractions: dict[str, float] | None = None):
+        if mixture_fractions:
+            raise NotImplementedError("Mixture EOS is not implemented for TabulatedEOS")
 
-    def __post_init__(self) -> None:
-        data = np.loadtxt(self.table_path, delimiter=",", skiprows=1)
-        self._const = float(np.mean(data[:, 2] / (data[:, 0] * data[:, 1])))
+        with h5py.File(filename, "r") as f:
+            if not all(key in f for key in ("rho", "e", "p", "T")):
+                raise ValueError("EOS table is missing required datasets.")
+            self.rho_grid = f["rho"][:]
+            self.e_grid = f["e"][:]
+            self.p_table = f["p"][:]
+            self.T_table = f["T"][:]
+
+        if not (
+            self.rho_grid.ndim == 1
+            and self.e_grid.ndim == 1
+            and self.p_table.ndim == 2
+            and self.T_table.ndim == 2
+        ):
+            raise ValueError("EOS table has incorrect dimensions.")
+
+        expected_shape = (len(self.rho_grid), len(self.e_grid))
+        if self.p_table.shape != expected_shape or self.T_table.shape != expected_shape:
+            raise ValueError("EOS table has inconsistent dimensions.")
+
+        self.p_interp = RegularGridInterpolator((self.rho_grid, self.e_grid), self.p_table)
+        self.T_interp = RegularGridInterpolator((self.rho_grid, self.e_grid), self.T_table)
 
     def pressure(self, rho: np.ndarray, e: np.ndarray) -> np.ndarray:
-        T = self.temperature(rho, e)
-        return self._const * rho * T
+        """Interpolate pressure for density ``rho`` and specific energy ``e``."""
 
-    def temperature(self, rho: np.ndarray, e: np.ndarray) -> np.ndarray:  # noqa: ARG002
-        return e / self.cv
+        points = np.stack([rho, e], axis=-1)
+        return self.p_interp(points)
+
+    def temperature(self, rho: np.ndarray, e: np.ndarray) -> np.ndarray:
+        """Interpolate temperature for density ``rho`` and specific energy ``e``."""
+
+        points = np.stack([rho, e], axis=-1)
+        return self.T_interp(points)
 
 
 def create_eos(model: EOSModel, *, table_path: Path | None = None, gamma: float = 5.0 / 3.0) -> EOSBase:
