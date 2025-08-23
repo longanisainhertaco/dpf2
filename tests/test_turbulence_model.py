@@ -2,14 +2,33 @@ import os
 import sys
 import numpy as np
 import pytest
+from dataclasses import dataclass
 
 
 # Make Simulation modules importable
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "Simulation"))
 
-from config_schema import TurbulenceConfig
 from turbulence_model import TurbulenceModel
 from utils import SimulationState
+
+
+@dataclass
+class TurbulenceConfig:
+    """Minimal configuration stand-in used for testing."""
+
+    wall_function_type: str = "none"
+    C_mu: float = 0.09
+    C_epsilon1: float = 1.44
+    C_epsilon2: float = 1.92
+    sigma_k: float = 1.0
+    sigma_epsilon: float = 1.3
+    initial_k: float = 1e-6
+    initial_epsilon: float = 1e-8
+    compressibility_correction: bool = False
+    wall_function_kappa: float = 0.41
+    wall_function_E: float = 9.8
+    compressibility_alpha: float = 1.0
+    compressibility_beta: float = 1.0
 
 
 def _basic_state(grid_shape=(5, 1, 1), dx=0.01):
@@ -80,4 +99,12 @@ def test_wall_function_validation():
 
     with pytest.raises(ValueError):
         model._apply_wall_functions(state)
+
+
+def test_unrecognized_wall_function_type_raises():
+    """Ensure an error is raised for unsupported wall function options."""
+    cfg = TurbulenceConfig(wall_function_type="invalid_option")
+
+    with pytest.raises(ValueError):
+        TurbulenceModel(cfg)
 

@@ -3,8 +3,10 @@ import numpy as np
 import logging
 from numba import njit, prange
 from models import PhysicsModule, SimulationState
-from config_schema import TurbulenceConfig
-from typing import Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - only for type checking
+    from config_schema import TurbulenceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +54,7 @@ class TurbulenceModel(PhysicsModule):
     Implements an enhanced RANS k-epsilon turbulence model for the DPF simulation.
     """
 
-    def __init__(self, config: TurbulenceConfig):
+    def __init__(self, config: "TurbulenceConfig"):
         """
         Initializes the TurbulenceModel with configuration parameters.
 
@@ -73,6 +75,13 @@ class TurbulenceModel(PhysicsModule):
         self.wall_function_E = config.wall_function_E
         self.compressibility_alpha = config.compressibility_alpha
         self.compressibility_beta = config.compressibility_beta
+
+        # Validate the wall function choice early so misconfigurations are caught
+        # before the simulation starts. ``none`` is a valid option that simply
+        # disables the wall function logic, while ``log_law`` and ``power_law``
+        # activate the respective velocity profile adjustments.
+        if self.wall_function_type not in {"none", "log_law", "power_law"}:
+            raise ValueError(f"Unknown wall function type: {self.wall_function_type}")
         self.k = None  # Turbulent kinetic energy
         self.epsilon = None  # Dissipation rate
         self.nu_t = None # Turbulent viscosity
