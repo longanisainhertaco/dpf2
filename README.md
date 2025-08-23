@@ -21,6 +21,19 @@ dpf2 simulate config.json -o results.json
 Configuration files use the `DPFConfig` schema defined in this repository.
 See `examples/quickstart.ipynb` for a walk-through in a Jupyter notebook.
 
+## Tracing
+
+The standalone `dpf_simulation` entry point can emit OpenCensus trace spans
+around major simulation stages. Enable this optional feature with the
+`--enable-tracing` flag (requires the `opencensus` package):
+
+```bash
+dpf_simulation --config-file config.json --enable-tracing
+```
+
+When tracing is disabled, the simulation runs without importing the
+tracing library.
+
 ## Repository Layout
 
 - `dpf2/` – simulator package (CLI, circuit solver, plasma model, engine)
