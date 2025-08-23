@@ -12,7 +12,6 @@ import logging
 import argparse
 import numpy as np
 import random
-import opencensus.trace as trace
 from datetime import datetime
 
 from config_schema import SimulationConfig, FieldManagerConfig  # Import FieldManagerConfig
@@ -173,6 +172,11 @@ def parse_arguments():
                         help="Global logging level")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducibility")
+    parser.add_argument(
+        "--enable-tracing",
+        action="store_true",
+        help="Enable OpenCensus tracing for simulation stages",
+    )
     args = parser.parse_args()
     return args
 
@@ -210,11 +214,31 @@ def main():
         logger.error(e)
         sys.exit(1)
 
+    tracer = None
+    if args.enable_tracing:
+        try:
+            from opencensus.trace.tracer import Tracer
+
+            tracer = Tracer()
+        except ModuleNotFoundError:
+            logger.error(
+                "OpenCensus is required for tracing but is not installed."
+            )
+            sys.exit(1)
+
     # Instantiate and run the simulation
     try:
-        sim = DPFSimulation(config)
-        sim.run()
-        sim.finalize()
+        if tracer:
+            with tracer.span(name="initialize"):
+                sim = DPFSimulation(config)
+            with tracer.span(name="run"):
+                sim.run()
+            with tracer.span(name="finalize"):
+                sim.finalize()
+        else:
+            sim = DPFSimulation(config)
+            sim.run()
+            sim.finalize()
     except InitializationError as e:
         logger.error(f"Initialization failed: {e}")
         sys.exit(1)
