@@ -35,7 +35,11 @@ class RandomStub:
 
 @pytest.fixture
 def collision_model_classes(monkeypatch):
-    numpy_stub = types.SimpleNamespace(random=RandomStub())
+    numpy_stub = types.SimpleNamespace(
+        random=RandomStub(),
+        array=lambda x: x,
+        asarray=lambda x: x,
+    )
     monkeypatch.setitem(sys.modules, "numpy", numpy_stub)
     monkeypatch.setitem(sys.modules, "h5py", types.SimpleNamespace(File=_raise))
 
@@ -121,4 +125,22 @@ def test_restart_restores_random_state(collision_model_classes):
     np.random.rand()
     cm.restart(data)
     assert np.random.rand() == expected
+
+
+def test_checkpoint_restart_reproduces_behavior(collision_model_classes):
+    CollisionModel, CrossSectionData = collision_model_classes
+    cm = CollisionModel({})
+    ion_cs = CrossSectionData.from_dict({'energy': [1, 2], 'cross_section': [3, 4]})
+    cm.ionization_cross_section = ion_cs
+    energy_before = list(cm.ionization_cross_section.energy)
+    xs_before = list(cm.ionization_cross_section.cross_section)
+    data = cm.checkpoint()
+
+    # Modify cross-section to ensure stored data is used on restart
+    cm.ionization_cross_section = CrossSectionData.from_dict({'energy': [1, 2], 'cross_section': [30, 40]})
+    assert list(cm.ionization_cross_section.cross_section) != xs_before
+
+    cm.restart(data)
+    assert list(cm.ionization_cross_section.energy) == energy_before
+    assert list(cm.ionization_cross_section.cross_section) == xs_before
 
