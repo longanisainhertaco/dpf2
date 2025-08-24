@@ -228,20 +228,22 @@ class TurbulenceModel(PhysicsModule):
         elif self.wall_function_type == "power_law":
             # Simple power-law relation (1/7th power law).  The wall velocity
             # is extrapolated from the nearest interior cell using the power
-            # law profile.
+            # law profile.  We treat the left and right boundaries symmetrically
+            # by applying the same factor derived from the 1/7th power law.
             n = 7.0
             factor = (y / state.dx) ** (1.0 / n)
 
-            # Left boundary uses velocity from the next interior cell
-            state.velocity[g, :, :, 0] = state.velocity[g + 1, :, :, 0] * factor
-
-            # Right boundary uses velocity from the previous interior cell
-            state.velocity[nx - g - 1, :, :, 0] = state.velocity[nx - g - 2, :, :, 0] * factor
+            boundary_pairs = ((g, g + 1), (nx - g - 1, nx - g - 2))
+            for idx, interior in boundary_pairs:
+                state.velocity[idx, :, :, 0] = state.velocity[interior, :, :, 0] * factor
 
         else:
             # A defensive check in case an unsupported option slips through
             # configuration validation.
-            raise ValueError(f"Unknown wall function type: {self.wall_function_type}")
+            raise ValueError(
+                f"Unsupported wall function type '{self.wall_function_type}'. "
+                "Supported options are 'log_law' and 'power_law'."
+            )
 
     def initialize(self):
         """
