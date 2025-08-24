@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Toy plasma solver providing inductance feedback to the circuit model."""
+"""Toy plasma solver providing inductance/EMF feedback to the circuit."""
 
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -14,7 +14,7 @@ class ZeroDPlasma(PlasmaSolverBase):
 
     The solver keeps a dummy state and uses a user supplied ``inductance``
     function to provide coupling terms back to the circuit.  The function is
-    expected to return ``(Lp, dLpdt)`` when called with the current simulation
+    expected to return ``(Lp, emf)`` when called with the current simulation
     time, current and voltage.
     """
 
@@ -26,8 +26,8 @@ class ZeroDPlasma(PlasmaSolverBase):
         """Advance the dummy plasma state and compute circuit feedback."""
 
         self.time += dt
-        Lp, dLpdt = self.inductance(self.time, current, voltage)
-        self.circuit_feedback = {"Lp": Lp, "dLpdt": dLpdt}
+        Lp, emf = self.inductance(self.time, current, voltage)
+        self.circuit_feedback = {"Lp": Lp, "emf": emf}
         return state
 
 
