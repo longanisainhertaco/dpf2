@@ -169,6 +169,7 @@ class MHDState:
     mom: np.ndarray
     energy: np.ndarray
     B: np.ndarray
+    psi: np.ndarray | None = None
     Te: np.ndarray | None = None
     Ti: np.ndarray | None = None
 
@@ -197,6 +198,9 @@ class HallMHDSolver(PlasmaSolverBase):
     rad_coeff: float = 0.0
     nu_par: float = 0.0
     kappa_par: float = 0.0
+    nu: float = 0.0  # isotropic viscosity
+    c_h: float = 0.0  # hyperbolic cleaning speed
+    c_p: float = 0.0  # parabolic cleaning rate
     bc: Callable[[MHDState], None] | None = None
     refine: Callable[[MHDState], None] | None = None
     circuit: CircuitSolverBase | None = None
@@ -206,6 +210,9 @@ class HallMHDSolver(PlasmaSolverBase):
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
+    last_divB: np.ndarray | None = field(init=False, default=None)
+    last_J: np.ndarray | None = field(init=False, default=None)
+    last_E: np.ndarray | None = field(init=False, default=None)
 
     def apply_boundary_conditions(self, state: MHDState) -> None:
         """Invoke the boundary-condition hook if provided."""
@@ -297,6 +304,16 @@ class HallMHDSolver(PlasmaSolverBase):
             flux_mom[i] = fm
             flux_energy[i] = fe
 
+        # Corner-transport-upwind transverse flux correction
+        for i in range(3):
+            for j in range(3):
+                if i == j:
+                    continue
+                flux_rho[i] -= 0.5 * _dd(flux_rho[j], j)
+                for k in range(3):
+                    flux_mom[i][..., k] -= 0.5 * _dd(flux_mom[j][..., k], j)
+                flux_energy[i] -= 0.5 * _dd(flux_energy[j], j)
+
         drho = np.zeros_like(rho)
         denergy = np.zeros_like(energy)
         dmom = np.zeros_like(mom)
@@ -319,7 +336,15 @@ class HallMHDSolver(PlasmaSolverBase):
             ne = rho * np.maximum(zbar, 1e-30)
             E += self.hall_coeff * np.cross(J, B) / ne[..., None]
         B -= dt * _curl(E)
+
+        # --- Divergence cleaning (hyperbolic/parabolic) ---
+        psi = state.psi.copy() if state.psi is not None else np.zeros_like(rho)
+        divB = _divergence(B)
+        if self.c_h != 0.0 or self.c_p != 0.0:
+            psi -= dt * (self.c_h ** 2 * divB + self.c_p * psi)
+            B -= dt * np.stack((_dd(psi, 0), _dd(psi, 1), _dd(psi, 2)), axis=-1)
         B = _project_div_free(B)
+        self.last_divB = divB
 
         B2 = np.sum(B**2, axis=-1)
 
@@ -346,15 +371,28 @@ class HallMHDSolver(PlasmaSolverBase):
                 _dd(q[..., 0], 0) + _dd(q[..., 1], 1) + _dd(q[..., 2], 2)
             )
 
+        # --- Isotropic viscosity ---
+        if self.nu != 0.0:
+            lap_v = np.stack(
+                [sum(_dd(_dd(v[..., k], j), j) for j in range(3)) for k in range(3)],
+                axis=-1,
+            )
+            mom += dt * self.nu * rho[..., None] * lap_v
+            energy += dt * self.nu * rho * np.sum(v * lap_v, axis=-1)
+
         # --- Source terms ---
         if self.eta != 0.0:
             energy += dt * self.eta * np.sum(J**2, axis=-1)
+
+        self.last_J = J
+        self.last_E = E
 
         new_state = MHDState(
             rho=rho,
             mom=mom,
             energy=energy,
             B=B,
+            psi=psi,
             Te=None if state.Te is None else state.Te.copy(),
             Ti=None if state.Ti is None else state.Ti.copy(),
         )
@@ -368,6 +406,12 @@ class HallMHDSolver(PlasmaSolverBase):
         emf = -dL * current
         self.inductance = L_new
         self.back_emf = emf
+
+        self.current = current
+        if self.circuit is not None:
+            self.current, self.back_emf = self.circuit.step(
+                self.current, self.back_emf, dt, {"Lp": L_new, "emf": emf}
+            )
 
         return new_state
 
