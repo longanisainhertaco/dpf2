@@ -397,13 +397,28 @@ class CollisionModel(CollisionOperator):
         return self.checkpoint_data
 
     def restart(self, data):
+        """Restore the model state from ``data`` produced by :meth:`checkpoint`.
+
+        Parameters
+        ----------
+        data: dict
+            Dictionary produced by :meth:`checkpoint`.
+
+        The method reloads cross‑section tables, cached values, accumulator
+        counters and the global ``numpy`` random number generator state so that
+        subsequent calls to :meth:`checkpoint` or stochastic routines reproduce
+        the behaviour prior to checkpointing.
+        """
         if not isinstance(data, dict):
             raise ValueError("Restart data must be a dictionary")
 
+        # --- Cross‑section tables ---
         ion_data = data.get('ionization_cross_section')
         if isinstance(ion_data, dict):
+            # Recreate ``CrossSectionData`` including its interpolation object
             self.ionization_cross_section = CrossSectionData.from_dict(ion_data)
         else:
+            # Allow already‑constructed objects (useful for tests)
             self.ionization_cross_section = ion_data
 
         dd_data = data.get('dd_fusion_cross_section')
@@ -412,17 +427,27 @@ class CollisionModel(CollisionOperator):
         else:
             self.dd_fusion_cross_section = dd_data
 
+        # --- Internal state ---
         self.crn = data.get('crn_state')
+
+        # Copy so that caller cannot mutate our internal dictionaries through
+        # references obtained from ``data``.
         self.accumulators = dict(data.get('accumulators', {}))
         self.caches = dict(data.get('caches', {}))
 
+        # --- RNG state ---
         rng_state = data.get('random_state')
         if rng_state is not None:
             try:
                 np.random.set_state(rng_state)
             except Exception:
+                # If state is corrupt fall back to a deterministic seed so that
+                # behaviour after restart is still reproducible.
                 np.random.seed()
         else:
+            # No RNG state stored – reseed to avoid using an uncontrolled
+            # previous state.
             np.random.seed()
 
+        # Keep a copy of the checkpoint for idempotency checks
         self.checkpoint_data = dict(data)
