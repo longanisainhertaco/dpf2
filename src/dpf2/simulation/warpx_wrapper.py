@@ -328,7 +328,11 @@ class WarpXWrapper:
                 if self.circuit:
                     t_c = time.perf_counter()
                     I_pic = self.get_total_current()
-                    self.circuit.step(dt)
+                    # The circuit interface expects the present current,
+                    # an applied back‑EMF and the timestep.  The stub circuit
+                    # used here does not provide a detailed model so we pass
+                    # the PIC current and zero EMF.
+                    self.circuit.step(I_pic, 0.0, dt)
                     self.warp.applyBoundaryB(self.circuit.I)
                     timings['circuit'] += time.perf_counter() - t_c
             t_map = time.perf_counter()

@@ -21,12 +21,13 @@ class ExternalCircuit(CircuitSolverBase):
     def step(
         self,
         current: float,
-        voltage: float,
+        back_emf: float,
         dt: float,
         plasma_feedback: dict[str, float] | None = None,
     ) -> tuple[float, float]:
         """Advance the circuit state by ``dt`` seconds.
 
+        ``back_emf`` represents an applied voltage drop across the inductance.
         ``plasma_feedback`` may supply the instantaneous plasma inductance and
         its time derivative via the keys ``"Lp"`` and ``"dLpdt"`` respectively.
         """
@@ -38,10 +39,10 @@ class ExternalCircuit(CircuitSolverBase):
             dLpdt = plasma_feedback.get("dLpdt", 0.0)
 
         Ltot = self.inductance + Lp
-        dI = (voltage - dLpdt * current) * dt / max(Ltot, 1.0e-30)
+        dI = (back_emf - dLpdt * current) * dt / max(Ltot, 1.0e-30)
         self.current = current + dI
         self.inductance = Ltot
-        return self.current, voltage
+        return self.current, back_emf
 
 
 __all__ = ["ExternalCircuit"]

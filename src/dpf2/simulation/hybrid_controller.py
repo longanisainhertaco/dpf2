@@ -228,7 +228,8 @@ class HybridController(PhysicsModule):
             # 2. Circuit update
             #I = self.fluid.compute_total_current()
             I = self.field_manager.get_J()
-            self.circuit.step(state, dt)
+            # Pass the fluid current and zero back‑EMF to the circuit model.
+            self.circuit.step(I, 0.0, dt)
 
             # 3. Radiation
             self.radiation.apply(state, dt)
@@ -257,7 +258,7 @@ class HybridController(PhysicsModule):
             self._apply_feedback(state, fb, regions)
 
             # 4. Circuit update
-            self.circuit.step(state, dt)
+            self.circuit.step(0.0, 0.0, dt)
 
             # 5. Radiation effects
             self.radiation.apply(state, dt)

@@ -183,7 +183,9 @@ class DPFSimulation:
 
                 # --- circuit update ---
                 try:
-                    self.circuit.step(self.state, self.dt)
+                    # Provide placeholder current/back‑EMF to satisfy the circuit
+                    # interface; real simulations would supply meaningful values.
+                    self.circuit.step(0.0, 0.0, self.dt)
                 except Exception as exc:
                     logger.error(f"Circuit step failed: {exc}")
 

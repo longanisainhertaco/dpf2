@@ -34,8 +34,14 @@ class CircuitSolverBase(ABC):
     """Interface for external circuit solvers."""
 
     @abstractmethod
-    def step(self, current: float, voltage: float, dt: float) -> tuple[float, float]:
-        """Return updated (current, voltage) after ``dt`` seconds."""
+    def step(
+        self,
+        current: float,
+        back_emf: float,
+        dt: float,
+        plasma_feedback: dict[str, float] | None = None,
+    ) -> tuple[float, float]:
+        """Return updated ``(current, voltage)`` after ``dt`` seconds."""
         raise NotImplementedError
 
 
