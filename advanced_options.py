@@ -157,7 +157,8 @@ class AdvancedOptions(ConfigSectionBase):
             try:
                 if p.exists():
                     data["injectRuntimeScript"] = p.read_bytes().decode(errors="ignore")
-            except Exception:
+            except Exception as e:
+                warnings.warn(f"Failed to read {p}: {e}", RuntimeWarning)
                 data["injectRuntimeScript"] = str(path_key)
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
