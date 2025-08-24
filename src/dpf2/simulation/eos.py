@@ -122,6 +122,7 @@ class TabulatedEOS:
             return rho_grid, T_grid, p_table, e_table
 
         fractions = parse_mixture_fractions(mixture_fractions)
+        self.mixture_fractions = fractions
 
         try:
             if fractions:
@@ -216,36 +217,36 @@ class TabulatedEOS:
             logger.error(f"Error interpolating electron pressure: {e}")
             raise
 
-    def ion_energy(self, rho, p):
+    def ion_energy(self, rho, T):
         """
-        Returns the ion internal energy at a given density and pressure.
+        Returns the ion internal energy at a given density and temperature.
 
         Args:
             rho (np.ndarray): Mass density (kg/m^3).
-            p (np.ndarray): Pressure (Pa).
+            T (np.ndarray): Temperature (K).
 
         Returns:
             np.ndarray: Ion internal energy (J/kg).
         """
         try:
-            return self.e_interp(np.stack([rho, p], axis=-1))
+            return self.e_interp(np.stack([rho, T], axis=-1))
         except Exception as e:
             logger.error(f"Error interpolating ion energy: {e}")
             raise
 
-    def electron_energy(self, rho, p):
+    def electron_energy(self, rho, T):
         """
-        Returns the electron internal energy at a given density and pressure.
+        Returns the electron internal energy at a given density and temperature.
 
         Args:
             rho (np.ndarray): Mass density (kg/m^3).
-            p (np.ndarray): Pressure (Pa).
+            T (np.ndarray): Temperature (K).
 
         Returns:
             np.ndarray: Electron internal energy (J/kg).
         """
         try:
-            return self.e_interp(np.stack([rho, p], axis=-1))
+            return self.e_interp(np.stack([rho, T], axis=-1))
         except Exception as e:
             logger.error(f"Error interpolating electron energy: {e}")
             raise
