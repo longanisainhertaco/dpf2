@@ -154,8 +154,8 @@ class HallMHDSolver(PlasmaSolverBase):
         magnetic = 0.5 * B2
         e_internal = energy - kinetic - magnetic
         specific_e = e_internal / rho
-        p = self.eos.pressure(rho, specific_e)
         T = self.eos.temperature(rho, specific_e)
+        p = self.eos.pressure(rho, T)
         zbar = self.chemistry.ionization_state(rho, T)
         if self.radiation is not None:
             rad_loss = self.radiation.loss(rho, T * zbar)
