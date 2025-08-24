@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 import numpy as np
 
 
@@ -96,6 +96,86 @@ class Mesh3D:
             self.dx * self.dz,
             self.dx * self.dy,
         )
+
+    # ------------------------------------------------------------------
+    def map_curved_boundary(self, func: Callable[[float, float], float]) -> np.ndarray:
+        """Return coordinates of a curved ``z`` surface.
+
+        The provided ``func`` is expected to take ``(x, y)`` coordinates and
+        return the ``z`` location of the curved surface.  The function is
+        evaluated at the cell centers of the top boundary and a two-dimensional
+        array of surface locations is returned.  This utility is intentionally
+        lightweight and does not attempt any advanced geometric processing; it
+        merely offers a convenient way for tests or simple applications to map
+        a planar mesh onto a curved physical boundary.
+        """
+
+        surface = [[0.0 for _ in range(self.ny)] for _ in range(self.nx)]
+        for i in range(self.nx):
+            x_c = 0.5 * (self.x[i] + self.x[i + 1])
+            for j in range(self.ny):
+                y_c = 0.5 * (self.y[j] + self.y[j + 1])
+                surface[i][j] = func(x_c, y_c)
+        return surface
+
+    # ------------------------------------------------------------------
+    def interpolate_ghost_cells(
+        self,
+        field: np.ndarray,
+        axis: int,
+        side: str,
+        ghosts: int,
+        surface: Callable[[float, float], float],
+        value: Callable[[float, float, float], float],
+    ) -> None:
+        """Linearly interpolate ghost-cell values for a curved boundary.
+
+        Parameters
+        ----------
+        field:
+            Numpy array with ghost cells on all sides.  The array is modified in
+            place.
+        axis:
+            Direction normal to the boundary: ``0`` for ``x``, ``1`` for ``y``
+            and ``2`` for ``z``.
+        side:
+            ``"low"`` or ``"high"`` indicating which side to operate on.
+        ghosts:
+            Number of ghost cells present in ``field``.
+        surface, value:
+            ``surface`` provides the physical location of the curved boundary
+            while ``value`` supplies the desired field value at that location.
+
+        Only a straightforward linear extrapolation is implemented which is
+        sufficient for regression tests and simple applications.
+        """
+
+        arr = field
+        if axis != 2:  # pragma: no cover - only ``z`` boundaries are supported
+            raise NotImplementedError("only z-axis interpolation is implemented")
+
+        k_int = ghosts if side == "low" else ghosts + self.nz - 1
+        k_ghost = k_int - 1 if side == "low" else k_int + 1
+
+        for i in range(self.nx):
+            ii = ghosts + i
+            x_c = 0.5 * (self.x[i] + self.x[i + 1])
+            for j in range(self.ny):
+                jj = ghosts + j
+                y_c = 0.5 * (self.y[j] + self.y[j + 1])
+                z_c = 0.5 * (self.z[k_int - ghosts] + self.z[k_int - ghosts + 1])
+                boundary_z = surface(x_c, y_c)
+                boundary_value = value(x_c, y_c, boundary_z)
+                distance_surface = (
+                    z_c - boundary_z if side == "low" else boundary_z - z_c
+                )
+                if distance_surface == 0:
+                    arr[ii][jj][k_ghost] = boundary_value
+                else:
+                    interior = arr[ii][jj][k_int]
+                    arr[ii][jj][k_ghost] = interior + (
+                        (boundary_value - interior) * self.dz / distance_surface
+                    )
 
 __all__ = ["Mesh3D", "MeshCell3D"]
 
