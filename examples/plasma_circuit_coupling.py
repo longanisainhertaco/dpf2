@@ -58,10 +58,11 @@ def main() -> None:
     plasma.step(None, 0.0, current, voltage)
 
     for _ in range(steps):
-        current, voltage = circuit.step(current, 0.0, dt, plasma.circuit_feedback)
+        feedback = {"Lp": plasma.inductance, "emf": plasma.back_emf}
+        current, voltage = circuit.step(current, 0.0, dt, feedback)
         plasma.step(None, dt, current, voltage)
 
-    Lp = plasma.circuit_feedback["Lp"]
+    Lp = plasma.inductance
     initial_energy = 0.5 * circuit.C_ext * circuit.V0 ** 2
     final_energy = (
         0.5 * circuit.L_ext * current ** 2
