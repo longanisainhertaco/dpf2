@@ -119,13 +119,17 @@ class GeometryConfig(BaseModel):
 
 class FieldManagerConfig(BaseModel):
     """Configuration for the FieldManager."""
-    boundary_conditions: Dict[str, str] = Field(
+    boundary_conditions: Dict[str, Any] = Field(
         default_factory=lambda: {
             'x_lo': 'periodic', 'x_hi': 'periodic',
             'y_lo': 'periodic', 'y_hi': 'periodic',
             'z_lo': 'periodic', 'z_hi': 'periodic'
         },
-        description="Boundary conditions for the electromagnetic fields."
+        description=(
+            "Boundary conditions for the electromagnetic fields.  Extra keys such as"
+            " 'pml_thickness', 'pml_sigma' and 'pml_profile' may be supplied to"
+            " configure perfectly matched layers."
+        ),
     )
     field_smoothing_enabled: bool = Field(False, description="Enable field smoothing")
     field_smoothing_iterations: int = Field(0, description="Number of iterations for field smoothing")
