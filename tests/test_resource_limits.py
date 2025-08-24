@@ -18,6 +18,10 @@ def test_resource_limit_violation_triggers_simulation_error():
                 return decorator
             def test_client(self):
                 return None
+            def errorhandler(self, *a, **k):
+                def decorator(f):
+                    return f
+                return decorator
 
         class DummySock:
             def __init__(self, *a, **k):
@@ -45,7 +49,11 @@ def test_resource_limit_violation_triggers_simulation_error():
             def __init__(self, *a, **k):
                 self.config = {}
         sys.modules['utils'] = types.SimpleNamespace(FieldManager=DummyFieldManager)
-        from dpf2.simulation import dpf_simulator_server as server
+        import importlib.util, pathlib
+        module_path = pathlib.Path('src/dpf2/simulation/dpf_simulator_server.py')
+        spec = importlib.util.spec_from_file_location('server', module_path)
+        server = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(server)
         from werkzeug.security import generate_password_hash
 
         class DummySimulation:
