@@ -37,8 +37,8 @@ class FieldManager:
         self.E = np.zeros((3, self.nx, self.ny, self.nz))  # Electric field (3 components)
         self.B = np.zeros((3, self.nx, self.ny, self.nz))  # Magnetic field (3 components)
         self.J = np.zeros((3, self.nx, self.ny, self.nz))  # Current density (3 components)
-        if not hasattr(self, 'rho'):
-            self.rho = np.zeros((self.nx, self.ny, self.nz))  # Charge density
+        # Charge density
+        self.rho = np.zeros((self.nx, self.ny, self.nz))  # Charge density
 
         logger.info("FieldManager initialized.")
 
@@ -277,8 +277,6 @@ class FieldManager:
             raise ValueError(
                 f"Invalid shape for charge_density: expected {(self.nx, self.ny, self.nz)}, got {charge_density.shape}"
             )
-        if not hasattr(self, 'rho'):
-            self.rho = np.zeros((self.nx, self.ny, self.nz))
         self.rho += charge_density
 
     def deposit_current(self, current_density: np.ndarray):
@@ -315,8 +313,6 @@ class FieldManager:
             self.E = np.array(data.get('E', self.E))
             self.B = np.array(data.get('B', self.B))
             self.J = np.array(data.get('J', self.J))
-            if not hasattr(self, 'rho'):
-                self.rho = np.zeros((self.nx, self.ny, self.nz))
             self.rho = np.array(data.get('rho', self.rho))
         except Exception as e:
             logger.error(f"Error during restart: {e}")
@@ -337,6 +333,7 @@ class FieldManager:
             max_div_B = np.max(np.abs(div_B))
             return {
                 "max_div_B": max_div_B,
+                "rho": self.rho.tolist(),
                 # Add other diagnostics as needed
             }
         except Exception as e:
