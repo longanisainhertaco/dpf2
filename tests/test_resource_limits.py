@@ -21,7 +21,8 @@ def test_resource_limit_violation_triggers_simulation_error():
 
         class DummySock:
             def __init__(self, *a, **k):
-                pass
+                self.args = a
+                self.kwargs = k
             def route(self, *a, **k):
                 def decorator(f):
                     return f
@@ -42,14 +43,15 @@ def test_resource_limit_violation_triggers_simulation_error():
         sys.modules['config_schema'] = types.SimpleNamespace(ServerConfig=object, FieldManagerConfig=object)
         class DummyFieldManager:
             def __init__(self, *a, **k):
-                pass
+                self.config = {}
         sys.modules['utils'] = types.SimpleNamespace(FieldManager=DummyFieldManager)
         from dpf2.simulation import dpf_simulator_server as server
         from werkzeug.security import generate_password_hash
 
         class DummySimulation:
             def __init__(self, config, field_manager=None):
-                pass
+                self.config = config
+                self.field_manager = field_manager
             def run(self):
                 bytearray(300 * 1024 * 1024)
 
