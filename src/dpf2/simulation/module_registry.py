@@ -47,7 +47,7 @@ class ModuleRegistry:
 
         # Check if module_class is a subclass of PhysicsModule
         if not issubclass(module_class, PhysicsModule):
-            raise TypeError("module_class must be a subclass of PhysicsModule.")
+            raise TypeError(f"{module_class.__name__} must be a subclass of PhysicsModule.")
 
         self.modules[module_class] = {
             'config_schema': config_schema,
