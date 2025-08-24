@@ -85,7 +85,20 @@ try:  # pragma: no cover - optional h5py dependency
 except ModuleNotFoundError:  # pragma: no cover
     h5py = None  # type: ignore
 
-__all__ = ["EOSBase", "IdealGasEOS", "TabulatedEOS", "RealGasEOS", "create_eos"]
+# Expose built in tabulated data which is useful for tests and examples.  The
+# tables shipped with the repository are intentionally tiny and are not meant
+# to provide physical accuracy; they merely supply a consistent interface for
+# regression tests.
+BUILTIN_TABLES = {p.stem: p for p in Path(__file__).parent.glob("*.json")}
+
+__all__ = [
+    "EOSBase",
+    "IdealGasEOS",
+    "TabulatedEOS",
+    "RealGasEOS",
+    "create_eos",
+    "BUILTIN_TABLES",
+]
 
 
 def _parse_mixture_fractions(
@@ -196,6 +209,7 @@ class TabulatedEOS:
                     p += w * p_i
                     e += w * e_i
 
+        self.mixture_fractions = mixture_fractions
         self.rho_grid = rho
         self.T_grid = T
         self.p_interp: RegularGridInterpolator = RegularGridInterpolator((rho, T), p)
