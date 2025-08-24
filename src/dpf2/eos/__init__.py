@@ -55,10 +55,6 @@ class IdealGasEOS:
         return e / cv
 
 
-# ``RealGasEOS`` is kept for backwards compatibility with older tests.
-RealGasEOS = IdealGasEOS
-
-
 class TabulatedEOS:
     """Equation of state based on tabulated density/temperature data."""
 
@@ -107,6 +103,28 @@ class TabulatedEOS:
             return result.root
 
         return np.vectorize(_solve)(rho, e)
+
+
+class RealGasEOS(TabulatedEOS):
+    """Multi‑species real gas EOS using tabulated thermochemistry.
+
+    This lightweight implementation builds upon :class:`TabulatedEOS` and
+    simply enforces that a mixture definition is supplied.  Individual
+    species tables are combined according to the provided fractions to
+    yield an effective pressure and internal energy for the mixture.  The
+    ``temperature`` method is inherited from :class:`TabulatedEOS` and
+    therefore performs a one–dimensional root find based on the tabulated
+    energy.
+    """
+
+    def __init__(
+        self,
+        filename: str | Path | dict[str, str | Path],
+        mixture_fractions: dict[str, float] | str,
+    ) -> None:
+        if mixture_fractions is None:
+            raise ValueError("RealGasEOS requires mixture_fractions")
+        super().__init__(filename=filename, mixture_fractions=mixture_fractions)
 
 
 def create_eos(

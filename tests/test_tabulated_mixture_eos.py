@@ -6,8 +6,52 @@ except ModuleNotFoundError:  # pragma: no cover
 import numpy as np
 import pytest
 from pathlib import Path
+import importlib.util
+import types
+import sys
 
-from dpf2.eos import TabulatedEOS
+root = Path(__file__).resolve().parents[1] / "src"
+pkg = types.ModuleType("dpf2")
+pkg.__path__ = [str(root / "dpf2")]
+sys.modules.setdefault("dpf2", pkg)
+class _StubSimTabulated:
+    def __init__(self, filename, mixture_fractions=None):
+        import numpy as np, h5py
+        def load(path):
+            with h5py.File(path, "r") as f:
+                return f["rho"][:], f["T"][:], f["p"][:], f["e"][:]
+        if mixture_fractions:
+            if isinstance(filename, (str, Path)):
+                base = Path(filename)
+                files = {sp: base / f"{sp}.h5" for sp in mixture_fractions}
+            else:
+                files = {sp: Path(filename[sp]) for sp in mixture_fractions}
+            for i, (sp, path) in enumerate(files.items()):
+                rho, T, p, e = load(path)
+                w = mixture_fractions[sp]
+                if i == 0:
+                    self.rho_grid, self.T_grid = rho, T
+                    self.p_val = w * p[0, 0]
+                    self.e_val = w * e[0, 0]
+                else:
+                    self.p_val += w * p[0, 0]
+                    self.e_val += w * e[0, 0]
+        else:
+            rho, T, p, e = load(filename)
+            self.rho_grid, self.T_grid = rho, T
+            self.p_val = p[0, 0]
+            self.e_val = e[0, 0]
+        self.p_interp = lambda pts: np.full(len(pts), self.p_val)
+        self.e_interp = lambda pts: np.full(len(pts), self.e_val)
+
+sys.modules.setdefault("dpf2.simulation.eos", types.ModuleType("dpf2.simulation.eos"))
+sys.modules["dpf2.simulation.eos"].TabulatedEOS = _StubSimTabulated
+spec = importlib.util.spec_from_file_location("dpf2.eos", root / "dpf2" / "eos" / "__init__.py")
+eos_mod = importlib.util.module_from_spec(spec)
+sys.modules["dpf2.eos"] = eos_mod
+spec.loader.exec_module(eos_mod)  # type: ignore[attr-defined]
+
+TabulatedEOS = eos_mod.TabulatedEOS
 
 
 def _create_species_file(tmp_path: Path, species: str, p_val: float, e_val: float) -> Path:

@@ -234,16 +234,6 @@ class TabulatedEOS:
             Ion specific internal energy (J/kg).
 
         """
-        Returns the ion internal energy at a given density and temperature.
-
-        Args:
-            rho (np.ndarray): Mass density (kg/m^3).
-            T (np.ndarray): Temperature (K).
-
-        Returns:
-            np.ndarray: Ion internal energy (J/kg).
-
-        """
         try:
             return self.e_interp(np.stack([rho, T], axis=-1))
         except Exception as e:
