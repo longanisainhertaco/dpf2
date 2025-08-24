@@ -230,6 +230,15 @@ class HallMHD(ResistiveMHD):
         U_new = U.copy()
         for i in range(n):
             U_new[i] -= dt / dx * (fluxes[i + 1] - fluxes[i])
+        # Apply diffusive/resistive source terms.  ``ResistiveMHD`` implements
+        # a collection of local physics processes (Ohmic heating, viscosity,
+        # thermal conduction, etc.) via ``source_terms``.  The Hall model only
+        # requires the resistive piece so we explicitly zero the cleaning
+        # contribution returned for ``psi`` (handled separately below).
+        for i in range(n):
+            src = self.source_terms(U_new[i])
+            src[8] = 0.0  # divergence cleaning for ``psi`` handled explicitly
+            U_new[i] += dt * src
 
         self.divergence_cleaning(U_new, mesh, dt)
         return U_new
