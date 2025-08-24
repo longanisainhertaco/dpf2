@@ -121,6 +121,7 @@ class ValidationPolicy(str, Enum):
 class EOSModel(str, Enum):
     IDEAL = "ideal"
     TABULATED = "tabulated"
+    REAL_GAS = "real_gas"
 
 
 class ResistivityModel(str, Enum):

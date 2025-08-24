@@ -121,6 +121,9 @@ class PhysicsModels(BaseModel):
     neutral_fluid_enabled: bool = False
     initial_neutral_pressure_torr: Optional[float] = None
     enable_neutral_particle_tracking: bool = False
+    neutral_species: List[str] = Field(default_factory=list)
+    wall_ablation_rate: Optional[float] = None
+    wall_ablation_latent_heat: Optional[float] = None
     resistivity_model: Optional[str] = None
     ionization_model: Optional[str] = None
     radiation_model: Optional[str] = None

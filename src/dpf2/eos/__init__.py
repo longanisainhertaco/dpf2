@@ -5,7 +5,8 @@ from __future__ import annotations
 This module provides a minimal interface for pressure and energy
 calculations.  It now supports tabulated equations of state that supply
 pressure and specific internal energy as functions of density and
-temperature.  Interpolation is performed using SciPy's
+temperature, including multi-species real-gas mixtures built from
+individual species tables.  Interpolation is performed using SciPy's
 ``RegularGridInterpolator`` which yields bilinear behaviour on a regular
 grid.
 """
@@ -128,13 +129,21 @@ class RealGasEOS(TabulatedEOS):
 
 
 def create_eos(
-    model: EOSModel, *, table_path: Path | None = None, gamma: float = 5.0 / 3.0
+    model: EOSModel,
+    *,
+    table_path: Path | None = None,
+    gamma: float = 5.0 / 3.0,
+    mixture_fractions: dict[str, float] | str | None = None,
 ) -> EOSBase:
     """Factory for EOS implementations."""
 
     if model is EOSModel.IDEAL:
         return IdealGasEOS(gamma=gamma)
     if model is EOSModel.TABULATED and table_path is not None:
-        return TabulatedEOS(Path(table_path))
+        return TabulatedEOS(Path(table_path), mixture_fractions=mixture_fractions)
+    if model is EOSModel.REAL_GAS and table_path is not None:
+        if mixture_fractions is None:
+            raise ValueError("RealGasEOS requires mixture_fractions")
+        return RealGasEOS(Path(table_path), mixture_fractions=mixture_fractions)
     raise ValueError(f"Unsupported EOS model: {model}")
 
