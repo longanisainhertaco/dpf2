@@ -141,18 +141,20 @@ class TabulatedEOS:
                         "filename must be a path or mapping when mixture_fractions are provided"
                     )
 
-                first = True
-                for species, path in species_files.items():
-                    if not path.is_file():
-                        raise ValueError(f"Missing EOS data for species '{species}'")
+                missing_files = [sp for sp, path in species_files.items() if not path.is_file()]
+                if missing_files:
+                    raise ValueError(
+                        "Missing EOS data for species: " + ", ".join(sorted(missing_files))
+                    )
+
+                for idx, (species, path) in enumerate(species_files.items()):
                     rho, T, p_tab, e_tab = _load_table(path)
                     weight = fractions.get(species, 0.0)
-                    if first:
+                    if idx == 0:
                         self.rho_grid = rho
                         self.T_grid = T
                         self.p_table = weight * p_tab
                         self.e_table = weight * e_tab
-                        first = False
                     else:
                         if not (
                             np.array_equal(self.rho_grid, rho)
