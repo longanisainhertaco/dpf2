@@ -1,4 +1,6 @@
 import json
+import json
+
 import pytest
 
 from boundary_conditions import BoundaryConditions, BoundaryTypeEnum
@@ -38,6 +40,15 @@ def test_conflict_resolution_policy_respected():
     data["conflictResolutionPolicy"] = "prefer_geometry"
     cfg = BoundaryConditions.model_validate(data, context={"geometry": "2D_RZ"})
     assert cfg.y_low is BoundaryTypeEnum.REFLECTING
+
+
+def test_pml_params_customizable():
+    data = BoundaryConditions.with_defaults().model_dump(by_alias=True)
+    data.update({"pmlThickness": 3, "pmlSigma": 1.5, "pmlProfile": "linear"})
+    cfg = BoundaryConditions.model_validate(data)
+    assert cfg.pml_thickness == 3
+    assert cfg.pml_sigma == 1.5
+    assert cfg.pml_profile == "linear"
 
 
 def test_round_trip_yaml():

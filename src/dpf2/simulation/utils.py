@@ -220,31 +220,47 @@ class FieldManager:
                     field[:, :, :g] = field[:, :, g:2 * g]
                     field[:, :, -g:] = field[:, :, -2 * g:-g]
             elif bc == 'pml':
-                # Simple PML implemented via exponential damping in ghost cells
+                # Simple PML implemented via damping in ghost cells
                 thickness = int(self.boundary_conditions.get('pml_thickness', g))
                 thickness = min(thickness, g)
                 sigma = float(self.boundary_conditions.get('pml_sigma', 2.0))
                 profile = self.boundary_conditions.get('pml_profile', 'exponential')
                 factors = _pml_factors(thickness, sigma, profile)
 
+                def _apply(axis_slc, interior):
+                    facs = factors[::-1] if side == 'lo' else factors
+                    if axis == 0:
+                        facs = facs[:, None, None]
+                    elif axis == 1:
+                        facs = facs[None, :, None]
+                    else:
+                        facs = facs[None, None, :]
+                    field[axis_slc] = interior * facs
+
                 if axis == 0:
                     interior_idx = thickness if side == 'lo' else -thickness - 1
-                    interior = np.copy(field[interior_idx, :, :])
-                    for j, fac in enumerate(factors):
-                        idx = thickness - 1 - j if side == 'lo' else -thickness + j
-                        field[idx, :, :] = interior * fac
+                    interior = np.copy(field[interior_idx, :, :])[None, :, :]
+                    sl = slice(0, thickness) if side == 'lo' else slice(-thickness, None)
+                    _apply((sl, slice(None), slice(None)), interior)
+                    if thickness < g:
+                        zero_sl = slice(thickness, g) if side == 'lo' else slice(-g, -thickness)
+                        field[zero_sl, :, :] = 0.0
                 elif axis == 1:
                     interior_idx = thickness if side == 'lo' else -thickness - 1
-                    interior = np.copy(field[:, interior_idx, :])
-                    for j, fac in enumerate(factors):
-                        idx = thickness - 1 - j if side == 'lo' else -thickness + j
-                        field[:, idx, :] = interior * fac
+                    interior = np.copy(field[:, interior_idx, :])[:, None, :]
+                    sl = slice(0, thickness) if side == 'lo' else slice(-thickness, None)
+                    _apply((slice(None), sl, slice(None)), interior)
+                    if thickness < g:
+                        zero_sl = slice(thickness, g) if side == 'lo' else slice(-g, -thickness)
+                        field[:, zero_sl, :] = 0.0
                 elif axis == 2:
                     interior_idx = thickness if side == 'lo' else -thickness - 1
-                    interior = np.copy(field[:, :, interior_idx])
-                    for j, fac in enumerate(factors):
-                        idx = thickness - 1 - j if side == 'lo' else -thickness + j
-                        field[:, :, idx] = interior * fac
+                    interior = np.copy(field[:, :, interior_idx])[:, :, None]
+                    sl = slice(0, thickness) if side == 'lo' else slice(-thickness, None)
+                    _apply((slice(None), slice(None), sl), interior)
+                    if thickness < g:
+                        zero_sl = slice(thickness, g) if side == 'lo' else slice(-g, -thickness)
+                        field[:, :, zero_sl] = 0.0
             else:
                 logger.warning(f"Unknown boundary condition: {bc} - defaulting to periodic.")
                 field = np.roll(field, shift=g, axis=axis)
