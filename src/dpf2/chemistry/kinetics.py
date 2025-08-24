@@ -5,7 +5,8 @@ from __future__ import annotations
 This module provides a tiny collisional\u2013radiative model that evolves the
 free electron density using tabulated ionisation and recombination rate
 coefficients.  The implementation is intentionally simple and intended for
-unit testing of chemistry hooks rather than high fidelity simulation.
+unit testing of chemistry hooks rather than high fidelity simulation.  The
+tabulated coefficients typically originate from reduced FLYCHK/CRM datasets.
 """
 
 from dataclasses import dataclass

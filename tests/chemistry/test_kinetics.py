@@ -41,6 +41,7 @@ def test_kinetics_converges_to_flychk():
         ne = kinetics.step(ne, n_total, T, dt)
     zbar = ne / n_total
 
+    # Reference mean charge state from a FLYCHK table
     flychk_data = np.loadtxt(data_path("flychk_dummy.csv"), delimiter=",", skiprows=1)
     T_ref, Z_ref = flychk_data[:, 0], flychk_data[:, 1]
     ref = np.interp(T, T_ref, Z_ref, left=Z_ref[0], right=Z_ref[-1])
