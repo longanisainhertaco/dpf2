@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from boundary_conditions import BoundaryConditions, BoundaryTypeEnum
+from dpf2.boundary_conditions import BoundaryConditions, BoundaryTypeEnum
 
 
 def test_2d_rz_requires_reflecting_y():

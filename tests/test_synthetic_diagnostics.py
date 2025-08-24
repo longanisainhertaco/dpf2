@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from synthetic_diagnostics import SyntheticDiagnostics, SyntheticInstrument
+from dpf2.synthetic_diagnostics import SyntheticDiagnostics, SyntheticInstrument
 
 try:
     import yaml  # type: ignore

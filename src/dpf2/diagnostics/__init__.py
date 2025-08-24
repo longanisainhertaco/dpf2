@@ -36,12 +36,12 @@ if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
 # Local imports ---------------------------------------------------------------
-from core_schema import (
+from ..core_schema import (
     ConfigSectionBase,
     DetectorConfig,
     to_camel_case,
 )
-from units_settings import UnitsSettings
+from ..units_settings import UnitsSettings
 
 
 # ---------------------------------------------------------------------------

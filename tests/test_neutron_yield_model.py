@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from neutron_yield_model import NeutronYieldModel
+from dpf2.neutron_yield_model import NeutronYieldModel
 
 try:
     import yaml  # type: ignore

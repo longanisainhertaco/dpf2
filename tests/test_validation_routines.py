@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from validation_suite import compute_error_metrics
+from dpf2.validation_suite import compute_error_metrics
 
 
 def dataset_dir() -> Path:

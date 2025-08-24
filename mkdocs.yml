@@ -1,8 +1,14 @@
 site_name: DPF2 Documentation
 nav:
+
   - User Manual: user_manual.md
   - API Reference: api.md
   - Benchmarks: benchmarks.md
+
+  - Home: index.md
+  - User Guide: user_guide.md
+  - API Reference: api_reference.md
+
 plugins:
   - mkdocstrings:
       handlers:

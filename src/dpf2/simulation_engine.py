@@ -7,8 +7,8 @@ from typing import Dict
 
 import numpy as np
 
-from dpf_config import DPFConfig
-from circuit_config import CircuitConfig
+from .dpf_config import DPFConfig
+from .circuit_config import CircuitConfig
 
 from .circuit_solver import RLCCircuit, CircuitSolver
 from .pinch_models import (

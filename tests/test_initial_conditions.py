@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import pytest
 
-from initial_conditions import InitialConditions, BreakdownModel, PaschenModel
+from dpf2.initial_conditions import InitialConditions, BreakdownModel, PaschenModel
 
 
 def test_missing_field_threshold_fails():

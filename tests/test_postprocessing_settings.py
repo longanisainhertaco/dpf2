@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from postprocessing_settings import PostprocessingSettings
+from dpf2.postprocessing_settings import PostprocessingSettings
 
 try:
     import yaml  # type: ignore

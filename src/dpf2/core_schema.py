@@ -62,21 +62,21 @@ ConfigOverride = Dict[str, Union[float, str]]
 FieldUnit = str
 
 if TYPE_CHECKING:
-    from simulation_settings import SimulationSettings
-    from grid_resolution import GridResolution
-    from initial_conditions import InitialConditions
-    from physics_models import PhysicsModels
-    from circuit_config import CircuitConfig
-    from amrex_settings import AmrexSettings
-    from warpx_settings import WarpXSettings
+    from .simulation_settings import SimulationSettings
+    from .grid_resolution import GridResolution
+    from .initial_conditions import InitialConditions
+    from .physics_models import PhysicsModels
+    from .circuit_config import CircuitConfig
+    from .amrex_settings import AmrexSettings
+    from .warpx_settings import WarpXSettings
     from dpf2.diagnostics import Diagnostics
-    from experimental_variability import ExperimentalVariabilityModel
-    from benchmark_matching import BenchmarkMatching
-    from boundary_conditions import BoundaryConditions
-    from parallel_settings import ParallelSettings
-    from metadata import Metadata
-    from advanced_options import AdvancedOptions
-    from units_settings import UnitsSettings
+    from .experimental_variability import ExperimentalVariabilityModel
+    from .benchmark_matching import BenchmarkMatching
+    from .boundary_conditions import BoundaryConditions
+    from .parallel_settings import ParallelSettings
+    from .metadata import Metadata
+    from .advanced_options import AdvancedOptions
+    from .units_settings import UnitsSettings
 
 # ---------------------------------------------------------------------------
 # Helper for camelCase aliasing
@@ -341,21 +341,21 @@ class DPFConfig(BaseModel):
     # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> Self:
-        from simulation_settings import SimulationSettings
-        from grid_resolution import GridResolution
-        from initial_conditions import InitialConditions
-        from physics_models import PhysicsModels
-        from circuit_config import CircuitConfig
-        from amrex_settings import AmrexSettings
-        from warpx_settings import WarpXSettings
+        from .simulation_settings import SimulationSettings
+        from .grid_resolution import GridResolution
+        from .initial_conditions import InitialConditions
+        from .physics_models import PhysicsModels
+        from .circuit_config import CircuitConfig
+        from .amrex_settings import AmrexSettings
+        from .warpx_settings import WarpXSettings
         from dpf2.diagnostics import Diagnostics
-        from experimental_variability import ExperimentalVariabilityModel
-        from benchmark_matching import BenchmarkMatching
-        from boundary_conditions import BoundaryConditions
-        from parallel_settings import ParallelSettings
-        from metadata import Metadata
-        from advanced_options import AdvancedOptions
-        from units_settings import UnitsSettings
+        from .experimental_variability import ExperimentalVariabilityModel
+        from .benchmark_matching import BenchmarkMatching
+        from .boundary_conditions import BoundaryConditions
+        from .parallel_settings import ParallelSettings
+        from .metadata import Metadata
+        from .advanced_options import AdvancedOptions
+        from .units_settings import UnitsSettings
 
         cls.model_rebuild()
         sim = SimulationSettings.with_defaults()
@@ -498,21 +498,21 @@ class DPFConfig(BaseModel):
 
 # Attempt to resolve forward references now that section models may be available
 try:  # pragma: no cover - optional import for forward refs
-    from simulation_settings import SimulationSettings
-    from grid_resolution import GridResolution
-    from initial_conditions import InitialConditions
-    from physics_models import PhysicsModels
-    from circuit_config import CircuitConfig
-    from amrex_settings import AmrexSettings
-    from warpx_settings import WarpXSettings
+    from .simulation_settings import SimulationSettings
+    from .grid_resolution import GridResolution
+    from .initial_conditions import InitialConditions
+    from .physics_models import PhysicsModels
+    from .circuit_config import CircuitConfig
+    from .amrex_settings import AmrexSettings
+    from .warpx_settings import WarpXSettings
     from dpf2.diagnostics import Diagnostics
-    from experimental_variability import ExperimentalVariabilityModel
-    from benchmark_matching import BenchmarkMatching
-    from boundary_conditions import BoundaryConditions
-    from parallel_settings import ParallelSettings
-    from metadata import Metadata
-    from advanced_options import AdvancedOptions
-    from units_settings import UnitsSettings
+    from .experimental_variability import ExperimentalVariabilityModel
+    from .benchmark_matching import BenchmarkMatching
+    from .boundary_conditions import BoundaryConditions
+    from .parallel_settings import ParallelSettings
+    from .metadata import Metadata
+    from .advanced_options import AdvancedOptions
+    from .units_settings import UnitsSettings
     DPFConfig.model_rebuild()
 except Exception as exc:
     logger.exception("Failed to rebuild DPFConfig model")

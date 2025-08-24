@@ -124,6 +124,7 @@ def test_run_calls_modules(monkeypatch):
         """Diagnostics stub capturing records."""
     diagnostics_mod.Diagnostics = Diagnostics
     monkeypatch.setitem(sys.modules, "diagnostics", diagnostics_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.diagnostics", diagnostics_mod)
 
     pic_solver_mod = ModuleType("pic_solver")
     class PICSolver:
@@ -134,7 +135,14 @@ def test_run_calls_modules(monkeypatch):
     pic_solver_mod.PICSolver = PICSolver
     monkeypatch.setitem(sys.modules, "pic_solver", pic_solver_mod)
 
-    import dpf2.simulation.dpf_simulation as simmod
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "dpf_simulation", Path(__file__).resolve().parent.parent / "src/dpf2/simulation/dpf_simulation.py"
+    )
+    simmod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(simmod)
 
     circuit_cfg = SimpleNamespace(C=1.0, V0=1.0, L0=1.0, R0=0.0,
                                  anode_radius=0.1, cathode_radius=0.2,
@@ -181,4 +189,11 @@ def test_run_calls_modules(monkeypatch):
     assert solver.dt_calls == sim.step_count
     assert coll.apply_calls == sim.step_count
     assert coll.checkpoint_calls == sim.step_count
+    # diagnostics should record once per step with increasing times
     assert len(diag.records) == sim.step_count
+    assert diag.records[0] == pytest.approx(0.0)
+    assert diag.records[-1] == pytest.approx(sim.current_time - sim.dt)
+
+    # checkpoint data should be captured for each step
+    assert len(diag.checkpoints) == sim.step_count
+    assert diag.checkpoints[-1]["collision"]["calls"] == sim.step_count

@@ -35,7 +35,7 @@ if not hasattr(BaseModel, "model_dump_json"):
 if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
-from core_schema import ConfigSectionBase, UnitsSystem, UNIT_SCALE_MAP, to_camel_case
+from .core_schema import ConfigSectionBase, UnitsSystem, UNIT_SCALE_MAP, to_camel_case
 
 
 class ValidationSuite(ConfigSectionBase):

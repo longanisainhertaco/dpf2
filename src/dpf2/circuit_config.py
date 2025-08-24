@@ -63,13 +63,13 @@ if not hasattr(BaseModel, "model_dump_json"):
 if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
-from core_schema import (
+from .core_schema import (
     ConfigSectionBase,
     TimeVoltageProfile,
     to_camel_case,
     CircuitFaultTypeEnum,
 )
-from units_settings import UnitsSettings
+from .units_settings import UnitsSettings
 
 
 class CircuitConfig(ConfigSectionBase):

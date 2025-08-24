@@ -1,5 +1,5 @@
 import numpy as np
-from circuit_config import CircuitConfig
+from dpf2.circuit_config import CircuitConfig
 from dpf2.circuit_solver import run_circuit_simulation
 
 

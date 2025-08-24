@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from units_settings import UnitsSettings
+from dpf2.units_settings import UnitsSettings
 
 try:
     import yaml  # type: ignore
