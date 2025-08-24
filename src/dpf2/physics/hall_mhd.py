@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
+
 import numpy as np
 
 from .mhd import ResistiveMHD
@@ -70,6 +72,7 @@ class HallMHD(ResistiveMHD):
         state: np.ndarray,
         dt: float,
         current: float = 0.0,
+
         voltage: float = 0.0,
     ) -> np.ndarray:
         """Lightweight advance that updates circuit feedback only.
@@ -89,6 +92,21 @@ class HallMHD(ResistiveMHD):
         The routine estimates the plasma inductance and associated back‑EMF
         ``emf = Lp * dI/dt + I * dLp/dt`` which are exposed through the
         ``circuit_feedback`` attribute for use by external circuit solvers.
+
+        *,
+        circuit: Any | None = None,
+    ) -> np.ndarray:
+        """Update circuit feedback and optionally couple to an external circuit.
+
+        The plasma state ``state`` itself is not modified by this routine;
+        rather it estimates the instantaneous plasma inductance from the
+        magnetic energy and communicates it to an external circuit model.  If
+        ``circuit`` is supplied the circuit's ``step`` method is invoked using
+        the plasma current and the induced back‑EMF ``-d(L_p)/dt * I``.  The
+        external circuit is expected to expose a ``step(current, back_emf, dt,
+        plasma_feedback)`` method matching
+        :class:`~dpf2.core.circuit.RLCCircuitSolver`.
+
         """
 
         prev_I = self.current
@@ -96,12 +114,23 @@ class HallMHD(ResistiveMHD):
 
         Lp = self.plasma_inductance(state)
         dLpdt = (Lp - self.inductance) / max(dt, 1.0e-30)
+
         dIdt = (current - prev_I) / max(dt, 1.0e-30)
         emf = Lp * dIdt + current * dLpdt
+
+        back_emf = -dLpdt * self.current
+
 
         self.inductance = Lp
         self.back_emf = emf
         self.circuit_feedback = {"Lp": Lp, "emf": emf}
+
+        if circuit is not None:
+            self.current, self.back_emf = circuit.step(
+                self.current, back_emf, dt, self.circuit_feedback
+            )
+        else:
+            self.back_emf = 0.0
 
         return state
 
@@ -139,6 +168,70 @@ class HallMHD(ResistiveMHD):
                 F[6] -= hall_e[0]
 
         return F
+
+    # ------------------------------------------------------------------
+    # Riemann solver and CTU update
+    # ------------------------------------------------------------------
+    def riemann_solver(
+        self,
+        UL: np.ndarray,
+        UR: np.ndarray,
+        direction: str,
+        J_L: np.ndarray | None = None,
+        J_R: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Simple Rusanov solver for the Hall-MHD system."""
+
+        F_L = self.flux_function(UL, direction, J=J_L)
+        F_R = self.flux_function(UR, direction, J=J_R)
+        smax = max(self.max_speed(UL, direction), self.max_speed(UR, direction))
+        return 0.5 * (F_L + F_R) - 0.5 * smax * (UR - UL)
+
+    def divergence_cleaning(self, U: np.ndarray, dx: float, dt: float) -> None:
+        """Apply a simplified Dedner divergence-cleaning step in 1-D."""
+
+        if self.c_h == 0.0 and self.c_p == 0.0:
+            return
+
+        Bx = U[:, 5]
+        psi = U[:, 8]
+        divB = np.gradient(Bx, dx, edge_order=2)
+        psi -= dt * (self.c_h ** 2 * divB + self.c_p ** 2 * psi)
+        Bx -= dt * np.gradient(psi, dx, edge_order=2)
+        U[:, 5] = Bx
+        U[:, 8] = psi
+
+    def ctu_update(
+        self, U: np.ndarray, dx: float, dt: float, *, periodic: bool = False
+    ) -> np.ndarray:
+        """Advance ``U`` by one CTU step in the ``x``-direction."""
+
+        n = U.shape[0]
+        By = U[:, 6]
+        Bz = U[:, 7]
+        J = np.zeros((n, 3))
+        J[:, 1] = -np.gradient(Bz, dx, edge_order=2)
+        J[:, 2] = np.gradient(By, dx, edge_order=2)
+
+        fluxes = np.zeros((n + 1, len(self.equations)))
+        for i in range(n - 1):
+            fluxes[i + 1] = self.riemann_solver(
+                U[i], U[i + 1], "x", J[i], J[i + 1]
+            )
+
+        if periodic:
+            fluxes[0] = self.riemann_solver(U[-1], U[0], "x", J[-1], J[0])
+            fluxes[-1] = fluxes[0]
+        else:
+            fluxes[0] = self.flux_function(U[0], "x", J=J[0])
+            fluxes[-1] = self.flux_function(U[-1], "x", J=J[-1])
+
+        U_new = U.copy()
+        for i in range(n):
+            U_new[i] -= dt / dx * (fluxes[i + 1] - fluxes[i])
+
+        self.divergence_cleaning(U_new, dx, dt)
+        return U_new
 
 
 __all__ = ["HallMHD"]

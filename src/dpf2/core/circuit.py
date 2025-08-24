@@ -63,7 +63,7 @@ class RLCCircuitSolver(CircuitSolverBase):
     def step(
         self,
         current: float,
-        voltage: float,
+        back_emf: float,
         dt: float,
         plasma_feedback: dict[str, float] | None = None,
     ) -> tuple[float, float]:
@@ -71,8 +71,10 @@ class RLCCircuitSolver(CircuitSolverBase):
 
         Parameters
         ----------
-        current, voltage:
-            Present values of the circuit current and capacitor voltage.
+        current:
+            Present value of the circuit current.
+        back_emf:
+            Voltage induced by the plasma (opposes the driving voltage).
         dt:
             Time step in seconds.
         plasma_feedback:
@@ -84,6 +86,7 @@ class RLCCircuitSolver(CircuitSolverBase):
             values returned by the callables passed at construction time.
         """
 
+        voltage = self.voltages[-1]
         t = self.time[-1]
         Lp = 0.0
         dLpdt = 0.0
@@ -109,10 +112,16 @@ class RLCCircuitSolver(CircuitSolverBase):
 
         Ltot = self.L_ext + Lp
         V_mutual = -M * dIm_dt
+
         if use_emf:
             dIdt = (self.V0 + V_mutual - self.R_ext * current - voltage - emf) / Ltot
         else:
             dIdt = (self.V0 + V_mutual - self.R_ext * current - voltage - dLpdt * current) / Ltot
+
+        dIdt = (
+            self.V0 + V_mutual - self.R_ext * current - voltage - dLpdt * current - back_emf
+        ) / Ltot
+
         dVdt = -current / self.C_ext
 
         new_current = current + dIdt * dt

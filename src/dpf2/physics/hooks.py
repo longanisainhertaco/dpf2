@@ -20,6 +20,11 @@ def neutral_density_source(rho_n: float, ionization_rate: float) -> float:
         Neutral mass density.
     ionization_rate:
         Effective ionisation rate coefficient ``[1/s]``.
+
+    Returns
+    -------
+    float
+        Time derivative of ``rho_n`` due to ionisation.
     """
 
     return -ionization_rate * rho_n
@@ -30,6 +35,22 @@ def wall_ablation_source(
 ) -> tuple[float, float]:
     """Mass and energy sources due to wall ablation.
 
+    Parameters
+    ----------
+    ablation_rate:
+        Mass flux leaving the wall ``[kg/(m^2*s)]``.
+    area:
+        Ablating surface area ``[m^2]``.
+    latent_heat:
+        Specific energy required for ablation ``[J/kg]``.
+
+    Returns
+    -------
+    tuple
+        ``(mass_source, energy_source)`` with units ``kg/s`` and ``W``.
+
+    Notes
+    -----
     This is a thin wrapper around :func:`dpf2.ablation.ablation_mass_energy_source`.
     """
 
