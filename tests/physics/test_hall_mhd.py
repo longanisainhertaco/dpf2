@@ -2,6 +2,7 @@ import numpy as np
 
 from dpf2.physics import HallMHD
 from dpf2.core.circuit import RLCCircuitSolver
+from dpf2.mesh import Mesh3D
 
 
 def _shock_setup():
@@ -16,10 +17,12 @@ def _shock_setup():
 def test_shock_propagation():
     model, U_left, U_right = _shock_setup()
     U = np.vstack([U_left, U_right])
-    dx = 1.0
-    dt = 0.1 * dx / max(model.max_speed(U_left, "x"), model.max_speed(U_right, "x"))
+    mesh = Mesh3D(0.0, 2.0, 0.0, 1.0, 0.0, 1.0, 2, 1, 1)
+    dt = 0.1 * mesh.dx / max(
+        model.max_speed(U_left, "x"), model.max_speed(U_right, "x")
+    )
     for _ in range(5):
-        U = model.ctu_update(U, dx, dt)
+        U = model.ctu_update(U, mesh, dt)
 
     assert U[1, 0] > U_right[0]
     for state in U:
@@ -31,6 +34,7 @@ def test_shock_propagation():
 def test_alfven_wave_propagation():
     model = HallMHD()
     n = 32
+    mesh = Mesh3D(0.0, float(n), 0.0, 1.0, 0.0, 1.0, n, 1, 1)
     x = np.arange(n)
     rho0 = 1.0
     B0 = 1.0
@@ -43,12 +47,11 @@ def test_alfven_wave_propagation():
         prim = np.array([rho0, 0.0, vy[i], 0.0, 1.0, 0.0, By[i], B0])
         U[i] = model.conservative_variables(prim)
 
-    dx = 1.0
     ca = B0 / np.sqrt(rho0)
-    dt = 0.4 * dx / ca
+    dt = 0.4 * mesh.dx / ca
 
     for _ in range(5):
-        U = model.ctu_update(U, dx, dt, periodic=True)
+        U = model.ctu_update(U, mesh, dt, periodic=True)
 
     final_By = U[:, 6]
     assert np.isclose(np.max(np.abs(final_By)), amp, rtol=0.2)

@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 
 from .mhd import ResistiveMHD
+from ..mesh import Mesh2D, Mesh3D
 
 
 @dataclass
@@ -178,12 +179,15 @@ class HallMHD(ResistiveMHD):
         smax = max(self.max_speed(UL, direction), self.max_speed(UR, direction))
         return 0.5 * (F_L + F_R) - 0.5 * smax * (UR - UL)
 
-    def divergence_cleaning(self, U: np.ndarray, dx: float, dt: float) -> None:
+    def divergence_cleaning(
+        self, U: np.ndarray, mesh: Mesh2D | Mesh3D, dt: float
+    ) -> None:
         """Apply a simplified Dedner divergence-cleaning step in 1-D."""
 
         if self.c_h == 0.0 and self.c_p == 0.0:
             return
 
+        dx = mesh.dx
         Bx = U[:, 5]
         psi = U[:, 8]
         divB = np.gradient(Bx, dx, edge_order=2)
@@ -193,10 +197,11 @@ class HallMHD(ResistiveMHD):
         U[:, 8] = psi
 
     def ctu_update(
-        self, U: np.ndarray, dx: float, dt: float, *, periodic: bool = False
+        self, U: np.ndarray, mesh: Mesh2D | Mesh3D, dt: float, *, periodic: bool = False
     ) -> np.ndarray:
         """Advance ``U`` by one CTU step in the ``x``-direction."""
 
+        dx = mesh.dx
         n = U.shape[0]
         By = U[:, 6]
         Bz = U[:, 7]
@@ -221,7 +226,7 @@ class HallMHD(ResistiveMHD):
         for i in range(n):
             U_new[i] -= dt / dx * (fluxes[i + 1] - fluxes[i])
 
-        self.divergence_cleaning(U_new, dx, dt)
+        self.divergence_cleaning(U_new, mesh, dt)
         return U_new
 
 
