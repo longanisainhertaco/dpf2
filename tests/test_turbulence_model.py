@@ -52,8 +52,8 @@ def test_log_law_wall_function_adjusts_velocity_and_fields():
 
     model.k = np.ones_like(state.density) * 0.1
     model.epsilon = np.ones_like(state.density) * 0.01
-
     g = state.ghost
+    nx = state.velocity.shape[0]
     k0 = model.k[g, 0, 0]
     nu = state.viscosity[g, 0, 0] / state.density[g, 0, 0]
     u_tau = (model.C_mu ** 0.25) * np.sqrt(k0)
@@ -66,26 +66,35 @@ def test_log_law_wall_function_adjusts_velocity_and_fields():
 
     model._apply_wall_functions(state)
 
+    # Both sides of the domain should be adjusted identically
     assert np.isclose(state.velocity[g, 0, 0, 0], expected_velocity)
+    assert np.isclose(state.velocity[nx - g - 1, 0, 0, 0], expected_velocity)
     assert np.isclose(model.k[g, 0, 0], expected_k)
+    assert np.isclose(model.k[nx - g - 1, 0, 0], expected_k)
     assert np.isclose(model.epsilon[g, 0, 0], expected_epsilon)
+    assert np.isclose(model.epsilon[nx - g - 1, 0, 0], expected_epsilon)
 
 
 def test_power_law_wall_function_adjusts_velocity():
     cfg = TurbulenceConfig(wall_function_type="power_law")
     model = TurbulenceModel(cfg)
-    state = _basic_state()
+    state = _basic_state(grid_shape=(6, 1, 1))
 
     model.k = np.ones_like(state.density) * 0.1
     model.epsilon = np.ones_like(state.density) * 0.01
 
     g = state.ghost
+    nx = state.velocity.shape[0]
     state.velocity[g + 1, 0, 0, 0] = 5.0
-    expected = 5.0 * (0.5 * state.dx / state.dx) ** (1.0 / 7.0)
+    state.velocity[nx - g - 2, 0, 0, 0] = 8.0
+    factor = (0.5 * state.dx / state.dx) ** (1.0 / 7.0)
+    expected_left = 5.0 * factor
+    expected_right = 8.0 * factor
 
     model._apply_wall_functions(state)
 
-    assert np.isclose(state.velocity[g, 0, 0, 0], expected)
+    assert np.isclose(state.velocity[g, 0, 0, 0], expected_left)
+    assert np.isclose(state.velocity[nx - g - 1, 0, 0, 0], expected_right)
 
 
 def test_wall_function_validation():
@@ -95,6 +104,18 @@ def test_wall_function_validation():
     state.viscosity = None
 
     model.k = np.ones_like(state.density) * 0.1
+    model.epsilon = np.ones_like(state.density) * 0.01
+
+    with pytest.raises(ValueError):
+        model._apply_wall_functions(state)
+
+
+def test_wall_function_requires_initialized_turbulence_fields():
+    cfg = TurbulenceConfig(wall_function_type="log_law")
+    model = TurbulenceModel(cfg)
+    state = _basic_state()
+
+    model.k = None
     model.epsilon = np.ones_like(state.density) * 0.01
 
     with pytest.raises(ValueError):
