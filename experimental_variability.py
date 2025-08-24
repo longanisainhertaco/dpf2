@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Literal
 
@@ -35,6 +36,8 @@ if not hasattr(BaseModel, "model_copy"):
 
 # Local imports ---------------------------------------------------------------
 from core_schema import ConfigSectionBase, UnitsSystem, UNIT_SCALE_MAP, to_camel_case
+
+logger = logging.getLogger(__name__)
 
 
 class ExperimentalVariabilityModel(ConfigSectionBase):
@@ -150,7 +153,8 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
                 try:
                     if p.exists():
                         data[key] = p.read_bytes().decode(errors="ignore")
-                except Exception:
+                except Exception as e:
+                    logger.warning("Failed to read %s: %s", p, e)
                     data[key] = str(path)
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
