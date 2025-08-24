@@ -45,7 +45,7 @@ def test_anode_radius_must_be_smaller():
 
 def test_collision_model_requires_spitzer():
     class BadCollision:
-        pass
+        """Collision model lacking the required spitzer_resistivity."""
 
     with pytest.raises(ValueError, match="spitzer_resistivity"):
         CircuitModel(

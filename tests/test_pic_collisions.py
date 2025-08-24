@@ -73,7 +73,7 @@ def test_apply_collisions_unknown_species():
 
 def test_apply_collisions_missing_hook():
     class BrokenWarp:
-        pass
+        """WarpX-like object missing required collision interface."""
 
     warp = BrokenWarp()
     handler = PICCollisionHandler(lambda ne, Te: 1.0)

@@ -47,7 +47,7 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)
     class SheathConfig:
-        pass
+        """Minimal sheath configuration for test."""
     config_mod.SimulationConfig = SimulationConfig
     config_mod.SheathConfig = SheathConfig
     monkeypatch.setitem(sys.modules, "config_schema", config_mod)

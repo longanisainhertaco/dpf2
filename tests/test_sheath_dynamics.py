@@ -18,7 +18,7 @@ class _SheathConfig:
         self.__dict__.update(kwargs)
 
 class _HybridConfig:
-    pass
+    """Placeholder for HybridConfig used in tests."""
 
 sys.modules.setdefault("config_schema", types.SimpleNamespace(SheathConfig=_SheathConfig, HybridConfig=_HybridConfig))
 
