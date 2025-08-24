@@ -37,6 +37,9 @@ class CircuitSolver:
 
     def __init__(self, circuit: RLCCircuit) -> None:
         self.circuit = circuit
+        self.time = [0.0]
+        self.currents = [0.0]
+        self.voltages = [circuit.V0]
 
     # ------------------------------------------------------------------
     def _analytical_current(self, t: np.ndarray) -> np.ndarray:
@@ -102,6 +105,53 @@ class CircuitSolver:
         else:
             raise ValueError("method must be 'analytical' or 'ode'")
         return t, I
+
+    def step(
+        self,
+        current: float,
+        back_emf: float,
+        dt: float,
+        plasma_feedback: dict[str, float] | None = None,
+    ) -> Tuple[float, float]:
+        """Explicit Euler advance with optional plasma feedback."""
+
+        voltage = self.voltages[-1]
+        t = self.time[-1]
+
+        Lp = 0.0
+        dLpdt = 0.0
+        emf = 0.0
+        use_emf = False
+        if plasma_feedback:
+            Lp = plasma_feedback.get("Lp", 0.0)
+            if "emf" in plasma_feedback:
+                emf = plasma_feedback["emf"]
+                use_emf = True
+            else:
+                dLpdt = plasma_feedback.get("dLpdt", 0.0)
+
+        Ltot = self.circuit.L + Lp
+        if use_emf:
+            num = self.circuit.V0 - self.circuit.R * current - voltage - emf - back_emf
+        else:
+            num = (
+                self.circuit.V0
+                - self.circuit.R * current
+                - voltage
+                - dLpdt * current
+                - back_emf
+            )
+        dIdt = num / Ltot
+        dVdt = -current / self.circuit.C
+
+        new_current = current + dIdt * dt
+        new_voltage = voltage + dVdt * dt
+
+        self.time.append(t + dt)
+        self.currents.append(new_current)
+        self.voltages.append(new_voltage)
+
+        return new_current, new_voltage
 
 
 def _profile_to_interp(profile, t_scale: float, y_scale: float):
