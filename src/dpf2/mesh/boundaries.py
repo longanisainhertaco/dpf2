@@ -7,7 +7,7 @@ from typing import Literal
 
 def apply_bc(
     field: list,
-    bc: Literal["periodic", "neumann", "dirichlet"],
+    bc: Literal["periodic", "neumann", "dirichlet", "reflective", "absorbing"],
     axis: int,
     side: Literal["low", "high"],
     ghosts: int = 1,
@@ -37,7 +37,17 @@ def apply_bc(
                     field[i] = _copy_plane(field[ghosts + i])
                 else:
                     field[-ghosts + i] = _copy_plane(field[-2 * ghosts + i])
+            elif bc == "reflective":
+                if side == "low":
+                    field[i] = _copy_plane(field[2 * ghosts - 1 - i])
+                else:
+                    field[-ghosts + i] = _copy_plane(field[-ghosts - 1 - i])
             elif bc == "dirichlet":
+                target = field[i] if side == "low" else field[-ghosts + i]
+                for j in range(len(target)):
+                    for k in range(len(target[j])):
+                        target[j][k] = 0.0
+            elif bc == "absorbing":
                 target = field[i] if side == "low" else field[-ghosts + i]
                 for j in range(len(target)):
                     for k in range(len(target[j])):
@@ -62,7 +72,19 @@ def apply_bc(
                 else:
                     for i in range(len(field)):
                         field[i][-ghosts + j] = field[i][-2 * ghosts + j][:]
+            elif bc == "reflective":
+                if side == "low":
+                    for i in range(len(field)):
+                        field[i][j] = field[2 * ghosts - 1 - i][j][:]
+                else:
+                    for i in range(len(field)):
+                        field[i][-ghosts + j] = field[-ghosts - 1 - i][j][:]
             elif bc == "dirichlet":
+                for i in range(len(field)):
+                    target = field[i][j] if side == "low" else field[i][-ghosts + j]
+                    for k in range(len(target)):
+                        target[k] = 0.0
+            elif bc == "absorbing":
                 for i in range(len(field)):
                     target = field[i][j] if side == "low" else field[i][-ghosts + j]
                     for k in range(len(target)):
@@ -89,7 +111,23 @@ def apply_bc(
                     for i in range(len(field)):
                         for j in range(len(field[i])):
                             field[i][j][-ghosts + k] = field[i][j][-2 * ghosts + k]
+            elif bc == "reflective":
+                if side == "low":
+                    for i in range(len(field)):
+                        for j in range(len(field[i])):
+                            field[i][j][k] = field[2 * ghosts - 1 - i][j][k]
+                else:
+                    for i in range(len(field)):
+                        for j in range(len(field[i])):
+                            field[i][j][-ghosts + k] = field[-ghosts - 1 - i][j][-ghosts + k]
             elif bc == "dirichlet":
+                for i in range(len(field)):
+                    for j in range(len(field[i])):
+                        if side == "low":
+                            field[i][j][k] = 0.0
+                        else:
+                            field[i][j][-ghosts + k] = 0.0
+            elif bc == "absorbing":
                 for i in range(len(field)):
                     for j in range(len(field[i])):
                         if side == "low":
