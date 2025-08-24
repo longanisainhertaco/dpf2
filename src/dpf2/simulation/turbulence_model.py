@@ -50,9 +50,12 @@ def compute_laplacian(arr, dx, dy, dz, laplacian):
                 )
 
 class TurbulenceModel(PhysicsModule):
-    """
-    Implements an enhanced RANS k-epsilon turbulence model for the DPF simulation.
-    """
+    """RANS k-epsilon turbulence model with optional wall functions."""
+
+    #: Supported wall-function options.  ``none`` leaves the velocity field
+    #: untouched, while ``log_law`` and ``power_law`` adjust the profile near
+    #: solid boundaries.
+    VALID_WALL_FUNCTION_TYPES = {"none", "log_law", "power_law"}
 
     def __init__(self, config: "TurbulenceConfig"):
         """
@@ -77,11 +80,13 @@ class TurbulenceModel(PhysicsModule):
         self.compressibility_beta = config.compressibility_beta
 
         # Validate the wall function choice early so misconfigurations are caught
-        # before the simulation starts. ``none`` is a valid option that simply
-        # disables the wall function logic, while ``log_law`` and ``power_law``
-        # activate the respective velocity profile adjustments.
-        if self.wall_function_type not in {"none", "log_law", "power_law"}:
-            raise ValueError(f"Unknown wall function type: {self.wall_function_type}")
+        # before the simulation starts. ``none`` simply disables the wall
+        # function logic, while ``log_law`` and ``power_law`` adjust the velocity
+        # profile near solid boundaries.
+        if self.wall_function_type not in self.VALID_WALL_FUNCTION_TYPES:
+            raise ValueError(
+                f"Unknown wall function type: {self.wall_function_type}"
+            )
         self.k = None  # Turbulent kinetic energy
         self.epsilon = None  # Dissipation rate
         self.nu_t = None # Turbulent viscosity
@@ -207,11 +212,14 @@ class TurbulenceModel(PhysicsModule):
         nx = state.velocity.shape[0]
         y = 0.5 * state.dx
 
-        valid_types = {"log_law", "power_law"}
+        # ``none`` is handled in ``apply``; only the remaining options are valid
+        # inside this helper.  Using the shared constant keeps validation in a
+        # single place and makes it easy to expand supported types.
+        valid_types = self.VALID_WALL_FUNCTION_TYPES - {"none"}
         if self.wall_function_type not in valid_types:
             raise ValueError(
                 f"Unsupported wall function type '{self.wall_function_type}'. "
-                f"Supported options are 'log_law' and 'power_law'."
+                f"Supported options are {sorted(valid_types)}."
             )
 
         if self.wall_function_type == "log_law":
