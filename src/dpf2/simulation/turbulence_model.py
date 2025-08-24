@@ -2,7 +2,7 @@
 import numpy as np
 import logging
 from numba import njit, prange
-from models import PhysicsModule, SimulationState
+from .models import PhysicsModule, SimulationState
 from typing import Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - only for type checking
@@ -207,6 +207,13 @@ class TurbulenceModel(PhysicsModule):
         nx = state.velocity.shape[0]
         y = 0.5 * state.dx
 
+        valid_types = {"log_law", "power_law"}
+        if self.wall_function_type not in valid_types:
+            raise ValueError(
+                f"Unsupported wall function type '{self.wall_function_type}'. "
+                f"Supported options are 'log_law' and 'power_law'."
+            )
+
         if self.wall_function_type == "log_law":
             # Logarithmic law of the wall.  We apply the same relation to both
             # x-normal boundaries to keep the routine symmetric.  Only the
@@ -236,14 +243,6 @@ class TurbulenceModel(PhysicsModule):
             boundary_pairs = ((g, g + 1), (nx - g - 1, nx - g - 2))
             for idx, interior in boundary_pairs:
                 state.velocity[idx, :, :, 0] = state.velocity[interior, :, :, 0] * factor
-
-        else:
-            # A defensive check in case an unsupported option slips through
-            # configuration validation.
-            raise ValueError(
-                f"Unsupported wall function type '{self.wall_function_type}'. "
-                "Supported options are 'log_law' and 'power_law'."
-            )
 
     def initialize(self):
         """
