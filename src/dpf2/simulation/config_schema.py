@@ -35,13 +35,21 @@ class CollisionConfig(BaseModel):
 
 class RadiationConfig(BaseModel):
     """Configuration for the radiation model."""
+    num_groups: int = Field(1, description="Number of radiation energy groups")
+    material_opacities: Dict[str, List[float]] = Field(
+        default_factory=dict,
+        description="Material-specific opacities for each group",
+    )
     use_line_radiation: bool = Field(False, description="Enable line radiation")
     line_cooling_curve: Optional[str] = Field(None, description="Path to the HDF5 file containing the line cooling curve")
     telemetry_port: int = Field(..., description="Port for telemetry streaming")
     photon_params: Dict[str, Any] = Field(default_factory=dict, description="Parameters for photon Monte Carlo")
     opacity_model: str = Field("constant", description="Model for opacity calculation")
     opacity_params: Dict[str, Any] = Field(default_factory=dict, description="Parameters for opacity model")
-    group_opacities: List[float] = Field(..., description="Opacities for each radiation group")
+    group_opacities: List[float] = Field(
+        default_factory=list,
+        description="Opacities for each radiation group",
+    )
     adios_engine: str = Field("BP4", description="ADIOS2 engine")
     adios_parameters: Dict[str, Any] = Field(default_factory=dict, description="ADIOS2 parameters")
     adios_file: str = Field("radiation.bp", description="ADIOS2 output file")

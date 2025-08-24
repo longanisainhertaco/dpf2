@@ -98,6 +98,29 @@ class PhysicsModels(ConfigSectionBase):
         alias="enableNeutralParticleTracking",
         metadata={"category": "PhysicsModels", "group": "NeutralFluid"},
     )
+    neutral_species: list[str] = Field(
+        default_factory=list,
+        alias="neutralSpecies",
+        metadata={"category": "PhysicsModels", "group": "NeutralFluid"},
+    )
+    wall_ablation_rate: Optional[float] = Field(
+        None,
+        alias="wallAblationRate",
+        metadata={
+            "units": "kg/(m^2*s)",
+            "category": "PhysicsModels",
+            "group": "Ablation",
+        },
+    )
+    wall_ablation_latent_heat: Optional[float] = Field(
+        None,
+        alias="wallAblationLatentHeat",
+        metadata={
+            "units": "J/kg",
+            "category": "PhysicsModels",
+            "group": "Ablation",
+        },
+    )
 
     resistivity_model: ResistivityModel = Field(
         ResistivityModel.SPITZER,
