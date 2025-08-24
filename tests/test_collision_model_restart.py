@@ -1,18 +1,44 @@
 import sys
 import types
 import pytest
+from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def _raise(*args, **kwargs):
     raise OSError("file not found")
 
 
+class RandomStub:
+    """Minimal stub to emulate numpy.random for tests."""
+
+    def __init__(self):
+        import random
+        self._rng = random.Random()
+
+    def get_state(self):
+        return self._rng.getstate()
+
+    def set_state(self, state):
+        self._rng.setstate(state)
+
+    def rand(self):
+        return self._rng.random()
+
+    random = rand
+
+    def seed(self, seed=None):
+        self._rng.seed(seed)
+
+
 @pytest.fixture
 def collision_model_classes(monkeypatch):
-    monkeypatch.setitem(sys.modules, "numpy", types.SimpleNamespace())
+    numpy_stub = types.SimpleNamespace(random=RandomStub())
+    monkeypatch.setitem(sys.modules, "numpy", numpy_stub)
     monkeypatch.setitem(sys.modules, "h5py", types.SimpleNamespace(File=_raise))
 
-
     interp_stub = types.SimpleNamespace(
         interp1d=lambda *a, **k: (lambda x: 0.0),
         RegularGridInterpolator=lambda *a, **k: (lambda x: 0.0),
@@ -33,39 +59,13 @@ def collision_model_classes(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "models", models_stub)
 
+    dpf2_pkg = types.ModuleType("dpf2")
+    dpf2_pkg.__path__ = [str(Path(__file__).resolve().parents[1] / "src" / "dpf2")]
+    sys.modules["dpf2"] = dpf2_pkg
 
-    interp_stub = types.SimpleNamespace(
-        interp1d=lambda *a, **k: (lambda x: 0.0),
-        RegularGridInterpolator=lambda *a, **k: (lambda x: 0.0),
-    )
-    monkeypatch.setitem(sys.modules, "scipy", types.SimpleNamespace())
-    monkeypatch.setitem(sys.modules, "scipy.interpolate", interp_stub)
+    from dpf2.simulation.collision_model import CollisionModel, CrossSectionData
 
-    numba_stub = types.SimpleNamespace(
-        njit=lambda f=None, *a, **k: (lambda *args, **kwargs: f(*args, **kwargs) if f else None),
-        prange=range,
-        cuda=types.SimpleNamespace(),
-    )
-    monkeypatch.setitem(sys.modules, "numba", numba_stub)
-
-
-    models_stub = types.SimpleNamespace(
-        PhysicsModule=object,
-        SimulationState=object,
-    )
-    monkeypatch.setitem(sys.modules, "models", models_stub)
-
-from dpf2.simulation.collision_model import CollisionModel, CrossSectionData
-
-
-    from Simulation.collision_model import CollisionModel, CrossSectionData
     return CollisionModel, CrossSectionData
-
-
-
-    from Simulation.collision_model import CollisionModel, CrossSectionData
-    return CollisionModel, CrossSectionData
-
 
 
 def test_checkpoint_restart_roundtrip(collision_model_classes):
@@ -108,4 +108,17 @@ def test_checkpoint_restart_idempotent(collision_model_classes):
     cm2.restart(data)
 
     assert cm2.checkpoint() == data
+
+
+def test_restart_restores_random_state(collision_model_classes):
+    CollisionModel, _ = collision_model_classes
+    cm_module = sys.modules[CollisionModel.__module__]
+    np = cm_module.np
+    np.random.seed(123)
+    cm = CollisionModel({})
+    data = cm.checkpoint()
+    expected = np.random.rand()
+    np.random.rand()
+    cm.restart(data)
+    assert np.random.rand() == expected
 

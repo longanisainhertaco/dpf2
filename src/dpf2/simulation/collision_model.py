@@ -392,6 +392,7 @@ class CollisionModel(CollisionOperator):
             'crn_state': self.crn,
             'accumulators': self.accumulators,
             'caches': self.caches,
+            'random_state': np.random.get_state(),
         }
         return self.checkpoint_data
 
@@ -414,5 +415,14 @@ class CollisionModel(CollisionOperator):
         self.crn = data.get('crn_state')
         self.accumulators = dict(data.get('accumulators', {}))
         self.caches = dict(data.get('caches', {}))
+
+        rng_state = data.get('random_state')
+        if rng_state is not None:
+            try:
+                np.random.set_state(rng_state)
+            except Exception:
+                np.random.seed()
+        else:
+            np.random.seed()
 
         self.checkpoint_data = dict(data)
