@@ -107,6 +107,22 @@ def test_apply_updates_momentum_array():
     assert np.all(momentum[2, :, :, -2] == 0.0)
 
 
+def test_apply_updates_momentum_array_with_density():
+    """Momentum updates scale with the local density at the boundary."""
+    density = np.full((4, 4, 4), 2.0)
+    momentum = np.zeros((3, 4, 4, 4))
+    sheath = BohmSheath(electron_temperature=2.0, ion_mass=1.67e-27)
+    sheath.apply(density, momentum)
+    v_bohm = np.sqrt(e_charge * 2.0 / 1.67e-27)
+    mass_ratio = 1.67e-27 / (2 * np.pi * m_e)
+    phi_s = 2.0 * np.log(np.sqrt(mass_ratio))
+    assert np.allclose(momentum[2, :, :, -1], 2.0 * v_bohm)
+    assert np.all(momentum[2, :, :, -2] == 0.0)
+    # Confirm the sheath object recorded the values used for the update
+    assert np.isclose(sheath.last_velocity, v_bohm)
+    assert np.isclose(sheath.last_potential, phi_s)
+
+
 def test_apply_handles_all_axes():
     """The sheath orientation can be changed via the ``axis`` parameter."""
     mass_ratio = 1.67e-27 / (2 * np.pi * m_e)

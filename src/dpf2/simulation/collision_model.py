@@ -441,19 +441,15 @@ class CollisionModel(CollisionOperator):
         if rng_state is not None:
             try:
                 np.random.set_state(rng_state)
-
             except Exception as e:
                 logger.warning(f"Failed to restore RNG state: {e}")
-
-            except Exception:
-                # If state is corrupt fall back to a deterministic seed so that
-                # behaviour after restart is still reproducible.
-
-                np.random.seed()
+                # Fall back to a deterministic seed so behaviour after restart
+                # remains reproducible even if the state object is corrupt.
+                np.random.seed(0)
         else:
-            # No RNG state stored – reseed to avoid using an uncontrolled
-            # previous state.
-            np.random.seed()
+            # No RNG state stored – reset to a deterministic seed rather than
+            # continuing from an uncontrolled global state.
+            np.random.seed(0)
 
         # Keep a copy of the checkpoint for idempotency checks
         self.checkpoint_data = dict(data)

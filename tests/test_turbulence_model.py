@@ -137,7 +137,9 @@ def test_wall_function_requires_initialized_turbulence_fields():
 
 def test_unrecognized_wall_function_type_raises():
     """Ensure an error is raised for unsupported wall function options."""
-    cfg = TurbulenceConfig(wall_function_type="invalid_option")
+    invalid = "invalid_option"
+    assert invalid not in TurbulenceModel.VALID_WALL_FUNCTION_TYPES
+    cfg = TurbulenceConfig(wall_function_type=invalid)
     with pytest.raises(ValueError, match="Unknown wall function type"):
         TurbulenceModel(cfg)
 
@@ -152,7 +154,9 @@ def test_apply_wall_functions_rejects_unknown_option():
     model.k = np.ones_like(state.density) * 0.1
     model.epsilon = np.ones_like(state.density) * 0.01
 
-    model.wall_function_type = "invalid"
+    invalid = "invalid"
+    assert invalid not in TurbulenceModel.VALID_WALL_FUNCTION_TYPES
+    model.wall_function_type = invalid
     with pytest.raises(ValueError, match="Unsupported wall function type"):
         model._apply_wall_functions(state)
 

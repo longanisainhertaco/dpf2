@@ -1,5 +1,15 @@
+
 import importlib.util
 from pathlib import Path
+
+"""Unit tests for the :mod:`dpf2.simulation.warp_piclibrary` helpers.
+
+These tests use light–weight mock objects to emulate the parts of the WarpX
+API that the collision handler interacts with.  This allows verification of
+the collision logic without requiring a full WarpX installation.
+"""
+
+
 import numpy as np
 import pytest
 

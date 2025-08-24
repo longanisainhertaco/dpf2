@@ -15,6 +15,7 @@ from hybrid_controller import HybridController
 from dpf2.diagnostics import Diagnostics
 from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
 from sheath_model import PlasmaSheathFormation
+from ..exceptions import SimulationRuntimeError
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,6 @@ class ConfigurationError(Exception):
 class InitializationError(Exception):
     pass
 
-class SimulationRuntimeError(Exception):
-    """Raised when the simulation cannot proceed due to runtime conditions."""
-    pass
 
 def _generate_boundary_conditions(domain_lo, domain_hi, bc_config=None):
     """
@@ -77,8 +75,7 @@ def _estimate_total_steps(sim_time, dt):
         logger.info("Estimated total steps: %d", total_steps)
         return total_steps
     except Exception as e:  # pragma: no cover - defensive, tested separately
-        msg = f"Failed to estimate total steps: {e}"
-        logger.warning(msg)
+        logger.exception("Failed to estimate total steps: %s", e)
         raise SimulationRuntimeError(
             f"Invalid dt={dt}: unable to estimate total steps"
         ) from e

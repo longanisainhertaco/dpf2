@@ -68,3 +68,34 @@ def test_mixed_eos_missing_species_data(tmp_path):
     with pytest.raises(ValueError):
         TabulatedEOS(filename=str(tmp_path), mixture_fractions=fractions)
 
+
+def test_mixed_eos_string_fractions(tmp_path):
+    path_a = _create_species_file(tmp_path, "A", p_val=1.0, e_val=100.0)
+    path_b = _create_species_file(tmp_path, "B", p_val=2.0, e_val=200.0)
+    mix_eos = TabulatedEOS(
+        filename=str(tmp_path),
+        mixture_fractions="A:0.5,B:0.5",
+    )
+    eos_a = TabulatedEOS(str(path_a))
+    eos_b = TabulatedEOS(str(path_b))
+
+    rho = np.array([1.0])
+    T_val = np.array([10.0])
+
+    expected_p = 0.5 * eos_a.pressure(rho, T_val) + 0.5 * eos_b.pressure(rho, T_val)
+    expected_e = 0.5 * eos_a.energy(rho, T_val) + 0.5 * eos_b.energy(rho, T_val)
+
+    np.testing.assert_allclose(mix_eos.pressure(rho, T_val), expected_p)
+    np.testing.assert_allclose(mix_eos.energy(rho, T_val), expected_e)
+
+
+def test_mixed_eos_negative_fraction(tmp_path):
+    path_a = _create_species_file(tmp_path, "A", p_val=1.0, e_val=100.0)
+    path_b = _create_species_file(tmp_path, "B", p_val=2.0, e_val=200.0)
+
+    with pytest.raises(ValueError):
+        TabulatedEOS(
+            filename={"A": str(path_a), "B": str(path_b)},
+            mixture_fractions={"A": -0.1, "B": 1.1},
+        )
+

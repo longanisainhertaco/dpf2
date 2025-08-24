@@ -8,8 +8,8 @@ import logging
 import pytest
 
 
-def test_warning_on_invalid_dt(monkeypatch, caplog):
-    """Ensure a warning is logged and an error raised for invalid dt."""
+def _load_sim_module(monkeypatch):
+    """Import ``dpf_simulator_full_backend`` with minimal stubs."""
 
     # Stub external dependencies
     np_stub = types.ModuleType("numpy")
@@ -35,7 +35,11 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
     # Stub internal modules referenced during import
     package_stub = types.ModuleType("dpf2")
     package_stub.__path__ = []
+    simulation_pkg = types.ModuleType("dpf2.simulation")
+    simulation_pkg.__path__ = []
     monkeypatch.setitem(sys.modules, "dpf2", package_stub)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation", simulation_pkg)
+    setattr(package_stub, "simulation", simulation_pkg)
 
     modules = {
         "module_registry": ["ModuleRegistry"],
@@ -48,11 +52,15 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
         "diagnostics": ["Diagnostics"],
         "utils": ["FieldManager", "SimulationState"],
         "sheath_model": ["PlasmaSheathFormation"],
+        "exceptions": ["SimulationRuntimeError"],
     }
     for name, attrs in modules.items():
         mod = types.ModuleType(name)
         for attr in attrs:
-            setattr(mod, attr, type(attr, (), {}))
+            if name == "exceptions" and attr == "SimulationRuntimeError":
+                setattr(mod, attr, type(attr, (Exception,), {}))
+            else:
+                setattr(mod, attr, type(attr, (), {}))
         monkeypatch.setitem(sys.modules, name, mod)
         monkeypatch.setitem(sys.modules, f"dpf2.{name}", mod)
         setattr(package_stub, name, mod)
@@ -70,12 +78,38 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
 
     # Import module under test without package dependencies
     module_path = Path(__file__).resolve().parent.parent / "src/dpf2/simulation/dpf_simulator_full_backend.py"
-    spec = importlib.util.spec_from_file_location("sim_mod", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "dpf2.simulation.dpf_simulator_full_backend", module_path
+    )
     sim_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sim_mod)
+    return sim_mod
 
+
+def test_warning_on_invalid_dt(monkeypatch, caplog):
+    """Ensure a warning is logged and an error raised for invalid dt."""
+
+    sim_mod = _load_sim_module(monkeypatch)
     with caplog.at_level(logging.WARNING):
         with pytest.raises(sim_mod.SimulationRuntimeError):
             sim_mod._estimate_total_steps(1.0, 0.0)
 
     assert "Invalid dt=0.0: unable to estimate total steps" in caplog.text
+
+
+def test_failure_logging_on_non_numeric_dt(monkeypatch, caplog):
+    """Ensure failures during estimation are logged and raise an error."""
+
+    sim_mod = _load_sim_module(monkeypatch)
+
+    class BadNumber:
+        def __float__(self):
+            raise TypeError("no float conversion")
+        def __le__(self, other):
+            return False
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(sim_mod.SimulationRuntimeError):
+            sim_mod._estimate_total_steps(1.0, BadNumber())
+
+    assert "Failed to estimate total steps" in caplog.text
