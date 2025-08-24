@@ -5,7 +5,7 @@ import click
 
 from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
-from ..exceptions import ConfigurationError, SimulationError
+from ..exceptions import ConfigurationError, SimulationRuntimeError
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def simulate(config: str | None, output: str) -> None:
     except ConfigurationError as e:
         logger.error("Configuration error: %s", e)
         raise click.ClickException(f"Configuration error: {e}")
-    except SimulationError as e:
+    except SimulationRuntimeError as e:
         logger.error("Simulation error: %s", e)
         raise click.ClickException(f"Simulation error: {e}")
     except Exception as e:

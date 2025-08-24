@@ -25,7 +25,7 @@ try:  # pragma: no cover - handles execution as a module
         ConfigurationError,
         ExportError,
         ServerError,
-        SimulationError,
+        SimulationRuntimeError,
     )
 except Exception:  # pragma: no cover - fallback for direct execution
     import os
@@ -36,7 +36,7 @@ except Exception:  # pragma: no cover - fallback for direct execution
         ConfigurationError,
         ExportError,
         ServerError,
-        SimulationError,
+        SimulationRuntimeError,
     )
 
 # Configure logging
@@ -54,8 +54,8 @@ def _handle_config_error(err: ConfigurationError):
     return jsonify({"error": str(err)}), 400
 
 
-@app.errorhandler(SimulationError)
-def _handle_sim_error(err: SimulationError):
+@app.errorhandler(SimulationRuntimeError)
+def _handle_sim_error(err: SimulationRuntimeError):
     """Return a JSON response for simulation errors."""
     logger.error("Simulation error: %s", err)
     return jsonify({"error": str(err)}), 500
@@ -91,10 +91,10 @@ class SimulationInterface:
             self._sim.run()
         except MemoryError as exc:
             logger.exception("Simulation exceeded memory limit")
-            raise SimulationError("Simulation exceeded memory limit") from exc
+            raise SimulationRuntimeError("Simulation exceeded memory limit") from exc
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Simulation run failed: %s", exc)
-            raise SimulationError(f"Simulation run failed: {exc}") from exc
+            raise SimulationRuntimeError(f"Simulation run failed: {exc}") from exc
         finally:
             if hasattr(self._sim, "finalize"):
                 try:
@@ -176,7 +176,7 @@ class SimulationManager:
     def run_simulation(self, sim_id: str):
         sim = self.simulations.get(sim_id)
         if not sim:
-            raise SimulationError(f"Simulation {sim_id} not found")
+            raise SimulationRuntimeError(f"Simulation {sim_id} not found")
 
         def _run_with_limits():
             cpu_limit = app.config.get('CPU_TIME_LIMIT')
@@ -184,7 +184,7 @@ class SimulationManager:
             apply_resource_limits(cpu_limit, mem_limit)
             try:
                 sim.run()
-            except SimulationError as exc:
+            except SimulationRuntimeError as exc:
                 self.sim_errors[sim_id] = exc
 
         thread = threading.Thread(target=_run_with_limits, daemon=True)
@@ -194,26 +194,26 @@ class SimulationManager:
     def stop_simulation(self, sim_id: str):
         sim = self.simulations.get(sim_id)
         if not sim:
-            raise SimulationError(f"Simulation {sim_id} not found")
+            raise SimulationRuntimeError(f"Simulation {sim_id} not found")
         logger.info(f"Stopping simulation {sim_id}...")
         sim.stop()
 
     def get_simulation(self, sim_id: str) -> SimulationInterface:
         sim = self.simulations.get(sim_id)
         if not sim:
-            raise SimulationError(f"Simulation {sim_id} not found")
+            raise SimulationRuntimeError(f"Simulation {sim_id} not found")
         return sim
 
     def get_simulation_thread(self, sim_id: str) -> threading.Thread:
         thread = self.sim_threads.get(sim_id)
         if not thread:
-            raise SimulationError(f"Simulation {sim_id} thread not found")
+            raise SimulationRuntimeError(f"Simulation {sim_id} thread not found")
         return thread
 
     def get_telemetry(self, sim_id: str) -> str:
         sim = self.simulations.get(sim_id)
         if not sim:
-            raise SimulationError(f"Simulation {sim_id} not found")
+            raise SimulationRuntimeError(f"Simulation {sim_id} not found")
         # Gather telemetry data
         tel = {}
         # memory usage
@@ -325,7 +325,7 @@ def start_simulation():
     except ConfigurationError as e:
         logger.error(f"Configuration error: {e}")
         abort(400, description=str(e))
-    except SimulationError as e:
+    except SimulationRuntimeError as e:
         logger.error(f"Simulation error: {e}")
         abort(500, description=str(e))
     except Exception as e:
@@ -341,7 +341,7 @@ def stop_simulation(sim_id):
     try:
         simulation_manager.stop_simulation(sim_id)
         return "", 204
-    except SimulationError as e:
+    except SimulationRuntimeError as e:
         logger.error(f"Simulation error: {e}")
         abort(404, description=str(e))
     except Exception as e:
@@ -368,7 +368,7 @@ def export_results(sim_id):
             download_name=f"{sim_id}_diagnostics.h5",
             mimetype="application/octet-stream"
         )
-    except SimulationError as e:
+    except SimulationRuntimeError as e:
         logger.error(f"Simulation error: {e}")
         abort(404, description=str(e))
     except Exception as e:
@@ -419,7 +419,7 @@ def simulation_updates(ws, sim_id):
         except Exception as e:
             logger.warning(f"Failed to send final update for simulation {sim_id}: {e}")
         ws.close()
-    except SimulationError as e:
+    except SimulationRuntimeError as e:
         logger.error(f"Simulation error: {e}")
         ws.close()
     except Exception as e:

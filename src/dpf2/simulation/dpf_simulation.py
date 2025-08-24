@@ -25,6 +25,7 @@ from circuit import CircuitModel
 from utils import FieldManager, SimulationState # Import FieldManager and SimulationState
 from dpf2.diagnostics import Diagnostics
 from pic_solver import PICSolver
+from ..exceptions import SimulationRuntimeError
 
 logger = logging.getLogger("DPFSimulationWrapper")
 
@@ -35,9 +36,6 @@ class ConfigurationError(Exception):
 class InitializationError(Exception):
     pass
 
-class SimulationRuntimeError(Exception):
-    """Raised for runtime errors occurring during simulation execution."""
-    pass
 
 class DPFSimulation:
     def __init__(self, config: SimulationConfig):

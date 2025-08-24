@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import textwrap
+import os
 
 
 def test_resource_limit_violation_triggers_simulation_error():
@@ -8,6 +9,8 @@ def test_resource_limit_violation_triggers_simulation_error():
         """
         import types
         import sys
+        import pathlib
+        import importlib.util
         sys.modules['sympy'] = types.SimpleNamespace(symbols=lambda *args, **kwargs: (None, None))
         class DummyFlask:
             def __init__(self, *a, **k):
@@ -18,6 +21,10 @@ def test_resource_limit_violation_triggers_simulation_error():
                 return decorator
             def test_client(self):
                 return None
+            def errorhandler(self, *a, **k):
+                def decorator(f):
+                    return f
+                return decorator
 
         class DummySock:
             def __init__(self, *a, **k):
@@ -45,7 +52,22 @@ def test_resource_limit_violation_triggers_simulation_error():
             def __init__(self, *a, **k):
                 self.config = {}
         sys.modules['utils'] = types.SimpleNamespace(FieldManager=DummyFieldManager)
-        from dpf2.simulation import dpf_simulator_server as server
+        package_stub = types.ModuleType("dpf2")
+        package_stub.__path__ = []
+        simulation_pkg = types.ModuleType("dpf2.simulation")
+        simulation_pkg.__path__ = []
+        exceptions_mod = types.ModuleType("dpf2.exceptions")
+        class SimulationRuntimeError(Exception):
+            pass
+        exceptions_mod.SimulationRuntimeError = SimulationRuntimeError
+        sys.modules['dpf2'] = package_stub
+        sys.modules['dpf2.simulation'] = simulation_pkg
+        sys.modules['dpf2.exceptions'] = exceptions_mod
+        setattr(package_stub, 'simulation', simulation_pkg)
+        module_path = pathlib.Path('src/dpf2/simulation/dpf_simulator_server.py')
+        spec = importlib.util.spec_from_file_location('dpf2.simulation.dpf_simulator_server', module_path)
+        server = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(server)
         from werkzeug.security import generate_password_hash
 
         class DummySimulation:
@@ -90,9 +112,13 @@ def test_resource_limit_violation_triggers_simulation_error():
 
         if sim_id not in server.simulation_manager.sim_errors:
             raise RuntimeError('Simulation should have failed')
-        raise server.SimulationError('limit exceeded')
+        raise server.SimulationRuntimeError('limit exceeded')
         """
     )
-    proc = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = "src"
+    proc = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, env=env
+    )
     assert proc.returncode != 0
-    assert 'SimulationError' in proc.stderr
+    assert 'SimulationRuntimeError' in proc.stderr
