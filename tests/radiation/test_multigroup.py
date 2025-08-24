@@ -88,3 +88,13 @@ def test_couple_conserves_energy_multi_cell():
 
     total_after = sum(updated) + sum(sum(g) for g in rad.energy)
     assert math.isclose(total_before, total_after)
+
+
+def test_diffusion_keeps_total_energy():
+    rad = MultiGroupDiffusion(opacities=[0.1, 0.2])
+    # populate two cells with arbitrary group energies
+    rad.energy = [[1.0, 2.0], [0.5, 1.5]]
+    total_before = sum(sum(g) for g in rad.energy)
+    rad.diffuse(dx=1.0, dt=0.1)
+    total_after = sum(sum(g) for g in rad.energy)
+    assert math.isclose(total_before, total_after)
