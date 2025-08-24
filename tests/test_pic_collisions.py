@@ -48,6 +48,10 @@ def test_apply_collisions_scatter_velocities():
     assert not np.allclose(v_e_before, v_e_after)
     assert not np.allclose(v_i_before, v_i_after)
 
+    before_total = v_e_before.sum(axis=0) + v_i_before.sum(axis=0)
+    after_total = v_e_after.sum(axis=0) + v_i_after.sum(axis=0)
+    assert np.allclose(before_total, after_total)
+
 
 def test_no_collisions_when_zero_probability():
     """Collisions should leave velocities unchanged when the rate is zero."""
