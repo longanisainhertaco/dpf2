@@ -9,4 +9,15 @@ def test_deposit_charge_updates_rho():
     charge2 = 2 * np.ones(grid_shape)
     fm.deposit_charge(charge1)
     fm.deposit_charge(charge2)
-    assert np.allclose(fm.rho, charge1 + charge2)
+    total_charge = charge1 + charge2
+    assert np.allclose(fm.rho, total_charge)
+
+    # Check that rho is included in checkpoint data
+    checkpoint = fm.checkpoint()
+    assert "rho" in checkpoint
+    assert np.allclose(np.array(checkpoint["rho"]), total_charge)
+
+    # Check that diagnostics report rho
+    diagnostics = fm.get_diagnostics()
+    assert "rho" in diagnostics
+    assert np.allclose(np.array(diagnostics["rho"]), total_charge)
