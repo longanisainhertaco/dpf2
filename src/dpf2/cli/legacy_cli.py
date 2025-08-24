@@ -5,9 +5,9 @@ import argparse
 import json
 from pathlib import Path
 
-from dpf_config import DPFConfig
+from ..dpf_config import DPFConfig
 
-from .simulation_engine import SimulationEngine
+from ..simulation_engine import SimulationEngine
 
 
 def build_parser() -> argparse.ArgumentParser:

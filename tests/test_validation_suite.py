@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from validation_suite import ValidationSuite
+from dpf2.validation_suite import ValidationSuite
 
 try:
     import yaml  # type: ignore

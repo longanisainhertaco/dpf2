@@ -1,6 +1,6 @@
 import pytest
 
-from benchmark_matching import BenchmarkMatching
+from dpf2.benchmark_matching import BenchmarkMatching
 
 
 def test_single_vs_multi_trace_conflict():

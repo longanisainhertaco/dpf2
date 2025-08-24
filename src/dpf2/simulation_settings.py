@@ -4,7 +4,7 @@ from typing import ClassVar
 
 from pydantic import ConfigDict, Field
 
-from core_schema import (
+from .core_schema import (
     ConfigSectionBase,
     GeometryType,
     ModeType,

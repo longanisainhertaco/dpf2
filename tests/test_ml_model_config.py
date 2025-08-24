@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ml_model_config import MLModelConfig
+from dpf2.ml_model_config import MLModelConfig
 
 try:
     import yaml  # type: ignore

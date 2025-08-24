@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import pytest
 
-from advanced_options import AdvancedOptions
+from dpf2.advanced_options import AdvancedOptions
 
 def test_disable_validators_requires_reason():
     data = AdvancedOptions.with_defaults().model_dump(by_alias=True)

@@ -1,5 +1,5 @@
 import pytest
-from device_profiles import DeviceProfiles
+from dpf2.device_profiles import DeviceProfiles
 from dpf2.ablation import insulator_sleeve_area, ablation_mass_energy_source
 
 

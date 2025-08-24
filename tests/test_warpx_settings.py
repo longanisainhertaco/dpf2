@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from warpx_settings import WarpXSettings, SpeciesEntry
+from dpf2.warpx_settings import WarpXSettings, SpeciesEntry
 
 try:
     import yaml  # type: ignore

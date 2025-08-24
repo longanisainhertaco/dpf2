@@ -1,6 +1,6 @@
 import numpy as np
 
-from dpf_config import DPFConfig
+from dpf2.dpf_config import DPFConfig
 from dpf2.simulation_engine import SimulationEngine
 
 

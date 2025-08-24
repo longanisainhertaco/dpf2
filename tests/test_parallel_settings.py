@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from parallel_settings import ParallelSettings
+from dpf2.parallel_settings import ParallelSettings
 
 
 def make_base_data():

@@ -17,7 +17,7 @@ from typing import Tuple
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from circuit_config import CircuitConfig
+from .circuit_config import CircuitConfig
 
 __all__ = ["CircuitSolver", "RLCCircuit", "run_circuit_simulation"]
 

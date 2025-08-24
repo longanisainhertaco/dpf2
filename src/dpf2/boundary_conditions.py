@@ -33,7 +33,7 @@ if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
 # Local imports ---------------------------------------------------------------
-from core_schema import ConfigSectionBase, to_camel_case
+from .core_schema import ConfigSectionBase, to_camel_case
 from dpf2.diagnostics import OutputField
 
 

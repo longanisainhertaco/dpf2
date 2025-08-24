@@ -3,7 +3,7 @@ import warnings
 
 import pytest
 
-from grid_resolution import GridResolution
+from dpf2.grid_resolution import GridResolution
 
 
 def test_geometry_2d_rz_flat_y():

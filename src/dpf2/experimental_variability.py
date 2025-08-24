@@ -35,7 +35,7 @@ if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
 # Local imports ---------------------------------------------------------------
-from core_schema import ConfigSectionBase, UnitsSystem, UNIT_SCALE_MAP, to_camel_case
+from .core_schema import ConfigSectionBase, UnitsSystem, UNIT_SCALE_MAP, to_camel_case
 
 logger = logging.getLogger(__name__)
 
