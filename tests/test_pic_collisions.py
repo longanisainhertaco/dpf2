@@ -29,7 +29,7 @@ class SimpleWarpX:
         return self._species[name]
 
     def add_collision_operator(self, s1, s2, freq_func, kwargs):
-        self.registered_ops.append((s1, s2))
+        self.registered_ops.append((s1, s2, freq_func, kwargs))
 
 
 def test_apply_collisions_scatter_velocities():
@@ -83,6 +83,9 @@ def test_apply_collisions_missing_hook():
 
 def test_setup_warpx_collisions_registers_ops():
     warp = SimpleWarpX()
-    handler = PICCollisionHandler(lambda ne, Te, Z=1.0: 1.0)
+    freq = lambda ne, Te, Z=1.0: 1.0
+    handler = PICCollisionHandler(freq)
     handler.setup_warpx_collisions(warp, [("e", "i")])
-    assert ("e", "i") in warp.registered_ops
+    assert warp.registered_ops[0][0:2] == ("e", "i")
+    assert warp.registered_ops[0][2] is freq
+    assert warp.registered_ops[0][3] == {}
