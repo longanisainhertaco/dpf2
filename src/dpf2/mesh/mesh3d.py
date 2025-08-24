@@ -96,3 +96,6 @@ class Mesh3D:
             self.dx * self.dz,
             self.dx * self.dy,
         )
+
+__all__ = ["Mesh3D", "MeshCell3D"]
+
