@@ -85,6 +85,18 @@ def test_apply_direct_field_manager():
     assert np.allclose(fm.get_E()[2, :, :, -1], expected_field)
 
 
+def test_direct_field_manager_interior_unchanged():
+    """Applying to a FieldManager leaves interior cells untouched."""
+    _, fm = make_state()
+    sheath = BohmSheath(electron_temperature=4.0, ion_mass=1.67e-27)
+    sheath.apply(fm)
+    E = fm.get_E()
+    # Boundary updated
+    assert np.any(E[2, :, :, -1] != 0.0)
+    # Interior slice remains zero
+    assert np.all(E[2, :, :, -2] == 0.0)
+
+
 def test_apply_updates_momentum_array():
     density = np.ones((4, 4, 4))
     momentum = np.zeros((3, 4, 4, 4))

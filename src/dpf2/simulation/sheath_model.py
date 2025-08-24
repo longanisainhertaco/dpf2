@@ -130,13 +130,20 @@ class BohmSheath:
         boundary to update.
         """
 
-        E = fm.get_E()
-        if self.axis == 0:
-            E[0, -1, :, :] = sheath_field
-        elif self.axis == 1:
-            E[1, :, -1, :] = sheath_field
-        else:  # default z
-            E[2, :, :, -1] = sheath_field
+        # Take a defensive copy so callers holding a reference to the
+        # ``FieldManager``'s electric field do not see it mutate until the
+        # update is committed.  This mirrors the behaviour of the public
+        # :meth:`update_E` API which expects a full array to be supplied.
+        E = fm.get_E().copy()
+
+        # Build an index tuple selecting the component normal to the sheath
+        # (``self.axis``) and the high-side boundary cell along the same
+        # spatial direction.  All transverse indices are left as ``slice(None)``
+        # so that the entire boundary plane is modified in one operation.
+        idx = [self.axis, slice(None), slice(None), slice(None)]
+        idx[self.axis + 1] = -1
+        E[tuple(idx)] = sheath_field
+
         fm.update_E(E)
 
     # ------------------------------------------------------------------
