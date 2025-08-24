@@ -1,8 +1,13 @@
 """Command line interface for DPF2."""
+import logging
+
 import click
 
 from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
+from ..exceptions import ConfigurationError, SimulationError
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -15,9 +20,19 @@ def main() -> None:
 @click.option("--output", type=click.Path(), default="output", help="Output directory")
 def simulate(config: str | None, output: str) -> None:
     """Run a DPF simulation."""
-    cfg = DPFConfig() if config is None else DPFConfig()
-    sim = DPFSimulation(cfg)
-    sim.run(output_dir=output)
+    try:
+        cfg = DPFConfig.from_file(config) if config else DPFConfig()
+        sim = DPFSimulation(cfg)
+        sim.run(output_dir=output)
+    except ConfigurationError as e:
+        logger.error("Configuration error: %s", e)
+        raise click.ClickException(f"Configuration error: {e}")
+    except SimulationError as e:
+        logger.error("Simulation error: %s", e)
+        raise click.ClickException(f"Simulation error: {e}")
+    except Exception as e:
+        logger.exception("Unexpected error running simulation")
+        raise click.ClickException(f"Unexpected error: {e}")
 
 
 if __name__ == "__main__":
