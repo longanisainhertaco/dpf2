@@ -179,29 +179,29 @@ class BohmSheath:
             if fm is not None:
                 self._apply_to_field_manager(fm, sheath_field)
 
-                # Update velocity field if present or create one
-                vel = getattr(target, 'velocity', None)
-                if vel is None:
-                    vel = np.zeros((3,) + target.grid_shape)
-                    target.velocity = vel
-                if self.axis == 0:
-                    vel[0, -1, :, :] = v_bohm
-                elif self.axis == 1:
-                    vel[1, :, -1, :] = v_bohm
-                else:
-                    vel[2, :, :, -1] = v_bohm
+            # Update velocity field if present or create one
+            vel = getattr(target, 'velocity', None)
+            if vel is None:
+                vel = np.zeros((3,) + target.grid_shape)
+                target.velocity = vel
+            if self.axis == 0:
+                vel[0, -1, :, :] = v_bohm
+            elif self.axis == 1:
+                vel[1, :, -1, :] = v_bohm
+            else:
+                vel[2, :, :, -1] = v_bohm
 
-                # Update electrostatic potential field
-                phi = getattr(target, 'potential', None)
-                if phi is None:
-                    phi = np.zeros(target.grid_shape)
-                    target.potential = phi
-                if self.axis == 0:
-                    phi[-1, :, :] = phi_s
-                elif self.axis == 1:
-                    phi[:, -1, :] = phi_s
-                else:
-                    phi[:, :, -1] = phi_s
+            # Update electrostatic potential field
+            phi = getattr(target, 'potential', None)
+            if phi is None:
+                phi = np.zeros(target.grid_shape)
+                target.potential = phi
+            if self.axis == 0:
+                phi[-1, :, :] = phi_s
+            elif self.axis == 1:
+                phi[:, -1, :] = phi_s
+            else:
+                phi[:, :, -1] = phi_s
             return
 
         # Case 2: target is itself a FieldManager

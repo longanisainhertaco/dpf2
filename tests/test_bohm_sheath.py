@@ -42,6 +42,15 @@ def test_apply_updates_field_manager():
     assert np.allclose(fm.get_E()[2, :, :, -1], expected_field)
 
 
+def test_field_manager_interior_unchanged():
+    state, fm = make_state()
+    sheath = BohmSheath(electron_temperature=5.0, ion_mass=1.67e-27)
+    sheath.apply(state)
+    E = fm.get_E()
+    # Interior slice should remain zero while boundary is updated
+    assert np.all(E[2, :, :, -2] == 0.0)
+
+
 def test_apply_updates_state_velocity_and_potential():
     state, _ = make_state()
     sheath = BohmSheath(electron_temperature=5.0, ion_mass=1.67e-27)
