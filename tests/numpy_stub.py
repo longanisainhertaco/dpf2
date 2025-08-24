@@ -140,6 +140,21 @@ def zeros_like(arr):
     return zeros(array(arr).shape)
 
 
+def full(shape, fill_value):
+    if isinstance(shape, tuple):
+        if len(shape) == 1:
+            return Array([fill_value] * shape[0])
+        return Array([full(shape[1:], fill_value).data for _ in range(shape[0])])
+    return Array([fill_value] * shape)
+
+
+def stack(arrs, axis=0):
+    arrs = [array(a).data for a in arrs]
+    if axis == -1:
+        return Array([[arrs[j][i] for j in range(len(arrs))] for i in range(len(arrs[0]))])
+    return Array(arrs)
+
+
 def vstack(arrs: Sequence[Array]) -> Array:
     return Array([array(a).data for a in arrs])
 
@@ -239,6 +254,11 @@ np = types.SimpleNamespace(
     array=array,
     zeros=zeros,
     zeros_like=zeros_like,
+    full=full,
+    stack=stack,
+    testing=types.SimpleNamespace(assert_allclose=lambda a,b,rtol=1e-8,atol=1e-8: (
+        None if allclose(a,b,rtol,atol) else (_ for _ in ()).throw(AssertionError("Arrays are not close"))
+    )),
     vstack=vstack,
     linspace=linspace,
     arange=arange,
