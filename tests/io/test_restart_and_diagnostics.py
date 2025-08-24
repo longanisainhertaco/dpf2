@@ -77,9 +77,13 @@ def test_diagnostic_functions(tmp_path: Path) -> None:
     assert abs(v_out[0] + 1.5) < 1e-12
     assert abs(v_out[-1] - 1.5) < 1e-12
 
-    # structured output writing
-    writer = StructuredOutputWriter(tmp_path)
+    # structured output writing with metadata
+    cfg2 = {"c": 3}
+    writer = StructuredOutputWriter(tmp_path, config=cfg2)
     path = writer.write_json({"a": 1}, "diag")
     with path.open() as f:
-        data = json.load(f)
-    assert data["a"] == 1
+        payload = json.load(f)
+    assert payload["data"]["a"] == 1
+    expected2 = hashlib.sha256(json.dumps(cfg2, sort_keys=True).encode()).hexdigest()
+    assert payload["metadata"]["config_hash"] == expected2
+    assert payload["metadata"]["git_commit"]
