@@ -246,9 +246,16 @@ class HallMHDSolver(PlasmaSolverBase):
         p = self.eos.pressure(rho, T)
         zbar = self.chemistry.ionization_state(rho, T)
         if self.radiation is not None:
-            rad_loss = self.radiation.loss(rho, T * zbar)
-            energy -= dt * rad_loss
-            self.last_rad_loss = rad_loss
+            if hasattr(self.radiation, "couple"):
+                energy_before = energy.copy()
+                flat = energy_before.ravel().tolist()
+                updated = self.radiation.couple(flat, dt)
+                energy = np.array(updated).reshape(energy.shape)
+                self.last_rad_loss = (energy_before - energy) / dt
+            else:
+                rad_loss = self.radiation.loss(rho, T * zbar)
+                energy -= dt * rad_loss
+                self.last_rad_loss = rad_loss
         else:
             self.last_rad_loss = None
         self.last_pressure = p
