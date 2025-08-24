@@ -97,6 +97,11 @@ class RLCCircuitSolver(CircuitSolverBase):
         dIm_dt_pf = None
         if plasma_feedback:
             Lp = plasma_feedback.get("Lp", 0.0)
+            # ``emf`` and ``dLpdt`` are two alternative ways of supplying the
+            # coupling term arising from a time varying plasma inductance.  For
+            # the small regression tests the plasma solver reports the induced
+            # electromotive force directly via ``"emf"`` which takes precedence
+            # over ``"dLpdt"`` if both are given.
             if "emf" in plasma_feedback:
                 emf = plasma_feedback["emf"]
                 use_emf = True
@@ -114,24 +119,11 @@ class RLCCircuitSolver(CircuitSolverBase):
         Ltot = self.L_ext + Lp
         V_mutual = -M * dIm_dt
 
+        # Effective circuit equation:
+        #   (L_ext + Lp) dI/dt + R I + Q/C + dLpdt * I = V0 + V_mutual - emf - back_emf
+        # where ``emf`` already contains the Lp * dI/dt contribution supplied by
+        # the plasma model when available.
         if use_emf:
-
-            emf_term = emf
-            dLp_term = 0.0
-        else:
-            emf_term = 0.0
-            dLp_term = dLpdt * current
-
-        dIdt = (
-            self.V0
-            + V_mutual
-            - self.R_ext * current
-            - voltage
-            - dLp_term
-            - emf_term
-            - back_emf
-        ) / Ltot
-
             numerator = (
                 self.V0
                 + V_mutual
@@ -151,7 +143,7 @@ class RLCCircuitSolver(CircuitSolverBase):
             )
         dIdt = numerator / Ltot
 
-
+        # Capacitor voltage evolution
         dVdt = -current / self.C_ext
 
         new_current = current + dIdt * dt
