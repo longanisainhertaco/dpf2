@@ -4,12 +4,11 @@ Base classes for solver components now live in :mod:`dpf2.core.bases` and
 are no longer re-exported here.
 """
 
-from .config import DPFConfig
-from .simulation import DPFSimulation
-from .external_circuit import ExternalCircuit
+try:  # pragma: no cover - optional heavy dependencies
+    from .config import DPFConfig
+    from .simulation import DPFSimulation
+    from .external_circuit import ExternalCircuit
 
-__all__ = [
-    "DPFConfig",
-    "DPFSimulation",
-    "ExternalCircuit",
-]
+    __all__ = ["DPFConfig", "DPFSimulation", "ExternalCircuit"]
+except Exception:  # pragma: no cover - fallback when pydantic is unavailable
+    __all__: list[str] = []
