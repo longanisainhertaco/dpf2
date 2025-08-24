@@ -21,7 +21,7 @@ __all__ = ["MultiGroupDiffusion"]
 
 @dataclass
 class MultiGroupDiffusion:
-    """Diffusion model for user-defined radiation energy groups.
+    r"""Diffusion model for user-defined radiation energy groups.
 
     Parameters
     ----------
@@ -49,7 +49,7 @@ class MultiGroupDiffusion:
     # ------------------------------------------------------------------
     @property
     def diffusion_coefficients(self) -> np.ndarray:
-        """Return diffusion coefficient for each group.
+        r"""Return diffusion coefficient for each group.
 
         The standard approximation :math:`D_g = c/(3\kappa_g)` is used."""
 
