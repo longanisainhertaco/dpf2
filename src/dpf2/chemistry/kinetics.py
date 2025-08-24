@@ -11,8 +11,15 @@ coefficients typically originate from reduced FLYCHK/CRM datasets.
 
 from pathlib import Path
 
-try:  # pragma: no cover - fallback for minimal environments
-    import numpy as np  # type: ignore
+# ``numpy`` is optional; when unavailable or when a minimal stub is provided
+# in the test environment we fall back to lightweight implementations.
+try:  # pragma: no cover - runtime check for real numpy
+    import numpy as _np  # type: ignore
+    # ``numpy_stub`` used in tests lacks ``loadtxt``/``interp``; trigger the
+    # fallback below in that case.
+    if not hasattr(_np, "loadtxt"):
+        raise ModuleNotFoundError
+    np = _np
 except ModuleNotFoundError:  # pragma: no cover
     import csv
     import types
