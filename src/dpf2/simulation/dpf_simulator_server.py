@@ -16,29 +16,49 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 from dpf_simulation import DPFSimulation, ConfigurationError as SimConfigurationError
-from config_schema import ServerConfig, FieldManagerConfig # Import FieldManagerConfig
-from utils import FieldManager # Import FieldManager
+from config_schema import ServerConfig, FieldManagerConfig  # Import FieldManagerConfig
+from utils import FieldManager  # Import FieldManager
+
+# Import custom exception hierarchy
+try:  # pragma: no cover - handles execution as a module
+    from ..exceptions import (
+        ConfigurationError,
+        ExportError,
+        ServerError,
+        SimulationError,
+    )
+except Exception:  # pragma: no cover - fallback for direct execution
+    import os
+    import sys
+
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from exceptions import (  # type: ignore
+        ConfigurationError,
+        ExportError,
+        ServerError,
+        SimulationError,
+    )
 
 # Configure logging
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("DPFSimulatorServer")
 
 app = Flask(__name__)
 sock = Sock(app)
 
-# Custom Exceptions
-class ServerError(Exception):
-    pass
 
-class ConfigurationError(ServerError):
-    pass
+@app.errorhandler(ConfigurationError)
+def _handle_config_error(err: ConfigurationError):
+    """Return a JSON response for configuration errors."""
+    logger.error("Configuration error: %s", err)
+    return jsonify({"error": str(err)}), 400
 
-class SimulationError(ServerError):
-    pass
 
-class ExportError(ServerError):
-    pass
+@app.errorhandler(SimulationError)
+def _handle_sim_error(err: SimulationError):
+    """Return a JSON response for simulation errors."""
+    logger.error("Simulation error: %s", err)
+    return jsonify({"error": str(err)}), 500
 
 # ——— Simulation Interface ———
 class SimulationInterface:
@@ -79,8 +99,8 @@ class SimulationInterface:
             if hasattr(self._sim, "finalize"):
                 try:
                     self._sim.finalize()
-                except Exception:  # pragma: no cover - defensive
-                    logger.exception("Simulation finalization failed")
+                except Exception as e:  # pragma: no cover - defensive
+                    logger.exception("Simulation finalization failed: %s", e)
 
     # ------------------------------------------------------------------
     def stop(self) -> None:
@@ -94,8 +114,8 @@ class SimulationInterface:
             if hasattr(self._sim, "config") and hasattr(self._sim, "current_time"):
                 try:
                     self._sim.config.sim_time = self._sim.current_time
-                except Exception:  # pragma: no cover - defensive
-                    logger.debug("Unable to adjust sim_time during stop")
+                except Exception as e:  # pragma: no cover - defensive
+                    logger.debug("Unable to adjust sim_time during stop: %s", e)
 
     # ------------------------------------------------------------------
     def get_diagnostics(self):
