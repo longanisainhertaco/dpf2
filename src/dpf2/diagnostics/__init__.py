@@ -6,6 +6,10 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, root_validator
 
+# Local diagnostic computation utilities
+from .neutron_yield import compute_neutron_yield
+from .xray_spectra import compute_xray_spectrum
+
 # Compatibility helpers -------------------------------------------------------
 
 def model_validator(*, mode: str = "after"):
@@ -300,4 +304,10 @@ class Diagnostics(ConfigSectionBase):
         return obj
 
 
-__all__ = ["Diagnostics", "DetectorArrayGenerator", "OutputField"]
+__all__ = [
+    "Diagnostics",
+    "DetectorArrayGenerator",
+    "OutputField",
+    "compute_neutron_yield",
+    "compute_xray_spectrum",
+]
