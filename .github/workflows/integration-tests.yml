@@ -1,0 +1,26 @@
+name: Integration Tests
+
+on:
+  pull_request:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          pip install .[server,warpx]
+          pip install pytest
+      - name: Run integration tests
+        run: |
+          pytest tests/integration -q --junitxml=integration-test-results.xml
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-results
+          path: integration-test-results.xml
