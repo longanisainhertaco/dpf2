@@ -519,47 +519,6 @@ except Exception as exc:
     raise RuntimeError("DPFConfig model rebuild failed") from exc
 
 # ---------------------------------------------------------------------------
-# Example test stubs
-
-def test_round_trip(tmp_path: Path) -> None:
-    """Ensure configuration can be written to disk and loaded again."""
-
-    cfg = DPFConfig.with_defaults()
-    path = tmp_path / "cfg.json"
-    cfg.to_file(path)
-    reloaded = DPFConfig.from_file(path)
-    assert reloaded.model_dump() == cfg.model_dump()
-
-def test_invalid_geometry():
-    import pytest
-    with pytest.raises(ValueError):
-        DPFConfig(
-            simulation={"geometry": GeometryType.RZ_2D.value},
-            grid={"ny": 2},
-            initial={},
-            physics={},
-            circuit={},
-            amrex={},
-            warpx={},
-            diagnostics={},
-            variability={},
-            benchmark={},
-            boundary={},
-            parallel={},
-            metadata={},
-            advanced={},
-            units={},
-            run_uuid="r1",
-            schema_version="1.0",
-            created_at=datetime.utcnow(),
-            on_validation_error=ValidationPolicy.STRICT,
-        )
-
-def test_required_fields():
-    cfg = DPFConfig.with_defaults()
-    assert "created_at" in cfg.required_fields()
-
-# ---------------------------------------------------------------------------
 # Example usage
 
 if __name__ == "__main__":

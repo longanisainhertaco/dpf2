@@ -40,3 +40,24 @@ def test_pic_mode_requires_neutrals():
     data["simulation"]["mode"] = ModeType.PIC
     with pytest.raises(ValueError):
         DPFConfig.model_validate(data)
+
+
+def test_config_round_trip(tmp_path):
+    cfg = DPFConfig.with_defaults()
+    path = tmp_path / "cfg.json"
+    cfg.to_file(path)
+    reloaded = DPFConfig.from_file(path)
+    assert reloaded.model_dump() == cfg.model_dump()
+
+
+def test_invalid_geometry():
+    cfg = DPFConfig.with_defaults()
+    data = cfg.model_dump()
+    data["grid"]["ny"] = 2
+    with pytest.raises(ValueError):
+        DPFConfig.model_validate(data)
+
+
+def test_required_fields():
+    cfg = DPFConfig.with_defaults()
+    assert "created_at" in cfg.required_fields()
