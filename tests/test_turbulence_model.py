@@ -91,6 +91,25 @@ def test_power_law_wall_function_adjusts_velocity():
     assert np.isclose(state.velocity[nx - g - 1, 0, 0, 0], expected_right)
 
 
+def test_power_law_does_not_modify_turbulence_fields():
+    """The simplified power-law implementation should leave ``k`` and
+    ``epsilon`` untouched because the profile is purely heuristic."""
+    cfg = TurbulenceConfig(wall_function_type="power_law")
+    model = TurbulenceModel(cfg)
+    state = _basic_state(grid_shape=(6, 1, 1))
+
+    model.k = np.ones_like(state.density) * 0.1
+    model.epsilon = np.ones_like(state.density) * 0.01
+
+    k_before = model.k.copy()
+    eps_before = model.epsilon.copy()
+
+    model._apply_wall_functions(state)
+
+    assert np.allclose(model.k, k_before)
+    assert np.allclose(model.epsilon, eps_before)
+
+
 def test_wall_function_validation():
     cfg = TurbulenceConfig(wall_function_type="log_law")
     model = TurbulenceModel(cfg)
