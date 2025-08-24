@@ -8,6 +8,7 @@ from .core import (
     DiagnosticsBase,
 )
 from .ai import SurrogateModel, TorchSurrogateModel, ONNXSurrogateModel
+from .version import __version__
 
 __all__ = [
     "DPFConfig",
@@ -18,4 +19,5 @@ __all__ = [
     "SurrogateModel",
     "TorchSurrogateModel",
     "ONNXSurrogateModel",
+    "__version__",
 ]
