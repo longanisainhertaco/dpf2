@@ -16,7 +16,8 @@ from warpx_wrapper import WarpXInterface
 from collision_model import CollisionModel
 from radiation_model import RadiationModel
 from circuit import CircuitModel
-from diagnostics import Diagnostics, mu0
+from dpf2.diagnostics import Diagnostics
+from .constants import mu0
 from sheath_model import PlasmaSheathFormation
 from load_balance_metrics import LoadBalanceMetrics
 from openpmd_io import OpenPMDWriter

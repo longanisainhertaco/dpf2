@@ -23,7 +23,7 @@ from eos_selector import select_eos
 from solver_selector import select_solver
 from circuit import CircuitModel
 from utils import FieldManager, SimulationState # Import FieldManager and SimulationState
-from diagnostics import Diagnostics
+from dpf2.diagnostics import Diagnostics
 from pic_solver import PICSolver
 
 logger = logging.getLogger("DPFSimulationWrapper")

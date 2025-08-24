@@ -69,7 +69,7 @@ if TYPE_CHECKING:
     from circuit_config import CircuitConfig
     from amrex_settings import AmrexSettings
     from warpx_settings import WarpXSettings
-    from diagnostics import Diagnostics
+    from dpf2.diagnostics import Diagnostics
     from experimental_variability import ExperimentalVariabilityModel
     from benchmark_matching import BenchmarkMatching
     from boundary_conditions import BoundaryConditions
@@ -348,7 +348,7 @@ class DPFConfig(BaseModel):
         from circuit_config import CircuitConfig
         from amrex_settings import AmrexSettings
         from warpx_settings import WarpXSettings
-        from diagnostics import Diagnostics
+        from dpf2.diagnostics import Diagnostics
         from experimental_variability import ExperimentalVariabilityModel
         from benchmark_matching import BenchmarkMatching
         from boundary_conditions import BoundaryConditions
@@ -505,7 +505,7 @@ try:  # pragma: no cover - optional import for forward refs
     from circuit_config import CircuitConfig
     from amrex_settings import AmrexSettings
     from warpx_settings import WarpXSettings
-    from diagnostics import Diagnostics
+    from dpf2.diagnostics import Diagnostics
     from experimental_variability import ExperimentalVariabilityModel
     from benchmark_matching import BenchmarkMatching
     from boundary_conditions import BoundaryConditions

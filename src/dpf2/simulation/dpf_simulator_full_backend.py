@@ -12,7 +12,7 @@ from collision_model import CollisionModel
 from radiation_model import RadiationModel
 from pic_solver import PICSolver
 from hybrid_controller import HybridController
-from diagnostics import Diagnostics
+from dpf2.diagnostics import Diagnostics
 from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
 from sheath_model import PlasmaSheathFormation
 

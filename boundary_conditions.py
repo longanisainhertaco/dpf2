@@ -34,7 +34,7 @@ if not hasattr(BaseModel, "model_copy"):
 
 # Local imports ---------------------------------------------------------------
 from core_schema import ConfigSectionBase, to_camel_case
-from diagnostics import OutputField
+from dpf2.diagnostics import OutputField
 
 
 class BoundaryTypeEnum(str, Enum):
