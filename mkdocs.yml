@@ -1,0 +1,9 @@
+site_name: DPF2 Documentation
+nav:
+  - User Manual: user_manual.md
+  - API Reference: api.md
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
