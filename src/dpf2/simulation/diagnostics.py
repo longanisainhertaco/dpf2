@@ -6,6 +6,7 @@ import time
 from scipy.constants import c, m_n, m_e, mu_0, e, epsilon_0, k as k_B
 from scipy.interpolate import interp1d
 from pyevtk.hl import imageToVTK
+from dpf2.core.bases import DiagnosticsBase
 from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
 
 # Classical electron radius (m)
@@ -14,12 +15,20 @@ r_e = e ** 2 / (4 * np.pi * epsilon_0 * m_e * c ** 2)
 logger = logging.getLogger(__name__)
 
 # --- Diagnostic Base Class ---
-class Diagnostic:
+class Diagnostic(DiagnosticsBase):
     def __init__(self, name, field_manager: FieldManager):
         self.name = name
         self.field_manager = field_manager
 
-    def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
+    def record(
+        self,
+        t,
+        circuit,
+        fluid,
+        pic=None,
+        radiation=None,
+        state: SimulationState = None,
+    ):
         raise NotImplementedError
 
     def to_hdf5(self, hdf5_group):
