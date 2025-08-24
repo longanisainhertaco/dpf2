@@ -49,7 +49,10 @@ def test_config_round_trip():
     data = json.loads(json_str)
     assert "simulation" in data
     reloaded = DPFConfig.model_validate(data)
+    # Reloaded configuration should match the original instance
     assert reloaded.model_dump() == cfg.model_dump()
+    # Serializing again should reproduce the original JSON representation
+    assert json.loads(reloaded.model_dump_json(by_alias=True)) == data
 
 
 def test_invalid_geometry():
