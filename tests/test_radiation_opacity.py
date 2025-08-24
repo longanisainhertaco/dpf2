@@ -125,6 +125,14 @@ def test_missing_density_param():
         rm._compute_opacity(Te=0.0, ne=1.0, Z=0.0)
 
 
+def test_missing_density_Z_exponent():
+    rm = _make_model(
+        "density_dependent", {"base": 0.1, "alpha": 0.2, "use_Z": True}
+    )
+    with pytest.raises(ValueError):
+        rm._compute_opacity(Te=0.0, ne=0.0, Z=1.0)
+
+
 def test_missing_params_object():
     rm = _make_model("constant", None)
     with pytest.raises(ValueError):
