@@ -14,8 +14,14 @@ def test_invalid_sim_parameters_warn(monkeypatch, caplog):
     flask_stub = types.ModuleType("flask")
     class DummyFlask:
         def __init__(self, *args, **kwargs):
-            pass
+            self.args = args
+            self.kwargs = kwargs
+            self.config = {}
         def route(self, *args, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+        def errorhandler(self, *args, **kwargs):
             def decorator(f):
                 return f
             return decorator
@@ -32,7 +38,8 @@ def test_invalid_sim_parameters_warn(monkeypatch, caplog):
     flask_sock_stub = types.ModuleType("flask_sock")
     class Sock:
         def __init__(self, *args, **kwargs):
-            pass
+            self.args = args
+            self.kwargs = kwargs
         def route(self, *args, **kwargs):
             def decorator(f):
                 return f
@@ -43,7 +50,7 @@ def test_invalid_sim_parameters_warn(monkeypatch, caplog):
     dpf_sim_stub = types.ModuleType("dpf_simulation")
     dpf_sim_stub.DPFSimulation = type("DPFSimulation", (), {})
     class ConfigError(Exception):
-        pass
+        """Dummy configuration error for testing."""
     dpf_sim_stub.ConfigurationError = ConfigError
     monkeypatch.setitem(sys.modules, "dpf_simulation", dpf_sim_stub)
 

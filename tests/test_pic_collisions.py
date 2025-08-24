@@ -1,3 +1,7 @@
+
+import importlib.util
+from pathlib import Path
+
 """Unit tests for the :mod:`dpf2.simulation.warp_piclibrary` helpers.
 
 These tests use light–weight mock objects to emulate the parts of the WarpX
@@ -5,10 +9,15 @@ API that the collision handler interacts with.  This allows verification of
 the collision logic without requiring a full WarpX installation.
 """
 
+
 import numpy as np
 import pytest
 
-from dpf2.simulation.warp_piclibrary import PICCollisionHandler
+module_path = Path(__file__).resolve().parent.parent / "src/dpf2/simulation/warp_piclibrary.py"
+spec = importlib.util.spec_from_file_location("warp_pic", module_path)
+warp_pic = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(warp_pic)
+PICCollisionHandler = warp_pic.PICCollisionHandler
 
 
 class SimpleParticleContainer:

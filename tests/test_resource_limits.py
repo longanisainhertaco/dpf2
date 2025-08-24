@@ -58,6 +58,13 @@ def test_resource_limit_violation_triggers_simulation_error():
                 self.config = {}
         sys.modules['utils'] = types.SimpleNamespace(FieldManager=DummyFieldManager)
 
+        import importlib.util, pathlib
+        module_path = pathlib.Path('src/dpf2/simulation/dpf_simulator_server.py')
+        spec = importlib.util.spec_from_file_location('server', module_path)
+        server = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(server)
+
+
         package_stub = types.ModuleType("dpf2")
         package_stub.__path__ = []
         simulation_pkg = types.ModuleType("dpf2.simulation")
@@ -76,6 +83,7 @@ def test_resource_limit_violation_triggers_simulation_error():
         spec.loader.exec_module(server)
 
         import importlib.util, pathlib
+
 
         from werkzeug.security import generate_password_hash
         spec = importlib.util.spec_from_file_location(
