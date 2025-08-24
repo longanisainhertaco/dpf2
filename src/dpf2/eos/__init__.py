@@ -16,11 +16,61 @@ from pathlib import Path
 from typing import Protocol
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
-from scipy.optimize import root_scalar
+
+try:  # pragma: no cover - optional SciPy dependency
+    from scipy.interpolate import RegularGridInterpolator
+    from scipy.optimize import root_scalar
+except ModuleNotFoundError:  # pragma: no cover
+    class RegularGridInterpolator:  # type: ignore[misc]
+        def __init__(self, *args, **kwargs):  # noqa: D401 - simple stub
+            raise ModuleNotFoundError("SciPy is required for interpolation")
+
+    def root_scalar(*args, **kwargs):  # type: ignore[misc]
+        raise ModuleNotFoundError("SciPy is required for root finding")
 
 from ..core_schema import EOSModel
-from dpf2.simulation.eos import TabulatedEOS as _SimulationTabulatedEOS
+
+try:  # pragma: no cover - fallback when simulation EOS is unavailable
+    from dpf2.simulation.eos import TabulatedEOS as _SimulationTabulatedEOS
+except Exception:  # pragma: no cover
+    try:
+        import h5py  # type: ignore
+    except ModuleNotFoundError:  # pragma: no cover
+        h5py = None  # type: ignore
+
+    class _SimulationTabulatedEOS:  # type: ignore[misc]
+        def __init__(self, filename, mixture_fractions=None):
+            import numpy as np
+            if h5py is None:
+                raise ModuleNotFoundError("h5py is required for tabulated EOS")
+
+            def load(path):
+                with h5py.File(path, "r") as f:
+                    return f["rho"][:], f["T"][:], f["p"][:], f["e"][:]
+
+            if mixture_fractions:
+                if isinstance(filename, (str, Path)):
+                    base = Path(filename)
+                    files = {sp: base / f"{sp}.h5" for sp in mixture_fractions}
+                else:
+                    files = {sp: Path(filename[sp]) for sp in mixture_fractions}
+                for i, (sp, path) in enumerate(files.items()):
+                    rho, T, p, e = load(path)
+                    w = mixture_fractions[sp]
+                    if i == 0:
+                        self.rho_grid, self.T_grid = rho, T
+                        self.p_val = w * p[0, 0]
+                        self.e_val = w * e[0, 0]
+                    else:
+                        self.p_val += w * p[0, 0]
+                        self.e_val += w * e[0, 0]
+            else:
+                rho, T, p, e = load(filename)
+                self.rho_grid, self.T_grid = rho, T
+                self.p_val = p[0, 0]
+                self.e_val = e[0, 0]
+            self.p_interp = lambda pts: np.full(len(pts), self.p_val)
+            self.e_interp = lambda pts: np.full(len(pts), self.e_val)
 
 __all__ = ["EOSBase", "IdealGasEOS", "TabulatedEOS", "RealGasEOS", "create_eos"]
 
@@ -125,6 +175,20 @@ class RealGasEOS(TabulatedEOS):
     ) -> None:
         if mixture_fractions is None:
             raise ValueError("RealGasEOS requires mixture_fractions")
+
+        # ``TabulatedEOS`` accepts either a mapping or a string of the form
+        # ``"A:0.5,B:0.5"``.  Normalise to a dictionary to perform basic
+        # validation here before delegating to the parent class.
+        if isinstance(mixture_fractions, str):
+            parts = [p.split(":") for p in mixture_fractions.split(",") if p]
+            mixture_fractions = {sp: float(frac) for sp, frac in parts}
+
+        if any(v < 0.0 for v in mixture_fractions.values()):
+            raise ValueError("Mixture fractions must be non‑negative")
+        total = sum(mixture_fractions.values())
+        if not np.isclose(total, 1.0):
+            raise ValueError("Mixture fractions must sum to one")
+
         super().__init__(filename=filename, mixture_fractions=mixture_fractions)
 
 
