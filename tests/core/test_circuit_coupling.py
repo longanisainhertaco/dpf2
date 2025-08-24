@@ -1,3 +1,5 @@
+"""Regression tests for plasma/circuit closed-loop coupling."""
+
 from math import isclose
 from pathlib import Path
 import importlib.util

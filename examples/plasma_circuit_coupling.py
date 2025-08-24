@@ -1,4 +1,12 @@
 """Example of circuit/plasma coupling with energy conservation."""
+"""Demonstrate closed-loop coupling between a plasma model and an RLC circuit.
+
+The script integrates a toy zero-dimensional plasma whose inductance grows
+linearly in time.  The plasma reports its instantaneous inductance and induced
+EMF back to the :class:`~dpf2.core.circuit.RLCCircuitSolver` which in turn
+updates the circuit state.  The total energy of the combined system is printed
+at the end, illustrating the conservative nature of the coupling.
+"""
 
 from pathlib import Path
 import importlib.util
