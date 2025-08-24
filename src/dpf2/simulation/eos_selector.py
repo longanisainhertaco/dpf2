@@ -5,7 +5,7 @@ Selects and initializes the appropriate Equation of State (EOS) model.
 import logging
 from typing import Any, Optional, Union
 
-from .eos import TabulatedEOS, parse_mixture_fractions
+from .eos import TabulatedEOS
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +40,9 @@ def select_eos(
             logger.error("Tabulated EOS backend selected, but 'table_file' not provided.")
             raise ValueError("Missing 'table_file' for tabulated EOS backend.")
         try:
-            fractions = parse_mixture_fractions(mixture_fractions)
             eos_instance = TabulatedEOS(
                 filename=table_file,
-                mixture_fractions=fractions or None,
+                mixture_fractions=mixture_fractions,
             )
             logger.info(f"Instantiated TabulatedEOS from file: {table_file}")
             return eos_instance

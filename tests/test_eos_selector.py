@@ -3,7 +3,11 @@
 import sys
 from pathlib import Path
 
-import h5py
+try:  # pragma: no cover - fallback when h5py unavailable
+    import h5py  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.h5py_stub import h5py  # type: ignore
+
 import numpy as np
 import pytest
 
@@ -28,6 +32,17 @@ def test_select_eos_valid_mixture(tmp_path):
         "tabulated",
         table_file=str(tmp_path),
         mixture_fractions="A:0.5,B:0.5",
+    )
+    assert isinstance(eos, TabulatedEOS)
+
+
+def test_select_eos_valid_mixture_dict(tmp_path):
+    _create_species_eos_file(tmp_path, "A")
+    _create_species_eos_file(tmp_path, "B")
+    eos = select_eos(
+        "tabulated",
+        table_file=str(tmp_path),
+        mixture_fractions={"A": 0.5, "B": 0.5},
     )
     assert isinstance(eos, TabulatedEOS)
 
