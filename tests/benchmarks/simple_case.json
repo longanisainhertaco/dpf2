@@ -1,0 +1,9 @@
+{
+  "reaction_rate": [0.0, 1.0, 2.0, 1.0],
+  "dt": 1.0,
+  "expected_yield": 4.0,
+  "energies": [1.0, 1.5, 2.0, 2.5, 3.0],
+  "intensities": [1, 1, 1, 1, 1],
+  "bins": [1.0, 2.0, 3.0, 4.0],
+  "expected_spectrum": [2.0, 2.0, 1.0]
+}
