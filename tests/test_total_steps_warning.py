@@ -55,14 +55,8 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
     # Import module under test
     sim_mod = importlib.import_module("Simulation.dpf_simulator_full_backend")
 
-    dummy = types.SimpleNamespace(sim_time=1.0, dt=0.0)
     with caplog.at_level(logging.WARNING):
-        with pytest.raises(ValueError):
-            try:
-                int(sim_mod.np.ceil(dummy.sim_time / float(dummy.dt)))
-            except Exception as e:
-                msg = f"Failed to estimate total steps: {e}"
-                sim_mod.logger.warning(msg)
-                raise ValueError("Invalid dt: unable to estimate total steps") from e
+        with pytest.raises(sim_mod.SimulationRuntimeError):
+            sim_mod._estimate_total_steps(1.0, 0.0)
 
     assert "Failed to estimate total steps" in caplog.text
