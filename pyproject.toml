@@ -8,21 +8,20 @@ version = "0.1.0"
 description = "Minimal Dense Plasma Focus simulator"
 requires-python = ">=3.10"
 dependencies = [
-    "flask",
     "h5py",
     "matplotlib",
     "numba",
     "numpy",
     "pydantic",
     "scipy",
-    "sympy",
-    "werkzeug"
+    "sympy"
 ]
 
 [project.optional-dependencies]
 server = [
     "flask",
-    "flask_sock"
+    "flask-sock",
+    "werkzeug"
 ]
 warpx = [
     "pywarpx",
