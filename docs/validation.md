@@ -14,8 +14,10 @@ repository. Benchmark definitions and expected diagnostic outputs are stored in
    ```bash
    pytest tests/benchmarks/test_diagnostic_baselines.py
    ```
-   The tests compute neutron yield and X-ray spectra for the provided cases and
-   compare the results against the stored baselines.
+   The tests compute neutron yield, X-ray spectra, and scope traces for the
+   provided cases and compare the results against the stored baselines. These
+   tests run in continuous integration to ensure diagnostic calculations remain
+   consistent with the reference outputs.
 
 ## Updating Baselines
 
