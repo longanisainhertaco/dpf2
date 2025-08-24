@@ -1,6 +1,9 @@
+import hashlib
 import json
 import importlib.util
 from pathlib import Path
+
+import h5py
 
 # Load diagnostic functions without importing the package (avoids pydantic dependency)
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,15 +19,40 @@ compute_neutron_yield = _load("neutron_yield").compute_neutron_yield
 compute_xray_spectrum = _load("xray_spectra").compute_xray_spectrum
 compute_scope_trace = _load("scope_trace").compute_scope_trace
 
-from dpf2.io import RestartManager, StructuredOutputWriter
+from dpf2.io import DataWriter, RestartManager, StructuredOutputWriter
 
 
 def test_restart_roundtrip(tmp_path: Path) -> None:
     state = {"time": 1.0, "current": [1.0, 2.0, 3.0]}
-    mgr = RestartManager(tmp_path / "restart.json")
+    cfg = {"a": 1}
+    mgr = RestartManager(tmp_path / "restart.json", config=cfg)
     mgr.save(state)
-    loaded = mgr.load()
+    loaded, meta = mgr.load()
     assert loaded == state
+    assert meta["config_hash"] == hashlib.sha256(
+        json.dumps(cfg, sort_keys=True).encode()
+    ).hexdigest()
+    assert meta["git_commit"]
+
+
+def test_data_writer_metadata(tmp_path: Path) -> None:
+    data = {"density": 1.0}
+    cfg = {"b": 2}
+    writer = DataWriter(tmp_path, config=cfg)
+    writer.write_hdf5(data, 0.0)
+    writer.write_json(data, 0.0)
+
+    with h5py.File(tmp_path / "data_0.000000e+00.h5", "r") as f:
+        meta = json.loads(f["metadata"][()])
+    expected = hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()
+    assert meta["config_hash"] == expected
+    assert meta["git_commit"]
+
+    with (tmp_path / "data_0.000000e+00.json").open() as fh:
+        payload = json.load(fh)
+    assert payload["data"] == data
+    assert payload["metadata"]["config_hash"] == expected
+    assert payload["metadata"]["git_commit"]
 
 
 def test_diagnostic_functions(tmp_path: Path) -> None:
