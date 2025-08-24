@@ -11,11 +11,22 @@ from typing import Any
 
 
 class PlasmaSolverBase(ABC):
-    """Interface for plasma solvers."""
+    """Interface for plasma solvers coupled to an external circuit."""
 
     @abstractmethod
-    def step(self, state: Any, dt: float) -> Any:
-        """Advance the plasma state by ``dt`` seconds."""
+    def step(self, state: Any, dt: float, current: float, voltage: float) -> Any:
+        """Advance the plasma state by ``dt`` seconds.
+
+        Parameters
+        ----------
+        state:
+            Current plasma state object.
+        dt:
+            Time step in seconds.
+        current, voltage:
+            Instantaneous circuit current and capacitor voltage supplied by
+            the circuit solver for coupling.
+        """
         raise NotImplementedError
 
 

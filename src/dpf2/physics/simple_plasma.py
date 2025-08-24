@@ -22,7 +22,9 @@ class ZeroDPlasma(PlasmaSolverBase):
     time: float = 0.0
     circuit_feedback: dict[str, float] = field(init=False, default_factory=dict)
 
-    def step(self, state: Any, dt: float, current: float = 0.0, voltage: float = 0.0) -> Any:
+    def step(self, state: Any, dt: float, current: float, voltage: float) -> Any:
+        """Advance the dummy plasma state and compute circuit feedback."""
+
         self.time += dt
         Lp, dLpdt = self.inductance(self.time, current, voltage)
         self.circuit_feedback = {"Lp": Lp, "dLpdt": dLpdt}
