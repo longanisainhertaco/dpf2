@@ -217,7 +217,13 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.refine is not None:
             self.refine(state)
 
-    def step(self, state: MHDState, dt: float) -> MHDState:  # pragma: no cover - skeleton
+    def step(
+        self,
+        state: MHDState,
+        dt: float,
+        current: float = 0.0,
+        voltage: float = 0.0,
+    ) -> MHDState:  # pragma: no cover - skeleton
         """Advance the state by ``dt`` seconds using a higher-order MHD update.
 
         A MUSCL-Hancock Godunov scheme with a corner-transport-upwind
@@ -356,15 +362,12 @@ class HallMHDSolver(PlasmaSolverBase):
         self.apply_boundary_conditions(new_state)
         self.amr_refinement(new_state)
 
-        if self.circuit is not None:
-            L_new = self.compute_plasma_inductance(new_state, self.current)
-            dL = (L_new - self.inductance) / max(dt, 1.0e-30)
-            back_emf = -dL * self.current
-            self.current, circuit_voltage = self.circuit.step(
-                self.current, back_emf, dt
-            )
-            self.inductance = L_new
-            self.back_emf = circuit_voltage
+        # Expose plasma inductance and induced EMF for external circuit solvers
+        L_new = self.compute_plasma_inductance(new_state, current)
+        dL = (L_new - self.inductance) / max(dt, 1.0e-30)
+        emf = -dL * current
+        self.inductance = L_new
+        self.back_emf = emf
 
         return new_state
 

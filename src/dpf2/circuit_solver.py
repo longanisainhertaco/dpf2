@@ -12,12 +12,14 @@ All quantities are in SI units.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Any
 
 import numpy as np
 from scipy.integrate import solve_ivp
 
 from .circuit_config import CircuitConfig
+from .core.circuit import RLCCircuitSolver
+from .core.bases import PlasmaSolverBase
 
 __all__ = ["CircuitSolver", "RLCCircuit", "run_circuit_simulation"]
 
@@ -173,7 +175,11 @@ def _profile_to_interp(profile, t_scale: float, y_scale: float):
 
 
 def run_circuit_simulation(
-    cfg: CircuitConfig, t_end: float, num_points: int = 1000
+    cfg: CircuitConfig,
+    t_end: float,
+    num_points: int = 1000,
+    plasma_solver: PlasmaSolverBase | None = None,
+    plasma_state: Any | None = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Run RLC discharge with optional plasma and mutual inductance.
 
@@ -198,6 +204,28 @@ def run_circuit_simulation(
     C = cfg.C_ext * 1e-6
     V0 = cfg.V0 * 1e3
     delay = cfg.switch_delay * 1e-9
+
+    if plasma_solver is not None:
+        # Explicit coupling with a plasma model using the lightweight circuit solver
+        dt = t_end * 1e-6 / (num_points - 1)
+        circuit = RLCCircuitSolver(L_ext=L_ext, R_ext=R, C_ext=C, V0=V0)
+        t_total = np.linspace(0.0, t_end * 1e-6, num_points)
+
+        current = circuit.currents[-1]
+        voltage = circuit.voltages[-1]
+        plasma_solver.step(plasma_state, 0.0, current, voltage)
+        for _ in range(1, num_points):
+            feedback = {"Lp": plasma_solver.inductance, "emf": plasma_solver.back_emf}
+            current, voltage = circuit.step(current, 0.0, dt, feedback)
+            plasma_solver.step(plasma_state, dt, current, voltage)
+
+        return (
+            t_total,
+            np.asarray(circuit.currents),
+            np.asarray(circuit.voltages),
+            np.zeros_like(t_total),
+            np.zeros_like(t_total),
+        )
 
     lp_func, dlpdt_func = _profile_to_interp(cfg.plasma_inductance_profile, 1e-6, 1e-6)
     m_func, _ = _profile_to_interp(cfg.mutual_inductance_profile, 1e-6, 1e-6)

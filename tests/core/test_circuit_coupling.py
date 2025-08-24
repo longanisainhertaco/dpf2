@@ -1,6 +1,7 @@
 from math import isclose
 from pathlib import Path
 import importlib.util
+import importlib
 import sys
 import types
 
@@ -16,13 +17,14 @@ sys.modules.setdefault("dpf2", pkg)
 sys.modules.setdefault("dpf2.core", core_pkg)
 sys.modules.setdefault("dpf2.physics", physics_pkg)
 
-circuit_spec = importlib.util.spec_from_file_location(
-    "dpf2.core.circuit", module_base / "core/circuit.py"
+solver_spec = importlib.util.spec_from_file_location(
+    "dpf2.circuit_solver", module_base / "circuit_solver.py"
 )
-circuit_mod = importlib.util.module_from_spec(circuit_spec)
-sys.modules["dpf2.core.circuit"] = circuit_mod
-circuit_spec.loader.exec_module(circuit_mod)  # type: ignore[misc]
-RLCCircuitSolver = circuit_mod.RLCCircuitSolver
+solver_mod = importlib.util.module_from_spec(solver_spec)
+sys.modules["dpf2.circuit_solver"] = solver_mod
+solver_spec.loader.exec_module(solver_mod)  # type: ignore[misc]
+run_circuit_simulation = solver_mod.run_circuit_simulation
+CircuitConfig = importlib.import_module("dpf2.circuit_config").CircuitConfig
 
 plasma_spec = importlib.util.spec_from_file_location(
     "dpf2.physics.simple_plasma", module_base / "physics/simple_plasma.py"
@@ -42,6 +44,14 @@ class DummyPlasma(ZeroDPlasma):
             emf = k * current
             return Lp, emf
         super().__init__(model)
+        self.inductance = 0.0
+        self.back_emf = 0.0
+
+    def step(self, state, dt, current, voltage):
+        super().step(state, dt, current, voltage)
+        self.inductance = self.circuit_feedback["Lp"]
+        self.back_emf = self.circuit_feedback["emf"]
+        return state
 
 
 def test_energy_conservation():
@@ -50,20 +60,31 @@ def test_energy_conservation():
     V0 = 1.0
     k = 0.1  # dLp/dt
 
-    circuit = RLCCircuitSolver(L_ext=L_ext, R_ext=0.0, C_ext=C_ext, V0=V0)
+    cfg = CircuitConfig(
+        L_ext=L_ext,
+        R_ext=0.0,
+        C_ext=C_ext,
+        V0=V0,
+        switch_delay=0.0,
+        switching_model="ideal",
+        trigger_jitter_stddev=0.0,
+        enable_field_triggered_switch_closure=False,
+        abort_on_no_current=False,
+    )
+
     plasma = DummyPlasma(k)
 
-    dt = 1e-3
-    steps = 1000
-
-    current = circuit.currents[-1]
-    voltage = circuit.voltages[-1]
-    plasma.step(None, 0.0, current, voltage)
-    for _ in range(steps):
-        current, voltage = circuit.step(current, 0.0, dt, plasma.circuit_feedback)
-        plasma.step(None, dt, current, voltage)
+    t, current, voltage, _, _ = run_circuit_simulation(
+        cfg, t_end=1e6, num_points=1001, plasma_solver=plasma
+    )
 
     initial_energy = 0.5 * C_ext * V0 ** 2
-    Lp = plasma.circuit_feedback["Lp"]
-    final_energy = 0.5 * L_ext * current ** 2 + 0.5 * C_ext * voltage ** 2 + 0.5 * Lp * current ** 2
+    final_current = current[-1]
+    final_voltage = voltage[-1]
+    Lp = plasma.inductance
+    final_energy = (
+        0.5 * L_ext * final_current ** 2
+        + 0.5 * C_ext * final_voltage ** 2
+        + 0.5 * Lp * final_current ** 2
+    )
     assert isclose(initial_energy, final_energy, rel_tol=1e-3)
