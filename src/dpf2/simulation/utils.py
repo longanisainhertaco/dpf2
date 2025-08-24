@@ -237,40 +237,35 @@ class FieldManager:
                 profile = self.boundary_conditions.get('pml_profile', 'exponential')
                 factors = _pml_factors(thickness, sigma, profile)
 
-                def _apply(axis_slc, interior):
-                    facs = factors[::-1] if side == 'lo' else factors
-                    if axis == 0:
-                        facs = facs[:, None, None]
-                    elif axis == 1:
-                        facs = facs[None, :, None]
-                    else:
-                        facs = facs[None, None, :]
-                    field[axis_slc] = interior * facs
+                # Determine the slices selecting the ghost region and its
+                # neighbouring interior cell.  All heavy lifting is then done
+                # via broadcasting so the logic is identical for all axes.
+                ghost_slice = [slice(None)] * 3
+                interior_slice = [slice(None)] * 3
+                if side == 'lo':
+                    ghost_slice[axis] = slice(0, thickness)
+                    interior_slice[axis] = thickness
+                    facs = factors[::-1]
+                else:
+                    ghost_slice[axis] = slice(-thickness, None)
+                    interior_slice[axis] = -thickness - 1
+                    facs = factors
 
-                if axis == 0:
-                    interior_idx = thickness if side == 'lo' else -thickness - 1
-                    interior = np.copy(field[interior_idx, :, :])[None, :, :]
-                    sl = slice(0, thickness) if side == 'lo' else slice(-thickness, None)
-                    _apply((sl, slice(None), slice(None)), interior)
-                    if thickness < g:
-                        zero_sl = slice(thickness, g) if side == 'lo' else slice(-g, -thickness)
-                        field[zero_sl, :, :] = 0.0
-                elif axis == 1:
-                    interior_idx = thickness if side == 'lo' else -thickness - 1
-                    interior = np.copy(field[:, interior_idx, :])[:, None, :]
-                    sl = slice(0, thickness) if side == 'lo' else slice(-thickness, None)
-                    _apply((slice(None), sl, slice(None)), interior)
-                    if thickness < g:
-                        zero_sl = slice(thickness, g) if side == 'lo' else slice(-g, -thickness)
-                        field[:, zero_sl, :] = 0.0
-                elif axis == 2:
-                    interior_idx = thickness if side == 'lo' else -thickness - 1
-                    interior = np.copy(field[:, :, interior_idx])[:, :, None]
-                    sl = slice(0, thickness) if side == 'lo' else slice(-thickness, None)
-                    _apply((slice(None), slice(None), sl), interior)
-                    if thickness < g:
-                        zero_sl = slice(thickness, g) if side == 'lo' else slice(-g, -thickness)
-                        field[:, :, zero_sl] = 0.0
+                # Broadcast the damping factors along the appropriate axis
+                reshape = [1, 1, 1]
+                reshape[axis] = thickness
+                interior = np.expand_dims(field[tuple(interior_slice)], axis)
+                field[tuple(ghost_slice)] = interior * facs.reshape(reshape)
+
+                # If ghost region is larger than the PML thickness, zero out the
+                # remaining cells to avoid reflections from undamped zones.
+                if thickness < g:
+                    zero_slice = [slice(None)] * 3
+                    if side == 'lo':
+                        zero_slice[axis] = slice(thickness, g)
+                    else:
+                        zero_slice[axis] = slice(-g, -thickness)
+                    field[tuple(zero_slice)] = 0.0
             else:
                 logger.warning(
                     f"Unknown boundary condition: {bc} - defaulting to periodic."
