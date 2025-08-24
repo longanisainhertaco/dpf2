@@ -1,5 +1,5 @@
 import numpy as np
-from Simulation.utils import FieldManager
+from dpf2.simulation.utils import FieldManager
 
 
 def test_divergence_and_curl_periodic():

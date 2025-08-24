@@ -6,10 +6,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-# Ensure Simulation modules are importable
-sim_path = Path(__file__).resolve().parents[1] / "Simulation"
-sys.path.append(str(sim_path))
-
 # Stub out heavy dependencies before importing HybridController
 sys.modules.setdefault("fluid_solver_high_order", types.SimpleNamespace(FluidSolverHighOrder=object))
 sys.modules.setdefault("warpx_wrapper", types.SimpleNamespace(WarpXWrapper=object))
@@ -26,9 +22,9 @@ class _HybridConfig:
 
 sys.modules.setdefault("config_schema", types.SimpleNamespace(SheathConfig=_SheathConfig, HybridConfig=_HybridConfig))
 
-from sheath_model import PlasmaSheathFormation
-from utils import FieldManager, SimulationState
-from hybrid_controller import HybridController
+from dpf2.simulation.sheath_model import PlasmaSheathFormation
+from dpf2.simulation.utils import FieldManager, SimulationState
+from dpf2.simulation.hybrid_controller import HybridController
 
 
 class DummySheath(PlasmaSheathFormation):

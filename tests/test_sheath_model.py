@@ -1,6 +1,6 @@
 import numpy as np
-from Simulation.sheath_model import PlasmaSheathFormation, e_charge, m_e
-from Simulation.config_schema import SheathConfig
+from dpf2.simulation.sheath_model import PlasmaSheathFormation, e_charge, m_e
+from dpf2.simulation.config_schema import SheathConfig
 
 
 def maxwellian_distribution(v, Te):

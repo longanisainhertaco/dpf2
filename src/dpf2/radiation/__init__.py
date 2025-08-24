@@ -7,7 +7,7 @@ from typing import Protocol
 
 import numpy as np
 
-from ..core_schema import RadiationModel, RadiationTransportModel
+from core_schema import RadiationModel, RadiationTransportModel
 
 __all__ = [
     "RadiationBase",

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from Simulation.warp_piclibrary import PICCollisionHandler
+from dpf2.simulation.warp_piclibrary import PICCollisionHandler
 
 
 class SimpleParticleContainer:

@@ -7,10 +7,8 @@ import h5py
 import numpy as np
 import pytest
 
-# Ensure Simulation modules are importable
-sys.path.append(str(Path(__file__).resolve().parents[1] / "Simulation"))
-from eos_selector import select_eos  # type: ignore
-from eos import TabulatedEOS  # type: ignore
+from dpf2.simulation.eos_selector import select_eos  # type: ignore
+from dpf2.simulation.eos import TabulatedEOS  # type: ignore
 
 
 def _create_species_eos_file(tmp_path: Path, species: str, p_val: float = 1.0, e_val: float = 1.0) -> Path:

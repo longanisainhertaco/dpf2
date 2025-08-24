@@ -2,8 +2,6 @@ import os
 import sys
 import numpy as np
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "Simulation"))
-
 import types
 from contextlib import contextmanager
 
@@ -31,8 +29,8 @@ sys.modules["models"] = types.ModuleType("models")
 sys.modules["models"].PhysicsModule = type("PhysicsModule", (), {})
 sys.modules["models"].SimulationState = type("SimulationState", (), {})
 
-from utils import FieldManager, SimulationState
-from hybrid_controller import HybridController
+ from dpf2.simulation.utils import FieldManager, SimulationState
+ from dpf2.simulation.hybrid_controller import HybridController
 
 
 def test_hybrid_step_combines_fluid_and_pic():
