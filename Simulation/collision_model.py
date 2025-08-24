@@ -402,19 +402,17 @@ class CollisionModel(CollisionOperator):
         ion_data = data.get('ionization_cross_section')
         if isinstance(ion_data, dict):
             self.ionization_cross_section = CrossSectionData.from_dict(ion_data)
-        elif ion_data is not None:
+        else:
             self.ionization_cross_section = ion_data
 
         dd_data = data.get('dd_fusion_cross_section')
         if isinstance(dd_data, dict):
             self.dd_fusion_cross_section = CrossSectionData.from_dict(dd_data)
-        elif dd_data is not None:
+        else:
             self.dd_fusion_cross_section = dd_data
 
-        if 'crn_state' in data:
-            self.crn = data['crn_state']
+        self.crn = data.get('crn_state')
+        self.accumulators = dict(data.get('accumulators', {}))
+        self.caches = dict(data.get('caches', {}))
 
-        self.accumulators = data.get('accumulators', {})
-        self.caches = data.get('caches', {})
-
-        self.checkpoint_data = data
+        self.checkpoint_data = dict(data)

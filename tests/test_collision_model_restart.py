@@ -54,3 +54,20 @@ def test_checkpoint_restart_roundtrip():
     assert list(cm2.dd_fusion_cross_section.cross_section) == [7, 8]
     assert cm2.accumulators == cm1.accumulators
     assert cm2.caches == cm1.caches
+
+
+def test_checkpoint_restart_idempotent():
+    cm1 = CollisionModel({})
+    ion_cs = CrossSectionData.from_dict({'energy': [1], 'cross_section': [2]})
+    dd_cs = CrossSectionData.from_dict({'energy': [3], 'cross_section': [4]})
+    cm1.ionization_cross_section = ion_cs
+    cm1.dd_fusion_cross_section = dd_cs
+    cm1.accumulators['steps'] = 5
+    cm1.caches['nu_ei'] = [0.3]
+
+    data = cm1.checkpoint()
+
+    cm2 = CollisionModel({})
+    cm2.restart(data)
+
+    assert cm2.checkpoint() == data
