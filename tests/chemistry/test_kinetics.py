@@ -1,5 +1,6 @@
-from pathlib import Path
 import importlib.util
+from pathlib import Path
+import sys
 
 import pytest
 
@@ -8,7 +9,6 @@ root = Path(__file__).resolve().parents[2]
 kin_path = root / "src" / "dpf2" / "chemistry" / "kinetics.py"
 spec_k = importlib.util.spec_from_file_location("kinetics", kin_path)
 kinetics_mod = importlib.util.module_from_spec(spec_k)
-import sys
 sys.modules["kinetics"] = kinetics_mod
 spec_k.loader.exec_module(kinetics_mod)  # type: ignore[attr-defined]
 
@@ -24,8 +24,8 @@ def test_rate_table_interpolation():
     table = RateTable.from_csv(data_path("crm_dummy.csv"))
     ion = table.ion_rate([10.0])[0]
     rec = table.rec_rate([10.0])[0]
-    assert ion == pytest.approx(5.0)
-    assert rec == pytest.approx(0.0)
+    assert abs(ion - 5.0) < 1e-12
+    assert abs(rec - 0.0) < 1e-12
 
 
 def test_kinetics_converges_to_flychk():

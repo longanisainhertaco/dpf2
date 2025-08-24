@@ -115,6 +115,7 @@ class RLCCircuitSolver(CircuitSolverBase):
         V_mutual = -M * dIm_dt
 
         if use_emf:
+
             emf_term = emf
             dLp_term = 0.0
         else:
@@ -130,6 +131,26 @@ class RLCCircuitSolver(CircuitSolverBase):
             - emf_term
             - back_emf
         ) / Ltot
+
+            numerator = (
+                self.V0
+                + V_mutual
+                - self.R_ext * current
+                - voltage
+                - emf
+                - back_emf
+            )
+        else:
+            numerator = (
+                self.V0
+                + V_mutual
+                - self.R_ext * current
+                - voltage
+                - dLpdt * current
+                - back_emf
+            )
+        dIdt = numerator / Ltot
+
 
         dVdt = -current / self.C_ext
 

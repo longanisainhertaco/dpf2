@@ -253,13 +253,33 @@ class ConfigSectionBase(BaseModel):
 
 
 class RadiationSettings(ConfigSectionBase):
-    """Basic radiation configuration including group opacities."""
+    """Basic radiation configuration including group counts and opacities."""
 
     config_section_id: ClassVar[str] = "radiation"
+
+    group_count: int = Field(
+        1,
+        alias="groupCount",
+        metadata={
+            "units": "-",
+            "category": "Radiation",
+            "group": "MultiGroup",
+        },
+    )
 
     group_opacities: List[float] = Field(
         default_factory=list,
         alias="groupOpacities",
+        metadata={
+            "units": "1/m",
+            "category": "Radiation",
+            "group": "MultiGroup",
+        },
+    )
+
+    material_opacities: Dict[str, List[float]] = Field(
+        default_factory=dict,
+        alias="materialOpacities",
         metadata={
             "units": "1/m",
             "category": "Radiation",

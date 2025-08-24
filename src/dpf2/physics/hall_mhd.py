@@ -72,10 +72,16 @@ class HallMHD(ResistiveMHD):
         state: np.ndarray,
         dt: float,
         current: float = 0.0,
-
         voltage: float = 0.0,
+        *,
+        circuit: Any | None = None,
     ) -> np.ndarray:
-        """Lightweight advance that updates circuit feedback only.
+        """Update circuit coupling information.
+
+        The routine performs a very small subset of a full time advance.  It
+        estimates the instantaneous plasma self–inductance from the magnetic
+        energy and communicates this to an external circuit model.  No update
+        of the plasma state itself is performed.
 
         Parameters
         ----------
@@ -88,25 +94,11 @@ class HallMHD(ResistiveMHD):
         voltage:
             Deprecated and ignored.  Previously represented an externally
             applied back‑EMF.
-
-        The routine estimates the plasma inductance and associated back‑EMF
-        ``emf = Lp * dI/dt + I * dLp/dt`` which are exposed through the
-        ``circuit_feedback`` attribute for use by external circuit solvers.
-
-        *,
-        circuit: Any | None = None,
-    ) -> np.ndarray:
-        """Update circuit feedback and optionally couple to an external circuit.
-
-        The plasma state ``state`` itself is not modified by this routine;
-        rather it estimates the instantaneous plasma inductance from the
-        magnetic energy and communicates it to an external circuit model.  If
-        ``circuit`` is supplied the circuit's ``step`` method is invoked using
-        the plasma current and the induced back‑EMF ``-d(L_p)/dt * I``.  The
-        external circuit is expected to expose a ``step(current, back_emf, dt,
-        plasma_feedback)`` method matching
-        :class:`~dpf2.core.circuit.RLCCircuitSolver`.
-
+        circuit:
+            Optional circuit solver implementing ``step(current, back_emf, dt,
+            plasma_feedback)``.  When provided the circuit is advanced using the
+            computed feedback terms and the updated current/back‑EMF are stored
+            on the model instance.
         """
 
         prev_I = self.current
@@ -119,7 +111,6 @@ class HallMHD(ResistiveMHD):
         emf = Lp * dIdt + current * dLpdt
 
         back_emf = -dLpdt * self.current
-
 
         self.inductance = Lp
         self.back_emf = emf

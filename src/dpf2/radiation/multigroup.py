@@ -11,7 +11,9 @@ fluid energy equation and the radiation groups using user supplied opacities.
 """
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Sequence, Union
+
+import numpy as np
 
 __all__ = ["MultiGroupDiffusion"]
 
@@ -48,12 +50,11 @@ class MultiGroupDiffusion:
     def diffusion_coefficients(self) -> np.ndarray:
         """Return diffusion coefficient for each group.
 
-        The standard approximation :math:`D_g = c/(3\kappa_g)` is used.
-        """
+        The standard approximation :math:`D_g = c/(3\kappa_g)` is used."""
 
-        return [self.c / (3.0 * kappa) for kappa in self.opacities]
+        return np.array([self.c / (3.0 * kappa) for kappa in self.opacities])
 
-    def diffuse(self, dx: float, dt: float) -> np.ndarray:
+    def diffuse(self, dx: float, dt: float) -> List[List[float]]:
         """Advance the radiation energy densities by a diffusion step.
 
         A simple explicit finite-difference update with zero-flux boundary
@@ -79,7 +80,9 @@ class MultiGroupDiffusion:
     # ------------------------------------------------------------------
     # Coupling to fluid energy equation
     # ------------------------------------------------------------------
-    def couple(self, fluid_energy: np.ndarray, dt: float) -> np.ndarray:
+    def couple(
+        self, fluid_energy: Union[Sequence[float], float], dt: float
+    ) -> Union[List[float], float]:
         """Exchange energy with the fluid energy equation.
 
         Parameters
