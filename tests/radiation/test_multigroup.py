@@ -21,9 +21,19 @@ physics_stub = types.ModuleType("dpf2.physics")
 radiation_stub = types.ModuleType("dpf2.radiation")
 dpf2_stub.physics = physics_stub
 dpf2_stub.radiation = radiation_stub
+# Provide minimal mesh placeholders to satisfy imports
+mesh_stub = types.ModuleType("dpf2.mesh")
+class Mesh2D:  # pragma: no cover
+    pass
+class Mesh3D:  # pragma: no cover
+    pass
+mesh_stub.Mesh2D = Mesh2D
+mesh_stub.Mesh3D = Mesh3D
+dpf2_stub.mesh = mesh_stub
 sys.modules.setdefault("dpf2", dpf2_stub)
 sys.modules.setdefault("dpf2.physics", physics_stub)
 sys.modules.setdefault("dpf2.radiation", radiation_stub)
+sys.modules.setdefault("dpf2.mesh", mesh_stub)
 
 base = pathlib.Path(__file__).resolve().parents[2] / "src" / "dpf2"
 
