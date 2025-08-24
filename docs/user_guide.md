@@ -24,6 +24,16 @@ The core simulation is composed of modular physics components. Key modules inclu
 
 These and other modules can be extended by subclassing their respective base classes.
 
+## Examples
+
+Run the CLI against the provided sample configuration:
+
+```bash
+dpf2 simulate examples/config.json -o results.json
+```
+
+For an interactive walk-through, open the Jupyter notebook in the `examples/quickstart.ipynb` file.
+
 ## Server Usage
 
 A lightweight Flask server is provided for remote execution. Install server extras and launch:
