@@ -208,42 +208,39 @@ class TurbulenceModel(PhysicsModule):
         y = 0.5 * state.dx
 
         if self.wall_function_type == "log_law":
-            # Logarithmic law of the wall
+            # Logarithmic law of the wall.  We apply the same relation to both
+            # x-normal boundaries to keep the routine symmetric.  Only the
+            # tangential velocity component is modified; ``k`` and ``epsilon``
+            # are updated in the adjacent cells to maintain consistency with the
+            # assumed turbulent structure near the wall.
             kappa = self.wall_function_kappa
             E = self.wall_function_E
 
-            # Left boundary (x_lo)
-            k_cell = self.k[g, :, :]
-            u_tau = (self.C_mu ** 0.25) * np.sqrt(k_cell)
-            y_plus = y * u_tau / np.maximum(nu[g, :, :], 1e-30)
-            u_plus = (1.0 / kappa) * np.log(np.maximum(E * y_plus, 1.0))
-            state.velocity[g, :, :, 0] = u_plus * u_tau
-            # Update k and epsilon at the wall-adjacent cell
-            self.k[g, :, :] = u_tau ** 2 / np.sqrt(self.C_mu)
-            self.epsilon[g, :, :] = (u_tau ** 3) / (kappa * y)
-
-            # Right boundary (x_hi)
-            k_cell = self.k[nx - g - 1, :, :]
-            u_tau = (self.C_mu ** 0.25) * np.sqrt(k_cell)
-            y_plus = y * u_tau / np.maximum(nu[nx - g - 1, :, :], 1e-30)
-            u_plus = (1.0 / kappa) * np.log(np.maximum(E * y_plus, 1.0))
-            state.velocity[nx - g - 1, :, :, 0] = u_plus * u_tau
-            self.k[nx - g - 1, :, :] = u_tau ** 2 / np.sqrt(self.C_mu)
-            self.epsilon[nx - g - 1, :, :] = (u_tau ** 3) / (kappa * y)
+            for idx in (g, nx - g - 1):
+                k_cell = self.k[idx, :, :]
+                u_tau = (self.C_mu ** 0.25) * np.sqrt(k_cell)
+                y_plus = y * u_tau / np.maximum(nu[idx, :, :], 1e-30)
+                u_plus = (1.0 / kappa) * np.log(np.maximum(E * y_plus, 1.0))
+                state.velocity[idx, :, :, 0] = u_plus * u_tau
+                self.k[idx, :, :] = u_tau ** 2 / np.sqrt(self.C_mu)
+                self.epsilon[idx, :, :] = (u_tau ** 3) / (kappa * y)
 
         elif self.wall_function_type == "power_law":
-            # Simple power-law relation (1/7th power law)
+            # Simple power-law relation (1/7th power law).  The wall velocity
+            # is extrapolated from the nearest interior cell using the power
+            # law profile.
             n = 7.0
+            factor = (y / state.dx) ** (1.0 / n)
 
             # Left boundary uses velocity from the next interior cell
-            U_edge = state.velocity[g + 1, :, :, 0]
-            state.velocity[g, :, :, 0] = U_edge * (y / state.dx) ** (1.0 / n)
+            state.velocity[g, :, :, 0] = state.velocity[g + 1, :, :, 0] * factor
 
             # Right boundary uses velocity from the previous interior cell
-            U_edge = state.velocity[nx - g - 2, :, :, 0]
-            state.velocity[nx - g - 1, :, :, 0] = U_edge * (y / state.dx) ** (1.0 / n)
+            state.velocity[nx - g - 1, :, :, 0] = state.velocity[nx - g - 2, :, :, 0] * factor
 
         else:
+            # A defensive check in case an unsupported option slips through
+            # configuration validation.
             raise ValueError(f"Unknown wall function type: {self.wall_function_type}")
 
     def initialize(self):
