@@ -62,6 +62,89 @@ def _minmod(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return 0.5 * (np.sign(a) + np.sign(b)) * np.minimum(np.abs(a), np.abs(b))
 
 
+def _hll_flux(
+    gamma: float,
+    i: int,
+    rho_L: np.ndarray,
+    v_L: np.ndarray,
+    B_L: np.ndarray,
+    p_L: np.ndarray,
+    rho_R: np.ndarray,
+    v_R: np.ndarray,
+    B_R: np.ndarray,
+    p_R: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return HLL fluxes for direction ``i``.
+
+    The function implements a simple two-wave Harten–Lax–van Leer
+    Riemann solver used by the CTU update.  It returns the mass, momentum
+    and energy fluxes at the interface between ``L`` and ``R`` states.
+    """
+
+    B2_L = np.sum(B_L**2, axis=-1)
+    B2_R = np.sum(B_R**2, axis=-1)
+    kinetic_L = 0.5 * rho_L * np.sum(v_L**2, axis=-1)
+    kinetic_R = 0.5 * rho_R * np.sum(v_R**2, axis=-1)
+    energy_L = p_L / (gamma - 1.0) + kinetic_L + 0.5 * B2_L
+    energy_R = p_R / (gamma - 1.0) + kinetic_R + 0.5 * B2_R
+
+    mom_L = rho_L[..., None] * v_L
+    mom_R = rho_R[..., None] * v_R
+
+    vdotB_L = np.sum(v_L * B_L, axis=-1)
+    vdotB_R = np.sum(v_R * B_R, axis=-1)
+
+    F_rho_L = rho_L * v_L[..., i]
+    F_rho_R = rho_R * v_R[..., i]
+
+    F_mom_L = np.zeros_like(mom_L)
+    F_mom_R = np.zeros_like(mom_R)
+    for j in range(3):
+        F_mom_L[..., j] = mom_L[..., j] * v_L[..., i]
+        F_mom_R[..., j] = mom_R[..., j] * v_R[..., i]
+        if i == j:
+            F_mom_L[..., j] += p_L + 0.5 * B2_L
+            F_mom_R[..., j] += p_R + 0.5 * B2_R
+        F_mom_L[..., j] -= B_L[..., i] * B_L[..., j]
+        F_mom_R[..., j] -= B_R[..., i] * B_R[..., j]
+
+    F_energy_L = (energy_L + p_L + 0.5 * B2_L) * v_L[..., i] - vdotB_L * B_L[..., i]
+    F_energy_R = (energy_R + p_R + 0.5 * B2_R) * v_R[..., i] - vdotB_R * B_R[..., i]
+
+    cs_L = np.sqrt(gamma * p_L / rho_L)
+    cs_R = np.sqrt(gamma * p_R / rho_R)
+    ca_L = np.sqrt(B2_L / rho_L)
+    ca_R = np.sqrt(B2_R / rho_R)
+    cfast_L = np.sqrt(cs_L**2 + ca_L**2)
+    cfast_R = np.sqrt(cs_R**2 + ca_R**2)
+    SL = np.minimum(v_L[..., i] - cfast_L, v_R[..., i] - cfast_R)
+    SR = np.maximum(v_L[..., i] + cfast_L, v_R[..., i] + cfast_R)
+
+    U_L = np.stack((rho_L, mom_L[..., 0], mom_L[..., 1], mom_L[..., 2], energy_L), axis=-1)
+    U_R = np.stack((rho_R, mom_R[..., 0], mom_R[..., 1], mom_R[..., 2], energy_R), axis=-1)
+    F_L = np.stack((F_rho_L, F_mom_L[..., 0], F_mom_L[..., 1], F_mom_L[..., 2], F_energy_L), axis=-1)
+    F_R = np.stack((F_rho_R, F_mom_R[..., 0], F_mom_R[..., 1], F_mom_R[..., 2], F_energy_R), axis=-1)
+
+    denom = SR - SL
+    denom[denom == 0] = 1e-30
+    flux = np.where(
+        (SL[..., None] >= 0),
+        F_L,
+        np.where(
+            (SR[..., None] <= 0),
+            F_R,
+            (
+                SR[..., None] * F_L
+                - SL[..., None] * F_R
+                + SL[..., None] * SR[..., None] * (U_R - U_L)
+            )
+            / denom[..., None],
+        ),
+    )
+
+    return flux[..., 0], flux[..., 1:4], flux[..., 4]
+
+
 @dataclass
 class MHDState:
     """State container for the MHD variables.
@@ -133,12 +216,13 @@ class HallMHDSolver(PlasmaSolverBase):
     def step(self, state: MHDState, dt: float) -> MHDState:  # pragma: no cover - skeleton
         """Advance the state by ``dt`` seconds using a higher-order MHD update.
 
-        The method employs a MUSCL-Hancock Godunov scheme with a
-        Rusanov solver for the fluid variables and a constrained
-        transport update for the magnetic field.  Hall physics enters
-        through the electric field used in the CT step.  Optional
-        Braginskii transport terms act along the magnetic-field
-        direction.
+        A MUSCL-Hancock Godunov scheme with a corner-transport-upwind
+        (CTU) flux computation is employed for the fluid variables and a
+        constrained-transport magnetic-field update maintains
+        ``∇·B = 0``.  Hall physics is included through the electric field
+        appearing in the CT step.  Optional Braginskii transport terms
+        act along the magnetic-field direction.  Boundary-condition and
+        AMR refinement hooks are invoked before and after the update.
         """
 
         self.apply_boundary_conditions(state)
@@ -191,72 +275,25 @@ class HallMHDSolver(PlasmaSolverBase):
             B_L = np.stack((Bx_L, By_L, Bz_L), axis=-1)
             B_R = np.stack((Bx_R, By_R, Bz_R), axis=-1)
 
-            B2_L = np.sum(B_L**2, axis=-1)
-            B2_R = np.sum(B_R**2, axis=-1)
-            kinetic_L = 0.5 * rho_L * np.sum(v_L**2, axis=-1)
-            kinetic_R = 0.5 * rho_R * np.sum(v_R**2, axis=-1)
-            energy_L = p_L / (gamma - 1.0) + kinetic_L + 0.5 * B2_L
-            energy_R = p_R / (gamma - 1.0) + kinetic_R + 0.5 * B2_R
+            fr, fm, fe = _hll_flux(gamma, i, rho_L, v_L, B_L, p_L, rho_R, v_R, B_R, p_R)
+            flux_rho[i] = fr
+            flux_mom[i] = fm
+            flux_energy[i] = fe
 
-            mom_L = rho_L[..., None] * v_L
-            mom_R = rho_R[..., None] * v_R
-
-            vdotB_L = np.sum(v_L * B_L, axis=-1)
-            vdotB_R = np.sum(v_R * B_R, axis=-1)
-
-            F_rho_L = rho_L * v_L[..., i]
-            F_rho_R = rho_R * v_R[..., i]
-
-            F_mom_L = np.zeros_like(mom_L)
-            F_mom_R = np.zeros_like(mom_R)
-            for j in range(3):
-                F_mom_L[..., j] = mom_L[..., j] * v_L[..., i]
-                F_mom_R[..., j] = mom_R[..., j] * v_R[..., i]
-                if i == j:
-                    F_mom_L[..., j] += p_L + 0.5 * B2_L
-                    F_mom_R[..., j] += p_R + 0.5 * B2_R
-                F_mom_L[..., j] -= B_L[..., i] * B_L[..., j]
-                F_mom_R[..., j] -= B_R[..., i] * B_R[..., j]
-
-            F_energy_L = (energy_L + p_L + 0.5 * B2_L) * v_L[..., i] - vdotB_L * B_L[..., i]
-            F_energy_R = (energy_R + p_R + 0.5 * B2_R) * v_R[..., i] - vdotB_R * B_R[..., i]
-
-            cs_L = np.sqrt(gamma * p_L / rho_L)
-            cs_R = np.sqrt(gamma * p_R / rho_R)
-            ca_L = np.sqrt(B2_L / rho_L)
-            ca_R = np.sqrt(B2_R / rho_R)
-            cfast_L = np.sqrt(cs_L**2 + ca_L**2)
-            cfast_R = np.sqrt(cs_R**2 + ca_R**2)
-            SL = np.minimum(v_L[..., i] - cfast_L, v_R[..., i] - cfast_R)
-            SR = np.maximum(v_L[..., i] + cfast_L, v_R[..., i] + cfast_R)
-
-            U_L = np.stack((rho_L, mom_L[..., 0], mom_L[..., 1], mom_L[..., 2], energy_L), axis=-1)
-            U_R = np.stack((rho_R, mom_R[..., 0], mom_R[..., 1], mom_R[..., 2], energy_R), axis=-1)
-            F_L = np.stack((F_rho_L, F_mom_L[..., 0], F_mom_L[..., 1], F_mom_L[..., 2], F_energy_L), axis=-1)
-            F_R = np.stack((F_rho_R, F_mom_R[..., 0], F_mom_R[..., 1], F_mom_R[..., 2], F_energy_R), axis=-1)
-
-            denom = SR - SL
-            denom[denom == 0] = 1e-30
-            flux = np.where(
-                (SL[..., None] >= 0),
-                F_L,
-                np.where(
-                    (SR[..., None] <= 0),
-                    F_R,
-                    (SR[..., None] * F_L - SL[..., None] * F_R + SL[..., None] * SR[..., None] * (U_R - U_L))
-                    / denom[..., None],
-                ),
-            )
-
-            flux_rho[i] = flux[..., 0]
-            flux_mom[i] = flux[..., 1:4]
-            flux_energy[i] = flux[..., 4]
-
+        drho = np.zeros_like(rho)
+        denergy = np.zeros_like(energy)
+        dmom = np.zeros_like(mom)
         for i in range(3):
-            rho -= dt * (flux_rho[i] - np.roll(flux_rho[i], 1, axis=i))
-            energy -= dt * (flux_energy[i] - np.roll(flux_energy[i], 1, axis=i))
+            drho += flux_rho[i] - np.roll(flux_rho[i], 1, axis=i)
+            denergy += flux_energy[i] - np.roll(flux_energy[i], 1, axis=i)
             for j in range(3):
-                mom[..., j] -= dt * (flux_mom[i][..., j] - np.roll(flux_mom[i][..., j], 1, axis=i))
+                dmom[..., j] += flux_mom[i][..., j] - np.roll(flux_mom[i][..., j], 1, axis=i)
+
+        rho -= dt * drho
+        energy -= dt * denergy
+        mom -= dt * dmom
+
+        v = mom / rho[..., None]
 
         # --- Constrained transport via electric fields ---
         J = _curl(B)
@@ -266,6 +303,8 @@ class HallMHDSolver(PlasmaSolverBase):
             E += self.hall_coeff * np.cross(J, B) / ne[..., None]
         B -= dt * _curl(E)
         B = _project_div_free(B)
+
+        B2 = np.sum(B**2, axis=-1)
 
         # --- Braginskii viscosity (parallel component) ---
         if self.nu_par != 0.0:
