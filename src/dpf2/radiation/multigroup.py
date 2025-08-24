@@ -167,6 +167,12 @@ class MultiGroupDiffusion:
             total_loss = 0.0
             for g in range(self.group_count):
                 loss = self.opacities[g] * fe[i] * dt
+                # Prevent the coupling from removing more energy than
+                # available in the fluid cell.  This guards against
+                # pathological inputs where ``dt`` or the opacity are
+                # extremely large and ensures the scheme remains
+                # conservative.
+                loss = min(loss, fe[i] - total_loss)
                 self.energy[g][i] += loss
                 total_loss += loss
             fe[i] -= total_loss
