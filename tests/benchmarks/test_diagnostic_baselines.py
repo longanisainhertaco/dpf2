@@ -15,6 +15,7 @@ def _load(name: str):
 
 compute_neutron_yield = _load("neutron_yield").compute_neutron_yield
 compute_xray_spectrum = _load("xray_spectra").compute_xray_spectrum
+compute_scope_trace = _load("scope_trace").compute_scope_trace
 
 
 def load_case() -> dict:
@@ -39,3 +40,11 @@ def test_xray_spectrum_baseline():
     assert all(isclose(a, b) for a, b in zip(spectrum, expected))
     # ensure bin centers computed correctly for coverage
     assert all(isclose(c, e) for c, e in zip(centers, [1.5, 2.5, 3.5]))
+
+
+def test_scope_trace_baseline():
+    data = load_case()
+    times, trace = compute_scope_trace(data['scope_times'], data['scope_values'])
+    assert all(isclose(t, e) for t, e in zip(times, data['scope_times']))
+    expected = data['expected_scope']
+    assert all(isclose(a, b) for a, b in zip(trace, expected))

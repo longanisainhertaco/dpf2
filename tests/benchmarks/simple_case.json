@@ -5,5 +5,8 @@
   "energies": [1.0, 1.5, 2.0, 2.5, 3.0],
   "intensities": [1, 1, 1, 1, 1],
   "bins": [1.0, 2.0, 3.0, 4.0],
-  "expected_spectrum": [2.0, 2.0, 1.0]
+  "expected_spectrum": [2.0, 2.0, 1.0],
+  "scope_times": [0.0, 1.0, 2.0, 3.0],
+  "scope_values": [1.0, 2.0, 3.0, 4.0],
+  "expected_scope": [-1.5, -0.5, 0.5, 1.5]
 }
