@@ -88,8 +88,9 @@ class PICCollisionHandler:
         if not (hasattr(species1, "get_velocities") and hasattr(species2, "get_velocities")):
             raise AttributeError("Particle containers must implement get_velocities")
 
-        v1 = np.asarray(species1.get_velocities())
-        v2 = np.asarray(species2.get_velocities())
+        # Work with explicit ``float`` copies so we can safely modify the arrays
+        v1 = np.asarray(species1.get_velocities(), dtype=float)
+        v2 = np.asarray(species2.get_velocities(), dtype=float)
 
         # Optional: retrieve particle weights if WarpX exposes them
         w1 = (
@@ -133,6 +134,8 @@ class PICCollisionHandler:
 
         # Collision frequency and probability
         freq = float(self.collision_freq_func(ne, Te, **self.kwargs))
+        if freq < 0:
+            raise ValueError("Collision frequency must be non-negative")
         prob = np.clip(1.0 - np.exp(-freq * dt), 0.0, 1.0)
         if prob <= 0.0:
             logger.debug("Zero collision probability; skipping")
