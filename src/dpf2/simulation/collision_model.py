@@ -147,16 +147,16 @@ class CrossSectionData:
     def to_dict(self):
         """Return a serializable representation of the table."""
         return {
-            'energy': self.energy,
-            'cross_section': self.cross_section,
+            'energy': list(self.energy),
+            'cross_section': list(self.cross_section),
         }
 
     @classmethod
     def from_dict(cls, data):
         """Create a :class:`CrossSectionData` from checkpoint data."""
         obj = cls.__new__(cls)
-        obj.energy = data.get('energy', [])
-        obj.cross_section = data.get('cross_section', [])
+        obj.energy = np.array(data.get('energy', []))
+        obj.cross_section = np.array(data.get('cross_section', []))
         try:
             obj.interp = interp1d(obj.energy, obj.cross_section, bounds_error=False, fill_value=0.0)
         except Exception:
