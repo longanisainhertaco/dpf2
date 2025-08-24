@@ -15,6 +15,7 @@ from hybrid_controller import HybridController
 from dpf2.diagnostics import Diagnostics
 from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
 from sheath_model import PlasmaSheathFormation
+from ..exceptions import SimulationRuntimeError
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +26,6 @@ class ConfigurationError(Exception):
 class InitializationError(Exception):
     pass
 
-class SimulationRuntimeError(Exception):
-    """Raised when the simulation cannot proceed due to runtime conditions."""
-    pass
 
 def _generate_boundary_conditions(domain_lo, domain_hi, bc_config=None):
     """

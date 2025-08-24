@@ -35,7 +35,11 @@ def _load_sim_module(monkeypatch):
     # Stub internal modules referenced during import
     package_stub = types.ModuleType("dpf2")
     package_stub.__path__ = []
+    simulation_pkg = types.ModuleType("dpf2.simulation")
+    simulation_pkg.__path__ = []
     monkeypatch.setitem(sys.modules, "dpf2", package_stub)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation", simulation_pkg)
+    setattr(package_stub, "simulation", simulation_pkg)
 
     modules = {
         "module_registry": ["ModuleRegistry"],
@@ -48,11 +52,15 @@ def _load_sim_module(monkeypatch):
         "diagnostics": ["Diagnostics"],
         "utils": ["FieldManager", "SimulationState"],
         "sheath_model": ["PlasmaSheathFormation"],
+        "exceptions": ["SimulationRuntimeError"],
     }
     for name, attrs in modules.items():
         mod = types.ModuleType(name)
         for attr in attrs:
-            setattr(mod, attr, type(attr, (), {}))
+            if name == "exceptions" and attr == "SimulationRuntimeError":
+                setattr(mod, attr, type(attr, (Exception,), {}))
+            else:
+                setattr(mod, attr, type(attr, (), {}))
         monkeypatch.setitem(sys.modules, name, mod)
         monkeypatch.setitem(sys.modules, f"dpf2.{name}", mod)
         setattr(package_stub, name, mod)
@@ -70,7 +78,9 @@ def _load_sim_module(monkeypatch):
 
     # Import module under test without package dependencies
     module_path = Path(__file__).resolve().parent.parent / "src/dpf2/simulation/dpf_simulator_full_backend.py"
-    spec = importlib.util.spec_from_file_location("sim_mod", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "dpf2.simulation.dpf_simulator_full_backend", module_path
+    )
     sim_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sim_mod)
     return sim_mod

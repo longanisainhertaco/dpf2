@@ -7,8 +7,8 @@ class DPFError(Exception):
 class ConfigurationError(DPFError):
     """Raised when a simulation or server configuration is invalid."""
 
-class SimulationError(DPFError):
-    """Raised for errors occurring during simulation execution."""
+class SimulationRuntimeError(DPFError):
+    """Raised for runtime errors occurring during simulation execution."""
 
 class ServerError(DPFError):
     """Base class for server-related errors."""
