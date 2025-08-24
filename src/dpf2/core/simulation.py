@@ -77,11 +77,22 @@ class DPFSimulation:
                 end - self.time,
             )
 
+            feedback = None
             if self.plasma_solver is not None:
-                self.plasma_state = self.plasma_solver.step(self.plasma_state, dt)
+                try:
+                    result = self.plasma_solver.step(
+                        self.plasma_state, dt, self.current, self.voltage
+                    )
+                except TypeError:
+                    result = self.plasma_solver.step(self.plasma_state, dt)
+                if isinstance(result, tuple):
+                    self.plasma_state, feedback = result
+                else:
+                    self.plasma_state = result
+                    feedback = getattr(self.plasma_solver, "circuit_feedback", None)
             if self.circuit_solver is not None:
                 self.current, self.voltage = self.circuit_solver.step(
-                    self.current, self.voltage, dt
+                    self.current, self.voltage, dt, feedback
                 )
 
             self.time += dt
