@@ -2,7 +2,7 @@
 
 from .config import DPFConfig
 from .simulation import DPFSimulation
-from dpf2.core.bases import PlasmaSolverBase, CircuitSolverBase, DiagnosticsBase
+from .bases import PlasmaSolverBase, CircuitSolverBase, DiagnosticsBase
 
 __all__ = [
     "DPFConfig",

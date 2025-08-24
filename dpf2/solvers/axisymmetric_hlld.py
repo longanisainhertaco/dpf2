@@ -15,7 +15,7 @@ The solver operates on state dictionaries containing 2-D ``numpy.ndarray``
 objects.  The expected fields are ``rho`` (density), the three momentum
 components ``mom_r``, ``mom_phi`` and ``mom_z``, magnetic field components
 ``B_r``, ``B_phi`` and ``B_z`` and the total ``energy``.  The public
-:class:`AxisymmetricHLLD` class conforms to :class:`~dpf2.core.bases.PlasmaSolverBase`
+:class:`AxisymmetricHLLD` class conforms to :class:`~dpf2.core.PlasmaSolverBase`
 by providing a :meth:`step` method advancing the state by ``dt`` seconds.
 
 The goal of the tests is not to provide a production ready plasma solver, but
@@ -29,7 +29,7 @@ from typing import Dict
 
 import numpy as np
 
-from dpf2.core.bases import PlasmaSolverBase
+from dpf2.core import PlasmaSolverBase
 
 State = Dict[str, np.ndarray]
 
