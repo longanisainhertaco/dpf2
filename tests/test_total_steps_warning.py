@@ -78,4 +78,4 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
         with pytest.raises(sim_mod.SimulationRuntimeError):
             sim_mod._estimate_total_steps(1.0, 0.0)
 
-    assert "Failed to estimate total steps" in caplog.text
+    assert "Invalid dt=0.0: unable to estimate total steps" in caplog.text

@@ -7,8 +7,9 @@ import argparse
 import json
 try:  # pragma: no cover - optional MPI
     from mpi4py import MPI  # type: ignore
-except Exception:  # pragma: no cover
+except Exception as e:  # pragma: no cover
     MPI = None
+    logging.getLogger(__name__).warning("mpi4py not available: %s", e)
 from catalyst import CatalystPipeline
 from dpf_simulator_full_backend import DPFSimulatorBackend
 from fluid_solver_high_order import FluidSolver3DAMReX

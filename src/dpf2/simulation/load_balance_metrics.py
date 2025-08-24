@@ -1,8 +1,13 @@
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
+
 try:
     from mpi4py import MPI  # type: ignore
-except Exception:  # pragma: no cover - mpi4py optional
+except Exception as e:  # pragma: no cover - mpi4py optional
     MPI = None
+    logger.warning(f"mpi4py not available: {e}")
 
 
 class LoadBalanceMetrics:

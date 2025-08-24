@@ -28,7 +28,8 @@ import queue
 from typing import Dict, Any, Optional, List
 try:
     import caliper  # Ribbon profiling
-except Exception:  # pragma: no cover - fallback for test environment
+except Exception as e:  # pragma: no cover - fallback for test environment
+    logging.getLogger(__name__).warning("Caliper not available: %s", e)
     from contextlib import contextmanager
 
     @contextmanager

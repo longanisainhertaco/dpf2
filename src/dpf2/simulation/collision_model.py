@@ -159,7 +159,8 @@ class CrossSectionData:
         obj.cross_section = np.array(data.get('cross_section', []))
         try:
             obj.interp = interp1d(obj.energy, obj.cross_section, bounds_error=False, fill_value=0.0)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to construct cross-section interpolation: {e}")
             obj.interp = lambda E: 0.0
         return obj
 
@@ -440,9 +441,14 @@ class CollisionModel(CollisionOperator):
         if rng_state is not None:
             try:
                 np.random.set_state(rng_state)
+
+            except Exception as e:
+                logger.warning(f"Failed to restore RNG state: {e}")
+
             except Exception:
                 # If state is corrupt fall back to a deterministic seed so that
                 # behaviour after restart is still reproducible.
+
                 np.random.seed()
         else:
             # No RNG state stored – reseed to avoid using an uncontrolled
