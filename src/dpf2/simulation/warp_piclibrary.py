@@ -8,7 +8,7 @@ and simulation loop.
 """
 
 import logging
-from typing import Callable, Optional, Dict, Any
+from typing import Callable, Any
 import numpy as np
 
 # Assuming WarpX particle data might be accessible through objects passed here,
@@ -108,8 +108,8 @@ class PICCollisionHandler:
             return
 
         # --- Estimate plasma parameters ---------------------------------------------------
-        n1 = float(np.sum(w1)) if w1 is not None else float(v1.shape[0])
-        n2 = float(np.sum(w2)) if w2 is not None else float(v2.shape[0])
+        n1 = int(np.sum(w1)) if w1 is not None else int(v1.shape[0])
+        n2 = int(np.sum(w2)) if w2 is not None else int(v2.shape[0])
 
         volume = None
         if hasattr(warp_instance, "get_volume"):
@@ -139,7 +139,7 @@ class PICCollisionHandler:
             return
 
         # --- Determine colliding pairs ----------------------------------------------------
-        num_pairs = min(n1, n2)
+        num_pairs = int(min(n1, n2))
         if num_pairs == 0:
             return
         rand = np.random.random(num_pairs)
@@ -185,9 +185,14 @@ class PICCollisionHandler:
         for sp1, sp2 in species_pairs:
             try:
                 if hasattr(warp_instance, "add_collision_operator"):
-                    warp_instance.add_collision_operator(
-                        sp1, sp2, self.collision_freq_func, **self.kwargs
-                    )
+                    try:
+                        warp_instance.add_collision_operator(
+                            sp1, sp2, self.collision_freq_func, self.kwargs
+                        )
+                    except TypeError:
+                        warp_instance.add_collision_operator(
+                            sp1, sp2, self.collision_freq_func, **self.kwargs
+                        )
                 else:
                     import picmi  # type: ignore
 
@@ -199,7 +204,6 @@ class PICCollisionHandler:
                     if hasattr(warp_instance, "add_collision"):
                         warp_instance.add_collision(coll)
                     else:
-                        # Fallback: store collision operator list on instance
                         warp_instance.collisions = getattr(warp_instance, "collisions", [])
                         warp_instance.collisions.append(coll)
             except Exception as e:  # pragma: no cover - logging path
