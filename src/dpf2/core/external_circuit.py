@@ -18,9 +18,29 @@ class ExternalCircuit(CircuitSolverBase):
     inductance: float = 1.0
     current: float = 0.0
 
-    def step(self, current: float, voltage: float, dt: float) -> tuple[float, float]:
-        dI = voltage * dt / max(self.inductance, 1.0e-30)
+    def step(
+        self,
+        current: float,
+        voltage: float,
+        dt: float,
+        plasma_feedback: dict[str, float] | None = None,
+    ) -> tuple[float, float]:
+        """Advance the circuit state by ``dt`` seconds.
+
+        ``plasma_feedback`` may supply the instantaneous plasma inductance and
+        its time derivative via the keys ``"Lp"`` and ``"dLpdt"`` respectively.
+        """
+
+        Lp = 0.0
+        dLpdt = 0.0
+        if plasma_feedback:
+            Lp = plasma_feedback.get("Lp", 0.0)
+            dLpdt = plasma_feedback.get("dLpdt", 0.0)
+
+        Ltot = self.inductance + Lp
+        dI = (voltage - dLpdt * current) * dt / max(Ltot, 1.0e-30)
         self.current = current + dI
+        self.inductance = Ltot
         return self.current, voltage
 
 
