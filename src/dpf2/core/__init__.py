@@ -6,8 +6,10 @@ are no longer re-exported here.
 
 from .config import DPFConfig
 from .simulation import DPFSimulation
+from .external_circuit import ExternalCircuit
 
 __all__ = [
     "DPFConfig",
     "DPFSimulation",
+    "ExternalCircuit",
 ]
