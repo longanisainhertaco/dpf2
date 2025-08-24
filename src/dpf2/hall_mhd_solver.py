@@ -174,7 +174,10 @@ class HallMHDSolver(PlasmaSolverBase):
 
         prim_vars = [rho, v[..., 0], v[..., 1], v[..., 2], B[..., 0], B[..., 1], B[..., 2], p]
         for i in range(3):
-            slopes = [_minmod(var - np.roll(var, 1, axis=i), np.roll(var, -1, axis=i) - var) for var in prim_vars]
+            slopes = [
+                _minmod(var - np.roll(var, 1, axis=i), np.roll(var, -1, axis=i) - var)
+                for var in prim_vars
+            ]
             left_states = [var - 0.5 * s for var, s in zip(prim_vars, slopes)]
             right_states = [
                 np.roll(var, -1, axis=i) + 0.5 * np.roll(s, -1, axis=i)
@@ -222,15 +225,32 @@ class HallMHDSolver(PlasmaSolverBase):
             cs_R = np.sqrt(gamma * p_R / rho_R)
             ca_L = np.sqrt(B2_L / rho_L)
             ca_R = np.sqrt(B2_R / rho_R)
-            a = np.maximum(np.sqrt(cs_L**2 + ca_L**2), np.sqrt(cs_R**2 + ca_R**2))
+            cfast_L = np.sqrt(cs_L**2 + ca_L**2)
+            cfast_R = np.sqrt(cs_R**2 + ca_R**2)
+            SL = np.minimum(v_L[..., i] - cfast_L, v_R[..., i] - cfast_R)
+            SR = np.maximum(v_L[..., i] + cfast_L, v_R[..., i] + cfast_R)
 
-            flux_rho_i = 0.5 * (F_rho_L + F_rho_R) - 0.5 * a * (rho_R - rho_L)
-            flux_energy_i = 0.5 * (F_energy_L + F_energy_R) - 0.5 * a * (energy_R - energy_L)
-            flux_mom_i = 0.5 * (F_mom_L + F_mom_R) - 0.5 * a[..., None] * (mom_R - mom_L)
+            U_L = np.stack((rho_L, mom_L[..., 0], mom_L[..., 1], mom_L[..., 2], energy_L), axis=-1)
+            U_R = np.stack((rho_R, mom_R[..., 0], mom_R[..., 1], mom_R[..., 2], energy_R), axis=-1)
+            F_L = np.stack((F_rho_L, F_mom_L[..., 0], F_mom_L[..., 1], F_mom_L[..., 2], F_energy_L), axis=-1)
+            F_R = np.stack((F_rho_R, F_mom_R[..., 0], F_mom_R[..., 1], F_mom_R[..., 2], F_energy_R), axis=-1)
 
-            flux_rho[i] = flux_rho_i
-            flux_energy[i] = flux_energy_i
-            flux_mom[i] = flux_mom_i
+            denom = SR - SL
+            denom[denom == 0] = 1e-30
+            flux = np.where(
+                (SL[..., None] >= 0),
+                F_L,
+                np.where(
+                    (SR[..., None] <= 0),
+                    F_R,
+                    (SR[..., None] * F_L - SL[..., None] * F_R + SL[..., None] * SR[..., None] * (U_R - U_L))
+                    / denom[..., None],
+                ),
+            )
+
+            flux_rho[i] = flux[..., 0]
+            flux_mom[i] = flux[..., 1:4]
+            flux_energy[i] = flux[..., 4]
 
         for i in range(3):
             rho -= dt * (flux_rho[i] - np.roll(flux_rho[i], 1, axis=i))
@@ -242,7 +262,8 @@ class HallMHDSolver(PlasmaSolverBase):
         J = _curl(B)
         E = -np.cross(v, B) + self.eta * J
         if self.hall_coeff != 0.0:
-            E += self.hall_coeff * np.cross(J, B) / rho[..., None]
+            ne = rho * np.maximum(zbar, 1e-30)
+            E += self.hall_coeff * np.cross(J, B) / ne[..., None]
         B -= dt * _curl(E)
         B = _project_div_free(B)
 
