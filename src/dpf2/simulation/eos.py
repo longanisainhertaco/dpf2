@@ -129,7 +129,13 @@ class TabulatedEOS:
                     base = Path(filename)
                     species_files = {sp: base / f"{sp}.h5" for sp in fractions}
                 elif isinstance(filename, dict):
-                    species_files = {sp: Path(path) for sp, path in filename.items()}
+                    missing = set(fractions) - set(filename)
+                    if missing:
+                        raise ValueError(
+                            "Missing EOS data for species: "
+                            + ", ".join(sorted(missing))
+                        )
+                    species_files = {sp: Path(filename[sp]) for sp in fractions}
                 else:
                     raise TypeError(
                         "filename must be a path or mapping when mixture_fractions are provided"

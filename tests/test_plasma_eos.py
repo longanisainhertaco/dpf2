@@ -55,3 +55,9 @@ def test_tabulated_eos_invalid_mixture(tmp_path):
     _create_species_eos_file(tmp_path, "B")
     with pytest.raises(ValueError):
         TabulatedEOS(str(tmp_path), mixture_fractions="A:0.6,B:0.5")
+
+
+def test_tabulated_eos_missing_species_file(tmp_path):
+    path_a = _create_species_eos_file(tmp_path, "A")
+    with pytest.raises(ValueError, match="Missing EOS data for species"):
+        TabulatedEOS({"A": str(path_a)}, mixture_fractions={"A": 0.5, "B": 0.5})
