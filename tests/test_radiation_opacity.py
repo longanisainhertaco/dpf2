@@ -113,34 +113,39 @@ def test_density_dependent_opacity_Z():
 
 def test_missing_constant_param():
     rm = _make_model("constant", {})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc:
         rm._compute_opacity(Te=0.0, ne=0.0, Z=0.0)
+    assert "constant_opacity" in str(exc.value)
 
 
 def test_missing_temperature_param():
     rm = _make_model("temperature_dependent", {"base": 1.0, "alpha": 0.5})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc:
         rm._compute_opacity(Te=1.0, ne=0.0, Z=0.0)
+    assert "beta" in str(exc.value)
 
 
 def test_missing_density_param():
     rm = _make_model("density_dependent", {"base": 0.1, "alpha": 0.2})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc:
         rm._compute_opacity(Te=0.0, ne=1.0, Z=0.0)
+    assert "ne_exponent" in str(exc.value)
 
 
 def test_missing_density_Z_exponent():
     rm = _make_model(
         "density_dependent", {"base": 0.1, "alpha": 0.2, "use_Z": True}
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc:
         rm._compute_opacity(Te=0.0, ne=0.0, Z=1.0)
+    assert "Z_exponent" in str(exc.value)
 
 
 def test_missing_params_object():
     rm = _make_model("constant", None)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc:
         rm._compute_opacity(Te=0.0, ne=0.0, Z=0.0)
+    assert "dictionary" in str(exc.value)
 
 
 def test_unknown_model():
