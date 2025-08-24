@@ -110,12 +110,12 @@ class Mesh3D:
         a planar mesh onto a curved physical boundary.
         """
 
-        surface = [[0.0 for _ in range(self.ny)] for _ in range(self.nx)]
+        surface = np.zeros((self.nx, self.ny))
         for i in range(self.nx):
             x_c = 0.5 * (self.x[i] + self.x[i + 1])
             for j in range(self.ny):
                 y_c = 0.5 * (self.y[j] + self.y[j + 1])
-                surface[i][j] = func(x_c, y_c)
+                surface[i, j] = func(x_c, y_c)
         return surface
 
     # ------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import numpy as np
 
-from dpf2.mesh import Mesh3D
+from dpf2.mesh import Mesh3D, apply_bc
 
 
 def test_cell_indexing_and_centers():
@@ -45,3 +45,22 @@ def test_metric_calculations():
     assert np.isclose(ax, 0.5)  # dy * dz
     assert np.isclose(ay, 0.5)  # dx * dz
     assert np.isclose(az, 0.25)  # dx * dy
+
+
+def test_periodic_boundary_application():
+    mesh = Mesh3D(0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 2, 1, 1)
+    g = 1
+    field = [
+        [
+            [0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)
+        ]
+        for _ in range(mesh.nx + 2 * g)
+    ]
+    field[g][g][g] = 1.0
+    field[g + 1][g][g] = 2.0
+
+    apply_bc(field, "periodic", axis=0, side="low", ghosts=g)
+    apply_bc(field, "periodic", axis=0, side="high", ghosts=g)
+
+    assert field[0][g][g] == 2.0
+    assert field[-1][g][g] == 1.0
