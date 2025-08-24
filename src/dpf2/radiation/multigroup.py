@@ -55,6 +55,33 @@ class MultiGroupDiffusion:
 
         return np.array([self.c / (3.0 * kappa) for kappa in self.opacities])
 
+    def _limit_flux(self, F: float, left: float, right: float) -> float:
+        """Limit a diffusive flux to the free-streaming value.
+
+        The flux-limiter enforces ``|F| <= 0.5 * c * (E_L + E_R)`` where
+        ``E_L`` and ``E_R`` are the radiation energy densities on either side
+        of the interface.  This mimics a simple flux-limited diffusion model.
+
+        Parameters
+        ----------
+        F:
+            Proposed diffusive flux.
+        left, right:
+            Radiation energy densities on the left and right of the interface.
+
+        Returns
+        -------
+        float
+            The limited flux respecting the free-streaming bound.
+        """
+
+        limit = 0.5 * self.c * (left + right)
+        if F > limit:
+            return limit
+        if F < -limit:
+            return -limit
+        return F
+
     def diffuse(self, dx: float, dt: float) -> List[List[float]]:
         """Advance the radiation energy densities by a diffusion step.
 
@@ -104,11 +131,7 @@ class MultiGroupDiffusion:
             for i in range(cells - 1):
                 grad = (E_new[i + 1] - E_new[i]) / dx
                 F = -D * grad
-                limit = 0.5 * self.c * (E_new[i] + E_new[i + 1])
-                if F > limit:
-                    F = limit
-                elif F < -limit:
-                    F = -limit
+                F = self._limit_flux(F, E_new[i], E_new[i + 1])
                 flux[i + 1] = F
             for i in range(cells):
                 E_new[i] += dt / dx * (flux[i] - flux[i + 1])
