@@ -44,7 +44,7 @@ def test_resource_limit_violation_triggers_simulation_error():
             def __init__(self, *a, **k):
                 pass
         sys.modules['utils'] = types.SimpleNamespace(FieldManager=DummyFieldManager)
-        from Simulation import dpf_simulator_server as server
+        from dpf2.simulation import dpf_simulator_server as server
         from werkzeug.security import generate_password_hash
 
         class DummySimulation:

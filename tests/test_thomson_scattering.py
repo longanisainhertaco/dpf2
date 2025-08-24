@@ -1,24 +1,9 @@
 import numpy as np
 import h5py
 from pathlib import Path
-import importlib.util
-import sys
 
-SIM_DIR = Path(__file__).resolve().parents[1] / "Simulation"
-sys.path.insert(0, str(SIM_DIR))
-
-# Dynamically load modules from the Simulation directory to avoid conflicts
-diag_spec = importlib.util.spec_from_file_location("sim_diag", SIM_DIR / "diagnostics.py")
-diag_module = importlib.util.module_from_spec(diag_spec)
-diag_spec.loader.exec_module(diag_module)
-
-utils_spec = importlib.util.spec_from_file_location("sim_utils", SIM_DIR / "utils.py")
-utils_module = importlib.util.module_from_spec(utils_spec)
-utils_spec.loader.exec_module(utils_module)
-
-ThomsonScattering = diag_module.ThomsonScattering
-FieldManager = utils_module.FieldManager
-SimulationState = utils_module.SimulationState
+from dpf2.simulation.diagnostics import ThomsonScattering
+from dpf2.simulation.utils import FieldManager, SimulationState
 
 
 def make_state(ne, Te):

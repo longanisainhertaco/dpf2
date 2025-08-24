@@ -1,15 +1,9 @@
-import os
-import sys
 import numpy as np
 import pytest
 from dataclasses import dataclass
 
-
-# Make Simulation modules importable
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "Simulation"))
-
-from turbulence_model import TurbulenceModel
-from utils import SimulationState
+from dpf2.simulation.turbulence_model import TurbulenceModel
+from dpf2.simulation.utils import SimulationState
 
 
 @dataclass

@@ -1,4 +1,4 @@
-from Simulation.load_balance_metrics import LoadBalanceMetrics
+from dpf2.simulation.load_balance_metrics import LoadBalanceMetrics
 
 
 class DummySolver:
