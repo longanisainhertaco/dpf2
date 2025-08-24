@@ -93,10 +93,12 @@ class RateTable:
 class RateEquations:
     """Simple multi-species collisional–radiative model.
 
-    The solver tracks the population ``n[i]`` of each charge state ``i``.
-    A single set of ionisation and recombination coefficients is applied
-    between adjacent charge states which suffices for the lightweight
-    chemistry regression tests.
+    The solver tracks the population ``n[i]`` of each charge state ``i``
+    starting with the neutral at ``i=0``.  A single set of ionisation and
+    recombination coefficients is applied between adjacent charge states
+    which suffices for the lightweight chemistry regression tests.  Source
+    terms may be supplied for each level to model processes such as neutral
+    influx from wall ablation.
     """
 
     def __init__(self, rates: RateTable, levels: int = 2):
@@ -140,10 +142,33 @@ class RateEquations:
 
         return dn
 
-    def step(self, n: list[float], T: float, dt: float) -> list[float]:
-        """Advance populations ``n`` by a single explicit Euler step."""
+    def step(
+        self,
+        n: list[float],
+        T: float,
+        dt: float,
+        sources: list[float] | None = None,
+    ) -> list[float]:
+        """Advance populations ``n`` by a single explicit Euler step.
+
+        Parameters
+        ----------
+        n:
+            Populations for each charge state starting from the neutral
+            species.
+        T:
+            Electron temperature in eV.
+        dt:
+            Time step in seconds.
+        sources:
+            Optional source term for each charge state expressed as a rate of
+            change in population (``dn/dt``).  This allows injection of
+            neutrals from wall ablation or other external mechanisms.
+        """
 
         dn = self.rhs(n, T)
+        if sources is not None:
+            dn = [dni + src for dni, src in zip(dn, sources)]
         return [ni + dt * dni for ni, dni in zip(n, dn)]
 
 class MultiSpeciesTransport:

@@ -30,7 +30,8 @@ class _FakeFile:
     def __exit__(self, exc_type, exc, tb):
         if 'w' in self.mode or 'a' in self.mode:
             with open(self.path, 'wb') as fh:
-                pickle.dump(self._data, fh)
+                cleaned = {k: getattr(v, 'data', v) for k, v in self._data.items()}
+                pickle.dump(cleaned, fh)
 
     def create_dataset(self, name, data):
         self._data[name] = np.array(data)

@@ -28,11 +28,20 @@ except ModuleNotFoundError:  # pragma: no cover
     def root_scalar(*args, **kwargs):  # type: ignore[misc]
         raise ModuleNotFoundError("SciPy is required for root finding")
 
-from ..core_schema import EOSModel
+try:
+    from ..core_schema import EOSModel
+except Exception:  # pragma: no cover - minimal fallback without pydantic
+    from enum import Enum
+
+    class EOSModel(str, Enum):
+        IDEAL = "ideal"
+        TABULATED = "tabulated"
+        REAL_GAS = "real_gas"
 
 try:  # pragma: no cover - fallback when simulation EOS is unavailable
     from dpf2.simulation.eos import TabulatedEOS as _SimulationTabulatedEOS
 except Exception:  # pragma: no cover
+    import json
     try:
         import h5py  # type: ignore
     except ModuleNotFoundError:  # pragma: no cover
@@ -41,21 +50,39 @@ except Exception:  # pragma: no cover
     class _SimulationTabulatedEOS:  # type: ignore[misc]
         def __init__(self, filename, mixture_fractions=None):
             import numpy as np
-            if h5py is None:
-                raise ModuleNotFoundError("h5py is required for tabulated EOS")
 
             def load(path):
+                path = Path(path)
+                if path.suffix == ".json":
+                    with open(path, "r", encoding="utf8") as f:
+                        data = json.load(f)
+                    return (
+                        np.array(data["rho"]),
+                        np.array(data["T"]),
+                        np.array(data["p"]),
+                        np.array(data["e"]),
+                    )
+                if h5py is None:
+                    raise ModuleNotFoundError("h5py is required for tabulated EOS")
                 with h5py.File(path, "r") as f:
                     return f["rho"][:], f["T"][:], f["p"][:], f["e"][:]
 
             if mixture_fractions:
                 if isinstance(filename, (str, Path)):
                     base = Path(filename)
-                    files = {sp: base / f"{sp}.h5" for sp in mixture_fractions}
+                    files = {}
+                    for sp in mixture_fractions:
+                        cand = base / f"{sp}.json"
+                        if not cand.exists():
+                            cand = base / f"{sp}.h5"
+                        files[sp] = cand
                 else:
                     files = {sp: Path(filename[sp]) for sp in mixture_fractions}
                 for i, (sp, path) in enumerate(files.items()):
-                    rho, T, p, e = load(path)
+                    try:
+                        rho, T, p, e = load(path)
+                    except (FileNotFoundError, KeyError):
+                        raise ValueError(f"Missing EOS data for species {sp}") from None
                     w = mixture_fractions[sp]
                     if i == 0:
                         self.rho_grid, self.T_grid = rho, T
@@ -121,6 +148,26 @@ class TabulatedEOS:
         duplication.  The table must contain ``rho`` and ``T`` axes and
         datasets ``p`` (pressure) and ``e`` (specific internal energy).
         """
+
+        if mixture_fractions is not None:
+            if isinstance(mixture_fractions, str):
+                parts = [p.split(":") for p in mixture_fractions.split(",") if p]
+                mixture_fractions = {sp: float(frac) for sp, frac in parts}
+            if any(v < 0.0 for v in mixture_fractions.values()):
+                raise ValueError("Mixture fractions must be non-negative")
+            total = sum(mixture_fractions.values())
+            if not np.isclose(total, 1.0):
+                raise ValueError("Mixture fractions must sum to one")
+            # Ensure all required species tables exist before loading
+            if isinstance(filename, (str, Path)):
+                base = Path(filename)
+                for sp in mixture_fractions:
+                    if not (base / f"{sp}.json").exists() and not (base / f"{sp}.h5").exists():
+                        raise ValueError(f"Missing EOS data for species {sp}")
+            else:
+                for sp, sp_path in filename.items():
+                    if not Path(sp_path).exists():
+                        raise ValueError(f"Missing EOS data for species {sp}")
 
         self._impl = _SimulationTabulatedEOS(
             filename, mixture_fractions=mixture_fractions
