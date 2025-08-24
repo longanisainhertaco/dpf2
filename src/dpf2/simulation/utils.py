@@ -184,8 +184,18 @@ class FieldManager:
             bc = self.boundary_conditions.get(bc_key, 'periodic')
             side = 'lo' if bc_key.endswith('lo') else 'hi'
             if bc == 'periodic':
-                # Periodic boundary conditions
-                field = np.roll(field, shift=g, axis=axis)
+                # Periodic boundary conditions: copy opposite interior values into
+                # ghost cells without shifting the interior.  This maintains the
+                # original field orientation while wrapping boundary data.
+                if axis == 0:
+                    field[:g, :, :] = field[-2 * g:-g, :, :]
+                    field[-g:, :, :] = field[g:2 * g, :, :]
+                elif axis == 1:
+                    field[:, :g, :] = field[:, -2 * g:-g, :]
+                    field[:, -g:, :] = field[:, g:2 * g, :]
+                elif axis == 2:
+                    field[:, :, :g] = field[:, :, -2 * g:-g]
+                    field[:, :, -g:] = field[:, :, g:2 * g]
             elif bc == 'neumann':
                 # Neumann (zero-gradient) boundary conditions
                 if axis == 0:
@@ -262,9 +272,18 @@ class FieldManager:
                         zero_sl = slice(thickness, g) if side == 'lo' else slice(-g, -thickness)
                         field[:, :, zero_sl] = 0.0
             else:
-                logger.warning(f"Unknown boundary condition: {bc} - defaulting to periodic.")
-                field = np.roll(field, shift=g, axis=axis)
-            return field
+                logger.warning(
+                    f"Unknown boundary condition: {bc} - defaulting to periodic."
+                )
+                if axis == 0:
+                    field[:g, :, :] = field[-2 * g:-g, :, :]
+                    field[-g:, :, :] = field[g:2 * g, :, :]
+                elif axis == 1:
+                    field[:, :g, :] = field[:, -2 * g:-g, :]
+                    field[:, -g:, :] = field[:, g:2 * g, :]
+                elif axis == 2:
+                    field[:, :, :g] = field[:, :, -2 * g:-g]
+                    field[:, :, -g:] = field[:, :, g:2 * g]
 
         # Apply boundary conditions to each field component in-place without
         # creating temporary stacked arrays.  This ensures that ``E``, ``B`` and
