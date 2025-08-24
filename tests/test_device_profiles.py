@@ -38,7 +38,7 @@ def test_yaml_round_trip_and_summary_output(tmp_path):
     yaml.safe_dump({"deviceProfiles": cfg.model_dump(by_alias=True)}, open(yaml_path, "w"))
     loaded = yaml.safe_load(open(yaml_path))
     cfg2 = DeviceProfiles.model_validate(loaded["deviceProfiles"])
-    assert cfg2.devices["PF1000"].anode_radius_cm == cfg.devices["PF1000"].anode_radius_cm
+    assert cfg2.model_dump(by_alias=True) == cfg.model_dump(by_alias=True)
     summary = cfg.summarize()
     assert "Devices:" in summary and "PF1000" in summary
 
