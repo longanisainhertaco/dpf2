@@ -1,6 +1,6 @@
 import numpy as np
 from circuit_config import CircuitConfig
-from rlc_solver import run_circuit_simulation
+from dpf2.circuit_solver import run_circuit_simulation
 
 
 def test_rlc_solver_runs():
