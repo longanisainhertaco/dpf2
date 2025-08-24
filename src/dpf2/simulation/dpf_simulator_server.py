@@ -265,7 +265,8 @@ def _validate_sim_parameters(params):
         ):
             raise ValueError
         return dx, sim_time, tuple(grid_shape)
-    except Exception:
+    except Exception as e:
+        logger.warning("Invalid simulation parameters: %s", e)
         abort(400, description="Invalid simulation parameters (dx, sim_time, grid_shape)")
 
 # ——— API Endpoints ———

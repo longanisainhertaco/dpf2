@@ -1,6 +1,8 @@
 import types
 import sys
 import importlib
+import importlib.util
+from pathlib import Path
 import logging
 
 import pytest
@@ -22,7 +24,19 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
     mpi_stub.MPI = types.SimpleNamespace(COMM_WORLD=None)
     monkeypatch.setitem(sys.modules, "mpi4py", mpi_stub)
 
+    pydantic_stub = types.ModuleType("pydantic")
+    pd_dataclasses = types.ModuleType("pydantic.dataclasses")
+    import dataclasses
+    pd_dataclasses.dataclass = dataclasses.dataclass
+    pydantic_stub.dataclasses = pd_dataclasses
+    monkeypatch.setitem(sys.modules, "pydantic", pydantic_stub)
+    monkeypatch.setitem(sys.modules, "pydantic.dataclasses", pd_dataclasses)
+
     # Stub internal modules referenced during import
+    package_stub = types.ModuleType("dpf2")
+    package_stub.__path__ = []
+    monkeypatch.setitem(sys.modules, "dpf2", package_stub)
+
     modules = {
         "module_registry": ["ModuleRegistry"],
         "fluid_solver_high_order": ["FluidSolverHighOrder"],
@@ -40,6 +54,8 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
         for attr in attrs:
             setattr(mod, attr, type(attr, (), {}))
         monkeypatch.setitem(sys.modules, name, mod)
+        monkeypatch.setitem(sys.modules, f"dpf2.{name}", mod)
+        setattr(package_stub, name, mod)
 
     # Minimal config schema stubs
     config_mod = types.ModuleType("config_schema")
@@ -52,8 +68,11 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
     config_mod.SheathConfig = SheathConfig
     monkeypatch.setitem(sys.modules, "config_schema", config_mod)
 
-    # Import module under test
-    sim_mod = importlib.import_module("dpf2.simulation.dpf_simulator_full_backend")
+    # Import module under test without package dependencies
+    module_path = Path(__file__).resolve().parent.parent / "src/dpf2/simulation/dpf_simulator_full_backend.py"
+    spec = importlib.util.spec_from_file_location("sim_mod", module_path)
+    sim_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sim_mod)
 
     with caplog.at_level(logging.WARNING):
         with pytest.raises(sim_mod.SimulationRuntimeError):
