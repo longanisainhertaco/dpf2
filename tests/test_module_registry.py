@@ -1,6 +1,6 @@
 import pytest
 
-from Simulation.module_registry import ModuleRegistry
+from dpf2.simulation.module_registry import ModuleRegistry
 
 
 class NotPhysics:

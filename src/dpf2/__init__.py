@@ -9,6 +9,14 @@ from .core import (
 )
 from .ai import SurrogateModel, TorchSurrogateModel, ONNXSurrogateModel
 
+from .version import __version__
+
+from .circuit_solver import RLCCircuit, CircuitSolver
+from .pinch_models import AnalyticPinchModel, SemiAnalyticPinchModel
+from .simulation_engine import SimulationEngine
+from .hall_mhd_solver import HallMHDSolver, MHDState
+
+
 __all__ = [
     "DPFConfig",
     "DPFSimulation",
@@ -18,4 +26,15 @@ __all__ = [
     "SurrogateModel",
     "TorchSurrogateModel",
     "ONNXSurrogateModel",
+
+    "__version__",
+
+    "RLCCircuit",
+    "CircuitSolver",
+    "AnalyticPinchModel",
+    "SemiAnalyticPinchModel",
+    "SimulationEngine",
+    "HallMHDSolver",
+    "MHDState",
+
 ]

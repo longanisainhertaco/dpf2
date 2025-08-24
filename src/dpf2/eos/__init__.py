@@ -16,7 +16,7 @@ import h5py
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
-from ..core_schema import EOSModel
+from core_schema import EOSModel
 
 __all__ = [
     "EOSBase",

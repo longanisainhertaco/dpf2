@@ -4,10 +4,30 @@ A minimal Dense Plasma Focus (DPF) simulator implemented in Python.  This
 project provides a command line interface and simple models for the
 external circuit and pinch dynamics.
 
+## Documentation
+
+User guides and API references are available in the [docs/](docs/user_manual.md)
+directory.  The manual covers installation, configuration files, CLI usage,
+and extension points, while the [API reference](docs/api.md) is generated from
+the package source code.
+
 ## Installation
 
 ```bash
 pip install -e .
+```
+
+Optional extras can be installed to enable additional features:
+
+```bash
+# Install with Flask-based server support
+pip install -e .[server]
+
+# Install with WarpX accelerator support
+pip install -e .[warpx]
+
+# Install all optional features
+pip install -e .[server,warpx]
 ```
 
 ## Quickstart
@@ -16,6 +36,16 @@ Run a simulation using the default configuration:
 
 ```bash
 dpf2 simulate config.json -o results.json
+```
+
+Or run a simulation programmatically:
+
+```python
+from dpf2 import DPFConfig, DPFSimulation
+
+config = DPFConfig()
+simulation = DPFSimulation(config)
+result = simulation.run()
 ```
 
 Configuration files use the `DPFConfig` schema defined in this repository.

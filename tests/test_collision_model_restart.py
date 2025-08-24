@@ -12,6 +12,7 @@ def collision_model_classes(monkeypatch):
     monkeypatch.setitem(sys.modules, "numpy", types.SimpleNamespace())
     monkeypatch.setitem(sys.modules, "h5py", types.SimpleNamespace(File=_raise))
 
+
     interp_stub = types.SimpleNamespace(
         interp1d=lambda *a, **k: (lambda x: 0.0),
         RegularGridInterpolator=lambda *a, **k: (lambda x: 0.0),
@@ -32,8 +33,39 @@ def collision_model_classes(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "models", models_stub)
 
+
+    interp_stub = types.SimpleNamespace(
+        interp1d=lambda *a, **k: (lambda x: 0.0),
+        RegularGridInterpolator=lambda *a, **k: (lambda x: 0.0),
+    )
+    monkeypatch.setitem(sys.modules, "scipy", types.SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "scipy.interpolate", interp_stub)
+
+    numba_stub = types.SimpleNamespace(
+        njit=lambda f=None, *a, **k: (lambda *args, **kwargs: f(*args, **kwargs) if f else None),
+        prange=range,
+        cuda=types.SimpleNamespace(),
+    )
+    monkeypatch.setitem(sys.modules, "numba", numba_stub)
+
+
+    models_stub = types.SimpleNamespace(
+        PhysicsModule=object,
+        SimulationState=object,
+    )
+    monkeypatch.setitem(sys.modules, "models", models_stub)
+
+from dpf2.simulation.collision_model import CollisionModel, CrossSectionData
+
+
     from Simulation.collision_model import CollisionModel, CrossSectionData
     return CollisionModel, CrossSectionData
+
+
+
+    from Simulation.collision_model import CollisionModel, CrossSectionData
+    return CollisionModel, CrossSectionData
+
 
 
 def test_checkpoint_restart_roundtrip(collision_model_classes):

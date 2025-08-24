@@ -2,3 +2,8 @@ numpy
 scipy
 pydantic
 matplotlib
+flask
+h5py
+numba
+sympy
+werkzeug
