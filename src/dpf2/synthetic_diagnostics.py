@@ -33,8 +33,8 @@ if not hasattr(BaseModel, "model_dump_json"):
 if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
-from core_schema import ConfigSectionBase, to_camel_case
-from units_settings import UnitsSettings
+from .core_schema import ConfigSectionBase, to_camel_case
+from .units_settings import UnitsSettings
 
 
 class SyntheticInstrument(BaseModel):

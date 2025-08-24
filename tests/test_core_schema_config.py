@@ -1,9 +1,9 @@
 import json
 import pytest
 
-from core_schema import DPFConfig, GeometryType, ModeType
-from simulation_settings import SimulationSettings
-from grid_resolution import GridResolution
+from dpf2.core_schema import DPFConfig, GeometryType, ModeType
+from dpf2.simulation_settings import SimulationSettings
+from dpf2.grid_resolution import GridResolution
 
 
 def test_defaults_create_section_models():

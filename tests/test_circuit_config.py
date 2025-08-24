@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from circuit_config import CircuitConfig
+from dpf2.circuit_config import CircuitConfig
 
 
 def test_waveform_path_validation_allows_uri():

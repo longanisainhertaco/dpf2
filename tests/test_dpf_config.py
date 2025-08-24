@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import pytest
 
-from dpf_config import DPFConfig
+from dpf2.dpf_config import DPFConfig
 
 try:
     import yaml  # type: ignore

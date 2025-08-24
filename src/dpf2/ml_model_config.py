@@ -37,10 +37,10 @@ if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
 # Local imports ---------------------------------------------------------------
-from core_schema import ConfigSectionBase, to_camel_case
-from metadata import Metadata  # noqa: F401 - used for integration hints
-from postprocessing_settings import PostprocessingSettings  # noqa: F401
-from validation_suite import ValidationSuite  # noqa: F401
+from .core_schema import ConfigSectionBase, to_camel_case
+from .metadata import Metadata  # noqa: F401 - used for integration hints
+from .postprocessing_settings import PostprocessingSettings  # noqa: F401
+from .validation_suite import ValidationSuite  # noqa: F401
 
 
 class MLModelConfig(ConfigSectionBase):

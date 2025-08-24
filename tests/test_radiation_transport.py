@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import pytest
 
-from radiation_transport import RadiationTransport
+from dpf2.radiation_transport import RadiationTransport
 
 try:
     import yaml  # type: ignore

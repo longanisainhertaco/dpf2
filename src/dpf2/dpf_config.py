@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Literal, Union
 from pydantic import BaseModel, Field, validator, root_validator
-from metadata import Metadata
-from experimental_variability import ExperimentalVariabilityModel
-from grid_resolution import GridResolution
+from .metadata import Metadata
+from .experimental_variability import ExperimentalVariabilityModel
+from .grid_resolution import GridResolution
 
 def model_validator(*, mode: str = "after"):
     """Compatibility helper mirroring pydantic.v2 model_validator."""

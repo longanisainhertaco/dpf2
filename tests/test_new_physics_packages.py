@@ -5,7 +5,7 @@ from dpf2.eos import TabulatedEOS, create_eos
 from dpf2.chemistry import FlychkTable
 from dpf2.radiation import BremsstrahlungModel, MonteCarloRadiation
 from dpf2.hall_mhd_solver import HallMHDSolver, MHDState
-from core_schema import EOSModel
+from dpf2.core_schema import EOSModel
 
 
 def _make_test_table(path):

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, root_validator
-from units_settings import UnitsSettings
+from .units_settings import UnitsSettings
 
 
 def model_validator(*, mode: str = "after"):
@@ -44,7 +44,7 @@ if not hasattr(BaseModel, "model_dump_json"):
 if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
-from core_schema import ConfigSectionBase, to_camel_case
+from .core_schema import ConfigSectionBase, to_camel_case
 
 
 class MLMetadata(BaseModel):

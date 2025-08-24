@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 import pytest
 
-from physics_models import PhysicsModels
-from core_schema import (
+from dpf2.physics_models import PhysicsModels
+from dpf2.core_schema import (
     EOSModel,
     ResistivityModel,
     IonizationModel,

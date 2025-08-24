@@ -1,6 +1,6 @@
 import warnings
 import pytest
-from device_profiles import DeviceProfiles
+from dpf2.device_profiles import DeviceProfiles
 
 try:
     import yaml  # type: ignore

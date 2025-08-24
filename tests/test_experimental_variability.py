@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from experimental_variability import ExperimentalVariabilityModel
+from dpf2.experimental_variability import ExperimentalVariabilityModel
 
 
 def test_invalid_jitter_values():

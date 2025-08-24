@@ -6,7 +6,7 @@ try:
 except Exception:
     YAML_AVAILABLE = False
 
-from metadata import Metadata
+from dpf2.metadata import Metadata
 
 
 def test_surrogate_model_requires_metadata():

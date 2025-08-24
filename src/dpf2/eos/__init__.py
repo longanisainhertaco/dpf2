@@ -18,7 +18,7 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from scipy.optimize import root_scalar
 
-from core_schema import EOSModel
+from ..core_schema import EOSModel
 from dpf2.simulation.eos import TabulatedEOS as _SimulationTabulatedEOS
 
 __all__ = ["EOSBase", "IdealGasEOS", "TabulatedEOS", "RealGasEOS", "create_eos"]

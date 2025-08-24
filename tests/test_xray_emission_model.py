@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import pytest
 
-from xray_emission_model import XrayEmissionModel
+from dpf2.xray_emission_model import XrayEmissionModel
 
 try:
     import yaml  # type: ignore

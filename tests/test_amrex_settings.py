@@ -1,4 +1,4 @@
-from amrex_settings import AmrexSettings, ElectrodeGeometry
+from dpf2.amrex_settings import AmrexSettings, ElectrodeGeometry
 import pytest
 
 

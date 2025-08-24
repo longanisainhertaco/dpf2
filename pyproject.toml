@@ -28,6 +28,9 @@ warpx = [
     "pywarpx",
     "amrex_solver"
 ]
+telemetry = [
+    "opencensus"
+]
 
 [project.scripts]
 dpf2 = "dpf2.cli.main:main"

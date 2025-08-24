@@ -45,8 +45,8 @@ if not hasattr(BaseModel, "model_copy"):
 
 
 # Local imports ---------------------------------------------------------------
-from core_schema import ConfigSectionBase, to_camel_case
-from units_settings import UnitsSettings
+from .core_schema import ConfigSectionBase, to_camel_case
+from .units_settings import UnitsSettings
 
 
 # ---------------------------------------------------------------------------

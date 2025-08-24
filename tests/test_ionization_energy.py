@@ -7,7 +7,7 @@ spec = importlib.util.spec_from_file_location(
 ionization = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ionization)  # type: ignore[attr-defined]
 
-from physics_models import PhysicsModels
+from dpf2.physics_models import PhysicsModels
 
 
 def test_equilibrium_root_solver():
