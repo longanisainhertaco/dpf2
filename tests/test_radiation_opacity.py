@@ -4,7 +4,7 @@ import pytest
 
 # Provide a minimal numpy stub for the methods used in these tests
 np_stub = types.SimpleNamespace(
-    array=lambda x: x,
+    array=lambda x, dtype=None: x,
     power=lambda a, b: a ** b,
     allclose=lambda a, b, rtol=1e-5, atol=1e-8: abs(a - b) <= (atol + rtol * abs(b)),
     pi=3.141592653589793,
@@ -80,6 +80,7 @@ def _make_model(model, params):
 def test_constant_opacity():
     rm = _make_model("constant", {"constant_opacity": 2.5})
     out = rm._compute_opacity(Te=0.0, ne=0.0, Z=0.0)
+    assert isinstance(out, (int, float))
     assert np.allclose(out, np.array(2.5))
 
 
@@ -88,6 +89,7 @@ def test_temperature_dependent_opacity():
     Te = 3.0
     expected = 1.0 + 0.5 * Te ** 2.0
     out = rm._compute_opacity(Te=Te, ne=0.0, Z=0.0)
+    assert isinstance(out, (int, float))
     assert np.allclose(out, expected)
 
 
@@ -96,6 +98,7 @@ def test_density_dependent_opacity_ne():
     ne = 4.0
     expected = 0.1 + 0.2 * ne ** 1.5
     out = rm._compute_opacity(Te=0.0, ne=ne, Z=0.0)
+    assert isinstance(out, (int, float))
     assert np.allclose(out, expected)
 
 
@@ -104,6 +107,7 @@ def test_density_dependent_opacity_Z():
     Z = 5.0
     expected = 0.0 + 0.3 * Z ** 2.0
     out = rm._compute_opacity(Te=0.0, ne=0.0, Z=Z)
+    assert isinstance(out, (int, float))
     assert np.allclose(out, expected)
 
 

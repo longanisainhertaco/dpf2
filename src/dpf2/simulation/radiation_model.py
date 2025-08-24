@@ -300,55 +300,37 @@ class RadiationModel(PhysicsModule):
         model = self.opacity_model
         params = self.opacity_params
 
-        # Ensure parameters are provided in dictionary form
+        # Opacity parameters must be provided as a dictionary; this keeps the
+        # function generic and easy to extend with new models later on.
         if not isinstance(params, dict):
             raise ValueError("opacity_params must be provided as a dictionary")
 
-        if model == "constant":
-            # Constant opacity provided directly in the parameters.
-            if "constant_opacity" not in params:
-                raise ValueError("'constant_opacity' parameter required for constant opacity model")
-            return np.array(params["constant_opacity"])
+        try:
+            if model == "constant":
+                # A fixed opacity supplied directly in the parameters.
+                return np.array(params["constant_opacity"], dtype=float)
 
-        if model == "temperature_dependent":
-            # κ = base + α * Te^β
-            required = {"base", "alpha", "beta"}
-            missing = required.difference(params)
-            if missing:
-                raise ValueError(
-                    "Missing opacity parameter for temperature_dependent model: "
-                    + ", ".join(sorted(missing))
-                )
+            elif model == "temperature_dependent":
+                # κ = base + α * Te^β
+                base = params["base"]
+                alpha = params["alpha"]
+                beta = params["beta"]
+                return np.array(base + alpha * Te ** beta, dtype=float)
 
-            base = params["base"]
-            alpha = params["alpha"]
-            beta = params["beta"]
-            return np.array(base + alpha * np.power(Te, beta))
-
-        if model == "density_dependent":
-            # κ = base + α * quantity^exp where quantity is ne or Z
-            required = {"base", "alpha"}
-            missing = required.difference(params)
-            if missing:
-                raise ValueError(
-                    "Missing opacity parameter for density_dependent model: "
-                    + ", ".join(sorted(missing))
-                )
-
-            base = params["base"]
-            alpha = params["alpha"]
-            use_Z = params.get("use_Z", False)
-            if use_Z:
-                if "Z_exponent" not in params:
-                    raise ValueError("'Z_exponent' parameter required when use_Z is True")
-                exponent = params["Z_exponent"]
-                quantity = Z
-            else:
-                if "ne_exponent" not in params:
-                    raise ValueError("'ne_exponent' parameter required when use_Z is False")
-                exponent = params["ne_exponent"]
-                quantity = ne
-            return np.array(base + alpha * np.power(quantity, exponent))
+            elif model == "density_dependent":
+                # κ = base + α * quantity^exp where quantity is ne or Z
+                base = params["base"]
+                alpha = params["alpha"]
+                if params.get("use_Z", False):
+                    exponent = params["Z_exponent"]
+                    quantity = Z
+                else:
+                    exponent = params["ne_exponent"]
+                    quantity = ne
+                return np.array(base + alpha * quantity ** exponent, dtype=float)
+        except KeyError as exc:
+            # Provide a clear error message if any required parameter is missing
+            raise ValueError(f"Missing opacity parameter: {exc.args[0]}") from exc
 
         raise ValueError(f"Unknown opacity model: {model}")
 
