@@ -140,3 +140,12 @@ def test_resistive_mhd_balances_loss_and_gain():
     fluid_loss = sum(b - cell[4] for b, cell in zip(fluid_before, U))
     rad_gain = sum(sum(g_new) - sum(g_old) for g_old, g_new in zip(rad_before, rad.energy))
     assert math.isclose(fluid_loss, rad_gain)
+
+
+def test_flux_limiter_caps_flux():
+    rad = MultiGroupDiffusion(opacities=[1.0], c=1.0)
+    # Proposed flux greatly exceeds free-streaming limit of 1.0
+    limited = rad._limit_flux(10.0, 1.0, 1.0)
+    assert math.isclose(limited, 1.0)
+    limited = rad._limit_flux(-10.0, 1.0, 1.0)
+    assert math.isclose(limited, -1.0)

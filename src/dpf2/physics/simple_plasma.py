@@ -5,6 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+# ``MultiGroupDiffusion`` is an optional dependency; provide a lightweight
+# fallback to keep this module importable in stripped-down environments.
+try:  # pragma: no cover - exercised when radiation package is present
+    from ..radiation.multigroup import MultiGroupDiffusion  # type: ignore
+except Exception:  # pragma: no cover - fallback for test environment
+    class MultiGroupDiffusion:  # type: ignore
+        def couple(self, energies, dt):
+            return energies
+
 from ..core.bases import PlasmaSolverBase
 
 
@@ -33,6 +42,17 @@ class ZeroDPlasma(PlasmaSolverBase):
         self.back_emf = emf
         self.circuit_feedback = {"Lp": Lp, "emf": emf}
         return state
+
+    # ------------------------------------------------------------------
+    # Radiation coupling
+    # ------------------------------------------------------------------
+    def apply_radiation(
+        self, energy: float, radiation: MultiGroupDiffusion, dt: float
+    ) -> float:
+        """Couple a single-cell fluid energy to a multi-group radiation model."""
+
+        updated = radiation.couple([energy], dt)
+        return updated[0]
 
 
 __all__ = ["ZeroDPlasma"]

@@ -298,6 +298,13 @@ class RadiationSettings(ConfigSectionBase):
                     f"material_opacities for {mat} must match group_count"
                 )
         return values
+
+    def opacity_for(self, material: str | None = None) -> List[float]:
+        """Return opacities for ``material`` or default group values."""
+
+        if material and material in self.material_opacities:
+            return self.material_opacities[material]
+        return self.group_opacities
 # ---------------------------------------------------------------------------
 # Root configuration model
 
