@@ -300,6 +300,10 @@ class RadiationModel(PhysicsModule):
         model = self.opacity_model
         params = self.opacity_params
 
+        # Ensure parameters are provided in dictionary form
+        if not isinstance(params, dict):
+            raise ValueError("opacity_params must be provided as a dictionary")
+
         if model == "constant":
             # Constant opacity provided directly in the parameters.
             if "constant_opacity" not in params:

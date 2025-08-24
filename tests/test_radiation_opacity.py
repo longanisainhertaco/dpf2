@@ -25,6 +25,9 @@ scipy_interp = types.ModuleType("scipy.interpolate")
 scipy_interp.RegularGridInterpolator = lambda *a, **k: None
 sys.modules.setdefault("scipy", types.ModuleType("scipy"))
 sys.modules.setdefault("scipy.interpolate", scipy_interp)
+scipy_integrate = types.ModuleType("scipy.integrate")
+scipy_integrate.solve_ivp = lambda *a, **k: None
+sys.modules.setdefault("scipy.integrate", scipy_integrate)
 models_stub = types.ModuleType("models")
 models_stub.PhysicsModule = object
 models_stub.SimulationState = object
@@ -33,7 +36,38 @@ config_stub = types.ModuleType("config_schema")
 config_stub.RadiationConfig = object
 sys.modules.setdefault("config_schema", config_stub)
 
-from dpf2.simulation.radiation_model import RadiationModel
+# Minimal pydantic stub to satisfy package imports
+pydantic_stub = types.ModuleType("pydantic")
+pydantic_stub.BaseModel = object
+pydantic_stub.ConfigDict = dict
+pydantic_stub.Field = lambda default=None, **kwargs: default
+pydantic_stub.root_validator = lambda *a, **k: (lambda f: f)
+sys.modules.setdefault("pydantic", pydantic_stub)
+
+pydantic_dc_stub = types.ModuleType("pydantic.dataclasses")
+def _dc_decorator(cls=None, **kwargs):
+    if cls is None:
+        return lambda c: c
+    return cls
+pydantic_dc_stub.dataclass = _dc_decorator
+sys.modules.setdefault("pydantic.dataclasses", pydantic_dc_stub)
+
+# Import RadiationModel directly without triggering package-level side effects
+import importlib.util, pathlib
+
+dpf2_stub = types.ModuleType("dpf2")
+sim_stub = types.ModuleType("dpf2.simulation")
+dpf2_stub.simulation = sim_stub
+sys.modules.setdefault("dpf2", dpf2_stub)
+sys.modules.setdefault("dpf2.simulation", sim_stub)
+
+rm_path = pathlib.Path(__file__).resolve().parents[1] / "src" / "dpf2" / "simulation" / "radiation_model.py"
+spec = importlib.util.spec_from_file_location("dpf2.simulation.radiation_model", rm_path)
+rad_mod = importlib.util.module_from_spec(spec)
+sys.modules["dpf2.simulation.radiation_model"] = rad_mod
+spec.loader.exec_module(rad_mod)
+
+RadiationModel = rad_mod.RadiationModel
 
 
 def _make_model(model, params):
@@ -89,6 +123,12 @@ def test_missing_density_param():
     rm = _make_model("density_dependent", {"base": 0.1, "alpha": 0.2})
     with pytest.raises(ValueError):
         rm._compute_opacity(Te=0.0, ne=1.0, Z=0.0)
+
+
+def test_missing_params_object():
+    rm = _make_model("constant", None)
+    with pytest.raises(ValueError):
+        rm._compute_opacity(Te=0.0, ne=0.0, Z=0.0)
 
 
 def test_unknown_model():
