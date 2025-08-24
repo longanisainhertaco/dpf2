@@ -1,0 +1,13 @@
+{
+  "circuit": {
+    "L_ext": 1e-6,
+    "R_ext": 0.0,
+    "C_ext": 1e-6,
+    "V0": 20000.0,
+    "switch_delay": 0.0,
+    "switching_model": "ideal",
+    "trigger_jitter_stddev": 0.0,
+    "enable_field_triggered_switch_closure": false,
+    "abort_on_no_current": false
+  }
+}
