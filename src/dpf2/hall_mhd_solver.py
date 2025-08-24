@@ -203,6 +203,7 @@ class HallMHDSolver(PlasmaSolverBase):
     current: float = 0.0
     inductance: float = 0.0
     back_emf: float = 0.0
+    circuit_feedback: dict[str, float] | None = field(init=False, default=None)
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
@@ -236,6 +237,7 @@ class HallMHDSolver(PlasmaSolverBase):
         """
 
         self.apply_boundary_conditions(state)
+        self.current = current
 
         rho = state.rho.copy()
         mom = state.mom.copy()
@@ -362,12 +364,17 @@ class HallMHDSolver(PlasmaSolverBase):
         self.apply_boundary_conditions(new_state)
         self.amr_refinement(new_state)
 
-        # Expose plasma inductance and induced EMF for external circuit solvers
+        # Expose plasma inductance and induced EMF for circuit coupling
         L_new = self.compute_plasma_inductance(new_state, current)
         dL = (L_new - self.inductance) / max(dt, 1.0e-30)
         emf = -dL * current
         self.inductance = L_new
         self.back_emf = emf
+        self.circuit_feedback = {"Lp": L_new, "emf": emf}
+
+        # Optionally advance the coupled circuit solver in a closed loop
+        if self.circuit is not None:
+            self.current, _ = self.circuit.step(current, 0.0, dt, self.circuit_feedback)
 
         return new_state
 
