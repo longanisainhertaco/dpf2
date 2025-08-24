@@ -1,6 +1,7 @@
 import numpy as np
 
 from dpf2.physics import HallMHD
+from dpf2.core import ExternalCircuit
 
 
 def _shock_setup():
@@ -71,3 +72,19 @@ def test_alfven_wave_propagation():
 
     final_By = U[:, 6]
     assert np.isclose(np.max(np.abs(final_By)), amp, rtol=0.2)
+
+
+def test_circuit_exchange():
+    model, state, _ = _shock_setup()
+    circuit = ExternalCircuit(inductance=1.0)
+    dt = 1.0e-6
+    current = 1.0
+    voltage = 0.5
+
+    # plasma step updates feedback
+    state = model.step(state, dt, current=current, voltage=voltage)
+    assert model.circuit_feedback is not None
+
+    # circuit consumes the feedback and updates its current
+    new_current, _ = circuit.step(current, voltage, dt, model.circuit_feedback)
+    assert new_current != current

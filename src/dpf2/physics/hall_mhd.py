@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 
 from .mhd import ResistiveMHD
@@ -8,18 +8,29 @@ from .mhd import ResistiveMHD
 
 @dataclass
 class HallMHD(ResistiveMHD):
-    """Resistive MHD with Hall term and circuit back-EMF.
+    """Resistive MHD with Hall term and circuit coupling.
 
-    This lightweight model extends :class:`~dpf2.physics.mhd.ResistiveMHD` by
-    incorporating a Hall electric field contribution and an optional
-    back electromotive force (EMF) supplied by an external circuit.  The
-    formulation is intentionally simple and is aimed at unit tests rather than
-    high fidelity simulations.
+    The model augments :class:`~dpf2.physics.mhd.ResistiveMHD` with two
+    additional pieces of physics used throughout the unit tests:
+
+    * **Hall electric field** – a dispersive correction proportional to
+      ``J×B`` that is controlled by ``hall_coeff``.
+    * **Dynamic inductance / back–EMF coupling** – the solver keeps track of
+      a plasma current and an externally supplied voltage.  From the magnetic
+      energy the plasma self‑inductance is estimated and fed back to external
+      circuit models.
+
+    Only the terms required for regression tests are implemented; the class is
+    not intended to be a production ready Hall‑MHD solver.
     """
 
     hall_coeff: float = 0.0
     current: float = 0.0
     back_emf: float = 0.0
+
+    # plasma inductance state (Henries)
+    inductance: float = 0.0
+    circuit_feedback: dict[str, float] | None = field(default=None, init=False)
 
     # ------------------------------------------------------------------
     # Primitive ↔ conservative conversions
@@ -37,6 +48,42 @@ class HallMHD(ResistiveMHD):
         return np.array([rho, v_x, v_y, v_z, p, B_x, B_y, B_z])
 
     # conservative_variables inherited from ResistiveMHD
+
+    # ------------------------------------------------------------------
+    # Coupling helpers
+    # ------------------------------------------------------------------
+    def plasma_inductance(self, U: np.ndarray) -> float:
+        """Estimate the plasma inductance from magnetic energy.
+
+        The expression ``E_mag = 0.5 * Lp * I^2`` is inverted to give
+        ``Lp``.  If the current is zero the inductance is taken as zero.
+        """
+
+        B = U[5:8]
+        mag_energy = 0.5 * np.dot(B, B)
+        if self.current == 0.0:
+            return 0.0
+        return 2.0 * mag_energy / (self.current**2)
+
+    def step(self, state: np.ndarray, dt: float, current: float = 0.0, voltage: float = 0.0) -> np.ndarray:
+        """Lightweight advance that updates circuit feedback only.
+
+        The plasma state is not modified; however the routine stores the
+        supplied ``current`` and ``voltage`` (treated as a back‑EMF) and
+        estimates the plasma inductance and its time derivative for use by
+        external circuit solvers.  The information is exposed via the
+        ``circuit_feedback`` attribute.
+        """
+
+        self.current = current
+        self.back_emf = voltage
+
+        Lp = self.plasma_inductance(state)
+        dLpdt = (Lp - self.inductance) / max(dt, 1.0e-30)
+        self.inductance = Lp
+        self.circuit_feedback = {"Lp": Lp, "dLpdt": dLpdt}
+
+        return state
 
     # ------------------------------------------------------------------
     # Fluxes with Hall term and back EMF
