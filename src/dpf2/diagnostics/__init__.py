@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, root_validator
 # Local diagnostic computation utilities
 from .neutron_yield import compute_neutron_yield
 from .xray_spectra import compute_xray_spectrum
+from .scope_trace import compute_scope_trace
 
 # Compatibility helpers -------------------------------------------------------
 
@@ -310,4 +311,5 @@ __all__ = [
     "OutputField",
     "compute_neutron_yield",
     "compute_xray_spectrum",
+    "compute_scope_trace",
 ]

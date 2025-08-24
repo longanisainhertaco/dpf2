@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+import subprocess
 from datetime import datetime, timezone
 import re
 from pathlib import Path
@@ -150,11 +151,21 @@ class Metadata(ConfigSectionBase):
     # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> "Metadata":
+        commit = "unknown"
+        repo = Path(__file__).resolve().parents[2]
+        try:
+            commit = (
+                subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo)
+                .decode()
+                .strip()
+            )
+        except Exception:  # pragma: no cover - git not available
+            pass
         return cls(
             schema_version="1.0",
             sim_version="0.1",
             created_by="unknown",
-            commit_hash="none",
+            commit_hash=commit,
             run_uuid=str(uuid.uuid4()),
             creation_time=datetime.now(timezone.utc),
         )
@@ -191,6 +202,26 @@ class Metadata(ConfigSectionBase):
         data = self.model_dump(by_alias=True, exclude={"summary_id"}, exclude_none=True)
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
+
+    # Provenance utilities ------------------------------------------------
+    def apply_provenance(
+        self, config: Dict[str, Any], repo_dir: Optional[Path] = None
+    ) -> "Metadata":
+        """Attach config hash and git commit information to this metadata."""
+        repo_dir = repo_dir or Path(__file__).resolve().parents[2]
+        commit = self.commit_hash
+        try:
+            commit = (
+                subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_dir)
+                .decode()
+                .strip()
+            )
+        except Exception:  # pragma: no cover - git not available
+            pass
+        cfg_hash = hashlib.sha256(
+            json.dumps(config, sort_keys=True, default=str).encode()
+        ).hexdigest()
+        return self.model_copy(update={"commit_hash": commit, "config_hash": cfg_hash})
 
     # ------------------------------------------------------------------
     @model_validator(mode="after")
