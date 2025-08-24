@@ -14,20 +14,23 @@ mkdocs serve
 ## Installation
 
 ```bash
-pip install -e .
+pip install .
 ```
 
 Optional extras can be installed to enable additional features:
 
 ```bash
 # Install with Flask-based server support
-pip install -e .[server]
+pip install .[server]
 
 # Install with WarpX accelerator support
-pip install -e .[warpx]
+pip install .[warpx]
+
+# Install with OpenCensus-based telemetry support
+pip install .[telemetry]
 
 # Install all optional features
-pip install -e .[server,warpx]
+pip install .[server,warpx,telemetry]
 ```
 
 ## Quickstart
@@ -52,7 +55,7 @@ Configuration files use the `DPFConfig` schema defined in this repository. See `
 
 ## Tracing
 
-The standalone `dpf_simulation` entry point can emit OpenCensus trace spans around major simulation stages. Enable this optional feature with the `--enable-tracing` flag (requires the `opencensus` package):
+The standalone `dpf_simulation` entry point can emit OpenCensus trace spans around major simulation stages. Enable this optional feature with the `--enable-tracing` flag (install via the `telemetry` extra):
 
 ```bash
 dpf_simulation --config-file config.json --enable-tracing
