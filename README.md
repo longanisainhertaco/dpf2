@@ -10,6 +10,19 @@ external circuit and pinch dynamics.
 pip install -e .
 ```
 
+Optional extras can be installed to enable additional features:
+
+```bash
+# Install with Flask-based server support
+pip install -e .[server]
+
+# Install with WarpX accelerator support
+pip install -e .[warpx]
+
+# Install all optional features
+pip install -e .[server,warpx]
+```
+
 ## Quickstart
 
 Run a simulation using the default configuration:

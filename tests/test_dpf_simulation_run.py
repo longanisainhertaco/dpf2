@@ -134,7 +134,7 @@ def test_run_calls_modules(monkeypatch):
     pic_solver_mod.PICSolver = PICSolver
     monkeypatch.setitem(sys.modules, "pic_solver", pic_solver_mod)
 
-    import Simulation.dpf_simulation as simmod
+    import dpf2.simulation.dpf_simulation as simmod
 
     circuit_cfg = SimpleNamespace(C=1.0, V0=1.0, L0=1.0, R0=0.0,
                                  anode_radius=0.1, cathode_radius=0.2,

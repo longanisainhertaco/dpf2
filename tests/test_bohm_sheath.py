@@ -1,13 +1,7 @@
-import sys
-from pathlib import Path
 import numpy as np
 
-# Make Simulation modules importable
-sim_path = Path(__file__).resolve().parents[1] / 'Simulation'
-sys.path.append(str(sim_path))
-
-from sheath_model import BohmSheath, e_charge, m_e
-from utils import FieldManager, SimulationState
+from dpf2.simulation.sheath_model import BohmSheath, e_charge, m_e
+from dpf2.simulation.utils import FieldManager, SimulationState
 
 
 def make_state():

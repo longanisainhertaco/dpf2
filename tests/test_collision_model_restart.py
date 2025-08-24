@@ -30,7 +30,7 @@ models_stub = types.SimpleNamespace(
 )
 sys.modules['models'] = models_stub
 
-from Simulation.collision_model import CollisionModel, CrossSectionData
+from dpf2.simulation.collision_model import CollisionModel, CrossSectionData
 
 
 def test_checkpoint_restart_roundtrip():

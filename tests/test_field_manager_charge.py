@@ -1,5 +1,5 @@
 import numpy as np
-from Simulation.utils import FieldManager
+from dpf2.simulation.utils import FieldManager
 
 def test_deposit_charge_updates_rho():
     grid_shape = (4, 4, 4)

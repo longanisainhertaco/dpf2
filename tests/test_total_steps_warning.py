@@ -53,7 +53,7 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
     monkeypatch.setitem(sys.modules, "config_schema", config_mod)
 
     # Import module under test
-    sim_mod = importlib.import_module("Simulation.dpf_simulator_full_backend")
+    sim_mod = importlib.import_module("dpf2.simulation.dpf_simulator_full_backend")
 
     with caplog.at_level(logging.WARNING):
         with pytest.raises(sim_mod.SimulationRuntimeError):

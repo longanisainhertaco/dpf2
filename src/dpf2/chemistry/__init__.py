@@ -13,7 +13,7 @@ from typing import Protocol
 
 import numpy as np
 
-from ..core_schema import IonizationModel
+from core_schema import IonizationModel
 
 __all__ = [
     "ChemistryModel",
