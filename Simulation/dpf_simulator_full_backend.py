@@ -54,6 +54,31 @@ def _generate_boundary_conditions(domain_lo, domain_hi, bc_config=None):
 
     return default_bc
 
+
+def _estimate_total_steps(sim_time, dt):
+    """Estimate how many steps the simulation will take.
+
+    Logs a warning and raises :class:`SimulationRuntimeError` if the
+    estimation fails (for example due to an invalid ``dt``).
+
+    Args:
+        sim_time (float): Total simulation time.
+        dt (float): Time step size.
+
+    Returns:
+        int: Estimated number of steps.
+    """
+    try:
+        total_steps = int(np.ceil(sim_time / float(dt)))
+        logger.info("Estimated total steps: %d", total_steps)
+        return total_steps
+    except Exception as e:  # pragma: no cover - defensive, tested separately
+        msg = f"Failed to estimate total steps: {e}"
+        logger.warning(msg)
+        raise SimulationRuntimeError(
+            f"Invalid dt={dt}: unable to estimate total steps"
+        ) from e
+
 class DPFSimulatorBackend:
     """
     Unified Dense Plasma Focus simulation orchestrator.
@@ -290,15 +315,7 @@ class DPFSimulatorBackend:
             self.diagnostics.to_hdf5()
 
         # Print estimated total steps
-        try:
-            total_steps = int(np.ceil(self.sim_time / float(self.dt)))
-            logger.info("Estimated total steps: %d", total_steps)
-        except Exception as e:
-            msg = f"Failed to estimate total steps: {e}"
-            logger.warning(msg)
-            raise ValueError(
-                f"Invalid dt={self.dt}: unable to estimate total steps"
-            ) from e
+        _estimate_total_steps(self.sim_time, self.dt)
 
     def compute_global_dt(self):
         """Compute global dt satisfying CFL condition."""
