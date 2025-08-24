@@ -1,3 +1,0 @@
-# API Reference
-
-::: dpf2

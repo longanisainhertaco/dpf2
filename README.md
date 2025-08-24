@@ -1,15 +1,15 @@
 # DPF2 Simulator
 
-A minimal Dense Plasma Focus (DPF) simulator implemented in Python.  This
-project provides a command line interface and simple models for the
-external circuit and pinch dynamics.
+A minimal Dense Plasma Focus (DPF) simulator implemented in Python. This project provides a command line interface and simple models for the external circuit and pinch dynamics.
 
 ## Documentation
 
-User guides and API references are available in the [docs/](docs/user_manual.md)
-directory.  The manual covers installation, configuration files, CLI usage,
-and extension points, while the [API reference](docs/api.md) is generated from
-the package source code.
+Full documentation, including a user guide and API reference, is available as a MkDocs site. Build and view it locally with:
+
+```bash
+pip install -r docs/requirements.txt
+mkdocs serve
+```
 
 ## Installation
 
@@ -32,7 +32,7 @@ pip install -e .[server,warpx]
 
 ## Quickstart
 
-Run a simulation using the default configuration:
+Run a simulation using a configuration file:
 
 ```bash
 dpf2 simulate config.json -o results.json
@@ -48,21 +48,17 @@ simulation = DPFSimulation(config)
 result = simulation.run()
 ```
 
-Configuration files use the `DPFConfig` schema defined in this repository.
-See `examples/quickstart.ipynb` for a walk-through in a Jupyter notebook.
+Configuration files use the `DPFConfig` schema defined in this repository. See `examples/quickstart.ipynb` for a walk-through in a Jupyter notebook.
 
 ## Tracing
 
-The standalone `dpf_simulation` entry point can emit OpenCensus trace spans
-around major simulation stages. Enable this optional feature with the
-`--enable-tracing` flag (requires the `opencensus` package):
+The standalone `dpf_simulation` entry point can emit OpenCensus trace spans around major simulation stages. Enable this optional feature with the `--enable-tracing` flag (requires the `opencensus` package):
 
 ```bash
 dpf_simulation --config-file config.json --enable-tracing
 ```
 
-When tracing is disabled, the simulation runs without importing the
-tracing library.
+When tracing is disabled, the simulation runs without importing the tracing library.
 
 ## Repository Layout
 
@@ -73,18 +69,4 @@ tracing library.
 
 ## AI Surrogate Models
 
-The package defines a flexible `SurrogateModel` interface allowing
-inference with PyTorch or ONNX models. Surrogates can be plugged into
-simulations to replace expensive physics modules. See the `dpf2.ai`
-module for details.
-
-## Development
-
-Run the unit and integration tests with:
-
-```bash
-pytest
-```
-
-Contributions are welcome.  For ideas on how the code could evolve into a high-
-performance multi-physics tool see `docs/HPC_DESIGN.md`.
+The package defines a flexible `SurrogateModel` interface allowing inference with PyTorch or ONNX models. Surrogates can be plugged into simulations to replace expensive physics modules. See the `dpf2.ai` module for details.
