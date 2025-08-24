@@ -1,6 +1,6 @@
 import pytest
 
-from diagnostics import Diagnostics, DetectorArrayGenerator, OutputField
+from dpf2.diagnostics import Diagnostics, DetectorArrayGenerator, OutputField
 
 
 def test_duplicate_detector_names_fail():
