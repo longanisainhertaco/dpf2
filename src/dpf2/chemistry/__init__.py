@@ -14,12 +14,15 @@ from typing import Protocol
 import numpy as np
 
 from ..core_schema import IonizationModel
+from .kinetics import RateTable, RateEquations
 
 __all__ = [
     "ChemistryModel",
     "SahaEquilibrium",
     "FlychkTable",
     "create_chemistry",
+    "RateTable",
+    "RateEquations",
 ]
 
 
