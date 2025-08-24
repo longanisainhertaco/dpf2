@@ -218,6 +218,21 @@ class TabulatedEOS:
             raise
 
     def ion_energy(self, rho, T):
+
+        """Return ion internal energy for the given density and temperature.
+
+        Parameters
+        ----------
+        rho: np.ndarray
+            Mass density (kg/m^3).
+        T: np.ndarray
+            Temperature (K).
+
+        Returns
+        -------
+        np.ndarray
+            Ion specific internal energy (J/kg).
+
         """
         Returns the ion internal energy at a given density and temperature.
 
@@ -227,6 +242,7 @@ class TabulatedEOS:
 
         Returns:
             np.ndarray: Ion internal energy (J/kg).
+
         """
         try:
             return self.e_interp(np.stack([rho, T], axis=-1))
@@ -235,6 +251,16 @@ class TabulatedEOS:
             raise
 
     def electron_energy(self, rho, T):
+
+        """Return electron internal energy for the given density and temperature.
+
+        Parameters
+        ----------
+        rho: np.ndarray
+            Mass density (kg/m^3).
+        T: np.ndarray
+            Temperature (K).
+
         """
         Returns the electron internal energy at a given density and temperature.
 
@@ -242,8 +268,11 @@ class TabulatedEOS:
             rho (np.ndarray): Mass density (kg/m^3).
             T (np.ndarray): Temperature (K).
 
-        Returns:
-            np.ndarray: Electron internal energy (J/kg).
+
+        Returns
+        -------
+        np.ndarray
+            Electron specific internal energy (J/kg).
         """
         try:
             return self.e_interp(np.stack([rho, T], axis=-1))
