@@ -115,11 +115,12 @@ class ResistiveMHD:
     ) -> float:
         """Return a CFL-limited stable timestep for ``mesh``.
 
-        The routine inspects the mesh spacing in each coordinate direction and
-        computes an estimate of the maximum allowable timestep using the
-        fastest characteristic speeds of the system.  The implementation is
-        intentionally simple but works for both :class:`~dpf2.mesh.Mesh2D`
-        and :class:`~dpf2.mesh.Mesh3D` instances.
+        ``Mesh3D`` support relies on the geometric helpers provided by the
+        mesh itself: the cell volume and the areas of faces normal to each
+        coordinate direction.  For two-dimensional meshes the routine falls
+        back to the spacing in ``r`` (treated as ``x``) and ``z``.  The
+        resulting estimate is intentionally simple but sufficient for unit
+        tests and lightweight examples.
         """
 
         if isinstance(mesh, Mesh3D):
