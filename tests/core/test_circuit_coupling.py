@@ -60,7 +60,7 @@ def test_energy_conservation():
     voltage = circuit.voltages[-1]
     plasma.step(None, 0.0, current, voltage)
     for _ in range(steps):
-        current, voltage = circuit.step(current, voltage, dt, plasma.circuit_feedback)
+        current, voltage = circuit.step(current, 0.0, dt, plasma.circuit_feedback)
         plasma.step(None, dt, current, voltage)
 
     initial_energy = 0.5 * C_ext * V0 ** 2

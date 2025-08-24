@@ -74,7 +74,8 @@ class RLCCircuitSolver(CircuitSolverBase):
         current:
             Present value of the circuit current.
         back_emf:
-            Voltage induced by the plasma (opposes the driving voltage).
+            External EMF applied to the circuit (Volts).  This term is added to
+            any plasma induced EMF supplied via ``plasma_feedback``.
         dt:
             Time step in seconds.
         plasma_feedback:
@@ -114,12 +115,20 @@ class RLCCircuitSolver(CircuitSolverBase):
         V_mutual = -M * dIm_dt
 
         if use_emf:
-            dIdt = (self.V0 + V_mutual - self.R_ext * current - voltage - emf) / Ltot
+            emf_term = emf
+            dLp_term = 0.0
         else:
-            dIdt = (self.V0 + V_mutual - self.R_ext * current - voltage - dLpdt * current) / Ltot
+            emf_term = 0.0
+            dLp_term = dLpdt * current
 
         dIdt = (
-            self.V0 + V_mutual - self.R_ext * current - voltage - dLpdt * current - back_emf
+            self.V0
+            + V_mutual
+            - self.R_ext * current
+            - voltage
+            - dLp_term
+            - emf_term
+            - back_emf
         ) / Ltot
 
         dVdt = -current / self.C_ext

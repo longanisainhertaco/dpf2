@@ -58,7 +58,7 @@ def main() -> None:
     plasma.step(None, 0.0, current, voltage)
 
     for _ in range(steps):
-        current, voltage = circuit.step(current, voltage, dt, plasma.circuit_feedback)
+        current, voltage = circuit.step(current, 0.0, dt, plasma.circuit_feedback)
         plasma.step(None, dt, current, voltage)
 
     Lp = plasma.circuit_feedback["Lp"]
