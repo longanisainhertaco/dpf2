@@ -1,18 +1,26 @@
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-      - run: "pip install -e .[server,warpx]"
-      - run: pip install pytest pytest-cov
-      - run: pytest --cov=. --cov-report=xml
-      - uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: coverage.xml
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          pip install .[server,warpx]
+          pip install ruff mypy pytest
+      - name: Lint
+        run: ruff check .
+      - name: Type check
+        run: mypy .
+      - name: Test
+        run: pytest
+
