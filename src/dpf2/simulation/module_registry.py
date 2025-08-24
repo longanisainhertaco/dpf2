@@ -6,7 +6,7 @@ import os
 from typing import Dict, Type, Any, List, Optional
 from pydantic import BaseModel, ValidationError
 
-from Simulation.models import PhysicsModule
+from Simulation.models import PhysicsModule  # Ensure plugin base class is available
 from utils import FieldManager
 
 logger = logging.getLogger(__name__)

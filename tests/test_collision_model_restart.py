@@ -1,3 +1,11 @@
+"""Regression tests for :mod:`CollisionModel` checkpoint/restart.
+
+These tests operate in a heavily mocked environment so that they run quickly
+and do not require any of the optional heavy dependencies present in the full
+project.  Only the logic around serialising and deserialising the collision
+model state is exercised.
+"""
+
 import sys
 import types
 import pytest
