@@ -4,7 +4,7 @@ A minimal Dense Plasma Focus (DPF) simulator implemented in Python. This project
 
 ## Documentation
 
-Full documentation, including a user guide and API reference, is available as a MkDocs site. Build and view it locally with:
+Full documentation, including a user guide and API reference, lives in the [docs/](docs/index.md) directory and is available as a MkDocs site. Build and view it locally with:
 
 ```bash
 pip install -r docs/requirements.txt

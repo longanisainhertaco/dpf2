@@ -9,5 +9,6 @@ class NotPhysics:
 
 def test_register_non_physicsmodule_raises_type_error():
     registry = ModuleRegistry()
-    with pytest.raises(TypeError, match="subclass of PhysicsModule"):
+    msg = f"{NotPhysics.__name__} must be a subclass of PhysicsModule"
+    with pytest.raises(TypeError, match=msg):
         registry.register(NotPhysics)

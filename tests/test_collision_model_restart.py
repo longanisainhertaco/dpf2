@@ -152,3 +152,34 @@ def test_checkpoint_restart_reproduces_behavior(collision_model_classes):
     assert list(cm.ionization_cross_section.energy) == energy_before
     assert list(cm.ionization_cross_section.cross_section) == xs_before
 
+
+def test_checkpoint_restart_identical_evolution(collision_model_classes):
+    """After restarting from a checkpoint the model should evolve identically."""
+    CollisionModel, _ = collision_model_classes
+    cm_module = sys.modules[CollisionModel.__module__]
+    np = cm_module.np
+
+    cm1 = CollisionModel({})
+
+    # Capture a checkpoint of the initial state
+    import copy
+    data = copy.deepcopy(cm1.checkpoint())
+
+    # "Evolve" the model once: update an accumulator and draw a random number
+    cm1.accumulators['steps'] = cm1.accumulators.get('steps', 0) + 1
+    rand1 = np.random.rand()
+    cm1.caches['rand'] = rand1
+    evolved1 = cm1.checkpoint()
+
+    # Restart from the original checkpoint and perform the same evolution
+    cm2 = CollisionModel({})
+    cm2.restart(data)
+    cm2.accumulators['steps'] = cm2.accumulators.get('steps', 0) + 1
+    rand2 = np.random.rand()
+    cm2.caches['rand'] = rand2
+    evolved2 = cm2.checkpoint()
+
+    # The random draw and the resulting state after evolution must match
+    assert rand1 == rand2
+    assert evolved1 == evolved2
+

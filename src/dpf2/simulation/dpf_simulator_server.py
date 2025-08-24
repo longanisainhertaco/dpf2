@@ -436,6 +436,19 @@ def main():
     try:
         config = load_config(args.config_file)
         app.config.update(config.dict())
+        # Expose commonly accessed settings using the keys expected by the
+        # server implementation.  The ``ServerConfig`` model uses ``snake_case``
+        # field names but throughout the codebase ``Flask`` configuration
+        # values are referenced using upper-case names.  Mirror the relevant
+        # options so that limits and authentication settings from the
+        # configuration file are honoured when launching simulations.
+        app.config["ADMIN_USERNAME"] = config.admin_username
+        app.config["ADMIN_PASSWORD_HASH"] = config.admin_password_hash
+        app.config["MAX_SIMULTANEOUS_SIMULATIONS"] = config.max_simultaneous_simulations
+        app.config["TELEMETRY_INTERVAL"] = config.telemetry_interval
+        app.config["DATA_DIRECTORY"] = config.data_directory
+        app.config["CPU_TIME_LIMIT"] = config.cpu_time_limit
+        app.config["MEMORY_LIMIT"] = config.memory_limit
     except ConfigurationError as e:
         logger.error(e)
         sys.exit(1)

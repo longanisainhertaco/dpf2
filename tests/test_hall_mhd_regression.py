@@ -20,7 +20,7 @@ def _uniform_state(shape):
 def test_energy_conservation():
     shape = (4, 4, 4)
     state = _uniform_state(shape)
-    solver = HallMHDSolver()
+    solver = HallMHDSolver(hall_coeff=0.1)
     e0 = np.sum(state.energy)
     for _ in range(5):
         state = solver.step(state, 0.05)
@@ -31,7 +31,7 @@ def test_energy_conservation():
 def test_divergence_free_evolution():
     shape = (4, 4, 4)
     state = _uniform_state(shape)
-    solver = HallMHDSolver()
+    solver = HallMHDSolver(hall_coeff=0.1)
     for _ in range(3):
         state = solver.step(state, 0.05)
         divB = _divergence(state.B)
@@ -41,7 +41,7 @@ def test_divergence_free_evolution():
 def test_basic_stability():
     shape = (4, 4, 4)
     state = _uniform_state(shape)
-    solver = HallMHDSolver(hall_coeff=0.1)
+    solver = HallMHDSolver(hall_coeff=0.2)
     for _ in range(10):
         state = solver.step(state, 0.02)
     assert np.all(np.isfinite(state.rho))

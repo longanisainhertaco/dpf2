@@ -1,12 +1,7 @@
 """DPF2 high-fidelity simulation toolkit."""
 
-from .core import (
-    DPFConfig,
-    DPFSimulation,
-    PlasmaSolverBase,
-    CircuitSolverBase,
-    DiagnosticsBase,
-)
+from .core import DPFConfig, DPFSimulation
+from .core.bases import PlasmaSolverBase, CircuitSolverBase, DiagnosticsBase
 from .ai import SurrogateModel, TorchSurrogateModel, ONNXSurrogateModel
 
 from .version import __version__

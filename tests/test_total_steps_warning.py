@@ -8,8 +8,8 @@ import logging
 import pytest
 
 
-def test_warning_on_invalid_dt(monkeypatch, caplog):
-    """Ensure a warning is logged and an error raised for invalid dt."""
+def _load_sim_module(monkeypatch):
+    """Import ``dpf_simulator_full_backend`` with minimal stubs."""
 
     # Stub external dependencies
     np_stub = types.ModuleType("numpy")
@@ -83,9 +83,33 @@ def test_warning_on_invalid_dt(monkeypatch, caplog):
     )
     sim_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sim_mod)
+    return sim_mod
 
+
+def test_warning_on_invalid_dt(monkeypatch, caplog):
+    """Ensure a warning is logged and an error raised for invalid dt."""
+
+    sim_mod = _load_sim_module(monkeypatch)
     with caplog.at_level(logging.WARNING):
         with pytest.raises(sim_mod.SimulationRuntimeError):
             sim_mod._estimate_total_steps(1.0, 0.0)
 
     assert "Invalid dt=0.0: unable to estimate total steps" in caplog.text
+
+
+def test_failure_logging_on_non_numeric_dt(monkeypatch, caplog):
+    """Ensure failures during estimation are logged and raise an error."""
+
+    sim_mod = _load_sim_module(monkeypatch)
+
+    class BadNumber:
+        def __float__(self):
+            raise TypeError("no float conversion")
+        def __le__(self, other):
+            return False
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(sim_mod.SimulationRuntimeError):
+            sim_mod._estimate_total_steps(1.0, BadNumber())
+
+    assert "Failed to estimate total steps" in caplog.text

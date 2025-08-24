@@ -1,12 +1,13 @@
 # module_registry.py
+from Simulation.models import PhysicsModule  # Ensure plugin base class is available
+
 import importlib
 import inspect
 import logging
 import os
 from typing import Dict, Type, Any, List, Optional
-from pydantic import BaseModel, ValidationError
 
-from Simulation.models import PhysicsModule  # Ensure plugin base class is available
+from pydantic import BaseModel, ValidationError
 from utils import FieldManager
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ class ModuleRegistry:
 
         # Check if module_class is a subclass of PhysicsModule
         if not issubclass(module_class, PhysicsModule):
-            raise TypeError("module_class must be a subclass of PhysicsModule.")
+            raise TypeError(f"{module_class.__name__} must be a subclass of PhysicsModule.")
 
         self.modules[module_class] = {
             'config_schema': config_schema,

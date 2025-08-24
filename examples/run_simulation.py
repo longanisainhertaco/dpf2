@@ -3,7 +3,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from dpf_config import DPFConfig
+from dpf2.dpf_config import DPFConfig
 from dpf2.simulation_engine import SimulationEngine
 
 
