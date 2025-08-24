@@ -48,7 +48,6 @@ def test_yaml_round_trip_and_summary(tmp_path):
     yaml.safe_dump({"metadata": cfg.model_dump(by_alias=True)}, open(yaml_path, "w"))
     loaded = yaml.safe_load(open(yaml_path))
     cfg2 = Metadata.model_validate(loaded["metadata"])
-    assert cfg2.run_uuid == cfg.run_uuid
-    assert cfg2.summary_id == cfg.summary_id
+    assert cfg2.model_dump(by_alias=True) == cfg.model_dump(by_alias=True)
     summary = cfg.summarize()
     assert "Schema:" in summary and "Surrogate:" in summary
