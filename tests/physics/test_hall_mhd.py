@@ -1,7 +1,7 @@
 import numpy as np
 
 from dpf2.physics import HallMHD
-from dpf2.core import ExternalCircuit
+from dpf2.core.circuit import RLCCircuitSolver
 
 
 def _shock_setup():
@@ -18,14 +18,8 @@ def test_shock_propagation():
     U = np.vstack([U_left, U_right])
     dx = 1.0
     dt = 0.1 * dx / max(model.max_speed(U_left, "x"), model.max_speed(U_right, "x"))
-
     for _ in range(5):
-        F_L = model.flux_function(U[0], "x")
-        F_R = model.flux_function(U[1], "x")
-        smax = max(model.max_speed(U[0], "x"), model.max_speed(U[1], "x"))
-        flux = 0.5 * (F_L + F_R) - 0.5 * smax * (U[1] - U[0])
-        U[0] -= dt / dx * flux
-        U[1] += dt / dx * flux
+        U = model.ctu_update(U, dx, dt)
 
     assert U[1, 0] > U_right[0]
     for state in U:
@@ -54,21 +48,7 @@ def test_alfven_wave_propagation():
     dt = 0.4 * dx / ca
 
     for _ in range(5):
-        By = U[:, 6]
-        Jz = np.gradient(By, dx)
-        J = np.zeros((n, 3))
-        J[:, 2] = Jz
-        fluxes = np.zeros((n + 1, 9))
-        for i in range(n):
-            UL = U[i]
-            UR = U[(i + 1) % n]
-            F_L = model.flux_function(UL, "x", J=J[i])
-            F_R = model.flux_function(UR, "x", J=J[(i + 1) % n])
-            smax = max(model.max_speed(UL, "x"), model.max_speed(UR, "x"))
-            fluxes[i + 1] = 0.5 * (F_L + F_R) - 0.5 * smax * (UR - UL)
-        fluxes[0] = fluxes[n]
-        for i in range(n):
-            U[i] -= dt / dx * (fluxes[i + 1] - fluxes[i])
+        U = model.ctu_update(U, dx, dt, periodic=True)
 
     final_By = U[:, 6]
     assert np.isclose(np.max(np.abs(final_By)), amp, rtol=0.2)
@@ -76,15 +56,13 @@ def test_alfven_wave_propagation():
 
 def test_circuit_exchange():
     model, state, _ = _shock_setup()
-    circuit = ExternalCircuit(inductance=1.0)
+    circuit = RLCCircuitSolver(L_ext=1.0, R_ext=0.0, C_ext=1.0, V0=0.5)
+    circuit.voltages[-1] = 0.0
     dt = 1.0e-6
     current = 1.0
-    voltage = 0.5
 
-    # plasma step updates feedback
-    state = model.step(state, dt, current=current, voltage=voltage)
+    state = model.step(state, dt, current=current, circuit=circuit)
     assert model.circuit_feedback is not None
 
-    # circuit consumes the feedback and updates its current
-    new_current, _ = circuit.step(current, voltage, dt, model.circuit_feedback)
-    assert new_current != current
+    # coupling updated the circuit current
+    assert model.current != current
