@@ -66,3 +66,25 @@ def test_select_eos_invalid_fractions(tmp_path):
             table_file=str(tmp_path),
             mixture_fractions="A:0.3,B:0.3",
         )
+
+
+def test_select_eos_invalid_format(tmp_path):
+    _create_species_eos_file(tmp_path, "A")
+    _create_species_eos_file(tmp_path, "B")
+    with pytest.raises(ValueError):
+        select_eos(
+            "tabulated",
+            table_file=str(tmp_path),
+            mixture_fractions="A:0.5,B",
+        )
+
+
+def test_select_eos_negative_fraction(tmp_path):
+    _create_species_eos_file(tmp_path, "A")
+    _create_species_eos_file(tmp_path, "B")
+    with pytest.raises(ValueError):
+        select_eos(
+            "tabulated",
+            table_file=str(tmp_path),
+            mixture_fractions="A:-0.1,B:1.1",
+        )
