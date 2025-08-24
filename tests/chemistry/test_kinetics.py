@@ -1,7 +1,6 @@
 from pathlib import Path
 import importlib.util
 
-import numpy as np
 import pytest
 
 # Load modules directly to avoid heavy package imports
@@ -23,26 +22,46 @@ def data_path(name: str) -> Path:
 
 def test_rate_table_interpolation():
     table = RateTable.from_csv(data_path("crm_dummy.csv"))
-    ion = table.ion_rate(np.array([10.0]))
-    rec = table.rec_rate(np.array([10.0]))
+    ion = table.ion_rate([10.0])[0]
+    rec = table.rec_rate([10.0])[0]
     assert ion == pytest.approx(5.0)
     assert rec == pytest.approx(0.0)
 
 
 def test_kinetics_converges_to_flychk():
     rates = RateTable.from_csv(data_path("crm_dummy.csv"))
-    kinetics = RateEquations(rates)
+    kinetics = RateEquations(rates, levels=2)
 
     n_total = 1.0
     T = 10.0
-    ne = 1e-3
+    n = [n_total - 1e-3, 1e-3]
     dt = 0.1
     for _ in range(200):
-        ne = kinetics.step(ne, n_total, T, dt)
-    zbar = ne / n_total
+        n = kinetics.step(n, T, dt)
+    zbar = kinetics.mean_charge(n)
 
     # Reference mean charge state from a FLYCHK table
-    flychk_data = np.loadtxt(data_path("flychk_dummy.csv"), delimiter=",", skiprows=1)
-    T_ref, Z_ref = flychk_data[:, 0], flychk_data[:, 1]
-    ref = np.interp(T, T_ref, Z_ref, left=Z_ref[0], right=Z_ref[-1])
-    np.testing.assert_allclose(zbar, ref, rtol=1e-2)
+    data = load_csv(data_path("flychk_dummy.csv"))
+    T_ref = [row[0] for row in data]
+    Z_ref = [row[1] for row in data]
+    ref = interp(T, T_ref, Z_ref)
+    assert abs(zbar - ref) <= 1e-2 * abs(ref)
+
+
+def load_csv(path: Path) -> list[list[float]]:
+    with open(path) as f:
+        lines = f.read().strip().splitlines()[1:]
+    return [list(map(float, line.split(","))) for line in lines]
+
+
+def interp(x: float, xp: list[float], fp: list[float]) -> float:
+    if x <= xp[0]:
+        return fp[0]
+    if x >= xp[-1]:
+        return fp[-1]
+    for i in range(1, len(xp)):
+        if x < xp[i]:
+            x0, x1 = xp[i - 1], xp[i]
+            f0, f1 = fp[i - 1], fp[i]
+            return f0 + (f1 - f0) * (x - x0) / (x1 - x0)
+    return fp[-1]
