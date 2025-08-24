@@ -68,6 +68,20 @@ class Mesh3D:
         return cells
 
     # ------------------------------------------------------------------
+    def cell(self, i: int, j: int, k: int) -> MeshCell3D:
+        """Return the :class:`MeshCell3D` at indices ``(i, j, k)``.
+
+        The mesh is stored in ``x-major`` ordering (``i`` varies slowest and
+        ``k`` fastest).  A simple index calculation retrieves the requested
+        cell without constructing temporary arrays.
+        """
+
+        if not (0 <= i < self.nx and 0 <= j < self.ny and 0 <= k < self.nz):
+            raise IndexError("cell indices out of bounds")
+        idx = i * self.ny * self.nz + j * self.nz + k
+        return self.cells[idx]
+
+    # ------------------------------------------------------------------
     def get_neighbors(self, i: int, j: int, k: int) -> List[Tuple[int, int, int]]:
         """Return indices of neighboring cells to ``(i, j, k)``."""
         neighbors: List[Tuple[int, int, int]] = []
