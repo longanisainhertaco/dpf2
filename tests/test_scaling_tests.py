@@ -1,4 +1,4 @@
-from scripts.scaling_tests import weak_scaling, strong_scaling, document_results
+from examples.scaling_tests import weak_scaling, strong_scaling, document_results
 
 def test_scaling_functions(tmp_path):
     weak = weak_scaling([1, 2, 4])

@@ -1,6 +1,8 @@
 # Virtual environments
 venv/
 .venv/
+# Local environment directories
+env/
 
 # Byte-compiled / cache
 __pycache__/
