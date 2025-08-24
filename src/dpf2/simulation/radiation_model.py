@@ -312,6 +312,9 @@ class RadiationModel(PhysicsModule):
 
             elif model == "temperature_dependent":
                 # κ = base + α * Te^β
+                for key in ("base", "alpha", "beta"):
+                    if key not in params:
+                        raise KeyError(key)
                 base = params["base"]
                 alpha = params["alpha"]
                 beta = params["beta"]
@@ -319,15 +322,20 @@ class RadiationModel(PhysicsModule):
 
             elif model == "density_dependent":
                 # κ = base + α * quantity^exp where quantity is ne or Z
+                for key in ("base", "alpha"):
+                    if key not in params:
+                        raise KeyError(key)
                 base = params["base"]
                 alpha = params["alpha"]
-                if params.get("use_Z", False):
-                    exponent = params["Z_exponent"]
-                    quantity = Z
-                else:
-                    exponent = params["ne_exponent"]
-                    quantity = ne
+
+                use_Z = params.get("use_Z", False)
+                exponent_key = "Z_exponent" if use_Z else "ne_exponent"
+                if exponent_key not in params:
+                    raise KeyError(exponent_key)
+                quantity = Z if use_Z else ne
+                exponent = params[exponent_key]
                 return np.array(base + alpha * quantity ** exponent, dtype=float)
+
         except KeyError as exc:
             # Provide a clear error message if any required parameter is missing
             raise ValueError(f"Missing opacity parameter: {exc.args[0]}") from exc
