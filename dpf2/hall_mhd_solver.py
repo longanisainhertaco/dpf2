@@ -15,7 +15,7 @@ from typing import Any, Callable
 import numpy as np
 from scipy.constants import mu_0
 
-from dpf2.core.bases import PlasmaSolverBase
+from dpf2.core import PlasmaSolverBase
 from .eos import EOSBase, IdealGasEOS
 from .chemistry import ChemistryModel, SahaEquilibrium
 from .radiation import RadiationBase
