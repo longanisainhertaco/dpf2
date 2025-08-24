@@ -15,7 +15,7 @@ from typing import Any, Callable
 import numpy as np
 from scipy.constants import mu_0
 
-from dpf2.core.bases import PlasmaSolverBase
+from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase
 from .eos import EOSBase, IdealGasEOS
 from .chemistry import ChemistryModel, SahaEquilibrium
 from .radiation import RadiationBase
@@ -199,6 +199,10 @@ class HallMHDSolver(PlasmaSolverBase):
     kappa_par: float = 0.0
     bc: Callable[[MHDState], None] | None = None
     refine: Callable[[MHDState], None] | None = None
+    circuit: CircuitSolverBase | None = None
+    current: float = 0.0
+    inductance: float = 0.0
+    back_emf: float = 0.0
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
@@ -344,6 +348,16 @@ class HallMHDSolver(PlasmaSolverBase):
 
         self.apply_boundary_conditions(new_state)
         self.amr_refinement(new_state)
+
+        if self.circuit is not None:
+            L_new = self.compute_plasma_inductance(new_state, self.current)
+            dL = (L_new - self.inductance) / max(dt, 1.0e-30)
+            back_emf = -dL * self.current
+            self.current, circuit_voltage = self.circuit.step(
+                self.current, back_emf, dt
+            )
+            self.inductance = L_new
+            self.back_emf = circuit_voltage
 
         return new_state
 
