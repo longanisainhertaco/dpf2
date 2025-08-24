@@ -88,6 +88,26 @@ except ModuleNotFoundError:  # pragma: no cover
 __all__ = ["EOSBase", "IdealGasEOS", "TabulatedEOS", "RealGasEOS", "create_eos"]
 
 
+def _parse_mixture_fractions(
+    mixture_fractions: dict[str, float] | str | None,
+) -> dict[str, float] | None:
+    """Normalise ``mixture_fractions`` input.
+
+    ``mixture_fractions`` may be provided either as a mapping or as a string
+    of the form ``"Ar:0.9,H:0.1"``.  ``None`` is returned unchanged which is
+    convenient for single species tables.  The helper lives at module scope so
+    that both :class:`TabulatedEOS` and :class:`RealGasEOS` can make use of the
+    same parsing logic.
+    """
+
+    if mixture_fractions is None:
+        return None
+    if isinstance(mixture_fractions, str):
+        parts = [p.split(":") for p in mixture_fractions.split(",") if p]
+        mixture_fractions = {sp: float(frac) for sp, frac in parts}
+    return mixture_fractions
+
+
 class EOSBase(Protocol):
     """Common EOS interface."""
 
@@ -134,9 +154,7 @@ class TabulatedEOS:
         filename: str | Path | dict[str, str | Path],
         mixture_fractions: dict[str, float] | str | None = None,
     ) -> None:
-        if mixture_fractions is not None and isinstance(mixture_fractions, str):
-            parts = [p.split(":") for p in mixture_fractions.split(",") if p]
-            mixture_fractions = {sp: float(frac) for sp, frac in parts}
+        mixture_fractions = _parse_mixture_fractions(mixture_fractions)
 
         if mixture_fractions is None:
             if isinstance(filename, dict):
@@ -254,6 +272,7 @@ class RealGasEOS(TabulatedEOS):
         filename: str | Path | dict[str, str | Path],
         mixture_fractions: dict[str, float] | str,
     ) -> None:
+        mixture_fractions = _parse_mixture_fractions(mixture_fractions)
         if mixture_fractions is None:
             raise ValueError("RealGasEOS requires mixture_fractions")
 
