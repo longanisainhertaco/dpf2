@@ -312,26 +312,31 @@ class RadiationModel(PhysicsModule):
 
         if model == "temperature_dependent":
             # κ = base + α * Te^β
-            try:
-                base = params["base"]
-                alpha = params["alpha"]
-                beta = params["beta"]
-            except KeyError as exc:  # pragma: no cover - error path
+            required = {"base", "alpha", "beta"}
+            missing = required.difference(params)
+            if missing:
                 raise ValueError(
-                    f"Missing opacity parameter for temperature_dependent model: {exc.args[0]}"
-                ) from exc
+                    "Missing opacity parameter for temperature_dependent model: "
+                    + ", ".join(sorted(missing))
+                )
+
+            base = params["base"]
+            alpha = params["alpha"]
+            beta = params["beta"]
             return np.array(base + alpha * np.power(Te, beta))
 
         if model == "density_dependent":
             # κ = base + α * quantity^exp where quantity is ne or Z
-            try:
-                base = params["base"]
-                alpha = params["alpha"]
-            except KeyError as exc:  # pragma: no cover - error path
+            required = {"base", "alpha"}
+            missing = required.difference(params)
+            if missing:
                 raise ValueError(
-                    f"Missing opacity parameter for density_dependent model: {exc.args[0]}"
-                ) from exc
+                    "Missing opacity parameter for density_dependent model: "
+                    + ", ".join(sorted(missing))
+                )
 
+            base = params["base"]
+            alpha = params["alpha"]
             use_Z = params.get("use_Z", False)
             if use_Z:
                 if "Z_exponent" not in params:
