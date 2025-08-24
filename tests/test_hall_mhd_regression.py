@@ -37,3 +37,13 @@ def test_divergence_free_evolution():
         divB = _divergence(state.B)
         assert np.max(np.abs(divB)) < 1e-12
 
+
+def test_basic_stability():
+    shape = (4, 4, 4)
+    state = _uniform_state(shape)
+    solver = HallMHDSolver(hall_coeff=0.1)
+    for _ in range(10):
+        state = solver.step(state, 0.02)
+    assert np.all(np.isfinite(state.rho))
+    assert np.all(np.isfinite(state.energy))
+
