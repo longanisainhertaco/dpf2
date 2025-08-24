@@ -57,6 +57,7 @@ def test_energy_conservation():
     for _ in range(steps):
         feedback = {"Lp": plasma.inductance, "emf": plasma.back_emf}
         current, voltage = circuit.step(current, 0.0, dt, feedback)
+        assert circuit.last_feedback == feedback
         plasma.step(None, dt, current, voltage)
 
     Lp = plasma.inductance

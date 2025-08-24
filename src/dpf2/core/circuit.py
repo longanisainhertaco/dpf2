@@ -43,6 +43,7 @@ class RLCCircuitSolver(CircuitSolverBase):
     time: list[float] = field(default_factory=lambda: [0.0])
     currents: list[float] = field(default_factory=lambda: [0.0])
     voltages: list[float] = field(init=False)
+    last_feedback: dict[str, float] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:  # pragma: no cover - trivial
         self.voltages = [self.V0]
@@ -96,6 +97,7 @@ class RLCCircuitSolver(CircuitSolverBase):
         M_pf = None
         dIm_dt_pf = None
         if plasma_feedback:
+            self.last_feedback = dict(plasma_feedback)
             Lp = plasma_feedback.get("Lp", 0.0)
             # ``emf`` and ``dLpdt`` are two alternative ways of supplying the
             # coupling term arising from a time varying plasma inductance.  For
@@ -109,6 +111,8 @@ class RLCCircuitSolver(CircuitSolverBase):
                 dLpdt = plasma_feedback.get("dLpdt", 0.0)
             M_pf = plasma_feedback.get("M")
             dIm_dt_pf = plasma_feedback.get("dIm_dt")
+        else:
+            self.last_feedback = {}
 
         M, dIm_dt = self._mutual_terms(t, dt)
         if M_pf is not None:

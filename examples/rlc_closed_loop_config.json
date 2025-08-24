@@ -1,0 +1,15 @@
+{
+  "description": "Minimal closed-loop coupling between a linear-inductance plasma and an RLC circuit.",
+  "circuit": {
+    "L_ext": 1.0,
+    "R_ext": 0.0,
+    "C_ext": 1.0,
+    "V0": 1.0
+  },
+  "plasma": {
+    "model": "linear_inductance",
+    "k": 0.1,
+    "dt": 0.001,
+    "steps": 1000
+  }
+}
