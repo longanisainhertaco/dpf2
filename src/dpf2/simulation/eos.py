@@ -216,36 +216,44 @@ class TabulatedEOS:
             logger.error(f"Error interpolating electron pressure: {e}")
             raise
 
-    def ion_energy(self, rho, p):
-        """
-        Returns the ion internal energy at a given density and pressure.
+    def ion_energy(self, rho, T):
+        """Return ion internal energy for the given density and temperature.
 
-        Args:
-            rho (np.ndarray): Mass density (kg/m^3).
-            p (np.ndarray): Pressure (Pa).
+        Parameters
+        ----------
+        rho: np.ndarray
+            Mass density (kg/m^3).
+        T: np.ndarray
+            Temperature (K).
 
-        Returns:
-            np.ndarray: Ion internal energy (J/kg).
+        Returns
+        -------
+        np.ndarray
+            Ion specific internal energy (J/kg).
         """
         try:
-            return self.e_interp(np.stack([rho, p], axis=-1))
+            return self.e_interp(np.stack([rho, T], axis=-1))
         except Exception as e:
             logger.error(f"Error interpolating ion energy: {e}")
             raise
 
-    def electron_energy(self, rho, p):
-        """
-        Returns the electron internal energy at a given density and pressure.
+    def electron_energy(self, rho, T):
+        """Return electron internal energy for the given density and temperature.
 
-        Args:
-            rho (np.ndarray): Mass density (kg/m^3).
-            p (np.ndarray): Pressure (Pa).
+        Parameters
+        ----------
+        rho: np.ndarray
+            Mass density (kg/m^3).
+        T: np.ndarray
+            Temperature (K).
 
-        Returns:
-            np.ndarray: Electron internal energy (J/kg).
+        Returns
+        -------
+        np.ndarray
+            Electron specific internal energy (J/kg).
         """
         try:
-            return self.e_interp(np.stack([rho, p], axis=-1))
+            return self.e_interp(np.stack([rho, T], axis=-1))
         except Exception as e:
             logger.error(f"Error interpolating electron energy: {e}")
             raise
