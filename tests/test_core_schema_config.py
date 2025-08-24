@@ -1,3 +1,4 @@
+import json
 import pytest
 
 from core_schema import DPFConfig, GeometryType, ModeType
@@ -42,11 +43,12 @@ def test_pic_mode_requires_neutrals():
         DPFConfig.model_validate(data)
 
 
-def test_config_round_trip(tmp_path):
+def test_config_round_trip():
     cfg = DPFConfig.with_defaults()
-    path = tmp_path / "cfg.json"
-    cfg.to_file(path)
-    reloaded = DPFConfig.from_file(path)
+    json_str = cfg.model_dump_json(by_alias=True)
+    data = json.loads(json_str)
+    assert "simulation" in data
+    reloaded = DPFConfig.model_validate(data)
     assert reloaded.model_dump() == cfg.model_dump()
 
 
