@@ -22,6 +22,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 
+from ..mesh import Mesh2D, Mesh3D
+
 
 @dataclass
 class ResistiveMHD:
@@ -82,6 +84,32 @@ class ResistiveMHD:
         v2 = v_x ** 2 + v_y ** 2 + v_z ** 2
         B2 = B_x ** 2 + B_y ** 2 + B_z ** 2
         return (E - 0.5 * rho * v2 - 0.5 * B2) * (self.gamma - 1.0)
+
+    # ------------------------------------------------------------------
+    # Mesh-aware helpers
+    # ------------------------------------------------------------------
+    def stable_timestep(
+        self, U: np.ndarray, mesh: Mesh2D | Mesh3D, cfl: float = 0.8
+    ) -> float:
+        """Return a CFL-limited stable timestep for ``mesh``.
+
+        The routine inspects the mesh spacing in each coordinate direction and
+        computes an estimate of the maximum allowable timestep using the
+        fastest characteristic speeds of the system.  The implementation is
+        intentionally simple but works for both :class:`~dpf2.mesh.Mesh2D`
+        and :class:`~dpf2.mesh.Mesh3D` instances.
+        """
+
+        if isinstance(mesh, Mesh3D):
+            spacings = [mesh.dx, mesh.dy, mesh.dz]
+            directions = ["x", "y", "z"]
+        else:  # Mesh2D treated as x-z
+            spacings = [mesh.dr, mesh.dz]
+            directions = ["x", "z"]
+
+        speeds = [self.max_speed(U, d) for d in directions]
+        dt = min(s / v if v > 0 else np.inf for s, v in zip(spacings, speeds))
+        return cfl * dt
 
     # ------------------------------------------------------------------
     # Fluxes
