@@ -16,9 +16,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install .[server,warpx]
-          pip install ruff mypy pytest
-      - name: Lint
+          pip install ruff flake8 mypy pytest
+      - name: Ruff
         run: ruff check .
+      - name: Flake8
+        run: flake8 .
       - name: Type check
         run: mypy .
       - name: Test
