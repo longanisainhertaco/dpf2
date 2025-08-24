@@ -23,4 +23,7 @@ def test_interpolation(tmp_path):
     rho = np.array([1.5])
     T = np.array([15.0])
     assert np.allclose(eos.pressure(rho, T), rho * T)
-    assert np.allclose(eos.energy(rho, T), T / rho)
+    # Linear interpolation of ``e = T / rho`` on the tabulated grid yields
+    # ``11.25`` at ``rho=1.5`` and ``T=15``.  This verifies that the fallback
+    # interpolator produces sensible results without requiring SciPy.
+    assert np.allclose(eos.energy(rho, T), np.array([11.25]))

@@ -44,6 +44,11 @@ class Array:
 
     def __getitem__(self, idx):
         if isinstance(idx, tuple):
+            # broadcasting helpers used by unit tests
+            if idx == (slice(None), None):
+                return Array([[v] for v in self.data])
+            if idx == (None, slice(None)):
+                return Array([self.data])
             # handle simple 2-D column access ``arr[:, j]``
             if len(idx) == 2 and isinstance(idx[0], slice) and idx[0] == slice(None) and isinstance(idx[1], int):
                 return Array([row[idx[1]] for row in self.data])
@@ -89,6 +94,12 @@ class Array:
             other = other.data
         if isinstance(self.data, list):
             if isinstance(other, list):
+                if len(self.data) == len(other):
+                    return Array([Array(a)._binary(b, op).data for a, b in zip(self.data, other)])
+                if len(self.data) == 1:
+                    return Array([Array(self.data[0])._binary(b, op).data for b in other])
+                if len(other) == 1:
+                    return Array([Array(a)._binary(other[0], op).data for a in self.data])
                 return Array([Array(a)._binary(b, op).data for a, b in zip(self.data, other)])
             return Array([Array(a)._binary(other, op).data for a in self.data])
         return Array(op(self.data, other))

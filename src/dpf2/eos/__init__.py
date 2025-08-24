@@ -22,11 +22,52 @@ try:  # pragma: no cover - optional SciPy dependency
     from scipy.optimize import root_scalar
 except ModuleNotFoundError:  # pragma: no cover
     class RegularGridInterpolator:  # type: ignore[misc]
-        def __init__(self, *args, **kwargs):  # noqa: D401 - simple stub
-            raise ModuleNotFoundError("SciPy is required for interpolation")
+        """Very small fallback interpolator when SciPy is unavailable."""
 
-    def root_scalar(*args, **kwargs):  # type: ignore[misc]
-        raise ModuleNotFoundError("SciPy is required for root finding")
+        def __init__(self, points, values):
+            self.x, self.y = [np.array(p) for p in points]
+            self.values = np.array(values)
+
+        def __call__(self, pts):  # noqa: D401 - behave like SciPy callable
+            result = []
+            for x, y in pts:
+                # locate cell indices
+                i = 0
+                while i < len(self.x) - 2 and x > self.x[i + 1]:
+                    i += 1
+                j = 0
+                while j < len(self.y) - 2 and y > self.y[j + 1]:
+                    j += 1
+                x0, x1 = self.x[i], self.x[i + 1]
+                y0, y1 = self.y[j], self.y[j + 1]
+                tx = 0.0 if x1 == x0 else (x - x0) / (x1 - x0)
+                ty = 0.0 if y1 == y0 else (y - y0) / (y1 - y0)
+                f00 = self.values[i, j]
+                f01 = self.values[i, j + 1]
+                f10 = self.values[i + 1, j]
+                f11 = self.values[i + 1, j + 1]
+                f = (
+                    f00 * (1 - tx) * (1 - ty)
+                    + f01 * (1 - tx) * ty
+                    + f10 * tx * (1 - ty)
+                    + f11 * tx * ty
+                )
+                result.append(f)
+            return np.array(result)
+
+    def root_scalar(func, bracket):  # type: ignore[misc]
+        a, b = bracket
+        fa, fb = func(a), func(b)
+        for _ in range(50):
+            c = 0.5 * (a + b)
+            fc = func(c)
+            if abs(fc) < 1e-8:
+                return type("_Result", (), {"root": c})()
+            if fa * fc < 0:
+                b, fb = c, fc
+            else:
+                a, fa = c, fc
+        return type("_Result", (), {"root": c})()
 
 try:
     from ..core_schema import EOSModel
@@ -38,66 +79,11 @@ except Exception:  # pragma: no cover - minimal fallback without pydantic
         TABULATED = "tabulated"
         REAL_GAS = "real_gas"
 
-try:  # pragma: no cover - fallback when simulation EOS is unavailable
-    from dpf2.simulation.eos import TabulatedEOS as _SimulationTabulatedEOS
-except Exception:  # pragma: no cover
-    import json
-    try:
-        import h5py  # type: ignore
-    except ModuleNotFoundError:  # pragma: no cover
-        h5py = None  # type: ignore
-
-    class _SimulationTabulatedEOS:  # type: ignore[misc]
-        def __init__(self, filename, mixture_fractions=None):
-            import numpy as np
-
-            def load(path):
-                path = Path(path)
-                if path.suffix == ".json":
-                    with open(path, "r", encoding="utf8") as f:
-                        data = json.load(f)
-                    return (
-                        np.array(data["rho"]),
-                        np.array(data["T"]),
-                        np.array(data["p"]),
-                        np.array(data["e"]),
-                    )
-                if h5py is None:
-                    raise ModuleNotFoundError("h5py is required for tabulated EOS")
-                with h5py.File(path, "r") as f:
-                    return f["rho"][:], f["T"][:], f["p"][:], f["e"][:]
-
-            if mixture_fractions:
-                if isinstance(filename, (str, Path)):
-                    base = Path(filename)
-                    files = {}
-                    for sp in mixture_fractions:
-                        cand = base / f"{sp}.json"
-                        if not cand.exists():
-                            cand = base / f"{sp}.h5"
-                        files[sp] = cand
-                else:
-                    files = {sp: Path(filename[sp]) for sp in mixture_fractions}
-                for i, (sp, path) in enumerate(files.items()):
-                    try:
-                        rho, T, p, e = load(path)
-                    except (FileNotFoundError, KeyError):
-                        raise ValueError(f"Missing EOS data for species {sp}") from None
-                    w = mixture_fractions[sp]
-                    if i == 0:
-                        self.rho_grid, self.T_grid = rho, T
-                        self.p_val = w * p[0, 0]
-                        self.e_val = w * e[0, 0]
-                    else:
-                        self.p_val += w * p[0, 0]
-                        self.e_val += w * e[0, 0]
-            else:
-                rho, T, p, e = load(filename)
-                self.rho_grid, self.T_grid = rho, T
-                self.p_val = p[0, 0]
-                self.e_val = e[0, 0]
-            self.p_interp = lambda pts: np.full(len(pts), self.p_val)
-            self.e_interp = lambda pts: np.full(len(pts), self.e_val)
+import json
+try:  # pragma: no cover - optional h5py dependency
+    import h5py  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    h5py = None  # type: ignore
 
 __all__ = ["EOSBase", "IdealGasEOS", "TabulatedEOS", "RealGasEOS", "create_eos"]
 
@@ -134,49 +120,97 @@ class IdealGasEOS:
 
 
 class TabulatedEOS:
-    """Equation of state based on tabulated density/temperature data."""
+    """Equation of state based on tabulated density/temperature data.
+
+    The table may represent either a single species or a mixture of
+    multiple species specified via ``mixture_fractions``.  Data can be
+    supplied in JSON or HDF5 format and must provide ``rho`` and ``T``
+    axes with corresponding pressure ``p`` and specific internal energy
+    ``e`` values on the grid.
+    """
 
     def __init__(
         self,
         filename: str | Path | dict[str, str | Path],
         mixture_fractions: dict[str, float] | str | None = None,
     ) -> None:
-        """Load EOS tables from ``filename``.
+        if mixture_fractions is not None and isinstance(mixture_fractions, str):
+            parts = [p.split(":") for p in mixture_fractions.split(",") if p]
+            mixture_fractions = {sp: float(frac) for sp, frac in parts}
 
-        The underlying implementation reuses
-        :class:`dpf2.simulation.eos.TabulatedEOS` to avoid code
-        duplication.  The table must contain ``rho`` and ``T`` axes and
-        datasets ``p`` (pressure) and ``e`` (specific internal energy).
-        """
-
-        if mixture_fractions is not None:
-            if isinstance(mixture_fractions, str):
-                parts = [p.split(":") for p in mixture_fractions.split(",") if p]
-                mixture_fractions = {sp: float(frac) for sp, frac in parts}
+        if mixture_fractions is None:
+            if isinstance(filename, dict):
+                raise ValueError("Mapping of files only valid for mixtures")
+            rho, T, p, e = self._load_table(Path(filename))
+        else:
             if any(v < 0.0 for v in mixture_fractions.values()):
                 raise ValueError("Mixture fractions must be non-negative")
             total = sum(mixture_fractions.values())
             if not np.isclose(total, 1.0):
                 raise ValueError("Mixture fractions must sum to one")
-            # Ensure all required species tables exist before loading
+
             if isinstance(filename, (str, Path)):
                 base = Path(filename)
+                files: dict[str, Path] = {}
                 for sp in mixture_fractions:
-                    if not (base / f"{sp}.json").exists() and not (base / f"{sp}.h5").exists():
+                    cand = base / f"{sp}.json"
+                    if not cand.exists():
+                        cand = base / f"{sp}.h5"
+                    if not cand.exists():
                         raise ValueError(f"Missing EOS data for species {sp}")
+                    files[sp] = cand
             else:
-                for sp, sp_path in filename.items():
-                    if not Path(sp_path).exists():
+                files = {sp: Path(pth) for sp, pth in filename.items()}
+                for sp, sp_path in files.items():
+                    if not sp_path.exists():
                         raise ValueError(f"Missing EOS data for species {sp}")
 
-        self._impl = _SimulationTabulatedEOS(
-            filename, mixture_fractions=mixture_fractions
-        )
-        # Convenience references used for interpolation and inversion
-        self.rho_grid = self._impl.rho_grid
-        self.T_grid = self._impl.T_grid
-        self.p_interp: RegularGridInterpolator = self._impl.p_interp
-        self.e_interp: RegularGridInterpolator = self._impl.e_interp
+            for i, (sp, path) in enumerate(files.items()):
+                rho_i, T_i, p_i, e_i = self._load_table(path)
+                w = mixture_fractions[sp]
+                if i == 0:
+                    rho, T = rho_i, T_i
+                    p = w * p_i
+                    e = w * e_i
+                else:
+                    if not (np.allclose(rho, rho_i) and np.allclose(T, T_i)):
+                        raise ValueError("Species tables must share the same rho/T grid")
+                    p += w * p_i
+                    e += w * e_i
+
+        self.rho_grid = rho
+        self.T_grid = T
+        self.p_interp: RegularGridInterpolator = RegularGridInterpolator((rho, T), p)
+        self.e_interp: RegularGridInterpolator = RegularGridInterpolator((rho, T), e)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _load_table(path: Path):
+        """Return ``rho``, ``T``, ``p`` and ``e`` arrays from ``path``."""
+
+        path = Path(path)
+        if path.suffix == ".json":
+            with open(path, "r", encoding="utf8") as f:
+                data = json.load(f)
+            return (
+                np.array(data["rho"]),
+                np.array(data["T"]),
+                np.array(data["p"]),
+                np.array(data["e"]),
+            )
+        if path.suffix in {".h5", ".hdf5"}:
+            if h5py is None:  # pragma: no cover - exercised in environments without h5py
+                raise ModuleNotFoundError("h5py is required for tabulated EOS")
+            with h5py.File(path, "r") as f:  # type: ignore[assignment]
+                return (
+                    np.array(f["rho"][:]),
+                    np.array(f["T"][:]),
+                    np.array(f["p"][:]),
+                    np.array(f["e"][:]),
+                )
+        raise ValueError(f"Unsupported EOS file format: {path}")
 
     def pressure(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
         """Interpolate pressure for density ``rho`` and temperature ``T``."""
@@ -222,19 +256,6 @@ class RealGasEOS(TabulatedEOS):
     ) -> None:
         if mixture_fractions is None:
             raise ValueError("RealGasEOS requires mixture_fractions")
-
-        # ``TabulatedEOS`` accepts either a mapping or a string of the form
-        # ``"A:0.5,B:0.5"``.  Normalise to a dictionary to perform basic
-        # validation here before delegating to the parent class.
-        if isinstance(mixture_fractions, str):
-            parts = [p.split(":") for p in mixture_fractions.split(",") if p]
-            mixture_fractions = {sp: float(frac) for sp, frac in parts}
-
-        if any(v < 0.0 for v in mixture_fractions.values()):
-            raise ValueError("Mixture fractions must be non‑negative")
-        total = sum(mixture_fractions.values())
-        if not np.isclose(total, 1.0):
-            raise ValueError("Mixture fractions must sum to one")
 
         super().__init__(filename=filename, mixture_fractions=mixture_fractions)
 
