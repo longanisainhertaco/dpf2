@@ -65,23 +65,43 @@ class HallMHD(ResistiveMHD):
             return 0.0
         return 2.0 * mag_energy / (self.current**2)
 
-    def step(self, state: np.ndarray, dt: float, current: float = 0.0, voltage: float = 0.0) -> np.ndarray:
+    def step(
+        self,
+        state: np.ndarray,
+        dt: float,
+        current: float = 0.0,
+        voltage: float = 0.0,
+    ) -> np.ndarray:
         """Lightweight advance that updates circuit feedback only.
 
-        The plasma state is not modified; however the routine stores the
-        supplied ``current`` and ``voltage`` (treated as a back‑EMF) and
-        estimates the plasma inductance and its time derivative for use by
-        external circuit solvers.  The information is exposed via the
-        ``circuit_feedback`` attribute.
+        Parameters
+        ----------
+        state:
+            Plasma state (unused but kept for API compatibility).
+        dt:
+            Time step in seconds.
+        current:
+            Circuit current supplied by the external circuit.
+        voltage:
+            Deprecated and ignored.  Previously represented an externally
+            applied back‑EMF.
+
+        The routine estimates the plasma inductance and associated back‑EMF
+        ``emf = Lp * dI/dt + I * dLp/dt`` which are exposed through the
+        ``circuit_feedback`` attribute for use by external circuit solvers.
         """
 
+        prev_I = self.current
         self.current = current
-        self.back_emf = voltage
 
         Lp = self.plasma_inductance(state)
         dLpdt = (Lp - self.inductance) / max(dt, 1.0e-30)
+        dIdt = (current - prev_I) / max(dt, 1.0e-30)
+        emf = Lp * dIdt + current * dLpdt
+
         self.inductance = Lp
-        self.circuit_feedback = {"Lp": Lp, "dLpdt": dLpdt}
+        self.back_emf = emf
+        self.circuit_feedback = {"Lp": Lp, "emf": emf}
 
         return state
 
@@ -117,9 +137,6 @@ class HallMHD(ResistiveMHD):
             elif direction == "z":
                 F[5] -= hall_e[1]
                 F[6] -= hall_e[0]
-
-        if self.current != 0.0 and self.back_emf != 0.0:
-            F[4] += self.current * self.back_emf
 
         return F
 

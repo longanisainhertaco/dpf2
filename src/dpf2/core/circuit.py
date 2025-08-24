@@ -78,20 +78,26 @@ class RLCCircuitSolver(CircuitSolverBase):
         plasma_feedback:
             Optional mapping containing coupling terms from the plasma solver.
             Recognised keys are ``"Lp"`` for plasma inductance (Henries) and
-            ``"dLpdt"`` for its time derivative.  Additional keys
-            ``"M"`` and ``"dIm_dt"`` may be supplied to override the mutual
-            inductance values returned by the callables passed at
-            construction time.
+            either ``"dLpdt"`` for its time derivative or ``"emf"`` for the
+            induced back‑EMF (Volts).  Additional keys ``"M"`` and
+            ``"dIm_dt"`` may be supplied to override the mutual inductance
+            values returned by the callables passed at construction time.
         """
 
         t = self.time[-1]
         Lp = 0.0
         dLpdt = 0.0
+        emf = 0.0
+        use_emf = False
         M_pf = None
         dIm_dt_pf = None
         if plasma_feedback:
             Lp = plasma_feedback.get("Lp", 0.0)
-            dLpdt = plasma_feedback.get("dLpdt", 0.0)
+            if "emf" in plasma_feedback:
+                emf = plasma_feedback["emf"]
+                use_emf = True
+            else:
+                dLpdt = plasma_feedback.get("dLpdt", 0.0)
             M_pf = plasma_feedback.get("M")
             dIm_dt_pf = plasma_feedback.get("dIm_dt")
 
@@ -103,7 +109,10 @@ class RLCCircuitSolver(CircuitSolverBase):
 
         Ltot = self.L_ext + Lp
         V_mutual = -M * dIm_dt
-        dIdt = (self.V0 + V_mutual - self.R_ext * current - voltage - dLpdt * current) / Ltot
+        if use_emf:
+            dIdt = (self.V0 + V_mutual - self.R_ext * current - voltage - emf) / Ltot
+        else:
+            dIdt = (self.V0 + V_mutual - self.R_ext * current - voltage - dLpdt * current) / Ltot
         dVdt = -current / self.C_ext
 
         new_current = current + dIdt * dt
