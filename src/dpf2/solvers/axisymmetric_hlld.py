@@ -61,6 +61,8 @@ class AxisymmetricHLLD(PlasmaSolverBase):
         dr: float = 1.0,
         dz: float = 1.0,
         sources: State | None = None,
+        species_sources: State | None = None,
+        wall_ablation: dict[str, float] | None = None,
         sources_only: bool = False,
     ) -> State:
         """Advance the ``state`` by ``dt`` seconds.
@@ -68,9 +70,11 @@ class AxisymmetricHLLD(PlasmaSolverBase):
         The method performs a single explicit Euler update using the
         simplified HLLD flux and applies a constrained transport update to
         the magnetic field.  Additional source terms may be supplied via the
-        ``sources`` mapping which are applied after the flux update.  The
-        supplied ``state`` dictionary is updated in-place and returned for
-        convenience.
+        ``sources`` mapping which are applied after the flux update.  For
+        chemistry style problems a set of per-species source terms can be
+        passed via ``species_sources``.  A very small wall-ablation model is
+        supported through ``wall_ablation`` which injects mass for each named
+        species into the boundary cell ``(0,0)``.
         """
 
         if not sources_only:
@@ -116,6 +120,17 @@ class AxisymmetricHLLD(PlasmaSolverBase):
                     state[key] = state[key] + dt * src
                 else:
                     state[key] = dt * src
+        if species_sources:
+            for sp, src in species_sources.items():
+                if sp in state:
+                    state[sp] = state[sp] + dt * src
+                else:
+                    state[sp] = dt * src
+        if wall_ablation:
+            for sp, rate in wall_ablation.items():
+                if sp not in state:
+                    state[sp] = np.zeros_like(state["rho"])
+                state[sp][0, 0] += rate * dt
         return state
 
     # ------------------------------------------------------------------

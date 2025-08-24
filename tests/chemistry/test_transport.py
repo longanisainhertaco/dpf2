@@ -32,6 +32,7 @@ def test_diffusion_step():
     assert abs(res["A"][0] - 0.9) < 1e-12
     assert abs(res["A"][1] - 0.1) < 1e-12
 
+
 def test_wall_ablation():
     diff, abl = load_dataset()
     transport = MultiSpeciesTransport(diffusion=diff, dx=1.0)
@@ -39,3 +40,13 @@ def test_wall_ablation():
     res = transport.step(n, dt=1.0, wall_ablation=abl)
     assert abs(res["A"][0] - 0.5) < 1e-12
     assert abs(res["B"][0] - 0.0) < 1e-12
+
+
+def test_explicit_sources():
+    diff, _ = load_dataset()
+    transport = MultiSpeciesTransport(diffusion=diff, dx=1.0)
+    n = {"A": [0.0, 0.0], "B": [0.0, 0.0]}
+    sources = {"A": [1.0, 0.0]}
+    res = transport.step(n, dt=1.0, sources=sources)
+    assert abs(res["A"][0] - 1.0) < 1e-12
+    assert abs(res["A"][1] - 0.0) < 1e-12

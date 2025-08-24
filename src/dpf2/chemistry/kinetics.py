@@ -193,6 +193,7 @@ class MultiSpeciesTransport:
         n: dict[str, list[float]],
         dt: float,
         wall_ablation: dict[str, float] | None = None,
+        sources: dict[str, list[float]] | None = None,
     ) -> dict[str, list[float]]:
         """Advance the species densities by ``dt``.
 
@@ -205,9 +206,13 @@ class MultiSpeciesTransport:
         wall_ablation:
             Optional mapping of species name to a mass injection rate
             applied at the boundary cell ``i=0``.
+        sources:
+            Optional mapping of species name to per-cell source terms
+            expressed as ``dn/dt``.
         """
 
         wall_ablation = wall_ablation or {}
+        sources = sources or {}
         cells = len(next(iter(n.values())))
         updated: dict[str, list[float]] = {
             sp: list(vals) for sp, vals in n.items()
@@ -226,6 +231,13 @@ class MultiSpeciesTransport:
             updated[sp] = [v + dt * dv_i for v, dv_i in zip(values, dv)]
             if sp in wall_ablation:
                 updated[sp][0] += wall_ablation[sp] * dt
+            if sp in sources:
+                src = sources[sp]
+                if len(src) != cells:
+                    raise ValueError(
+                        f"sources for species {sp} must match number of cells"
+                    )
+                updated[sp] = [v + dt * s for v, s in zip(updated[sp], src)]
         return updated
 
 
