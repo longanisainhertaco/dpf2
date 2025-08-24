@@ -118,9 +118,14 @@ class HallMHD(ResistiveMHD):
         self.circuit_feedback = {"Lp": Lp, "emf": emf}
 
         if circuit is not None:
-            self.current, self.back_emf = circuit.step(
+            # ``circuit.step`` returns the updated current and the circuit
+            # voltage.  Store both so that subsequent calls to ``step`` use the
+            # latest values.
+            new_current, voltage = circuit.step(
                 self.current, back_emf, dt, self.circuit_feedback
             )
+            self.current = new_current
+            self.back_emf = voltage
         else:
             self.back_emf = 0.0
 
