@@ -258,21 +258,6 @@ class HallMHDSolver(PlasmaSolverBase):
         T = self.eos.temperature(rho, specific_e)
         p = self.eos.pressure(rho, T)
         zbar = self.chemistry.ionization_state(rho, T)
-        if self.radiation is not None:
-            if hasattr(self.radiation, "couple"):
-                energy_before = energy.copy()
-                flat = energy_before.ravel().tolist()
-                updated = self.radiation.couple(flat, dt)
-                energy = np.array(updated).reshape(energy.shape)
-                self.last_rad_loss = (energy_before - energy) / dt
-            else:
-                rad_loss = self.radiation.loss(rho, T * zbar)
-                energy -= dt * rad_loss
-                self.last_rad_loss = rad_loss
-        else:
-            self.last_rad_loss = None
-        self.last_pressure = p
-        self.last_ionization = zbar
 
         # --- High-order Godunov fluxes (MUSCL-Hancock) ---
         gamma = getattr(self.eos, "gamma", 5.0 / 3.0)
@@ -327,7 +312,39 @@ class HallMHDSolver(PlasmaSolverBase):
         energy -= dt * denergy
         mom -= dt * dmom
 
+        if self.radiation is not None:
+            if hasattr(self.radiation, "couple"):
+                energy_before = energy.copy()
+                flat = energy_before.ravel().tolist()
+                updated = self.radiation.couple(flat, dt)
+                energy = np.array(updated).reshape(energy.shape)
+                self.last_rad_loss = (energy_before - energy) / dt
+            else:
+                v_tmp = mom / rho[..., None]
+                B2_tmp = np.sum(B**2, axis=-1)
+                kinetic_tmp = 0.5 * rho * np.sum(v_tmp**2, axis=-1)
+                magnetic_tmp = 0.5 * B2_tmp
+                e_internal_tmp = energy - kinetic_tmp - magnetic_tmp
+                specific_tmp = e_internal_tmp / rho
+                T_tmp = self.eos.temperature(rho, specific_tmp)
+                zbar_tmp = self.chemistry.ionization_state(rho, T_tmp)
+                rad_loss = self.radiation.loss(rho, T_tmp * zbar_tmp)
+                energy -= dt * rad_loss
+                self.last_rad_loss = rad_loss
+        else:
+            self.last_rad_loss = None
+
         v = mom / rho[..., None]
+        B2 = np.sum(B**2, axis=-1)
+        kinetic = 0.5 * rho * np.sum(v**2, axis=-1)
+        magnetic = 0.5 * B2
+        e_internal = energy - kinetic - magnetic
+        specific_e = e_internal / rho
+        T = self.eos.temperature(rho, specific_e)
+        p = self.eos.pressure(rho, T)
+        zbar = self.chemistry.ionization_state(rho, T)
+        self.last_pressure = p
+        self.last_ionization = zbar
 
         # --- Constrained transport via electric fields ---
         J = _curl(B)

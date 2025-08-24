@@ -113,3 +113,30 @@ def test_resistive_mhd_multi_cell_energy_conservation():
 
     total_after = sum(cell[4] for cell in U) + sum(sum(g) for g in rad.energy)
     assert math.isclose(total_before, total_after)
+
+
+def test_couple_balances_loss_and_gain():
+    rad = MultiGroupDiffusion(opacities=[0.1, 0.2])
+    fluid = [5.0, 7.0]
+    before = [list(g) for g in rad.energy]
+    updated = rad.couple(fluid, dt=1.0)
+    fluid_loss = sum(fb - fa for fb, fa in zip(fluid, updated))
+    rad_gain = sum(sum(g_new) - sum(g_old) for g_old, g_new in zip(before, rad.energy))
+    assert math.isclose(fluid_loss, rad_gain)
+
+
+def test_resistive_mhd_balances_loss_and_gain():
+    rad = MultiGroupDiffusion(opacities=[0.1, 0.2])
+    mhd = ResistiveMHD()
+    U = [[0.0] * 9 for _ in range(2)]
+    for cell in U:
+        cell[0] = 1.0
+        cell[4] = 10.0
+    fluid_before = [cell[4] for cell in U]
+    rad_before = [list(g) for g in rad.energy]
+
+    mhd.apply_radiation(U, rad, dt=1.0)
+
+    fluid_loss = sum(b - cell[4] for b, cell in zip(fluid_before, U))
+    rad_gain = sum(sum(g_new) - sum(g_old) for g_old, g_new in zip(rad_before, rad.energy))
+    assert math.isclose(fluid_loss, rad_gain)

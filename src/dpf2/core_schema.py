@@ -286,6 +286,18 @@ class RadiationSettings(ConfigSectionBase):
             "group": "MultiGroup",
         },
     )
+
+    @model_validator(mode="after")
+    def _validate_groups(cls, values: Self) -> Self:
+        """Ensure opacity lists match the configured group count."""
+        if values.group_opacities and len(values.group_opacities) != values.group_count:
+            raise ValueError("group_opacities must match group_count")
+        for mat, vals in values.material_opacities.items():
+            if len(vals) != values.group_count:
+                raise ValueError(
+                    f"material_opacities for {mat} must match group_count"
+                )
+        return values
 # ---------------------------------------------------------------------------
 # Root configuration model
 
