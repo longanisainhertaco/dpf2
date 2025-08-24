@@ -1,12 +1,14 @@
 import numpy as np
 
+import numpy as np
+
 from dpf2.mesh import Mesh3D, apply_bc
 
 
 def test_cell_indexing_and_centers():
     mesh = Mesh3D(0.0, 2.0, 0.0, 2.0, 0.0, 2.0, 2, 2, 2)
-    first = mesh.cells[0]
-    last = mesh.cells[-1]
+    first = mesh.cell(0, 0, 0)
+    last = mesh.cell(1, 1, 1)
     assert (first.x_index, first.y_index, first.z_index) == (0, 0, 0)
     assert np.isclose(first.x_center, 0.5)
     assert np.isclose(first.y_center, 0.5)
