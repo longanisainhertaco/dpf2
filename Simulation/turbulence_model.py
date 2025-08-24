@@ -205,6 +205,7 @@ class TurbulenceModel(PhysicsModule):
         g = getattr(state, "ghost", 1)
         nu = state.viscosity / np.maximum(state.density, 1e-30)
         nx = state.velocity.shape[0]
+        y = 0.5 * state.dx
 
         if self.wall_function_type == "log_law":
             # Logarithmic law of the wall
@@ -214,7 +215,6 @@ class TurbulenceModel(PhysicsModule):
             # Left boundary (x_lo)
             k_cell = self.k[g, :, :]
             u_tau = (self.C_mu ** 0.25) * np.sqrt(k_cell)
-            y = 0.5 * state.dx
             y_plus = y * u_tau / np.maximum(nu[g, :, :], 1e-30)
             u_plus = (1.0 / kappa) * np.log(np.maximum(E * y_plus, 1.0))
             state.velocity[g, :, :, 0] = u_plus * u_tau
@@ -234,7 +234,6 @@ class TurbulenceModel(PhysicsModule):
         elif self.wall_function_type == "power_law":
             # Simple power-law relation (1/7th power law)
             n = 7.0
-            y = 0.5 * state.dx
 
             # Left boundary uses velocity from the next interior cell
             U_edge = state.velocity[g + 1, :, :, 0]
