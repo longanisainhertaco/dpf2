@@ -26,13 +26,16 @@ update.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Any
 
 import numpy as np
 
 from dpf2.core.bases import PlasmaSolverBase
 
-State = Dict[str, np.ndarray]
+# ``numpy`` may be replaced with a lightweight stub during testing which does
+# not expose the ``ndarray`` attribute.  Using ``Any`` keeps the type hints
+# flexible while still documenting the expected dictionary layout.
+State = Dict[str, Any]
 
 
 @dataclass
@@ -51,18 +54,52 @@ class AxisymmetricHLLD(PlasmaSolverBase):
     # ------------------------------------------------------------------
     #   Public API
     # ------------------------------------------------------------------
-    def step(self, state: State, dt: float, dr: float = 1.0, dz: float = 1.0) -> State:
+    def step(
+        self,
+        state: State,
+        dt: float,
+        dr: float = 1.0,
+        dz: float = 1.0,
+        sources: State | None = None,
+        sources_only: bool = False,
+    ) -> State:
         """Advance the ``state`` by ``dt`` seconds.
 
         The method performs a single explicit Euler update using the
         simplified HLLD flux and applies a constrained transport update to
-        the magnetic field.  The supplied ``state`` dictionary is updated
-        in-place and returned for convenience.
+        the magnetic field.  Additional source terms may be supplied via the
+        ``sources`` mapping which are applied after the flux update.  The
+        supplied ``state`` dictionary is updated in-place and returned for
+        convenience.
         """
 
-        # Stack conserved variables into a single array for convenience
-        U = np.array(
-            [
+        if not sources_only:
+            # Stack conserved variables into a single array for convenience
+            U = np.stack(
+                [
+                    state["rho"],
+                    state["mom_r"],
+                    state["mom_phi"],
+                    state["mom_z"],
+                    state["B_r"],
+                    state["B_phi"],
+                    state["B_z"],
+                    state["energy"],
+                ]
+            )
+
+            # Compute fluxes in r and z direction using a very small HLLD solver
+            flux_r = self._interface_flux(U[:, :-1, :], U[:, 1:, :], axis=0)
+            flux_z = self._interface_flux(U[:, :, :-1], U[:, :, 1:], axis=1)
+
+            # Update conserved variables using divergence of fluxes
+            U[:, 1:-1, 1:-1] -= dt / dr * (flux_r[:, 1:, 1:-1] - flux_r[:, :-1, 1:-1])
+            U[:, 1:-1, 1:-1] -= dt / dz * (flux_z[:, 1:-1, 1:] - flux_z[:, 1:-1, :-1])
+
+            # Constrained transport update of magnetic field ---------------------------------
+            self._constrained_transport(U, dt, dr, dz)
+
+            (
                 state["rho"],
                 state["mom_r"],
                 state["mom_phi"],
@@ -71,30 +108,14 @@ class AxisymmetricHLLD(PlasmaSolverBase):
                 state["B_phi"],
                 state["B_z"],
                 state["energy"],
-            ]
-        )
+            ) = U
 
-        # Compute fluxes in r and z direction using a very small HLLD solver
-        flux_r = self._interface_flux(U[:, :-1, :], U[:, 1:, :], axis=0)
-        flux_z = self._interface_flux(U[:, :, :-1], U[:, :, 1:], axis=1)
-
-        # Update conserved variables using divergence of fluxes
-        U[:, 1:-1, 1:-1] -= dt / dr * (flux_r[:, 1:, 1:-1] - flux_r[:, :-1, 1:-1])
-        U[:, 1:-1, 1:-1] -= dt / dz * (flux_z[:, 1:-1, 1:] - flux_z[:, 1:-1, :-1])
-
-        # Constrained transport update of magnetic field ---------------------------------
-        self._constrained_transport(U, dt, dr, dz)
-
-        (
-            state["rho"],
-            state["mom_r"],
-            state["mom_phi"],
-            state["mom_z"],
-            state["B_r"],
-            state["B_phi"],
-            state["B_z"],
-            state["energy"],
-        ) = U
+        if sources:
+            for key, src in sources.items():
+                if key in state:
+                    state[key] = state[key] + dt * src
+                else:
+                    state[key] = dt * src
         return state
 
     # ------------------------------------------------------------------

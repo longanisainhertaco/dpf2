@@ -167,8 +167,11 @@ class RateEquations:
         """
 
         dn = self.rhs(n, T)
-        if sources is not None:
-            dn = [dni + src for dni, src in zip(dn, sources)]
+        if sources is None:
+            sources = [0.0] * self.levels
+        elif len(sources) != self.levels:
+            raise ValueError("sources must provide one entry per charge state")
+        dn = [dni + src for dni, src in zip(dn, sources)]
         return [ni + dt * dni for ni, dni in zip(n, dn)]
 
 class MultiSpeciesTransport:

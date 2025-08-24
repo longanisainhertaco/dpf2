@@ -28,6 +28,16 @@ def test_rate_table_interpolation():
     assert abs(rec - 0.0) < 1e-12
 
 
+def test_sources_applied_to_populations():
+    rates = RateTable.from_csv(data_path("crm_dummy.csv"))
+    kinetics = RateEquations(rates, levels=2)
+    n = [0.0, 0.0]
+    sources = [1.0, 0.0]
+    out = kinetics.step(n, T=10.0, dt=0.1, sources=sources)
+    assert abs(out[0] - 0.1) < 1e-12
+    assert abs(out[1] - 0.0) < 1e-12
+
+
 def test_kinetics_converges_to_flychk():
     rates = RateTable.from_csv(data_path("crm_dummy.csv"))
     kinetics = RateEquations(rates, levels=2)
