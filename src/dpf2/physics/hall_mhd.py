@@ -111,23 +111,23 @@ class HallMHD(ResistiveMHD):
         dIdt = (current - prev_I) / max(dt, 1.0e-30)
         emf = Lp * dIdt + current * dLpdt
 
-        back_emf = -dLpdt * self.current
-
+        # Store plasma feedback for the circuit solver.  The induced EMF is
+        # recorded on ``back_emf`` while the external circuit is advanced with
+        # the updated inductance information.  No separate ``back_emf`` term is
+        # supplied to the circuit as the plasma induced voltage is already
+        # accounted for via ``emf`` above.
         self.inductance = Lp
         self.back_emf = emf
         self.circuit_feedback = {"Lp": Lp, "emf": emf}
 
         if circuit is not None:
-            # ``circuit.step`` returns the updated current and the circuit
-            # voltage.  Store both so that subsequent calls to ``step`` use the
-            # latest values.
-            new_current, voltage = circuit.step(
-                self.current, back_emf, dt, self.circuit_feedback
+            # ``circuit.step`` returns the updated current and circuit voltage.
+            # Only the current is retained; the plasma feedback remains stored
+            # on ``self.back_emf`` and ``self.circuit_feedback``.
+            new_current, _ = circuit.step(
+                self.current, 0.0, dt, self.circuit_feedback
             )
             self.current = new_current
-            self.back_emf = voltage
-        else:
-            self.back_emf = 0.0
 
         return state
 
