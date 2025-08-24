@@ -146,6 +146,60 @@ class RateEquations:
         dn = self.rhs(n, T)
         return [ni + dt * dni for ni, dni in zip(n, dn)]
 
+class MultiSpeciesTransport:
+    """Very small multi‑species diffusion and wall ablation model.
 
-__all__ = ["RateTable", "RateEquations"]
+    The model advects a set of species in one spatial dimension using a
+    simple finite difference discretisation of Fick's law.  An optional
+    wall ablation source can inject material for each species at the
+    ``i=0`` boundary which is sufficient for regression and validation
+    style tests.
+    """
+
+    def __init__(self, diffusion: dict[str, float], dx: float = 1.0) -> None:
+        self.diffusion = diffusion
+        self.dx = dx
+
+    def step(
+        self,
+        n: dict[str, list[float]],
+        dt: float,
+        wall_ablation: dict[str, float] | None = None,
+    ) -> dict[str, list[float]]:
+        """Advance the species densities by ``dt``.
+
+        Parameters
+        ----------
+        n:
+            Mapping of species name to a list of cell averaged densities.
+        dt:
+            Time step in seconds.
+        wall_ablation:
+            Optional mapping of species name to a mass injection rate
+            applied at the boundary cell ``i=0``.
+        """
+
+        wall_ablation = wall_ablation or {}
+        cells = len(next(iter(n.values())))
+        updated: dict[str, list[float]] = {
+            sp: list(vals) for sp, vals in n.items()
+        }
+        for sp, values in n.items():
+            D = self.diffusion.get(sp, 0.0)
+            dv = [0.0] * cells
+            for i in range(cells):
+                flux_l = 0.0
+                flux_r = 0.0
+                if i > 0:
+                    flux_l = -D * (values[i] - values[i - 1]) / self.dx
+                if i < cells - 1:
+                    flux_r = -D * (values[i + 1] - values[i]) / self.dx
+                dv[i] = (flux_l - flux_r) / self.dx
+            updated[sp] = [v + dt * dv_i for v, dv_i in zip(values, dv)]
+            if sp in wall_ablation:
+                updated[sp][0] += wall_ablation[sp] * dt
+        return updated
+
+
+__all__ = ["RateTable", "RateEquations", "MultiSpeciesTransport"]
 
