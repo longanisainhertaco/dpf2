@@ -6,7 +6,6 @@ import os
 from typing import Dict, Type, Any, List, Optional
 from pydantic import BaseModel, ValidationError
 
-# Import the base physics module to validate and register plugins
 from Simulation.models import PhysicsModule
 from utils import FieldManager
 
