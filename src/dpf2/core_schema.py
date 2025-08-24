@@ -247,6 +247,25 @@ class ConfigSectionBase(BaseModel):
             for name, field in self.model_fields.items()
         }
 
+
+# ---------------------------------------------------------------------------
+# Radiation configuration
+
+
+class RadiationSettings(ConfigSectionBase):
+    """Basic radiation configuration including group opacities."""
+
+    config_section_id: ClassVar[str] = "radiation"
+
+    group_opacities: List[float] = Field(
+        default_factory=list,
+        alias="groupOpacities",
+        metadata={
+            "units": "1/m",
+            "category": "Radiation",
+            "group": "MultiGroup",
+        },
+    )
 # ---------------------------------------------------------------------------
 # Root configuration model
 
@@ -265,6 +284,11 @@ class DPFConfig(BaseModel):
     )
     physics: PhysicsModels = Field(
         ..., alias="physics", metadata={"units": "-", "category": "Model", "group": "Physics"}
+    )
+    radiation: RadiationSettings = Field(
+        default_factory=RadiationSettings.with_defaults,
+        alias="radiation",
+        metadata={"units": "-", "category": "Model", "group": "Radiation"},
     )
     circuit: CircuitConfig = Field(
         ..., alias="circuit", metadata={"units": "-", "category": "Model", "group": "Circuit"}
@@ -367,6 +391,7 @@ class DPFConfig(BaseModel):
             ),
             initial=InitialConditions.with_defaults(),
             physics=PhysicsModels.with_defaults(),
+            radiation=RadiationSettings.with_defaults(),
             circuit=CircuitConfig.with_defaults(),
             amrex=AmrexSettings.with_defaults(),
             warpx=WarpXSettings.with_defaults(
@@ -533,6 +558,7 @@ if __name__ == "__main__":
 __all__ = [
     "ConfigSectionBase",
     "DPFConfig",
+    "RadiationSettings",
     "TimeVoltageProfile",
     "DetectorConfig",
     "ConfigOverride",

@@ -227,14 +227,19 @@ class ResistiveMHD:
         """
 
         idx = self.equations.index("energy")
-        if not isinstance(U[0], (list, tuple)):
-            updated = radiation.couple([U[idx]], dt)
-            U[idx] = updated[0]
-        else:
+        # Determine if ``U`` is a single state vector or a 2-D array of
+        # multiple cells.  ``numpy`` arrays report the number of dimensions via
+        # ``ndim`` whereas the lightweight stubs used in the tests expose
+        # list-like behaviour.  We therefore inspect the first element for a
+        # ``len`` attribute instead of relying on ``isinstance`` checks.
+        if hasattr(U[0], "__len__"):
             energies = [row[idx] for row in U]
             updated = radiation.couple(energies, dt)
             for i, val in enumerate(updated):
                 U[i][idx] = val
+        else:
+            updated = radiation.couple([U[idx]], dt)
+            U[idx] = updated[0]
 
     # ------------------------------------------------------------------
     # Source terms

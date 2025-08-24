@@ -77,3 +77,14 @@ def test_group_coupling_distribution():
     expected = [0.1 * 9.0, 0.2 * 9.0]
     assert all(math.isclose(rad.energy[g][0], expected[g]) for g in range(2))
     assert math.isclose(U[4], 9.0 - sum(expected))
+
+
+def test_couple_conserves_energy_multi_cell():
+    rad = MultiGroupDiffusion(opacities=[0.1, 0.2])
+    fluid = [5.0, 7.0]
+    total_before = sum(fluid) + sum(sum(g) for g in rad.energy)
+
+    updated = rad.couple(fluid, dt=1.0)
+
+    total_after = sum(updated) + sum(sum(g) for g in rad.energy)
+    assert math.isclose(total_before, total_after)
