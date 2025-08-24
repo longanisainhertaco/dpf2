@@ -4,7 +4,8 @@ Selects and initializes the appropriate Equation of State (EOS) model.
 """
 import logging
 from typing import Any, Optional, Union
-from eos import TabulatedEOS, parse_mixture_fractions  # type: ignore
+
+from .eos import TabulatedEOS, parse_mixture_fractions
 
 logger = logging.getLogger(__name__)
 

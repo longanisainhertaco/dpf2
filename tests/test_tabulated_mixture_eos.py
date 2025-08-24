@@ -1,5 +1,6 @@
 import h5py
 import numpy as np
+import pytest
 from pathlib import Path
 
 from dpf2.eos import TabulatedEOS
@@ -42,4 +43,24 @@ def test_mixed_eos_weighted_combination(tmp_path):
 
     np.testing.assert_allclose(mix_eos.pressure(rho, T_val), expected_p)
     np.testing.assert_allclose(mix_eos.energy(rho, T_val), expected_e)
+
+
+def test_mixed_eos_invalid_fraction_sum(tmp_path):
+    path_a = _create_species_file(tmp_path, "A", p_val=1.0, e_val=100.0)
+    path_b = _create_species_file(tmp_path, "B", p_val=2.0, e_val=200.0)
+    fractions = {"A": 0.2, "B": 0.2}
+
+    with pytest.raises(ValueError):
+        TabulatedEOS(
+            filename={"A": str(path_a), "B": str(path_b)},
+            mixture_fractions=fractions,
+        )
+
+
+def test_mixed_eos_missing_species_data(tmp_path):
+    path_a = _create_species_file(tmp_path, "A", p_val=1.0, e_val=100.0)
+    fractions = {"A": 0.5, "B": 0.5}
+
+    with pytest.raises(ValueError):
+        TabulatedEOS(filename=str(tmp_path), mixture_fractions=fractions)
 

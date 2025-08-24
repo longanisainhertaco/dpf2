@@ -40,3 +40,14 @@ def test_select_eos_mixture_missing_data(tmp_path):
             table_file=str(tmp_path),
             mixture_fractions="A:0.5,B:0.5",
         )
+
+
+def test_select_eos_invalid_fractions(tmp_path):
+    _create_species_eos_file(tmp_path, "A")
+    _create_species_eos_file(tmp_path, "B")
+    with pytest.raises(ValueError):
+        select_eos(
+            "tabulated",
+            table_file=str(tmp_path),
+            mixture_fractions="A:0.3,B:0.3",
+        )
