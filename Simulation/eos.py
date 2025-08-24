@@ -1,11 +1,77 @@
-import numpy as np
-import h5py
 import logging
 from pathlib import Path
 from typing import Dict, Optional, Union
+
+import h5py
+import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
 logger = logging.getLogger(__name__)
+
+
+def parse_mixture_fractions(
+    mixture_fractions: Union[str, Dict[str, float], None]
+) -> Dict[str, float]:
+    """Parse mixture fraction definitions into a normalised dictionary.
+
+    Parameters
+    ----------
+    mixture_fractions:
+        Either a mapping of species to fractions or a comma separated string of
+        ``"species:fraction"`` pairs. Fractions must be non-negative and sum to
+        one. ``None`` returns an empty dictionary.
+    """
+
+    if mixture_fractions is None:
+        return {}
+
+    parsed: Dict[str, float] = {}
+
+    if isinstance(mixture_fractions, str):
+        for part in mixture_fractions.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                species, frac = part.split(":")
+            except ValueError as exc:
+                raise ValueError(
+                    "Mixture fractions must be in 'species:fraction' format"
+                ) from exc
+            species = species.strip()
+            if not species:
+                raise ValueError(
+                    "Species name in mixture fractions cannot be empty"
+                )
+            try:
+                parsed[species] = float(frac)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Invalid fraction value for species '{species}': {frac}"
+                ) from exc
+    elif isinstance(mixture_fractions, dict):
+        for species, frac in mixture_fractions.items():
+            species = str(species)
+            try:
+                parsed[species] = float(frac)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Invalid fraction value for species '{species}': {frac}"
+                ) from exc
+    else:
+        raise TypeError("mixture_fractions must be a dict or a string")
+
+    if not parsed:
+        raise ValueError("No valid mixture fractions provided")
+
+    if any(frac < 0.0 for frac in parsed.values()):
+        raise ValueError("Mixture fractions must be non-negative")
+
+    total = sum(parsed.values())
+    if abs(total - 1.0) > 1e-6:
+        raise ValueError("Mixture fractions must sum to 1")
+
+    return parsed
 
 class TabulatedEOS:
     """
@@ -18,15 +84,20 @@ class TabulatedEOS:
     weighted EOS.
     """
 
-    def __init__(self, filename: Union[str, Path, Dict[str, Union[str, Path]]], mixture_fractions: Optional[Dict[str, float]] = None):
+    def __init__(
+        self,
+        filename: Union[str, Path, Dict[str, Union[str, Path]]],
+        mixture_fractions: Optional[Union[str, Dict[str, float]]] = None,
+    ) -> None:
         """Initializes the TabulatedEOS with data from one or more HDF5 files.
 
         Args:
             filename (Union[str, Path, Dict[str, Union[str, Path]]]): Path to the HDF5
                 file containing the EOS data for a single species or a mapping of
                 species names to file paths when ``mixture_fractions`` is supplied.
-            mixture_fractions (Optional[Dict[str, float]]): Optional mixture composition
-                where keys are species names and values are their fractions.
+            mixture_fractions (Optional[Union[str, Dict[str, float]]]): Optional
+                mixture composition. Can be provided as a dictionary or as a comma
+                separated string of ``"species:fraction"`` pairs.
         """
 
         def _load_table(path: Union[str, Path]):
@@ -50,20 +121,26 @@ class TabulatedEOS:
                     raise ValueError("EOS table has inconsistent dimensions.")
             return rho_grid, T_grid, p_table, e_table
 
+        fractions = parse_mixture_fractions(mixture_fractions)
+
         try:
-            if mixture_fractions:
+            if fractions:
                 if isinstance(filename, (str, Path)):
                     base = Path(filename)
-                    species_files = {sp: base / f"{sp}.h5" for sp in mixture_fractions}
+                    species_files = {sp: base / f"{sp}.h5" for sp in fractions}
                 elif isinstance(filename, dict):
                     species_files = {sp: Path(path) for sp, path in filename.items()}
                 else:
-                    raise TypeError("filename must be a path or mapping when mixture_fractions are provided")
+                    raise TypeError(
+                        "filename must be a path or mapping when mixture_fractions are provided"
+                    )
 
                 first = True
                 for species, path in species_files.items():
+                    if not path.is_file():
+                        raise ValueError(f"Missing EOS data for species '{species}'")
                     rho, T, p_tab, e_tab = _load_table(path)
-                    weight = mixture_fractions.get(species, 0.0)
+                    weight = fractions.get(species, 0.0)
                     if first:
                         self.rho_grid = rho
                         self.T_grid = T
@@ -75,10 +152,15 @@ class TabulatedEOS:
                             np.array_equal(self.rho_grid, rho)
                             and np.array_equal(self.T_grid, T)
                         ):
-                            raise ValueError("EOS grids for different species do not match.")
+                            raise ValueError(
+                                "EOS grids for different species do not match."
+                            )
                         self.p_table += weight * p_tab
                         self.e_table += weight * e_tab
-                logger.info("Mixture EOS tables loaded for species: %s", ", ".join(species_files.keys()))
+                logger.info(
+                    "Mixture EOS tables loaded for species: %s",
+                    ", ".join(species_files.keys()),
+                )
             else:
                 rho, T, p_tab, e_tab = _load_table(filename)
                 self.rho_grid = rho
