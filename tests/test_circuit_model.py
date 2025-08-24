@@ -3,10 +3,7 @@ from pathlib import Path
 
 import pytest
 
-
-# Ensure Simulation modules are importable
-sys.path.append(str(Path(__file__).resolve().parents[1] / "Simulation"))
-from circuit import CircuitModel  # type: ignore
+from dpf2.simulation.circuit import CircuitModel  # type: ignore
 
 
 class DummyCollision:

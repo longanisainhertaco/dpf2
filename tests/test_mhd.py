@@ -2,8 +2,7 @@ import numpy as np
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1] / "src" / "dpf2" / "physics"))
-from mhd import ResistiveMHD
+from dpf2.physics import ResistiveMHD
 
 
 def test_conservative_variables():

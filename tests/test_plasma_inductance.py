@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from scipy.constants import mu_0
 
-from Simulation.circuit import CircuitModel
-from Simulation.utils import FieldManager
+from dpf2.simulation.circuit import CircuitModel
+from dpf2.simulation.utils import FieldManager
 
 
 class DummyCollisionModel:

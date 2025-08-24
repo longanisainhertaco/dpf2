@@ -2,7 +2,7 @@ import base64
 import time
 from werkzeug.security import generate_password_hash
 
-from Simulation.dpf_simulator_server import app, simulation_manager
+from dpf2.simulation.dpf_simulator_server import app, simulation_manager
 
 
 def _auth_headers():

@@ -1,4 +1,4 @@
-from Simulation.dpf_simulator_amrex_backend import _parse_cli
+from dpf2.simulation.dpf_simulator_amrex_backend import _parse_cli
 
 
 def test_parse_cli():

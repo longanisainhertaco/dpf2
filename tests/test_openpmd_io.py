@@ -1,6 +1,6 @@
 import h5py
 import numpy as np
-from Simulation.openpmd_io import OpenPMDWriter
+from dpf2.simulation.openpmd_io import OpenPMDWriter
 
 
 def test_openpmd_writer(tmp_path):

@@ -33,7 +33,7 @@ config_stub = types.ModuleType("config_schema")
 config_stub.RadiationConfig = object
 sys.modules.setdefault("config_schema", config_stub)
 
-from Simulation.radiation_model import RadiationModel
+from dpf2.simulation.radiation_model import RadiationModel
 
 
 def _make_model(model, params):

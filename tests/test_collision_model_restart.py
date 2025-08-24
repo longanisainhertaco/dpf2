@@ -26,11 +26,15 @@ def collision_model_classes(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "numba", numba_stub)
 
+
     models_stub = types.SimpleNamespace(
         PhysicsModule=object,
         SimulationState=object,
     )
     monkeypatch.setitem(sys.modules, "models", models_stub)
+
+from dpf2.simulation.collision_model import CollisionModel, CrossSectionData
+
 
     from Simulation.collision_model import CollisionModel, CrossSectionData
     return CollisionModel, CrossSectionData
