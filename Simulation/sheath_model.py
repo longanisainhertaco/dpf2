@@ -155,12 +155,23 @@ class BohmSheath:
         phi_s = self._sheath_potential()
 
         # Determine grid spacing along the sheath-normal axis for field estimate
-        dz = 1.0
-        if hasattr(target, 'dz'):
-            dz = getattr(target, 'dz', 1.0)
-        elif hasattr(target, 'field_manager') and hasattr(target.field_manager, 'dz'):
-            dz = target.field_manager.dz
-        sheath_field = phi_s / dz
+        spacing = 1.0
+        if self.axis == 0:
+            if hasattr(target, 'dx'):
+                spacing = getattr(target, 'dx', 1.0)
+            elif hasattr(target, 'field_manager') and hasattr(target.field_manager, 'dx'):
+                spacing = target.field_manager.dx
+        elif self.axis == 1:
+            if hasattr(target, 'dy'):
+                spacing = getattr(target, 'dy', 1.0)
+            elif hasattr(target, 'field_manager') and hasattr(target.field_manager, 'dy'):
+                spacing = target.field_manager.dy
+        else:
+            if hasattr(target, 'dz'):
+                spacing = getattr(target, 'dz', 1.0)
+            elif hasattr(target, 'field_manager') and hasattr(target.field_manager, 'dz'):
+                spacing = target.field_manager.dz
+        sheath_field = phi_s / spacing
 
         # Case 1: target is a SimulationState holding a FieldManager
         if hasattr(target, "field_manager"):
