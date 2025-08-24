@@ -105,6 +105,23 @@ class BoundaryConditions(ConfigSectionBase):
         metadata={"units": "cells"},
     )
 
+    # Perfectly matched layer (PML) configuration
+    pml_thickness: Optional[int] = Field(
+        2,
+        ge=0,
+        alias="pmlThickness",
+        metadata={"units": "cells"},
+    )
+    pml_sigma: Optional[float] = Field(
+        2.0,
+        ge=0.0,
+        alias="pmlSigma",
+    )
+    pml_profile: Optional[Literal["exponential", "linear"]] = Field(
+        "exponential",
+        alias="pmlProfile",
+    )
+
     ghost_zone_extrapolation: Optional[Literal[
         "constant",
         "linear",
@@ -137,6 +154,9 @@ class BoundaryConditions(ConfigSectionBase):
             z_high=BoundaryTypeEnum.REFLECTING,
             absorbing_layer_thickness_cells=4,
             ghost_zone_extrapolation="constant",
+            pml_thickness=2,
+            pml_sigma=2.0,
+            pml_profile="exponential",
         )
 
     def resolve_defaults(self) -> "BoundaryConditions":
@@ -151,6 +171,9 @@ class BoundaryConditions(ConfigSectionBase):
         ]:
             data.setdefault(f, BoundaryTypeEnum.REFLECTING)
         data.setdefault("absorbing_layer_thickness_cells", 4)
+        data.setdefault("pml_thickness", 2)
+        data.setdefault("pml_sigma", 2.0)
+        data.setdefault("pml_profile", "exponential")
         return self.model_validate(data, context=getattr(self, "_context", {}))
 
     def required_fields(self) -> List[str]:
@@ -169,6 +192,7 @@ class BoundaryConditions(ConfigSectionBase):
             f"Y boundaries: {self.y_low.value} | {self.y_high.value}",
             f"Z boundaries: {self.z_low.value} | {self.z_high.value}",
             f"Absorbing layer: {self.absorbing_layer_thickness_cells} cells, Extrapolation: {self.ghost_zone_extrapolation}",
+            f"PML: thickness={self.pml_thickness}, sigma={self.pml_sigma}, profile={self.pml_profile}",
         ]
         if self.boundary_field_overrides:
             lines = []
