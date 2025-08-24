@@ -94,6 +94,10 @@ class BohmSheath:
         self.ion_mass = ion_mass
         self.axis = axis
 
+        # Expose last computed sheath properties for diagnostics/testing
+        self.last_velocity = 0.0
+        self.last_potential = 0.0
+
     # ------------------------------------------------------------------
     def _bohm_velocity(self) -> float:
         """Return the Bohm velocity based on the stored temperature/mass."""
@@ -160,6 +164,12 @@ class BohmSheath:
 
         v_bohm = self._bohm_velocity()
         phi_s = self._sheath_potential()
+
+        # Record the quantities used for boundary updates so that callers can
+        # inspect them after application.  This is helpful for debugging and
+        # for unit tests that wish to verify the Bohm criterion is enforced.
+        self.last_velocity = v_bohm
+        self.last_potential = phi_s
 
         # Determine grid spacing along the sheath-normal axis for field estimate
         spacing = 1.0
