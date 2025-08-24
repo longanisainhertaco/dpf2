@@ -89,3 +89,9 @@ def test_missing_density_param():
     rm = _make_model("density_dependent", {"base": 0.1, "alpha": 0.2})
     with pytest.raises(ValueError):
         rm._compute_opacity(Te=0.0, ne=1.0, Z=0.0)
+
+
+def test_unknown_model():
+    rm = _make_model("invalid_model", {})
+    with pytest.raises(ValueError):
+        rm._compute_opacity(Te=0.0, ne=0.0, Z=0.0)
