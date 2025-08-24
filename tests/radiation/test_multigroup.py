@@ -98,3 +98,18 @@ def test_diffusion_keeps_total_energy():
     rad.diffuse(dx=1.0, dt=0.1)
     total_after = sum(sum(g) for g in rad.energy)
     assert math.isclose(total_before, total_after)
+
+
+def test_resistive_mhd_multi_cell_energy_conservation():
+    rad = MultiGroupDiffusion(opacities=[0.1, 0.2])
+    mhd = ResistiveMHD()
+    U = [[0.0] * 9 for _ in range(2)]
+    for cell in U:
+        cell[0] = 1.0
+        cell[4] = 10.0
+    total_before = sum(cell[4] for cell in U) + sum(sum(g) for g in rad.energy)
+
+    mhd.apply_radiation(U, rad, dt=1.0)
+
+    total_after = sum(cell[4] for cell in U) + sum(sum(g) for g in rad.energy)
+    assert math.isclose(total_before, total_after)

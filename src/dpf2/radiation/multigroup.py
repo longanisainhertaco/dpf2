@@ -5,9 +5,10 @@ from __future__ import annotations
 The implementation intentionally targets a minimal subset of the full
 multi-group radiation diffusion equations required for unit testing.  It
 supports an arbitrary number of radiation energy groups and evolves their
-energy densities via a first-order explicit finite difference scheme.  The
-model also provides a coupling routine that exchanges energy between the
-fluid energy equation and the radiation groups using user supplied opacities.
+energy densities via an implicit finite difference scheme.  A basic flux
+limiter enforces the free-streaming limit at cell interfaces.  The model also
+provides a coupling routine that exchanges energy between the fluid energy
+equation and the radiation groups using user supplied opacities.
 """
 
 from dataclasses import dataclass
@@ -57,9 +58,12 @@ class MultiGroupDiffusion:
     def diffuse(self, dx: float, dt: float) -> List[List[float]]:
         """Advance the radiation energy densities by a diffusion step.
 
-        A simple explicit finite-difference update with zero-flux boundary
-        conditions is employed.  The method modifies ``self.energy`` in place
-        and returns it for convenience.
+        A backward-Euler implicit discretisation with zero-flux boundaries is
+        solved for each group using a tridiagonal Thomas algorithm.  After the
+        implicit solve the diffusive flux at each interface is limited to the
+        free-streaming value ``±c E`` to mimic flux-limited diffusion.  The
+        method modifies ``self.energy`` in place and returns it for
+        convenience.
         """
 
         E = self.energy
@@ -68,13 +72,47 @@ class MultiGroupDiffusion:
         coeffs = self.diffusion_coefficients
         for g in range(groups):
             D = coeffs[g]
-            # Compute fluxes with zero-flux boundaries
+            alpha = D * dt / (dx * dx)
+            a = [0.0] * cells
+            b = [0.0] * cells
+            c = [0.0] * cells
+            d = E[g][:]
+            b[0] = 1.0 + alpha
+            c[0] = -alpha
+            for i in range(1, cells - 1):
+                a[i] = -alpha
+                b[i] = 1.0 + 2.0 * alpha
+                c[i] = -alpha
+            if cells > 1:
+                a[cells - 1] = -alpha
+                b[cells - 1] = 1.0 + alpha
+            # Forward sweep
+            for i in range(1, cells):
+                m = a[i] / b[i - 1] if b[i - 1] != 0 else 0.0
+                b[i] -= m * c[i - 1]
+                d[i] -= m * d[i - 1]
+            # Back substitution
+            E_new = [0.0] * cells
+            if cells:
+                E_new[-1] = d[-1] / b[-1]
+                for i in range(cells - 2, -1, -1):
+                    denom = b[i] if b[i] != 0 else 1.0
+                    E_new[i] = (d[i] - c[i] * E_new[i + 1]) / denom
+
+            # Flux limiter
             flux = [0.0] * (cells + 1)
             for i in range(cells - 1):
-                grad = (E[g][i + 1] - E[g][i]) / dx
-                flux[i + 1] = -D * grad
+                grad = (E_new[i + 1] - E_new[i]) / dx
+                F = -D * grad
+                limit = 0.5 * self.c * (E_new[i] + E_new[i + 1])
+                if F > limit:
+                    F = limit
+                elif F < -limit:
+                    F = -limit
+                flux[i + 1] = F
             for i in range(cells):
-                E[g][i] += dt / dx * (flux[i] - flux[i + 1])
+                E_new[i] += dt / dx * (flux[i] - flux[i + 1])
+            E[g] = E_new
         return E
 
     # ------------------------------------------------------------------
