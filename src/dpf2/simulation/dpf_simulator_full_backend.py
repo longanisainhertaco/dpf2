@@ -68,6 +68,10 @@ def _estimate_total_steps(sim_time, dt):
     Returns:
         int: Estimated number of steps.
     """
+    if dt is None or dt <= 0:
+        msg = f"Invalid dt={dt}: unable to estimate total steps"
+        logger.warning(msg)
+        raise SimulationRuntimeError(msg)
     try:
         total_steps = int(np.ceil(sim_time / float(dt)))
         logger.info("Estimated total steps: %d", total_steps)
