@@ -34,6 +34,9 @@ radiation = [
     "amrex",
     "adios2",
 ]
+diagnostics = [
+    "pyevtk",
+]
 
 [project.scripts]
 dpf2 = "dpf2.cli.main:main"

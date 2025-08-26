@@ -5,7 +5,13 @@ import logging
 import time
 from scipy.constants import c, m_n, m_e, mu_0, e, epsilon_0, k as k_B
 from scipy.interpolate import interp1d
-from pyevtk.hl import imageToVTK
+try:
+    from pyevtk.hl import imageToVTK
+except Exception as exc:  # pragma: no cover - optional dependency
+    raise ImportError(
+        "pyevtk is required for VTK diagnostics. Install via 'pip install "
+        "dpf2[diagnostics]' or 'pip install pyevtk'."
+    ) from exc
 from dpf2.core.bases import DiagnosticsBase
 from .utils import FieldManager, SimulationState
 

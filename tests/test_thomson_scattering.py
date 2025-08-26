@@ -2,6 +2,10 @@ import numpy as np
 import h5py_stub as h5py
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("pyevtk")
+
 from dpf2.simulation.diagnostics import ThomsonScattering
 from dpf2.simulation.utils import FieldManager, SimulationState
 
