@@ -29,8 +29,11 @@ pip install .[warpx]
 # Install with OpenCensus-based telemetry support
 pip install .[telemetry]
 
+# Install with AMReX/ADIOS2-based radiation support
+pip install .[radiation]
+
 # Install all optional features
-pip install .[server,warpx,telemetry]
+pip install .[server,warpx,telemetry,radiation]
 ```
 
 ## Quickstart
