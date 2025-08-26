@@ -21,9 +21,19 @@ Capabilities:
 
 import os
 import numpy as np
-import amrex
-from amrex import EBIndexSpace, MultiFab, MultiFabLaplacian, MLMG
-import adios2
+try:  # optional dependency
+    import amrex
+    from amrex import EBIndexSpace, MultiFab, MultiFabLaplacian, MLMG
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "amrex is required for radiation features; install dpf2[radiation]"
+    ) from exc
+try:  # optional dependency
+    import adios2
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "adios2 is required for radiation features; install dpf2[radiation]"
+    ) from exc
 import logging
 from numba import njit, prange
 from collision_model import braginskii_coeffs, CollisionModel  # Import CollisionModel

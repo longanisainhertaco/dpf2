@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-import h5py
+import h5py_stub as h5py
 import numpy as np
 import pytest
 

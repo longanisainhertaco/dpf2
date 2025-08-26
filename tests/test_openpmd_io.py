@@ -1,4 +1,4 @@
-import h5py
+import h5py_stub as h5py
 import numpy as np
 from dpf2.simulation.openpmd_io import OpenPMDWriter
 

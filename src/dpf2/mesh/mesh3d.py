@@ -144,6 +144,9 @@ class Mesh3D:
     ) -> None:
         """Linearly interpolate ghost-cell values for a curved boundary.
 
+        This helper currently only supports boundaries normal to the ``z`` axis.
+        Passing ``axis`` as ``0`` or ``1`` will raise :class:`NotImplementedError`.
+
         Parameters
         ----------
         field:
@@ -151,7 +154,7 @@ class Mesh3D:
             place.
         axis:
             Direction normal to the boundary: ``0`` for ``x``, ``1`` for ``y``
-            and ``2`` for ``z``.
+            and ``2`` for ``z``.  Only ``axis=2`` is implemented.
         side:
             ``"low"`` or ``"high"`` indicating which side to operate on.
         ghosts:

@@ -10,6 +10,12 @@ pip install -e .
 
 This installs the `dpf2` command line interface and Python package in editable mode so local changes are immediately available.
 
+Install optional radiation dependencies (AMReX and ADIOS2) with:
+
+```bash
+pip install -e .[radiation]
+```
+
 ## Configuration Schema
 
 Simulations are configured with the `DPFConfig` data class. Configuration files are written in JSON and validated against this schema. See `dpf_config.py` and related `*config.py` modules for field descriptions and default values.
