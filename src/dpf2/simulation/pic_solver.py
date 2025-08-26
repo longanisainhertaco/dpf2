@@ -1,7 +1,13 @@
 # pic_solver.py
 
 """
-High-Fidelity Particle-in-Cell (PIC) Solver with Advanced Physics and Diagnostics.
+Particle-in-Cell (PIC) solver implementing classical electromagnetic dynamics,
+basic collision processes, and optional coupling to WarpX.
+
+Future Work:
+- Expanded diagnostics and analysis tools
+- Support for quantum and radiation models
+- Additional boundary conditions and mesh adaptivity
 """
 
 import numpy as np
@@ -35,8 +41,11 @@ logger.addHandler(ch)
 # PIC Solver Class
 #-----------------------------------------------------------------------------------------
 class PICSolver(PhysicsModule):
-    """
-    A high-fidelity Particle-in-Cell (PIC) solver for plasma simulations.
+    """Classical PIC solver with optional WarpX coupling.
+
+    Limitations:
+        - Lacks full quantum or radiation models.
+        - Diagnostics are currently minimal.
     """
 
     # Physical and solver constants

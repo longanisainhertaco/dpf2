@@ -1,18 +1,17 @@
 # warpx_wrapper.py
 
 """
-Enhanced WarpX PIC Wrapper with:
+Lightweight WarpX wrapper providing grid construction, Maxwell solver setup,
+and basic particle management with optional collision handling.
+
+Future Work:
 - Advanced diagnostics (particle energy spectra, phase-space plots)
-- Improved fluid coupling (staggered grids, interpolation)
-- Enhanced collision control (collision regions, species pairs)
-- Advanced boundary conditions (absorbing, reflecting)
-- More WarpX control (dynamic parameters)
-- Relativistic effects (approximated)
-- Quantum effects (approximated)
-- Time-dependent effects (approximated)
-- Comprehensive error handling and logging
-- Clearer code and documentation
-- Robust testing (to be added in separate file)
+- Improved fluid coupling with interpolation schemes
+- Enhanced collision control for regions and species pairs
+- Additional boundary condition types
+- Dynamic runtime parameter control
+- Relativistic, quantum, and time-dependent models
+- More comprehensive error handling, logging, and testing
 """
 
 import os
@@ -77,6 +76,13 @@ class Field:
         self.spacing = spacing
 
 class WarpXWrapper:
+    """Simplified interface to WarpX for grid setup and particle integration.
+
+    Limitations:
+        - Relativistic and quantum effects are not fully modeled.
+        - Diagnostics and boundary options are restricted.
+    """
+
     def __init__(self,
                  domain_lower, domain_upper,
                  grid_shape, dx,
