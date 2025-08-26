@@ -16,6 +16,12 @@ Install optional radiation dependencies (AMReX and ADIOS2) with:
 pip install -e .[radiation]
 ```
 
+Enable VTK output diagnostics with:
+
+```bash
+pip install -e .[diagnostics]
+```
+
 ## Configuration Schema
 
 Simulations are configured with the `DPFConfig` data class. Configuration files are written in JSON and validated against this schema. See `dpf_config.py` and related `*config.py` modules for field descriptions and default values.

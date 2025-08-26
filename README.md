@@ -33,8 +33,11 @@ pip install .[telemetry]
 # Install with AMReX/ADIOS2-based radiation support
 pip install .[radiation]
 
+# Install with VTK output support
+pip install .[diagnostics]
+
 # Install all optional features
-pip install .[server,warpx,telemetry,radiation]
+pip install .[server,warpx,telemetry,radiation,diagnostics]
 ```
 
 ## Quickstart
