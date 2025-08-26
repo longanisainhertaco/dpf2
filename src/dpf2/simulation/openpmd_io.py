@@ -1,4 +1,9 @@
-import h5py
+try:  # optional dependency
+    import h5py
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "h5py is required; install dpf2[warpx]"
+    ) from exc
 import numpy as np
 from typing import Dict, Any
 

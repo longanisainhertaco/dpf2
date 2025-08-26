@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Minimal Dense Plasma Focus simulator"
 requires-python = ">=3.10"
 dependencies = [
-    "h5py",
     "matplotlib",
     "numba",
     "numpy",
@@ -25,7 +24,11 @@ server = [
 ]
 warpx = [
     "pywarpx",
-    "amrex_solver"
+    "amrex_solver",
+    "amrex",
+    "adios2",
+    "picmi",
+    "h5py>=3.7.0"
 ]
 telemetry = [
     "opencensus"

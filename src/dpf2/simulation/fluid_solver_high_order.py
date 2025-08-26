@@ -25,13 +25,13 @@ try:  # optional dependency
     from amrex import EBIndexSpace, MultiFab, MultiFabLaplacian, MLMG
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
-        "amrex is required for the high-order fluid solver; install it via `pip install dpf2[radiation]`"
+        "amrex is required; install dpf2[warpx]"
     ) from exc
 try:  # optional dependency
     import adios2
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
-        "adios2 is required for the high-order fluid solver; install it via `pip install dpf2[radiation]`"
+        "adios2 is required; install dpf2[warpx]"
     ) from exc
 import logging
 from numba import njit, prange

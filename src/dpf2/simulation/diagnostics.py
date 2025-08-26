@@ -1,8 +1,13 @@
 import numpy as np
-import h5py
 import json
 import logging
 import time
+try:  # optional dependency
+    import h5py
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "h5py is required; install dpf2[warpx]"
+    ) from exc
 from scipy.constants import c, m_n, m_e, mu_0, e, epsilon_0, k as k_B
 from scipy.interpolate import interp1d
 from pyevtk.hl import imageToVTK
