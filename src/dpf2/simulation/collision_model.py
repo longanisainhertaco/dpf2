@@ -183,10 +183,15 @@ class CollisionProcess(PhysicsModule):
         raise NotImplementedError
 
 class BetheBlochStopping(CollisionProcess):
+    """Stopping power for ions using the Bethe–Bloch formula."""
 
-    """Stopping power for ions using the Bethe-Bloch formula."""
-
-    def __init__(self, name, Z_eff: int = 1, I_mean_ev: float = 13.6, speed_of_light: float = 299792458.0):
+    def __init__(
+        self,
+        name,
+        Z_eff: int = 1,
+        I_mean_ev: float = 13.6,
+        speed_of_light: float = 299792458.0,
+    ):
         """Stopping power for ions using the Bethe–Bloch formula.
 
         The implementation neglects shell corrections and other high-order
@@ -199,7 +204,7 @@ class BetheBlochStopping(CollisionProcess):
         self.c = speed_of_light
 
     def apply(self, state: SimulationState, dt: float):
-        """Applies the Bethe-Bloch stopping power to the ions."""
+        """Applies the Bethe–Bloch stopping power to the ions."""
         try:
             if not hasattr(state, "species"):
                 return
