@@ -80,16 +80,35 @@ class Photon:
         self.polarization = polarization if polarization is not None else np.array([1.0, 0.0, 0.0])  # Default: linear polarization along x-axis
 
     def scatter(self):
-        """Performs a Compton scattering event."""
+        """Perform a simplified isotropic Compton scattering event.
+
+        The scattering angle is sampled isotropically and the photon's
+        direction vector is rotated accordingly while remaining normalized.
+        """
         # Sample new energy
         x = self.energy / (m_e * c**2)
-        theta = np.arccos(1 - 2 * random.random())  # Isotropic scattering
-        y = x / (1 + x * (1 - np.cos(theta)))
+        mu = 1 - 2 * random.random()  # cos(theta) for isotropic scattering
+        theta = np.arccos(mu)
+        y = x / (1 + x * (1 - mu))
         self.energy = y * (m_e * c**2)
-        # Sample new direction
+
+        # Sample azimuthal angle
         phi = 2 * np.pi * random.random()
+
         # Rotate direction
-        # ... (implementation for rotating the direction vector) ...
+        n = self.dir
+        # Build an orthonormal basis {n, u, v}
+        if abs(n[0]) < 0.9:
+            tmp = np.array([1.0, 0.0, 0.0])
+        else:
+            tmp = np.array([0.0, 1.0, 0.0])
+        u = np.cross(n, tmp)
+        u /= np.linalg.norm(u)
+        v = np.cross(n, u)
+
+        sin_theta = np.sin(theta)
+        self.dir = mu * n + sin_theta * (np.cos(phi) * u + np.sin(phi) * v)
+        self.dir /= np.linalg.norm(self.dir)
 
 # --------------------------------------
 # Klein-Nishina Compton cross section
