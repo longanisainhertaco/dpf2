@@ -14,57 +14,17 @@ import numpy as np
 import random
 from datetime import datetime
 
-try:
-    from .config_schema import SimulationConfig, FieldManagerConfig  # Import FieldManagerConfig
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from config_schema import SimulationConfig, FieldManagerConfig  # type: ignore
-
-try:
-    from .module_registry import ModuleRegistry
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from module_registry import ModuleRegistry  # type: ignore
-
-try:
-    from .collision_model import CollisionModel
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from collision_model import CollisionModel  # type: ignore
-
-try:
-    from .radiation_model import RadiationModel
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from radiation_model import RadiationModel  # type: ignore
-
-try:
-    from .hybrid_controller import HybridController
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from hybrid_controller import HybridController  # type: ignore
-
-try:
-    from .eos_selector import select_eos
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from eos_selector import select_eos  # type: ignore
-
-try:
-    from .solver_selector import select_solver
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from solver_selector import select_solver  # type: ignore
-
-try:
-    from .circuit import CircuitModel
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from circuit import CircuitModel  # type: ignore
-
-try:
-    from .utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from utils import FieldManager, SimulationState  # type: ignore
-
-from dpf2.diagnostics import Diagnostics
-
-try:
-    from .pic_solver import PICSolver
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from pic_solver import PICSolver  # type: ignore
+from .config_schema import SimulationConfig, FieldManagerConfig  # Import FieldManagerConfig
+from .module_registry import ModuleRegistry
+from .collision_model import CollisionModel
+from .radiation_model import RadiationModel
+from .hybrid_controller import HybridController
+from .eos_selector import select_eos
+from .solver_selector import select_solver
+from .circuit import CircuitModel
+from .utils import FieldManager, SimulationState
+from ..diagnostics import Diagnostics
+from .pic_solver import PICSolver
 try:
     from ..exceptions import SimulationRuntimeError
 except Exception:  # pragma: no cover - fallback for standalone usage

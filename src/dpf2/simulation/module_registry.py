@@ -1,5 +1,5 @@
 # module_registry.py
-from Simulation.models import PhysicsModule  # Ensure plugin base class is available
+from .models import PhysicsModule  # Ensure plugin base class is available
 
 import importlib
 import inspect
@@ -8,7 +8,7 @@ import os
 from typing import Dict, Type, Any, List, Optional
 
 from pydantic import BaseModel, ValidationError
-from utils import FieldManager
+from .utils import FieldManager
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ from scipy.constants import c, m_n, m_e, mu_0, e, epsilon_0, k as k_B
 from scipy.interpolate import interp1d
 from pyevtk.hl import imageToVTK
 from dpf2.core.bases import DiagnosticsBase
-from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
+from .utils import FieldManager, SimulationState
 
 # Classical electron radius (m)
 r_e = e ** 2 / (4 * np.pi * epsilon_0 * m_e * c ** 2)
