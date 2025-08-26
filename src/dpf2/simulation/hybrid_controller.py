@@ -1,24 +1,22 @@
-"""
-hybrid_controller.py
+"""Hybrid controller coordinating fluid and PIC solvers.
 
-Ultra-High-Fidelity Hybrid Controller with Plugin Architecture, Profiling, and Sheath BC
----------------------------------------------------------------------------------------
-Features:
-- Plugin-style physics modules via a common interface
-- Caliper profiling annotations per phase
-- Bohm-sheath boundary solver hook for self-consistent wall physics
-- Multi-criteria transition with JIT-accelerated kernels
-- Adaptive multi-domain PIC coupling with predictor–corrector
-- Filtered feedback blending and energy correction
-- Asynchronous overlapped fluid/PIC execution option
-- Relativistic effects (Approximated)
-- Quantum effects (Approximated)
-- Time-dependent effects (Approximated)
-- Molecular Collisions (Approximated)
-- Dust Collisions (Approximated)
-- Non-LTE Effects (Approximated)
-- More Robust Error Handling
-- More Comprehensive Testing
+Features
+--------
+* Plugin-style physics modules via a common interface
+* Caliper profiling annotations per phase
+* Bohm-sheath boundary solver hook for self-consistent wall physics
+* Multi-criteria transition with JIT-accelerated kernels
+* Adaptive multi-domain PIC coupling with predictor–corrector
+* Filtered feedback blending and energy correction
+* Asynchronous overlapped fluid/PIC execution option
+
+Future Work
+-----------
+* Improved relativistic and quantum corrections
+* Time-dependent effects and additional collision models
+* Molecular and dust collision handling
+* Non-LTE effects
+* More robust error handling and comprehensive tests
 """
 
 import numpy as np
@@ -118,7 +116,10 @@ def bump_weight(shape, width):
 # Hybrid Controller
 #======================================
 class HybridController(PhysicsModule):
-    """Orchestrates hybrid fluid-PIC simulations, managing coupling and transitions."""
+    """Orchestrates hybrid fluid–PIC simulations, managing coupling and transitions.
+
+    Relativistic and quantum corrections are approximate and error handling is
+    minimal."""
 
     def __init__(self, config: HybridConfig,
                  fluid_solver: FluidSolverHighOrder,
@@ -383,7 +384,10 @@ class HybridController(PhysicsModule):
 # Asynchronous Overlapped Controller
 #======================================
 class AsyncHybridController(HybridController):
-    """Asynchronous version of the HybridController, allowing fluid and PIC solvers to run concurrently."""
+    """Asynchronous hybrid controller running fluid and PIC solvers concurrently.
+
+    The simple threading model lacks rigorous synchronization and may produce
+    non-deterministic results."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

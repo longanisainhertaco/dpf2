@@ -1,18 +1,18 @@
 """Radiation transport model used by the DPF2 simulations.
 
-Implemented features
---------------------
-- Bremsstrahlung, line and synchrotron emissivities
-- Klein–Nishina Compton scattering
-- Configurable opacity models
-- Flux-limited diffusion and a basic photon Monte Carlo scheme
-- Simple telemetry and checkpoint helpers
+Features
+--------
+* Bremsstrahlung, line and synchrotron emissivities
+* Klein–Nishina Compton scattering
+* Configurable opacity models
+* Flux-limited diffusion and a basic photon Monte Carlo scheme
+* Simple telemetry and checkpoint helpers
 
 Future Work
 -----------
-- Polarization, pair production and other high-energy processes
-- Detailed non-LTE line transport and time-dependent effects
-- Expanded test coverage and performance tuning
+* Polarization, pair production and other high-energy processes
+* Detailed non-LTE line transport and time-dependent effects
+* Expanded test coverage and performance tuning
 """
 
 import numpy as np
@@ -66,8 +66,8 @@ logger.addHandler(ch)
 class Photon:
     """Lightweight Monte Carlo photon particle.
 
-    Only the position, direction, energy and group are evolved.  Polarization
-    is stored but not used by the current algorithms."""
+    Only position, direction, energy and group are evolved. Polarization is
+    stored but unused and scattering is limited to isotropic Compton events."""
 
     __slots__ = ('pos', 'dir', 'energy', 'group', 'polarization')
 
