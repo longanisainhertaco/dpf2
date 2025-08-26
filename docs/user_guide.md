@@ -35,7 +35,7 @@ These and other modules can be extended by subclassing their respective base cla
 Run the CLI against the provided sample configuration:
 
 ```bash
-dpf2 simulate examples/config.json -o results.json
+dpf2 simulate -c examples/config.json -o results.json
 ```
 
 For an interactive walk-through, open the Jupyter notebook in the `examples/quickstart.ipynb` file.

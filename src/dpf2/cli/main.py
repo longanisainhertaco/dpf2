@@ -16,8 +16,8 @@ def main() -> None:
 
 
 @main.command()
-@click.option("--config", type=click.Path(exists=False), help="Path to config file")
-@click.option("--output", type=click.Path(), default="output", help="Output directory")
+@click.option("-c", "--config", type=click.Path(exists=False), help="Path to config file")
+@click.option("-o", "--output", type=click.Path(), default="output", help="Output directory")
 def simulate(config: str | None, output: str) -> None:
     """Run a DPF simulation."""
     try:
