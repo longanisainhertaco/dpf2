@@ -186,12 +186,19 @@ class CollisionProcess(PhysicsModule):
         raise NotImplementedError
 
 class BetheBlochStopping(CollisionProcess):
-    """Simplified Bethe–Bloch stopping power for ions.
+    """Stopping power for ions using the Bethe–Bloch formula.
 
-    Shell corrections and charge-state evolution are ignored, so results are
-    approximate."""
+    Ignores shell corrections and charge-state evolution, so results are
+    order-of-magnitude estimates."""
 
-    def __init__(self, name, Z_eff=1, I_mean_ev=13.6, speed_of_light=299792458.0):
+    def __init__(
+        self,
+        name,
+        Z_eff: int = 1,
+        I_mean_ev: float = 13.6,
+        speed_of_light: float = 299792458.0,
+    ):
+        """Initialize Bethe–Bloch stopping model parameters."""
         self.name = name
         self.Z_eff = Z_eff
         self.I_mean = I_mean_ev * e_charge  # Convert eV to Joules
