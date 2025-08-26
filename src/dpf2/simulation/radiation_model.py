@@ -176,6 +176,7 @@ class RadiationModel(PhysicsModule):
 
         # Telemetry queue & thread (asynchronous)
         self._q = queue.Queue()
+        self._telemetry_conn = None
         try:
             self._t_thread = threading.Thread(target=self._telemetry_loop)
             self._t_thread.daemon = True
@@ -212,13 +213,12 @@ class RadiationModel(PhysicsModule):
 
     def _telemetry_loop(self):
         try:
-            conn = socket.create_connection(('localhost', self.telemetry_port))
+            self._telemetry_conn = socket.create_connection(('localhost', self.telemetry_port))
             while True:
                 msg = self._q.get()
                 if msg is None:
                     break
-                conn.sendall((str(msg) + "\n").encode())
-            conn.close()
+                self._telemetry_conn.sendall((str(msg) + "\n").encode())
         except Exception as e:
             logger.error(f"Error in telemetry thread: {e}")
 
@@ -536,8 +536,17 @@ class RadiationModel(PhysicsModule):
         """
         try:
             self._q.put(None)
-            self._t_thread.join()
-            self.writer.Close()
+            if getattr(self, "_t_thread", None):
+                self._t_thread.join()
+            if getattr(self, "_telemetry_conn", None):
+                try:
+                    self._telemetry_conn.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
+                self._telemetry_conn.close()
+                self._telemetry_conn = None
+            if getattr(self, "writer", None):
+                self.writer.Close()
             logger.info("RadiationModel finalized.")
         except Exception as e:
             logger.error(f"Error during finalization: {e}")
