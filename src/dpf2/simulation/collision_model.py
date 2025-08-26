@@ -36,7 +36,10 @@ import math
 from scipy.interpolate import interp1d, RegularGridInterpolator
 from numba import njit, prange, cuda
 import logging
-from models import PhysicsModule, SimulationState # Import SimulationState
+try:  # Prefer package-relative imports
+    from .models import PhysicsModule, SimulationState  # Import SimulationState
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from models import PhysicsModule, SimulationState  # type: ignore
 from typing import List, Dict, Tuple, Optional
 
 logger = logging.getLogger('CollisionModel')

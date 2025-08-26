@@ -1,11 +1,28 @@
 # solver_selector.py
-from fluid_solver_high_order import FluidSolverHighOrder
-from pic_solver import PICSolver
-# from amrex_solver import FluidSolverAMReX  # Keep for potential future use, but comment out
-from utils import FieldManager  # Import FieldManager
+try:
+    from .fluid_solver_high_order import FluidSolverHighOrder
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from fluid_solver_high_order import FluidSolverHighOrder  # type: ignore
+
+try:
+    from .pic_solver import PICSolver
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from pic_solver import PICSolver  # type: ignore
+
+# from .amrex_solver import FluidSolverAMReX  # Keep for potential future use, but comment out
+
+try:
+    from .utils import FieldManager  # Import FieldManager
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from utils import FieldManager  # type: ignore
+
 from typing import Dict, Any
 import logging
-from models import PhysicsModule
+
+try:
+    from .models import PhysicsModule
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from models import PhysicsModule  # type: ignore
 
 logger = logging.getLogger(__name__)
 

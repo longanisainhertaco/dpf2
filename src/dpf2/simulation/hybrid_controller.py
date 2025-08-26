@@ -42,16 +42,48 @@ except Exception as e:  # pragma: no cover - fallback for test environment
 
     caliper = _CaliperStub()
 
-from sheath_model import PlasmaSheathFormation
+try:
+    from .sheath_model import PlasmaSheathFormation
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from sheath_model import PlasmaSheathFormation  # type: ignore
+
 from scipy.ndimage import gaussian_filter, label
 from numba import njit, prange
-from fluid_solver_high_order import FluidSolverHighOrder
-from warpx_wrapper import WarpXWrapper
-from radiation_model import RadiationModel
-from collision_model import CollisionModel
-from config_schema import HybridConfig
-from models import PhysicsModule, SimulationState
-from utils import FieldManager
+
+try:
+    from .fluid_solver_high_order import FluidSolverHighOrder
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from fluid_solver_high_order import FluidSolverHighOrder  # type: ignore
+
+try:
+    from .warpx_wrapper import WarpXWrapper
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from warpx_wrapper import WarpXWrapper  # type: ignore
+
+try:
+    from .radiation_model import RadiationModel
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from radiation_model import RadiationModel  # type: ignore
+
+try:
+    from .collision_model import CollisionModel
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from collision_model import CollisionModel  # type: ignore
+
+try:
+    from .config_schema import HybridConfig
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from config_schema import HybridConfig  # type: ignore
+
+try:
+    from .models import PhysicsModule, SimulationState
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from models import PhysicsModule, SimulationState  # type: ignore
+
+try:
+    from .utils import FieldManager
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from utils import FieldManager  # type: ignore
 
 # Physical constants
 mu0      = 4*np.pi*1e-7

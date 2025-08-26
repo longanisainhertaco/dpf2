@@ -11,11 +11,44 @@ import threading
 import math
 from numba import njit, prange
 from typing import List, Dict, Tuple, Optional
-from config_schema import PICConfig  # Assuming you have a PICConfig in config_schema.py
-from models import PhysicsModule # Assuming you have a PhysicsModule in models.py
-from utils import FieldManager, SimulationState # Import FieldManager and SimulationState
-from warpx_wrapper import WarpXInterface # Assuming you have a WarpXInterface in warpx_wrapper.py
-from collision_model import CollisionProcess, BetheBlochStopping, ElectronIonCollision, ElectronNeutralCollision, IonizationProcess, RecombinationProcess # Assuming you have a CollisionProcess in collision_model.py
+try:
+    from .config_schema import PICConfig  # Assuming you have a PICConfig in config_schema.py
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from config_schema import PICConfig  # type: ignore
+
+try:
+    from .models import PhysicsModule  # Assuming you have a PhysicsModule in models.py
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from models import PhysicsModule  # type: ignore
+
+try:
+    from .utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from utils import FieldManager, SimulationState  # type: ignore
+
+try:
+    from .warpx_wrapper import WarpXInterface  # Assuming you have a WarpXInterface in warpx_wrapper.py
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from warpx_wrapper import WarpXInterface  # type: ignore
+
+try:
+    from .collision_model import (
+        CollisionProcess,
+        BetheBlochStopping,
+        ElectronIonCollision,
+        ElectronNeutralCollision,
+        IonizationProcess,
+        RecombinationProcess,
+    )  # Assuming you have a CollisionProcess in collision_model.py
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from collision_model import (
+        CollisionProcess,
+        BetheBlochStopping,
+        ElectronIonCollision,
+        ElectronNeutralCollision,
+        IonizationProcess,
+        RecombinationProcess,
+    )  # type: ignore
 
 # Configure logger
 logger = logging.getLogger('pic_solver')
