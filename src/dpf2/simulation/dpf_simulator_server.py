@@ -15,29 +15,17 @@ from flask_sock import Sock
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-from dpf_simulation import DPFSimulation, ConfigurationError as SimConfigurationError
-from config_schema import ServerConfig, FieldManagerConfig  # Import FieldManagerConfig
-from utils import FieldManager  # Import FieldManager
+from .dpf_simulation import DPFSimulation, ConfigurationError as SimConfigurationError
+from .config_schema import ServerConfig, FieldManagerConfig  # Import FieldManagerConfig
+from .utils import FieldManager  # Import FieldManager
 
 # Import custom exception hierarchy
-try:  # pragma: no cover - handles execution as a module
-    from ..exceptions import (
-        ConfigurationError,
-        ExportError,
-        ServerError,
-        SimulationRuntimeError,
-    )
-except Exception:  # pragma: no cover - fallback for direct execution
-    import os
-    import sys
-
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-    from exceptions import (  # type: ignore
-        ConfigurationError,
-        ExportError,
-        ServerError,
-        SimulationRuntimeError,
-    )
+from ..exceptions import (
+    ConfigurationError,
+    ExportError,
+    ServerError,
+    SimulationRuntimeError,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

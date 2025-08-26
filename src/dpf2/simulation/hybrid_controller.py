@@ -1,24 +1,22 @@
-"""
-hybrid_controller.py
+"""Hybrid controller coordinating fluid and PIC solvers.
 
-Ultra-High-Fidelity Hybrid Controller with Plugin Architecture, Profiling, and Sheath BC
----------------------------------------------------------------------------------------
-Features:
-- Plugin-style physics modules via a common interface
-- Caliper profiling annotations per phase
-- Bohm-sheath boundary solver hook for self-consistent wall physics
-- Multi-criteria transition with JIT-accelerated kernels
-- Adaptive multi-domain PIC coupling with predictor–corrector
-- Filtered feedback blending and energy correction
-- Asynchronous overlapped fluid/PIC execution option
-- Relativistic effects (Approximated)
-- Quantum effects (Approximated)
-- Time-dependent effects (Approximated)
-- Molecular Collisions (Approximated)
-- Dust Collisions (Approximated)
-- Non-LTE Effects (Approximated)
-- More Robust Error Handling
-- More Comprehensive Testing
+Features
+--------
+* Plugin-style physics modules via a common interface
+* Caliper profiling annotations per phase
+* Bohm-sheath boundary solver hook for self-consistent wall physics
+* Multi-criteria transition with JIT-accelerated kernels
+* Adaptive multi-domain PIC coupling with predictor–corrector
+* Filtered feedback blending and energy correction
+* Asynchronous overlapped fluid/PIC execution option
+
+Future Work
+-----------
+* Improved relativistic and quantum corrections
+* Time-dependent effects and additional collision models
+* Molecular and dust collision handling
+* Non-LTE effects
+* More robust error handling and comprehensive tests
 """
 
 import numpy as np
@@ -42,48 +40,16 @@ except Exception as e:  # pragma: no cover - fallback for test environment
 
     caliper = _CaliperStub()
 
-try:
-    from .sheath_model import PlasmaSheathFormation
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from sheath_model import PlasmaSheathFormation  # type: ignore
-
+from .sheath_model import PlasmaSheathFormation
 from scipy.ndimage import gaussian_filter, label
 from numba import njit, prange
-
-try:
-    from .fluid_solver_high_order import FluidSolverHighOrder
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from fluid_solver_high_order import FluidSolverHighOrder  # type: ignore
-
-try:
-    from .warpx_wrapper import WarpXWrapper
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from warpx_wrapper import WarpXWrapper  # type: ignore
-
-try:
-    from .radiation_model import RadiationModel
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from radiation_model import RadiationModel  # type: ignore
-
-try:
-    from .collision_model import CollisionModel
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from collision_model import CollisionModel  # type: ignore
-
-try:
-    from .config_schema import HybridConfig
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from config_schema import HybridConfig  # type: ignore
-
-try:
-    from .models import PhysicsModule, SimulationState
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from models import PhysicsModule, SimulationState  # type: ignore
-
-try:
-    from .utils import FieldManager
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from utils import FieldManager  # type: ignore
+from .fluid_solver_high_order import FluidSolverHighOrder
+from .warpx_wrapper import WarpXWrapper
+from .radiation_model import RadiationModel
+from .collision_model import CollisionModel
+from .config_schema import HybridConfig
+from .models import PhysicsModule, SimulationState
+from .utils import FieldManager
 
 # Physical constants
 mu0      = 4*np.pi*1e-7
@@ -150,7 +116,10 @@ def bump_weight(shape, width):
 # Hybrid Controller
 #======================================
 class HybridController(PhysicsModule):
-    """Orchestrates hybrid fluid-PIC simulations, managing coupling and transitions."""
+    """Orchestrates hybrid fluid–PIC simulations, managing coupling and transitions.
+
+    Relativistic and quantum corrections are approximate and error handling is
+    minimal."""
 
     def __init__(self, config: HybridConfig,
                  fluid_solver: FluidSolverHighOrder,
@@ -415,7 +384,10 @@ class HybridController(PhysicsModule):
 # Asynchronous Overlapped Controller
 #======================================
 class AsyncHybridController(HybridController):
-    """Asynchronous version of the HybridController, allowing fluid and PIC solvers to run concurrently."""
+    """Asynchronous hybrid controller running fluid and PIC solvers concurrently.
+
+    The simple threading model lacks rigorous synchronization and may produce
+    non-deterministic results."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

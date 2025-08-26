@@ -38,8 +38,8 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
         "amrex is required for radiation features; install dpf2[radiation]"
     ) from exc
-from collision_model import CollisionModel  # Assuming you have this
-from utils import FieldManager # Import FieldManager
+from .collision_model import CollisionModel  # Assuming you have this
+from .utils import FieldManager
 
 # Configure logger
 logger = logging.getLogger('WarpXWrapper')

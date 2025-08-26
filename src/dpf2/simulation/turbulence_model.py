@@ -6,7 +6,7 @@ from .models import PhysicsModule, SimulationState
 from typing import Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - only for type checking
-    from config_schema import TurbulenceConfig
+    from .config_schema import TurbulenceConfig
 
 logger = logging.getLogger(__name__)
 

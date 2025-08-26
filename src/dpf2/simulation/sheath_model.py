@@ -31,18 +31,12 @@ except Exception:  # pragma: no cover - numba not available
 
 from typing import Dict, Any
 
-try:  # Prefer package-relative imports
-    from .models import PhysicsModule, SimulationState  # type: ignore
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from models import PhysicsModule, SimulationState  # type: ignore
+from .models import PhysicsModule, SimulationState  # type: ignore
 
 try:  # pragma: no cover - config schema depends on pydantic
     from .config_schema import SheathConfig  # type: ignore
 except Exception:  # pragma: no cover - when pydantic v2 not present
-    try:  # fallback for standalone import
-        from config_schema import SheathConfig  # type: ignore
-    except Exception:
-        SheathConfig = Any  # type: ignore
+    SheathConfig = Any  # type: ignore
 
 # Configure logger
 logger = logging.getLogger(__name__)
