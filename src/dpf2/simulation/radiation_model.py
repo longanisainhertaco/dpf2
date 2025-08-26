@@ -21,8 +21,18 @@ import threading
 import queue
 import h5py
 import logging
-import amrex
-import adios2
+try:  # optional dependency
+    import amrex
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "amrex is required for radiation features; install dpf2[radiation]"
+    ) from exc
+try:  # optional dependency
+    import adios2
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "adios2 is required for radiation features; install dpf2[radiation]"
+    ) from exc
 from scipy.interpolate import RegularGridInterpolator
 from numba import njit, prange
 import socket

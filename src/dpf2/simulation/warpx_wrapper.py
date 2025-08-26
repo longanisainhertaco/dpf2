@@ -25,9 +25,19 @@ import numpy as np
 import h5py
 import logging
 import picmi
-import adios2
-import amrex
-from amrex import EBIndexSpace
+try:  # optional dependency
+    import adios2
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "adios2 is required for radiation features; install dpf2[radiation]"
+    ) from exc
+try:  # optional dependency
+    import amrex
+    from amrex import EBIndexSpace
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "amrex is required for radiation features; install dpf2[radiation]"
+    ) from exc
 from collision_model import CollisionModel  # Assuming you have this
 from utils import FieldManager # Import FieldManager
 
