@@ -5,8 +5,13 @@ import time
 import logging
 from typing import List, Optional
 import numpy as np
-import pywarpx
-from pywarpx import picmi
+try:  # optional dependency
+    import pywarpx
+    from pywarpx import picmi
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "WarpX dependencies missing; install dpf2[warpx]"
+    ) from exc
 
 # Setup logging
 logging.basicConfig(level=logging.INFO,

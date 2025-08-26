@@ -22,21 +22,31 @@ import queue
 import socket
 import json
 import numpy as np
-import h5py
 import logging
-import picmi
+try:  # optional dependency
+    import h5py
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "h5py is required; install dpf2[warpx]"
+    ) from exc
+try:  # optional dependency
+    import picmi
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "picmi is required; install dpf2[warpx]"
+    ) from exc
 try:  # optional dependency
     import adios2
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
-        "adios2 is required for radiation features; install dpf2[radiation]"
+        "adios2 is required; install dpf2[warpx]"
     ) from exc
 try:  # optional dependency
     import amrex
     from amrex import EBIndexSpace
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
-        "amrex is required for radiation features; install dpf2[radiation]"
+        "amrex is required; install dpf2[warpx]"
     ) from exc
 from .collision_model import CollisionModel  # Assuming you have this
 from .utils import FieldManager

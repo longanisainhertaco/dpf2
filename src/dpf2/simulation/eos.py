@@ -2,9 +2,14 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional, Union
 
-import h5py
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
+try:  # optional dependency
+    import h5py
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "h5py is required; install dpf2[warpx]"
+    ) from exc
 
 logger = logging.getLogger(__name__)
 

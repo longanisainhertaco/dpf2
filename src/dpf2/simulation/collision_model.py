@@ -18,12 +18,17 @@ Future Work
 """
 
 import numpy as np
-import h5py
 import math
 from scipy.interpolate import interp1d, RegularGridInterpolator
 from numba import njit, prange, cuda
 import logging
 import types
+try:  # optional dependency
+    import h5py
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "h5py is required; install dpf2[warpx]"
+    ) from exc
 
 
 from typing import List, Dict, Tuple, Optional

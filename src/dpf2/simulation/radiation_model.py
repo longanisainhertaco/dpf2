@@ -19,19 +19,24 @@ import numpy as np
 import random
 import threading
 import queue
-import h5py
 import logging
+try:  # optional dependency
+    import h5py
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "h5py is required; install dpf2[warpx]"
+    ) from exc
 try:  # optional dependency
     import amrex
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
-        "amrex is required for radiation features; install dpf2[radiation]"
+        "amrex is required; install dpf2[warpx]"
     ) from exc
 try:  # optional dependency
     import adios2
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
-        "adios2 is required for radiation features; install dpf2[radiation]"
+        "adios2 is required; install dpf2[warpx]"
     ) from exc
 from scipy.interpolate import RegularGridInterpolator
 from numba import njit, prange
