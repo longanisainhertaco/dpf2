@@ -2,6 +2,8 @@ import sys
 import types
 import pytest
 
+import h5py_stub as h5py
+
 # Provide a minimal numpy stub for the methods used in these tests
 np_stub = types.SimpleNamespace(
     array=lambda x, dtype=None: x,
@@ -15,7 +17,6 @@ np = np_stub
 
 # Stub out dependencies not needed for opacity calculations
 sys.modules.setdefault("amrex", types.ModuleType("amrex"))
-sys.modules.setdefault("h5py", types.ModuleType("h5py"))
 sys.modules.setdefault("adios2", types.ModuleType("adios2"))
 numba_stub = types.ModuleType("numba")
 numba_stub.njit = lambda *a, **k: (lambda f: f)

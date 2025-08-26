@@ -1,5 +1,5 @@
 import numpy as np
-import h5py
+import h5py_stub as h5py
 from pathlib import Path
 
 from dpf2.simulation.diagnostics import ThomsonScattering

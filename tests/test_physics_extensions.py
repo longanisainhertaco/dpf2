@@ -1,7 +1,4 @@
-try:  # pragma: no cover - fallback when h5py missing
-    import h5py  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
-    from tests.h5py_stub import h5py  # type: ignore
+import h5py_stub as h5py
 
 import numpy as np
 import pytest
