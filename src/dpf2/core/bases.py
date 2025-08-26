@@ -1,7 +1,5 @@
-"""Abstract base classes for solver components.
-
-This file provides canonical interfaces for plasma, circuit and
-diagnostics modules.  Other copies in the repository should import
+"""This file provides canonical interfaces for plasma, circuit and
+diagnostics modules. Other copies in the repository should import
 from here to avoid duplication."""
 
 from __future__ import annotations
