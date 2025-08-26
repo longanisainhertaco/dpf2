@@ -30,7 +30,6 @@ except Exception:  # pragma: no cover - fallback for standalone usage
     from models import PhysicsModule, SimulationState  # type: ignore
 
 import types
-from models import PhysicsModule, SimulationState  # Import SimulationState
 
 from typing import List, Dict, Tuple, Optional
 
