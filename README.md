@@ -38,7 +38,7 @@ pip install .[server,warpx,telemetry]
 Run a simulation using a configuration file:
 
 ```bash
-dpf2 simulate config.json -o results.json
+dpf2 simulate -c config.json -o results.json
 ```
 
 Or run a simulation programmatically:
