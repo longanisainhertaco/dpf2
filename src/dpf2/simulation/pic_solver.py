@@ -407,7 +407,7 @@ class PICSolver(PhysicsModule):
         """Applies collision processes to the particles."""
         try:
             for collision in self.collisions:  # Loop over collision processes
-                collision.apply(self)
+                collision.apply(self, self.dt)
         except Exception as e:
             logger.error(f"Error applying collisions: {e}")
 

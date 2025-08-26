@@ -28,6 +28,9 @@ import types
 
 from typing import List, Dict, Tuple, Optional
 
+from .models import PhysicsModule
+from .utils import SimulationState
+
 logger = logging.getLogger('CollisionModel')
 logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
@@ -229,15 +232,18 @@ class ElectronIonCollision(CollisionProcess):
 
     Only a simple drag term is applied; energy diffusion and large-angle
     scattering are not modelled."""
-    def apply(self, solver):
+
+    def apply(self, state: SimulationState, dt: float):
         try:
-            for name, spc in solver.species.items():
+            if not hasattr(state, "species"):
+                return
+            for name, spc in state.species.items():
                 if spc['q'] < 0:  # Electrons
-                    ne = solver.field_manager.ne
-                    Te = solver.field_manager.Te
+                    ne = state.field_manager.ne
+                    Te = state.field_manager.Te
                     νei = nu_ei_spitzer(ne, Te)
                     # Apply drag force (reduce velocity)
-                    spc['vel'] -= νei[:, np.newaxis] * spc['vel'] * solver.dt
+                    spc['vel'] -= νei[:, np.newaxis] * spc['vel'] * dt
         except Exception as e:
             logger.error(f"Error applying electron-ion collisions: {e}")
 
@@ -249,16 +255,18 @@ class ElectronNeutralCollision(CollisionProcess):
     def __init__(self, sigma_en=1e-19):
         self.sigma_en = sigma_en
 
-    def apply(self, solver):
+    def apply(self, state: SimulationState, dt: float):
         try:
-            for name, spc in solver.species.items():
+            if not hasattr(state, "species"):
+                return
+            for name, spc in state.species.items():
                 if spc['q'] < 0:  # Electrons
-                    ne = solver.field_manager.ne
-                    Te = solver.field_manager.Te
-                    nn = solver.field_manager.nn
+                    ne = state.field_manager.ne
+                    Te = state.field_manager.Te
+                    nn = state.field_manager.nn
                     νen = nu_en(ne, Te, nn, self.sigma_en)
                     # Apply drag force (reduce velocity)
-                    spc['vel'] -= νen[:, np.newaxis] * spc['vel'] * solver.dt
+                    spc['vel'] -= νen[:, np.newaxis] * spc['vel'] * dt
         except Exception as e:
             logger.error(f"Error applying electron-neutral collisions: {e}")
 
@@ -271,19 +279,21 @@ class IonizationProcess(CollisionProcess):
         self.ionization_energy = ionization_energy * e_charge  # Convert eV to Joules
         self.cross_section_data = CrossSectionData(cross_section_file)
 
-    def apply(self, solver):
+    def apply(self, state: SimulationState, dt: float):
         try:
-            for name, spc in solver.species.items():
+            if not hasattr(state, "species"):
+                return
+            for name, spc in state.species.items():
                 if spc['q'] < 0:  # Electrons
-                    ne = solver.field_manager.ne
-                    Te = solver.field_manager.Te
-                    nn = solver.field_manager.nn
+                    ne = state.field_manager.ne
+                    Te = state.field_manager.Te
+                    nn = state.field_manager.nn
                     # Use energy-dependent cross-section
                     sigma_ion = self.cross_section_data(Te)
                     # Ionization rate
                     ionization_rate = ne * sigma_ion * np.sqrt(8 * kB * Te / (pi * m_e))
                     # Create new ions and electrons
-                    num_new_ions = np.random.poisson(ionization_rate * nn * solver.dt)
+                    num_new_ions = np.random.poisson(ionization_rate * nn * dt)
                     # Add new particles (simplified - needs proper distribution)
                     # ... (implementation for adding new particles) ...
         except Exception as e:
@@ -297,16 +307,18 @@ class RecombinationProcess(CollisionProcess):
     def __init__(self, recombination_rate=1e-14):
         self.recombination_rate = recombination_rate
 
-    def apply(self, solver):
+    def apply(self, state: SimulationState, dt: float):
         try:
-            for name, spc in solver.species.items():
+            if not hasattr(state, "species"):
+                return
+            for name, spc in state.species.items():
                 if spc['q'] > 0:  # Ions
-                    ne = solver.field_manager.ne
-                    ni = solver.field_manager.ni
+                    ne = state.field_manager.ne
+                    ni = state.field_manager.ni
                     # Recombination rate
                     recombination_rate = self.recombination_rate * ne * ni
                     # Remove ions and electrons
-                    num_removed_ions = np.random.poisson(recombination_rate * solver.dt)
+                    num_removed_ions = np.random.poisson(recombination_rate * dt)
                     # Remove particles (simplified - needs proper selection)
                     # ... (implementation for removing particles) ...
         except Exception as e:
@@ -322,16 +334,18 @@ class DDFusion(CollisionProcess):
     def __init__(self, cross_section_file="dd_fusion_cross_section.h5"):
         self.cross_section_data = CrossSectionData(cross_section_file)
 
-    def apply(self, solver):
+    def apply(self, state: SimulationState, dt: float):
         try:
-            for name, spc in solver.species.items():
+            if not hasattr(state, "species"):
+                return
+            for name, spc in state.species.items():
                 if spc['q'] == e_charge and spc['m'] == 2 * m_p:  # Deuterium ions
                     # Use energy-dependent cross-section
                     sigma_fusion = self.cross_section_data(spc['energy'])
                     # Fusion rate
                     fusion_rate = spc['density'] * sigma_fusion * np.sqrt(8 * kB * spc['temperature'] / (pi * spc['m']))
                     # Create new particles (simplified - needs proper distribution)
-                    num_new_neutrons = np.random.poisson(fusion_rate * solver.dt)
+                    num_new_neutrons = np.random.poisson(fusion_rate * dt)
                     # ... (implementation for adding new neutrons) ...
         except Exception as e:
             logger.error(f"Error applying D-D fusion: {e}")
@@ -364,13 +378,15 @@ class CollisionModel(CollisionOperator):
     collisional–radiative network and PIC coupling are skeletal and subject
     to future expansion."""
 
-    def __init__(self, config):
+    def __init__(self, config, processes: Optional[List[CollisionProcess]] = None):
         self.config = config
         self.adas_file = config.get('adas_file', None)
         self.crn = CollisionalRadiativeNetwork(self.adas_file) if self.adas_file is not None else None
         self.checkpoint_data = {}
         self.accumulators = {}
         self.caches = {}
+        # Optional list of additional collision processes
+        self.processes: List[CollisionProcess] = processes or []
         # Load cross-section data
         self.ionization_cross_section = CrossSectionData(config.get('ionization_cross_section_file', "ionization_cross_section.h5"))
         self.dd_fusion_cross_section = CrossSectionData(config.get('dd_fusion_cross_section_file', "dd_fusion_cross_section.h5"))
@@ -378,6 +394,9 @@ class CollisionModel(CollisionOperator):
 
     def apply(self, state: SimulationState, dt):
         try:
+            for process in self.processes:
+                process.apply(state, dt)
+
             rho = state.density  # m^-3
             ne = rho / m_p
             Te = state.electron_temperature
