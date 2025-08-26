@@ -25,23 +25,23 @@ try:  # optional dependency
     from amrex import EBIndexSpace, MultiFab, MultiFabLaplacian, MLMG
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
-        "amrex is required for radiation features; install dpf2[radiation]"
+        "amrex is required for the high-order fluid solver; install it via `pip install dpf2[radiation]`"
     ) from exc
 try:  # optional dependency
     import adios2
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
-        "adios2 is required for radiation features; install dpf2[radiation]"
+        "adios2 is required for the high-order fluid solver; install it via `pip install dpf2[radiation]`"
     ) from exc
 import logging
 from numba import njit, prange
-from collision_model import braginskii_coeffs, CollisionModel  # Import CollisionModel
-from eos import TabulatedEOS
-from sheath_model import BohmSheath
-from radiation_model import RadiationModel # Import RadiationModel
-from turbulence_model import TurbulenceModel # Import TurbulenceModel
-from models import PhysicsModule
-from utils import FieldManager, SimulationState # Import FieldManager and SimulationState
+from .collision_model import braginskii_coeffs, CollisionModel
+from .eos import TabulatedEOS
+from .sheath_model import BohmSheath
+from .radiation_model import RadiationModel
+from .turbulence_model import TurbulenceModel
+from .models import PhysicsModule
+from .utils import FieldManager, SimulationState
 
 # Physical constants
 epsilon0 = 8.854187817e-12

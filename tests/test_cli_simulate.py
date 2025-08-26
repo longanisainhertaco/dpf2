@@ -1,5 +1,4 @@
 import sys
-import types
 
 import click
 from click.testing import CliRunner
@@ -7,18 +6,10 @@ from click.testing import CliRunner
 
 # Provide a minimal stub for the optional pydantic dependency so the CLI can be
 # imported without installing the real package.
-pydantic_stub = types.ModuleType("pydantic")
-pydantic_dataclasses = types.ModuleType("pydantic.dataclasses")
+import pydantic_stub
 
-
-def _identity_dataclass(cls=None, **kwargs):  # pragma: no cover - trivial stub
-    return cls
-
-
-pydantic_dataclasses.dataclass = _identity_dataclass
-pydantic_stub.dataclasses = pydantic_dataclasses
 sys.modules.setdefault("pydantic", pydantic_stub)
-sys.modules.setdefault("pydantic.dataclasses", pydantic_dataclasses)
+sys.modules.setdefault("pydantic.dataclasses", pydantic_stub.dataclasses)
 
 
 import importlib

@@ -59,13 +59,10 @@ def test_invalid_sim_parameters_warn(monkeypatch, caplog):
     config_schema_stub.FieldManagerConfig = type("FieldManagerConfig", (), {})
     monkeypatch.setitem(sys.modules, "config_schema", config_schema_stub)
 
-    pydantic_stub = types.ModuleType("pydantic")
-    pd_dataclasses = types.ModuleType("pydantic.dataclasses")
-    import dataclasses
-    pd_dataclasses.dataclass = dataclasses.dataclass
-    pydantic_stub.dataclasses = pd_dataclasses
+    import pydantic_stub
+
     monkeypatch.setitem(sys.modules, "pydantic", pydantic_stub)
-    monkeypatch.setitem(sys.modules, "pydantic.dataclasses", pd_dataclasses)
+    monkeypatch.setitem(sys.modules, "pydantic.dataclasses", pydantic_stub.dataclasses)
 
     werk_stub = types.ModuleType("werkzeug")
     werk_sec = types.ModuleType("werkzeug.security")
