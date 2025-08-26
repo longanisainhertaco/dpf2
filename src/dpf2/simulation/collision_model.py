@@ -1,33 +1,20 @@
-"""
-collision_model.py
+"""Collision model utilities for particle and fluid simulations.
 
-Enhanced High-Fidelity Collision Model Module
--------------------------------------------
-Features:
-1. Dynamic Coulomb logarithm (Gericke–Murillo–Schlanges interpolation) for coupling regimes
-2. Quantum diffraction corrections (de Broglie wavelength)
-3. Spitzer collision frequencies: e–i, e–e, i–i, e-n
-4. Implicit electron–ion temperature relaxation (exact 2×2 solver)
-5. Full Fokker–Planck operator for e–i and e–e using Rosenbluth potentials
-6. Anisotropy relaxation solver (parallel/perpendicular temperatures)
-7. Collisional-radiative network via ADAS tables with unit conversion
-8. Energy-dependent charge-exchange from velocity distributions
-9. Braginskii transport coefficients for anisotropic conduction/resistivity
-10. GPU-accelerated kernels with explicit launch configs
-11. PIC collision handler plugin for WarpX
-12. Velocity-space diagnostics (Hermite moments)
-13. Checkpoint/restart of collisional state
-14. Automated unit/regression tests
-15. Electron-Neutral Collisions
-16. Relativistic Effects (Approximated)
-17. Quantum Effects (Approximated)
-18. Time-Dependent Effects (Approximated)
-19. Molecular Collisions (Approximated)
-20. Dust Collisions (Approximated)
-21. Non-LTE Effects (Approximated)
-22. Energy-Dependent Cross-Sections: Using lookup tables for more accurate collision rates.
-23. Consistent Formulas: Ensuring fluid and PIC solvers use the same collision models.
-24. D-D Fusion Reactions: Implementing basic D-D fusion reaction chains.
+Implemented features
+--------------------
+- Coulomb logarithm with quantum diffraction corrections
+- Spitzer collision frequencies and electron–neutral collisions
+- Implicit electron–ion temperature relaxation
+- Energy-dependent cross-section lookup tables
+- Braginskii transport coefficient helper
+- Simplified D–D fusion rates
+- Checkpoint and restart support
+
+Future Work
+-----------
+- Full Fokker–Planck operators and anisotropy relaxation
+- Collisional–radiative networks and additional reaction channels
+- GPU acceleration and detailed diagnostics
 """
 
 import numpy as np
@@ -36,10 +23,15 @@ import math
 from scipy.interpolate import interp1d, RegularGridInterpolator
 from numba import njit, prange, cuda
 import logging
+
 try:  # Prefer package-relative imports
     from .models import PhysicsModule, SimulationState  # Import SimulationState
 except Exception:  # pragma: no cover - fallback for standalone usage
     from models import PhysicsModule, SimulationState  # type: ignore
+
+import types
+from models import PhysicsModule, SimulationState  # Import SimulationState
+
 from typing import List, Dict, Tuple, Optional
 
 logger = logging.getLogger('CollisionModel')
@@ -62,6 +54,12 @@ m_d = 3.34358377e-27 # Deuterium mass
 # Abstract base for collision operators
 # --------------------------------------
 class CollisionOperator(PhysicsModule):
+    """Interface for collision models.
+
+    Subclasses are expected to implement the ``apply`` and ``diagnostics``
+    methods as well as basic checkpointing hooks.  No common functionality is
+    provided beyond this interface."""
+
     def apply(self, state: SimulationState, dt):
         raise NotImplementedError
 
@@ -135,6 +133,12 @@ def relax_ei_implicit(Te, Ti, νei, dt):
 # Energy-dependent cross-sections (example)
 # --------------------------------------
 class CrossSectionData:
+    """1D tabulated cross-section with simple interpolation.
+
+    The class expects an HDF5 file containing ``energy`` and ``cross_section``
+    datasets.  It performs minimal validation and does not track units.
+    Missing data results in zero cross-section values."""
+
     def __init__(self, filename):
         try:
             with h5py.File(filename, 'r') as f:
@@ -174,35 +178,62 @@ class CrossSectionData:
 # Collision Processes
 # --------------------------------------
 class CollisionProcess(PhysicsModule):
+    """Base class for individual collisional processes."""
+
     def apply(self, state: SimulationState, dt):
         raise NotImplementedError
 
 class BetheBlochStopping(CollisionProcess):
+
     """Stopping power for ions using the Bethe-Bloch formula."""
+
+    def __init__(self, name, Z_eff: int = 1, I_mean_ev: float = 13.6, speed_of_light: float = 299792458.0):
+
+    """Stopping power for ions using the Bethe–Bloch formula.
+
+    The implementation neglects shell corrections and other high-order
+    effects and should be considered an order-of-magnitude estimate."""
     def __init__(self, name, Z_eff=1, I_mean_ev=13.6):
+
         self.name = name
         self.Z_eff = Z_eff
         self.I_mean = I_mean_ev * e_charge  # Convert eV to Joules
+        # Allow speed of light to be provided, avoiding dependencies on PICSolver
+        self.c = speed_of_light
 
-    def apply(self, state: SimulationState, dt):
+    def apply(self, state: SimulationState, dt: float):
         """Applies the Bethe-Bloch stopping power to the ions."""
         try:
-            for name, spc in solver.species.items():
+            if not hasattr(state, "species"):
+                return
+            for name, spc in state.species.items():
                 if name == self.name:
-                    pos, vel = spc['pos'], spc['vel']
-                    beta = np.linalg.norm(vel, axis=1) / PICSolver.c
-                    gamma = 1 / np.sqrt(1 - beta**2)
-                    T = (gamma - 1) * spc['m'] * PICSolver.c**2  # Kinetic energy
-                    # Bethe-Bloch formula
-                    stopping_power = (4 * pi * self.Z_eff**2 * e_charge**4 * solver.field_manager.ne / (m_e * PICSolver.c**2)) * \
-                                    (np.log((2 * m_e * PICSolver.c**2 * beta**2 * gamma**2) / self.I_mean) - beta**2)
-                    # Apply stopping power (reduce velocity)
-                    vel -= (stopping_power / (spc['m'] * gamma))[:, np.newaxis] * (vel / (beta + 1e-30)[:, np.newaxis]) * solver.dt
+                    vel = spc["vel"]
+                    beta = np.linalg.norm(vel, axis=1) / self.c
+                    gamma = 1.0 / np.sqrt(1.0 - beta**2)
+                    ne = getattr(getattr(state, "field_manager", types.SimpleNamespace(ne=0)), "ne", 0)
+                    ne = np.broadcast_to(ne, beta.shape)
+                    stopping_power = (
+                        4
+                        * pi
+                        * self.Z_eff**2
+                        * e_charge**4
+                        * ne
+                        / (m_e * self.c**2)
+                    ) * (np.log((2 * m_e * self.c**2 * beta**2 * gamma**2) / self.I_mean) - beta**2)
+                    vel -= (
+                        (stopping_power / (spc["m"] * gamma))[:, np.newaxis]
+                        * (vel / (np.linalg.norm(vel, axis=1) + 1e-30)[:, np.newaxis])
+                        * dt
+                    )
         except Exception as e:
             logger.error(f"Error applying Bethe-Bloch stopping: {e}")
 
 class ElectronIonCollision(CollisionProcess):
-    """Electron-ion collisions using Spitzer collision frequency."""
+    """Electron–ion collisions using Spitzer frequencies.
+
+    Only a simple drag term is applied; energy diffusion and large-angle
+    scattering are not modelled."""
     def apply(self, solver):
         try:
             for name, spc in solver.species.items():
@@ -216,7 +247,7 @@ class ElectronIonCollision(CollisionProcess):
             logger.error(f"Error applying electron-ion collisions: {e}")
 
 class ElectronNeutralCollision(CollisionProcess):
-    """Electron-neutral collisions using a constant cross-section."""
+    """Electron–neutral collisions with a constant cross-section."""
     def __init__(self, sigma_en=1e-19):
         self.sigma_en = sigma_en
 
@@ -234,7 +265,10 @@ class ElectronNeutralCollision(CollisionProcess):
             logger.error(f"Error applying electron-neutral collisions: {e}")
 
 class IonizationProcess(CollisionProcess):
-    """Ionization of neutral atoms by electron impact."""
+    """Ionization of neutrals by electron impact.
+
+    Particle creation is represented only by rate sampling; actual particle
+    insertion is left as a placeholder."""
     def __init__(self, ionization_energy=13.6, cross_section_file="ionization_cross_section.h5"):
         self.ionization_energy = ionization_energy * e_charge  # Convert eV to Joules
         self.cross_section_data = CrossSectionData(cross_section_file)
@@ -258,7 +292,10 @@ class IonizationProcess(CollisionProcess):
             logger.error(f"Error applying ionization process: {e}")
 
 class RecombinationProcess(CollisionProcess):
-    """Radiative recombination of ions and electrons."""
+    """Radiative recombination of ions and electrons.
+
+    Particle removal is not yet implemented and requires a proper selection
+    mechanism."""
     def __init__(self, recombination_rate=1e-14):
         self.recombination_rate = recombination_rate
 
@@ -281,7 +318,9 @@ class RecombinationProcess(CollisionProcess):
 # D-D Fusion Reactions (simplified)
 # --------------------------------------
 class DDFusion(CollisionProcess):
-    """Deuterium-Deuterium fusion reactions (simplified)."""
+    """Deuterium–Deuterium fusion reactions (simplified).
+
+    Reaction products are not generated; only the rate is estimated."""
     def __init__(self, cross_section_file="dd_fusion_cross_section.h5"):
         self.cross_section_data = CrossSectionData(cross_section_file)
 
@@ -320,6 +359,13 @@ def braginskii_coeffs(ne, Te, Bmag):
 # Main CollisionModel integrating all
 # --------------------------------------
 class CollisionModel(CollisionOperator):
+    """Aggregate collision model for fluid simulations.
+
+    Implements basic electron–ion relaxation, optional ionization and
+    recombination rates, and utility routines for checkpointing.  The
+    collisional–radiative network and PIC coupling are skeletal and subject
+    to future expansion."""
+
     def __init__(self, config):
         self.config = config
         self.adas_file = config.get('adas_file', None)

@@ -1,5 +1,10 @@
 import numpy as np
-import adios2
+try:  # optional dependency
+    import adios2
+except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+    raise ImportError(
+        "adios2 is required for radiation features; install dpf2[radiation]"
+    ) from exc
 import resource
 import logging
 import time

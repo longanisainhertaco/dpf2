@@ -4,7 +4,7 @@ import sys
 import types
 
 # Provide minimal stubs for heavy dependencies so the module can be imported
-sys.modules.setdefault('h5py', types.ModuleType('h5py'))
+import h5py_stub as h5py
 sys.modules.setdefault('numpy', types.ModuleType('numpy'))
 sys.modules.setdefault('scipy', types.ModuleType('scipy'))
 sys.modules.setdefault('scipy.interpolate', types.ModuleType('scipy.interpolate'))

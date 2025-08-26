@@ -30,6 +30,10 @@ warpx = [
 telemetry = [
     "opencensus"
 ]
+radiation = [
+    "amrex",
+    "adios2",
+]
 
 [project.scripts]
 dpf2 = "dpf2.cli.main:main"

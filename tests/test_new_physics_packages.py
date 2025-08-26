@@ -1,5 +1,5 @@
 import numpy as np
-import h5py
+import h5py_stub as h5py
 
 from dpf2.eos import TabulatedEOS, create_eos
 from dpf2.chemistry import FlychkTable
