@@ -3,9 +3,9 @@ import logging
 
 import click
 
-from ..core.config import DPFConfig
-from ..core.simulation import DPFSimulation
-from ..exceptions import ConfigurationError, SimulationRuntimeError
+from dpf2.core.config import DPFConfig
+from dpf2.core.simulation import DPFSimulation
+from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
 
 logger = logging.getLogger(__name__)
 
