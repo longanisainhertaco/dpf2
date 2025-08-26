@@ -24,13 +24,10 @@ def _load_sim_module(monkeypatch):
     mpi_stub.MPI = types.SimpleNamespace(COMM_WORLD=None)
     monkeypatch.setitem(sys.modules, "mpi4py", mpi_stub)
 
-    pydantic_stub = types.ModuleType("pydantic")
-    pd_dataclasses = types.ModuleType("pydantic.dataclasses")
-    import dataclasses
-    pd_dataclasses.dataclass = dataclasses.dataclass
-    pydantic_stub.dataclasses = pd_dataclasses
+    import pydantic_stub
+
     monkeypatch.setitem(sys.modules, "pydantic", pydantic_stub)
-    monkeypatch.setitem(sys.modules, "pydantic.dataclasses", pd_dataclasses)
+    monkeypatch.setitem(sys.modules, "pydantic.dataclasses", pydantic_stub.dataclasses)
 
     # Stub internal modules referenced during import
     package_stub = types.ModuleType("dpf2")

@@ -1,1 +1,2 @@
 exclude h5py_stub.py
+exclude pydantic_stub.py
