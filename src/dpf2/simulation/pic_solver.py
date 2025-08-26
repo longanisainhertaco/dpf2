@@ -14,7 +14,7 @@ from typing import List, Dict, Tuple, Optional
 from .config_schema import PICConfig
 from .models import PhysicsModule
 from .utils import FieldManager, SimulationState
-from .warpx_wrapper import WarpXInterface
+from .warpx_wrapper import WarpXWrapper
 from .collision_model import (
     CollisionProcess,
     BetheBlochStopping,
@@ -38,6 +38,21 @@ class PICSolver(PhysicsModule):
     """
     A high-fidelity Particle-in-Cell (PIC) solver for plasma simulations.
     """
+
+    # Physical and solver constants
+    c = 299_792_458.0            # Speed of light in vacuum (m/s)
+    epsilon0 = 8.854187817e-12   # Vacuum permittivity (F/m)
+    mu0 = 4 * np.pi * 1e-7       # Vacuum permeability (H/m)
+    k_B = 1.380649e-23           # Boltzmann constant (J/K)
+
+    # PML and Maxwell solver defaults
+    pml_thickness = 10
+    pml_sigma_max = 1.0
+    maxwell_order = 4
+    default_shape = (1, 1, 1)
+
+    # Miscellaneous constants
+    ionization_energy = 13.6     # eV, used for Bethe-Bloch stopping
 
     def __init__(self, config: PICConfig, field_manager: FieldManager):
         """
@@ -73,7 +88,7 @@ class PICSolver(PhysicsModule):
             ElectronIonCollision(), ElectronNeutralCollision(),
             IonizationProcess(), RecombinationProcess()
         ])
-        self.warpx = WarpXInterface(
+        self.warpx = WarpXWrapper(
             config.grid_shape, config.grid_spacing, config.electromag,
             PICSolver.pml_thickness, PICSolver.pml_sigma_max,
             PICSolver.maxwell_order, PICSolver.default_shape, self,
