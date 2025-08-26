@@ -24,7 +24,7 @@ from scipy.interpolate import interp1d, RegularGridInterpolator
 from numba import njit, prange, cuda
 import logging
 import types
-from .models import PhysicsModule, SimulationState
+
 
 from typing import List, Dict, Tuple, Optional
 
@@ -197,7 +197,7 @@ class BetheBlochStopping(CollisionProcess):
         self.c = speed_of_light
 
     def apply(self, state: SimulationState, dt: float):
-        """Applies the Bethe-Bloch stopping power to the ions."""
+        """Applies the Bethe–Bloch stopping power to the ions."""
         try:
             if not hasattr(state, "species"):
                 return
