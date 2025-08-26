@@ -3,7 +3,7 @@ import json
 import importlib.util
 from pathlib import Path
 
-import h5py
+import h5py_stub as h5py
 
 # Load diagnostic functions without importing the package (avoids pydantic dependency)
 ROOT = Path(__file__).resolve().parents[2]
