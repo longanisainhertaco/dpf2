@@ -36,15 +36,13 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
 from scipy.interpolate import RegularGridInterpolator
 from numba import njit, prange
 import socket
-try:  # Prefer package-relative imports
-    from .models import PhysicsModule, SimulationState
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from models import PhysicsModule, SimulationState  # type: ignore
+from .models import PhysicsModule, SimulationState
 
 try:  # pragma: no cover - config schema may be optional
     from .config_schema import RadiationConfig
 except Exception:  # fallback when imported outside package
-    from config_schema import RadiationConfig  # type: ignore
+    from typing import Any
+    RadiationConfig = Any  # type: ignore
 from typing import Dict, Any
 
 # Physical constants

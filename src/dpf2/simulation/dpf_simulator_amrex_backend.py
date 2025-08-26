@@ -16,18 +16,18 @@ except Exception as e:  # pragma: no cover
     MPI = None
     logging.getLogger(__name__).warning("mpi4py not available: %s", e)
 from catalyst import CatalystPipeline
-from dpf_simulator_full_backend import DPFSimulatorBackend
-from fluid_solver_high_order import FluidSolver3DAMReX
-from warpx_wrapper import WarpXInterface
-from collision_model import CollisionModel
-from radiation_model import RadiationModel
-from circuit import CircuitModel
-from dpf2.diagnostics import Diagnostics
+from .dpf_simulator_full_backend import DPFSimulatorBackend
+from .fluid_solver_high_order import FluidSolver3DAMReX
+from .warpx_wrapper import WarpXInterface
+from .collision_model import CollisionModel
+from .radiation_model import RadiationModel
+from .circuit import CircuitModel
+from ..diagnostics import Diagnostics
 from .constants import mu0
-from sheath_model import PlasmaSheathFormation
-from load_balance_metrics import LoadBalanceMetrics
-from openpmd_io import OpenPMDWriter
-from utils import FieldManager, SimulationState  # Import FieldManager and SimulationState
+from .sheath_model import PlasmaSheathFormation
+from .load_balance_metrics import LoadBalanceMetrics
+from .openpmd_io import OpenPMDWriter
+from .utils import FieldManager, SimulationState
 
 logger = logging.getLogger(__name__)
 

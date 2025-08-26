@@ -36,13 +36,13 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     ) from exc
 import logging
 from numba import njit, prange
-from collision_model import braginskii_coeffs, CollisionModel  # Import CollisionModel
-from eos import TabulatedEOS
-from sheath_model import BohmSheath
-from radiation_model import RadiationModel # Import RadiationModel
-from turbulence_model import TurbulenceModel # Import TurbulenceModel
-from models import PhysicsModule
-from utils import FieldManager, SimulationState # Import FieldManager and SimulationState
+from .collision_model import braginskii_coeffs, CollisionModel
+from .eos import TabulatedEOS
+from .sheath_model import BohmSheath
+from .radiation_model import RadiationModel
+from .turbulence_model import TurbulenceModel
+from .models import PhysicsModule
+from .utils import FieldManager, SimulationState
 
 # Physical constants
 epsilon0 = 8.854187817e-12

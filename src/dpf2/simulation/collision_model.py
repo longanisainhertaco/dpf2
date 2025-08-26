@@ -23,14 +23,8 @@ import math
 from scipy.interpolate import interp1d, RegularGridInterpolator
 from numba import njit, prange, cuda
 import logging
-
-try:  # Prefer package-relative imports
-    from .models import PhysicsModule, SimulationState  # Import SimulationState
-except Exception:  # pragma: no cover - fallback for standalone usage
-    from models import PhysicsModule, SimulationState  # type: ignore
-
 import types
-from models import PhysicsModule, SimulationState  # Import SimulationState
+from .models import PhysicsModule, SimulationState
 
 from typing import List, Dict, Tuple, Optional
 
@@ -187,14 +181,18 @@ class BetheBlochStopping(CollisionProcess):
 
     """Stopping power for ions using the Bethe-Bloch formula."""
 
-    def __init__(self, name, Z_eff: int = 1, I_mean_ev: float = 13.6, speed_of_light: float = 299792458.0):
+    def __init__(
+        self,
+        name,
+        Z_eff: int = 1,
+        I_mean_ev: float = 13.6,
+        speed_of_light: float = 299792458.0,
+    ):
+        """Stopping power for ions using the Bethe–Bloch formula.
 
-    """Stopping power for ions using the Bethe–Bloch formula.
-
-    The implementation neglects shell corrections and other high-order
-    effects and should be considered an order-of-magnitude estimate."""
-    def __init__(self, name, Z_eff=1, I_mean_ev=13.6):
-
+        The implementation neglects shell corrections and other high-order
+        effects and should be considered an order-of-magnitude estimate.
+        """
         self.name = name
         self.Z_eff = Z_eff
         self.I_mean = I_mean_ev * e_charge  # Convert eV to Joules
