@@ -1,22 +1,21 @@
-"""
-fluid_solver_high_order.py
+"""High-order fluid solver for magnetized plasmas.
 
-Fully-Featured High-Order MHD Solver
-------------------------------------
-Capabilities:
-1. Tabulated EOS for separate ion/electron pressures/temperatures
-2. Braginskii transport tensor (η_par, η_per, κ_par, κ_per)
-3. Ohm’s law with Hall term and anomalous resistivity
-4. Constrained-Transport update and Dedner divergence cleaning
-5. IMEX time integrator using AMReX linear solves for stiff terms
-6. AMR tagging and regridding based on gradients and current
-7. Embedded-Boundary support for electrodes and sheath BCs
-8. Inlined Photon Monte Carlo coupling (bremsstrahlung, line, synchrotron)
-9. Dynamic lnΛ and non-Maxwellian collision adjustments via collision_model
-10. Reconnection diagnostics (X-point detection, reconnection rate)
-11. Viscous stress and anisotropic heat flux closures
-12. Parallel I/O and checkpoint/restart via ADIOS2
-13. Integrated regression tests verifying each module
+Features
+--------
+* WENO5 reconstruction utilities for 3D grids
+* Tabulated EOS for separate ion and electron pressures
+* Braginskii transport coefficient helper
+* Constrained-transport update with simple divergence cleaning
+* IMEX time-stepping skeleton using AMReX linear solves
+* Parallel I/O and checkpoint/restart via ADIOS2
+
+Future Work
+-----------
+* Hall and anomalous resistivity in Ohm's law
+* Adaptive mesh refinement and embedded-boundary support
+* Photon Monte Carlo coupling and advanced collision physics
+* Reconnection diagnostics and viscous/heat-flux closures
+* Expanded regression tests and validation suites
 """
 
 import os
@@ -135,6 +134,11 @@ def weno5_reconstruct_3d(u, eps, gamma0, gamma1, gamma2, nx, ny, nz, flux):
                                  w2 * (2 * stencil[2] + 5 * stencil[3] - stencil[4])) / 6.0
 
 class FluidSolverHighOrder:
+    """Prototype high-order MHD solver.
+
+    Advanced physics terms are skeletal and numerical stabilization is
+    minimal."""
+
     def __init__(self, geom, config, field_manager: FieldManager):
         try:
             # Geometry and grids

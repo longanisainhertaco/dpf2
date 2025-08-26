@@ -1,20 +1,20 @@
 """Collision model utilities for particle and fluid simulations.
 
-Implemented features
---------------------
-- Coulomb logarithm with quantum diffraction corrections
-- Spitzer collision frequencies and electron–neutral collisions
-- Implicit electron–ion temperature relaxation
-- Energy-dependent cross-section lookup tables
-- Braginskii transport coefficient helper
-- Simplified D–D fusion rates
-- Checkpoint and restart support
+Features
+--------
+* Coulomb logarithm with quantum diffraction corrections
+* Spitzer collision frequencies including electron–neutral collisions
+* Implicit electron–ion temperature relaxation
+* Energy-dependent cross-section lookup tables
+* Braginskii transport coefficient helper
+* Simplified D–D fusion rate estimates
+* Checkpoint and restart helpers
 
 Future Work
 -----------
-- Full Fokker–Planck operators and anisotropy relaxation
-- Collisional–radiative networks and additional reaction channels
-- GPU acceleration and detailed diagnostics
+* Full Fokker–Planck operators and anisotropy relaxation
+* Collisional–radiative networks and additional reaction channels
+* GPU acceleration and detailed diagnostics
 """
 
 import numpy as np
@@ -56,9 +56,8 @@ m_d = 3.34358377e-27 # Deuterium mass
 class CollisionOperator(PhysicsModule):
     """Interface for collision models.
 
-    Subclasses are expected to implement the ``apply`` and ``diagnostics``
-    methods as well as basic checkpointing hooks.  No common functionality is
-    provided beyond this interface."""
+    Subclasses must provide ``apply`` and ``diagnostics`` implementations.
+    This base class performs no conservation checks or algorithmic work."""
 
     def apply(self, state: SimulationState, dt):
         raise NotImplementedError
@@ -178,23 +177,21 @@ class CrossSectionData:
 # Collision Processes
 # --------------------------------------
 class CollisionProcess(PhysicsModule):
-    """Base class for individual collisional processes."""
+    """Base class for individual collisional processes.
+
+    Provides only an interface; subclasses handle particle bookkeeping and
+    conservation."""
 
     def apply(self, state: SimulationState, dt):
         raise NotImplementedError
 
 class BetheBlochStopping(CollisionProcess):
+    """Simplified Bethe–Bloch stopping power for ions.
 
-    """Stopping power for ions using the Bethe-Bloch formula."""
+    Shell corrections and charge-state evolution are ignored, so results are
+    approximate."""
 
-    def __init__(self, name, Z_eff: int = 1, I_mean_ev: float = 13.6, speed_of_light: float = 299792458.0):
-
-    """Stopping power for ions using the Bethe–Bloch formula.
-
-    The implementation neglects shell corrections and other high-order
-    effects and should be considered an order-of-magnitude estimate."""
-    def __init__(self, name, Z_eff=1, I_mean_ev=13.6):
-
+    def __init__(self, name, Z_eff=1, I_mean_ev=13.6, speed_of_light=299792458.0):
         self.name = name
         self.Z_eff = Z_eff
         self.I_mean = I_mean_ev * e_charge  # Convert eV to Joules
@@ -247,7 +244,10 @@ class ElectronIonCollision(CollisionProcess):
             logger.error(f"Error applying electron-ion collisions: {e}")
 
 class ElectronNeutralCollision(CollisionProcess):
-    """Electron–neutral collisions with a constant cross-section."""
+    """Electron–neutral collisions with a constant cross-section.
+
+    Assumes isotropic scattering and ignores energy dependence."""
+
     def __init__(self, sigma_en=1e-19):
         self.sigma_en = sigma_en
 
