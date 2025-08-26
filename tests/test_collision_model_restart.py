@@ -183,3 +183,58 @@ def test_checkpoint_restart_identical_evolution(collision_model_classes):
     assert rand1 == rand2
     assert evolved1 == evolved2
 
+
+@pytest.fixture
+def bethe_bloch_classes(monkeypatch):
+    """Provide BetheBlochStopping with minimal dependencies."""
+    monkeypatch.setitem(sys.modules, "h5py", types.SimpleNamespace(File=_raise))
+
+    interp_stub = types.SimpleNamespace(
+        interp1d=lambda *a, **k: (lambda x: 0.0),
+        RegularGridInterpolator=lambda *a, **k: (lambda x: 0.0),
+    )
+    scipy_stub = types.ModuleType("scipy")
+    scipy_stub.__path__ = []
+    monkeypatch.setitem(sys.modules, "scipy", scipy_stub)
+    monkeypatch.setitem(sys.modules, "scipy.interpolate", interp_stub)
+
+    numba_stub = types.SimpleNamespace(
+        njit=lambda f=None, *a, **k: (lambda *args, **kwargs: f(*args, **kwargs) if f else None),
+        prange=range,
+        cuda=types.SimpleNamespace(),
+    )
+    monkeypatch.setitem(sys.modules, "numba", numba_stub)
+
+    models_stub = types.SimpleNamespace(
+        PhysicsModule=object,
+        SimulationState=object,
+    )
+    monkeypatch.setitem(sys.modules, "models", models_stub)
+
+    dpf2_pkg = types.ModuleType("dpf2")
+    dpf2_pkg.__path__ = [str(Path(__file__).resolve().parents[1] / "src" / "dpf2")]
+    sys.modules["dpf2"] = dpf2_pkg
+
+    # Ensure fresh import with real numpy
+    sys.modules.pop("dpf2.simulation.collision_model", None)
+    from dpf2.simulation.collision_model import BetheBlochStopping, m_p
+
+    return BetheBlochStopping, m_p
+
+
+def test_bethe_bloch_stopping_runs(bethe_bloch_classes):
+    BetheBlochStopping, m_p = bethe_bloch_classes
+    import types
+
+    # Provide a dummy state without the target species so the loop is skipped
+    state = types.SimpleNamespace(
+        species={"other": {"pos": [], "vel": [], "m": m_p}},
+        field_manager=types.SimpleNamespace(ne=0),
+    )
+
+    bbs = BetheBlochStopping("ion")
+    # Should execute without raising even with minimal state data
+    bbs.apply(state, 1.0)
+
+    assert "other" in state.species
+

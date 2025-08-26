@@ -23,7 +23,8 @@ import math
 from scipy.interpolate import interp1d, RegularGridInterpolator
 from numba import njit, prange, cuda
 import logging
-from models import PhysicsModule, SimulationState # Import SimulationState
+import types
+from models import PhysicsModule, SimulationState  # Import SimulationState
 from typing import List, Dict, Tuple, Optional
 
 logger = logging.getLogger('CollisionModel')
@@ -176,29 +177,48 @@ class CollisionProcess(PhysicsModule):
         raise NotImplementedError
 
 class BetheBlochStopping(CollisionProcess):
+
+    """Stopping power for ions using the Bethe-Bloch formula."""
+
+    def __init__(self, name, Z_eff: int = 1, I_mean_ev: float = 13.6, speed_of_light: float = 299792458.0):
+
     """Stopping power for ions using the Bethe–Bloch formula.
 
     The implementation neglects shell corrections and other high-order
     effects and should be considered an order-of-magnitude estimate."""
     def __init__(self, name, Z_eff=1, I_mean_ev=13.6):
+
         self.name = name
         self.Z_eff = Z_eff
         self.I_mean = I_mean_ev * e_charge  # Convert eV to Joules
+        # Allow speed of light to be provided, avoiding dependencies on PICSolver
+        self.c = speed_of_light
 
-    def apply(self, state: SimulationState, dt):
+    def apply(self, state: SimulationState, dt: float):
         """Applies the Bethe-Bloch stopping power to the ions."""
         try:
-            for name, spc in solver.species.items():
+            if not hasattr(state, "species"):
+                return
+            for name, spc in state.species.items():
                 if name == self.name:
-                    pos, vel = spc['pos'], spc['vel']
-                    beta = np.linalg.norm(vel, axis=1) / PICSolver.c
-                    gamma = 1 / np.sqrt(1 - beta**2)
-                    T = (gamma - 1) * spc['m'] * PICSolver.c**2  # Kinetic energy
-                    # Bethe-Bloch formula
-                    stopping_power = (4 * pi * self.Z_eff**2 * e_charge**4 * solver.field_manager.ne / (m_e * PICSolver.c**2)) * \
-                                    (np.log((2 * m_e * PICSolver.c**2 * beta**2 * gamma**2) / self.I_mean) - beta**2)
-                    # Apply stopping power (reduce velocity)
-                    vel -= (stopping_power / (spc['m'] * gamma))[:, np.newaxis] * (vel / (beta + 1e-30)[:, np.newaxis]) * solver.dt
+                    vel = spc["vel"]
+                    beta = np.linalg.norm(vel, axis=1) / self.c
+                    gamma = 1.0 / np.sqrt(1.0 - beta**2)
+                    ne = getattr(getattr(state, "field_manager", types.SimpleNamespace(ne=0)), "ne", 0)
+                    ne = np.broadcast_to(ne, beta.shape)
+                    stopping_power = (
+                        4
+                        * pi
+                        * self.Z_eff**2
+                        * e_charge**4
+                        * ne
+                        / (m_e * self.c**2)
+                    ) * (np.log((2 * m_e * self.c**2 * beta**2 * gamma**2) / self.I_mean) - beta**2)
+                    vel -= (
+                        (stopping_power / (spc["m"] * gamma))[:, np.newaxis]
+                        * (vel / (np.linalg.norm(vel, axis=1) + 1e-30)[:, np.newaxis])
+                        * dt
+                    )
         except Exception as e:
             logger.error(f"Error applying Bethe-Bloch stopping: {e}")
 
