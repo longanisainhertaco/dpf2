@@ -1,7 +1,10 @@
 # models.py
 from abc import ABC, abstractmethod
 from typing import Dict, Any
-from utils import SimulationState  # Import SimulationState
+try:  # Prefer package-relative import
+    from .utils import SimulationState  # type: ignore
+except Exception:  # pragma: no cover - fallback for standalone usage
+    SimulationState = Any  # type: ignore
 import logging
 
 logger = logging.getLogger(__name__)

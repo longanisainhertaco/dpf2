@@ -36,8 +36,15 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
 from scipy.interpolate import RegularGridInterpolator
 from numba import njit, prange
 import socket
-from models import PhysicsModule, SimulationState
-from config_schema import RadiationConfig
+try:  # Prefer package-relative imports
+    from .models import PhysicsModule, SimulationState
+except Exception:  # pragma: no cover - fallback for standalone usage
+    from models import PhysicsModule, SimulationState  # type: ignore
+
+try:  # pragma: no cover - config schema may be optional
+    from .config_schema import RadiationConfig
+except Exception:  # fallback when imported outside package
+    from config_schema import RadiationConfig  # type: ignore
 from typing import Dict, Any
 
 # Physical constants
@@ -67,8 +74,8 @@ class Photon:
     __slots__ = ('pos', 'dir', 'energy', 'group', 'polarization')
 
     def __init__(self, pos, dir, energy, group, polarization=None):
-        self.pos = np.array(pos, dtype=np.float64)
-        self.dir = np.array(dir, dtype=np.float64)
+        self.pos = np.array(pos)
+        self.dir = np.array(dir)
         self.dir /= np.linalg.norm(self.dir)
         self.energy = float(energy)
         self.group = int(group)
@@ -259,7 +266,7 @@ class RadiationModel(PhysicsModule):
         """Computes the Eddington tensor for a two-moment radiation transport model."""
         try:
             eps = 1e-30
-            P = np.zeros((self.ncomp, 3, 3) + E_arr.shape[1:], dtype=np.float64)
+            P = np.zeros((self.ncomp, 3, 3) + E_arr.shape[1:])
             for g in range(self.ncomp):
                 E = E_arr[g]
                 Fx = F_arr[3 * g + 0];
@@ -277,7 +284,7 @@ class RadiationModel(PhysicsModule):
             return P
         except Exception as e:
             logger.error(f"Error computing Eddington tensor: {e}")
-            return np.zeros((self.ncomp, 3, 3) + E_arr.shape[1:], dtype=np.float64)
+            return np.zeros((self.ncomp, 3, 3) + E_arr.shape[1:])
 
     def _compute_opacity(self, Te, ne, Z):
         """Compute the opacity according to the configured model.
@@ -308,7 +315,7 @@ class RadiationModel(PhysicsModule):
         try:
             if model == "constant":
                 # A fixed opacity supplied directly in the parameters.
-                return np.array(params["constant_opacity"], dtype=float)
+                return params["constant_opacity"]
 
             elif model == "temperature_dependent":
                 # κ = base + α * Te^β
@@ -318,7 +325,7 @@ class RadiationModel(PhysicsModule):
                 base = params["base"]
                 alpha = params["alpha"]
                 beta = params["beta"]
-                return np.array(base + alpha * Te ** beta, dtype=float)
+                return base + alpha * Te ** beta
 
             elif model == "density_dependent":
                 # κ = base + α * quantity^exp where quantity is ne or Z
@@ -334,7 +341,7 @@ class RadiationModel(PhysicsModule):
                     raise KeyError(exponent_key)
                 quantity = Z if use_Z else ne
                 exponent = params[exponent_key]
-                return np.array(base + alpha * quantity ** exponent, dtype=float)
+                return base + alpha * quantity ** exponent
 
         except KeyError as exc:
             # Provide a clear error message if any required parameter is missing
@@ -482,7 +489,7 @@ class RadiationModel(PhysicsModule):
         except Exception as e:
             logger.error(f"Error applying radiation: {e}")
 
-    def compute_radiation_loss(self, state: Dict[str, Any]) -> np.ndarray:
+    def compute_radiation_loss(self, state: Dict[str, Any]) -> Any:
         """Computes the radiation loss based on the current simulation state."""
         try:
             Te = state['Te']
