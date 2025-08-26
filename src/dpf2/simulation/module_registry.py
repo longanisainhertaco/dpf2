@@ -4,11 +4,15 @@ from .models import PhysicsModule  # Ensure plugin base class is available
 import importlib
 import inspect
 import logging
-import os
+import pkgutil
+import zipimport
 from typing import Dict, Type, Any, List, Optional
 
 from pydantic import BaseModel, ValidationError
-from .utils import FieldManager
+try:  # Optional to allow discovery without full dependencies
+    from .utils import FieldManager
+except Exception:  # pragma: no cover - fallback when numpy or others missing
+    FieldManager = Any  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -58,39 +62,54 @@ class ModuleRegistry:
         logger.info(f"Registered module: {module_class.__name__}")
 
     def discover_plugins(self, package_name: str):
-        """
-        Dynamically discovers and registers modules within a specified package.
+        """Discover and register plugin modules within *package_name*.
 
-        This method imports all modules within the given package and attempts to
-        register any classes that inherit from PhysicsModule.
+        The function walks the package and all of its subpackages using
+        :func:`pkgutil.walk_packages` and imports modules that define
+        subclasses of :class:`PhysicsModule`.
 
-        Args:
-            package_name: The name of the Python package to scan for plugins.
+        Limitations
+        -----------
+        * Only modules that can be reached via ``pkgutil.walk_packages`` are
+          discovered. Packages without a ``__path__`` (some namespace packages)
+          or those contained in zipped distributions may not be scanned.
+        * Import errors are logged and the offending modules are skipped.
+
+        Parameters
+        ----------
+        package_name:
+            The dotted path of the package to search for plugin modules.
         """
         try:
             package = importlib.import_module(package_name)
-            package_path = os.path.dirname(package.__file__)
-
-            for module_name in os.listdir(package_path):
-                if module_name.startswith('_') or not module_name.endswith('.py'):
-                    continue  # Skip private modules and non-Python files
-
-                module_path = os.path.join(package_path, module_name)
-                if os.path.isfile(module_path):
-                    module_name = module_name[:-3]  # Remove '.py' extension
+            package_paths = getattr(package, "__path__", None)
+            if package_paths is None:
+                logger.warning(
+                    f"Package {package_name} has no __path__ and cannot be scanned for plugins."
+                )
+                return
+            try:
+                for finder, name, ispkg in pkgutil.walk_packages(
+                    package_paths, package.__name__ + "."
+                ):
                     try:
-                        module = importlib.import_module(f'{package_name}.{module_name}')
-                        for name, obj in inspect.getmembers(module):
-                            if inspect.isclass(obj) and issubclass(obj, PhysicsModule) and obj != PhysicsModule:
-                                self.register(obj)
-                    except ImportError as e:
-                        logger.warning(f"Could not import module {module_name}: {e}")
+                        module = importlib.import_module(name)
                     except Exception as e:
-                        logger.error(f"Error during plugin discovery in {module_name}: {e}")
+                        logger.warning(f"Could not import module {name}: {e}")
+                        continue
+                    for obj_name, obj in inspect.getmembers(module, inspect.isclass):
+                        if issubclass(obj, PhysicsModule) and obj is not PhysicsModule:
+                            self.register(obj)
+            except zipimport.ZipImportError as e:
+                logger.error(
+                    f"Zipped distribution for package {package_name} could not be scanned: {e}"
+                )
+            except Exception as e:
+                logger.error(f"Error walking package {package_name}: {e}")
         except ImportError as e:
             logger.error(f"Could not import package {package_name}: {e}")
         except Exception as e:
-            logger.error(f"Error during plugin discovery: {e}")
+            logger.error(f"Error during plugin discovery in package {package_name}: {e}")
 
     def create(self, module_class: Type, config: Optional[Dict] = None, created_modules: Optional[Dict[Type, Any]] = None, field_manager: Optional[FieldManager] = None) -> Any:
         """
