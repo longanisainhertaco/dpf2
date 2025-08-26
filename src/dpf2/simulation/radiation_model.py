@@ -1,39 +1,18 @@
-"""
-radiation_model.py
+"""Radiation transport model used by the DPF2 simulations.
 
-Enhanced High-Fidelity Radiation Model with:
-- Synchrotron, Bremsstrahlung, and Line Emission
-- Advanced Compton Scattering (Klein-Nishina)
-- Dynamic Opacities (Temperature and Density Dependent)
-- Improved Photon Monte Carlo (Energy-Dependent Emission, Scattering)
-- Eddington Tensor Closure
-- Dynamic Line Radiation Calculation
-- Comprehensive Telemetry
-- Robust Error Handling
-- Configurable Parameters
-- Clearer Code and Documentation
-- Unit Tests (to be added in separate file)
-- Optimized Performance (Numba, efficient data structures)
-- Relativistic Effects (Approximated)
-- Polarization (Approximated)
-- Pair Production (Approximated)
-- Photoionization (Approximated)
-- Inverse Compton Scattering (Approximated)
-- Self-Absorption (Approximated)
-- Stimulated Emission (Approximated)
-- Doppler Broadening (Approximated)
-- Zeeman Splitting (Approximated)
-- Stark Broadening (Approximated)
-- Pressure Broadening (Approximated)
-- Radiative Recombination (Approximated)
-- Dielectronic Recombination (Approximated)
-- Three-Body Recombination (Approximated)
-- Autoionization (Approximated)
-- Charge Exchange (Approximated)
-- Molecular Radiation (Approximated)
-- Dust Radiation (Approximated)
-- Non-LTE Effects (Approximated)
-- Time-Dependent Effects (Approximated)
+Implemented features
+--------------------
+- Bremsstrahlung, line and synchrotron emissivities
+- Klein–Nishina Compton scattering
+- Configurable opacity models
+- Flux-limited diffusion and a basic photon Monte Carlo scheme
+- Simple telemetry and checkpoint helpers
+
+Future Work
+-----------
+- Polarization, pair production and other high-energy processes
+- Detailed non-LTE line transport and time-dependent effects
+- Expanded test coverage and performance tuning
 """
 
 import numpy as np
@@ -70,6 +49,11 @@ logger.addHandler(ch)
 # Photon data structure for Monte Carlo
 # --------------------------------------
 class Photon:
+    """Lightweight Monte Carlo photon particle.
+
+    Only the position, direction, energy and group are evolved.  Polarization
+    is stored but not used by the current algorithms."""
+
     __slots__ = ('pos', 'dir', 'energy', 'group', 'polarization')
 
     def __init__(self, pos, dir, energy, group, polarization=None):
@@ -109,6 +93,12 @@ def klein_nishina_cross_section(E):
 # High-Fidelity Radiation Model Class
 # --------------------------------------
 class RadiationModel(PhysicsModule):
+    """Multi-group radiation transport model with simplified coupling.
+
+    Supports emission processes, flux-limited diffusion and Monte Carlo photon
+    transport.  Coupling to the fluid momentum, polarization effects and many
+    high-energy processes are not yet represented."""
+
     def __init__(self, amrex_geom, config: RadiationConfig):
         self.geom = amrex_geom
         self.config = config
