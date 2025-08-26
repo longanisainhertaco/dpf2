@@ -436,6 +436,8 @@ class AsyncHybridController(HybridController):
             self._q.put(None)
             self._fth.join()
             self._pth.join()
+            self.circuit.finalize()
+            self.radiation.finalize()
             logger.info("AsyncHybridController finalized.")
         except Exception as e:
             logger.error(f"Error during asynchronous finalization: {e}")
