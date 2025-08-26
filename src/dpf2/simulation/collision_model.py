@@ -178,8 +178,7 @@ class CollisionProcess(PhysicsModule):
         raise NotImplementedError
 
 class BetheBlochStopping(CollisionProcess):
-
-    """Stopping power for ions using the Bethe-Bloch formula."""
+    """Stopping power for ions using the Bethe–Bloch formula."""
 
     def __init__(
         self,
