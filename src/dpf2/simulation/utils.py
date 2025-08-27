@@ -1,4 +1,6 @@
 # utils.py
+from __future__ import annotations
+
 import numpy as np
 from typing import Dict, Any, Optional, Tuple
 import logging
@@ -464,3 +466,98 @@ class SimulationState:
     def __repr__(self):
         """Returns a string representation of the SimulationState."""
         return self.__str__()
+
+    # ------------------------------------------------------------------
+    # Particle helper routines
+    # ------------------------------------------------------------------
+    def _ensure_species(self):
+        """Ensure the ``species`` dictionary exists."""
+        if not hasattr(self, "species"):
+            self.species = {}
+
+    def add_particles(self, name: str, q: float, m: float,
+                      pos: np.ndarray, vel: np.ndarray):
+        """Safely add particles to the state.
+
+        If ``name`` already exists, the particle arrays are appended.  The
+        charge and mass are only set when the species is first created.
+        """
+        self._ensure_species()
+        try:
+            pos = np.array(pos)
+            if len(getattr(pos, 'shape', ())) == 1:
+                pos = np.array([pos])
+        except Exception:
+            pass
+        try:
+            vel = np.array(vel)
+            if len(getattr(vel, 'shape', ())) == 1:
+                vel = np.array([vel])
+        except Exception:
+            pass
+        if name in self.species:
+            sp = self.species[name]
+            sp['pos'] = np.vstack([sp.get('pos', np.zeros((0, 3))), pos])
+            sp['vel'] = np.vstack([sp.get('vel', np.zeros((0, 3))), vel])
+            sp.setdefault('q', q)
+            sp.setdefault('m', m)
+        else:
+            self.species[name] = {'q': q, 'm': m,
+                                  'pos': pos.copy(), 'vel': vel.copy()}
+
+    def remove_particles(self, name: str, indices):
+        """Remove particles specified by ``indices`` from ``name`` species."""
+        self._ensure_species()
+        sp = self.species.get(name)
+        if sp is None or 'pos' not in sp:
+            return
+        if isinstance(indices, (list, tuple)):
+            idx = [int(i) for i in indices]
+        else:
+            idx = [int(indices)]
+        if not idx:
+            return
+        mask = [True] * len(sp['pos'])
+        for i in idx:
+            if 0 <= i < len(mask):
+                mask[i] = False
+        sp['pos'] = np.array([p for m, p in zip(mask, sp['pos']) if m])
+        sp['vel'] = np.array([v for m, v in zip(mask, sp['vel']) if m])
+
+    # --- Sampling utilities -------------------------------------------------
+    kB = 1.380649e-23  # Boltzmann constant [J/K]
+
+    def sample_positions(self, n: int) -> np.ndarray:
+        """Sample ``n`` positions uniformly in the simulation domain."""
+        self._ensure_species()
+        rand = getattr(np.random, 'random', None) or getattr(np.random, 'rand', None)
+        if rand is None:
+            return np.zeros((n, 3))
+        try:
+            x = rand(n)
+            y = rand(n)
+            z = rand(n)
+        except TypeError:
+            x = rand(size=n)
+            y = rand(size=n)
+            z = rand(size=n)
+        Lx = self.grid_shape[0] * self.dx
+        Ly = self.grid_shape[1] * self.dy
+        Lz = self.grid_shape[2] * self.dz
+        x0, y0, z0 = self.domain_lo
+        pts = [
+            (x0 + x[i] * Lx, y0 + y[i] * Ly, z0 + z[i] * Lz)
+            for i in range(n)
+        ]
+        return np.array(pts)
+
+    def sample_velocities(self, n: int, temperature: float, mass: float) -> np.ndarray:
+        """Sample Maxwellian velocities for ``temperature`` and ``mass``."""
+        normal = getattr(np.random, 'normal', None)
+        if normal is None:
+            return np.zeros((n, 3))
+        vth = np.sqrt(self.kB * float(temperature) / mass)
+        try:
+            return normal(0.0, vth, size=(n, 3))
+        except TypeError:
+            return normal(size=(n, 3)) * vth
