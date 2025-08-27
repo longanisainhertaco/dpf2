@@ -6,6 +6,7 @@ import logging
 from typing import Any, Optional, Union
 
 from .eos import TabulatedEOS, parse_mixture_fractions
+from dpf2.eos.ideal_gas import IdealGasEOS
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +36,14 @@ def select_eos(
     """
     logger.info(f"Selecting EOS backend: {backend}")
 
+    fractions = None
+    if mixture_fractions is not None:
+        fractions = parse_mixture_fractions(mixture_fractions)
+
     if backend == 'tabulated':
         if table_file is None:
             logger.error("Tabulated EOS backend selected, but 'table_file' not provided.")
             raise ValueError("Missing 'table_file' for tabulated EOS backend.")
-        fractions = None
-        if mixture_fractions is not None:
-            fractions = parse_mixture_fractions(mixture_fractions)
 
         try:
             eos_instance = TabulatedEOS(
@@ -57,19 +59,14 @@ def select_eos(
             logger.error(f"Failed to instantiate TabulatedEOS: {e}")
             raise
 
-    # Add other EOS backends here if needed
-    # elif backend == 'ideal_gas':
-    #     try:
-    #         from ideal_gas_eos import IdealGasEOS # Example
-    #         eos_instance = IdealGasEOS(**kwargs)
-    #         logger.info("Instantiated IdealGasEOS")
-    #         return eos_instance
-    #     except ImportError:
-    #         logger.error("IdealGasEOS module not found.")
-    #         raise ValueError("IdealGasEOS module required but not found.")
-    #     except Exception as e:
-    #         logger.error(f"Failed to instantiate IdealGasEOS: {e}")
-    #         raise
+    elif backend == 'ideal_gas':
+        try:
+            eos_instance = IdealGasEOS(**kwargs)
+            logger.info("Instantiated IdealGasEOS")
+            return eos_instance
+        except Exception as e:
+            logger.error(f"Failed to instantiate IdealGasEOS: {e}")
+            raise
 
     else:
         logger.error(f"Unknown EOS backend specified: {backend}")

@@ -87,6 +87,11 @@ class Array:
             return (len(self.data),)
         return ()
 
+    @property
+    def ndim(self) -> int:
+        """Return the number of array dimensions."""
+        return len(self.shape)
+
     # ------------------------------------------------------------------
     # arithmetic operations
     def _binary(self, other, op):
@@ -255,6 +260,11 @@ def allclose(a, b, rtol=1.0e-8, atol=1.0e-8):
     return bool(comp)
 
 
+def array_equal(a, b) -> bool:
+    """Return ``True`` if two arrays are exactly equal."""
+    return bool(allclose(a, b))
+
+
 sqrt = math.sqrt
 
 
@@ -281,13 +291,14 @@ np = types.SimpleNamespace(
     cross=cross,
     clip=clip,
     sqrt=sqrt,
-    gradient=gradient,
-    isclose=isclose,
-    allclose=allclose,
-    Array=Array,
-    inf=float("inf"),
-    pi=math.pi,
-)
+      gradient=gradient,
+      isclose=isclose,
+      allclose=allclose,
+      array_equal=array_equal,
+      Array=Array,
+      inf=float("inf"),
+      pi=math.pi,
+  )
 
 sys.modules.setdefault("numpy", np)
 

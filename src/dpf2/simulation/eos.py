@@ -3,7 +3,39 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
+try:  # pragma: no cover - optional SciPy dependency
+    from scipy.interpolate import RegularGridInterpolator
+except ModuleNotFoundError:  # pragma: no cover
+    class RegularGridInterpolator:  # type: ignore[misc]
+        """Very small fallback interpolator when SciPy is unavailable."""
+
+        def __init__(self, points, values):
+            self.x, self.y = [np.array(p) for p in points]
+            self.values = np.array(values)
+
+        def __call__(self, pts):  # noqa: D401 - behave like SciPy callable
+            result = []
+            for x, y in pts:
+                i = np.searchsorted(self.x, x, side="right") - 1
+                j = np.searchsorted(self.y, y, side="right") - 1
+                i = max(min(i, len(self.x) - 2), 0)
+                j = max(min(j, len(self.y) - 2), 0)
+                x0, x1 = self.x[i], self.x[i + 1]
+                y0, y1 = self.y[j], self.y[j + 1]
+                tx = 0.0 if x1 == x0 else (x - x0) / (x1 - x0)
+                ty = 0.0 if y1 == y0 else (y - y0) / (y1 - y0)
+                f00 = self.values[i, j]
+                f01 = self.values[i, j + 1]
+                f10 = self.values[i + 1, j]
+                f11 = self.values[i + 1, j + 1]
+                val = (
+                    f00 * (1 - tx) * (1 - ty)
+                    + f01 * (1 - tx) * ty
+                    + f10 * tx * (1 - ty)
+                    + f11 * tx * ty
+                )
+                result.append(val)
+            return np.array(result)
 try:  # optional dependency
     import h5py
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
@@ -246,29 +278,7 @@ class TabulatedEOS:
             raise
 
     def electron_energy(self, rho, T):
-
-        """Return electron internal energy for the given density and temperature.
-
-        Parameters
-        ----------
-        rho: np.ndarray
-            Mass density (kg/m^3).
-        T: np.ndarray
-            Temperature (K).
-
-        """
-        Returns the electron internal energy at a given density and temperature.
-
-        Args:
-            rho (np.ndarray): Mass density (kg/m^3).
-            T (np.ndarray): Temperature (K).
-
-
-        Returns
-        -------
-        np.ndarray
-            Electron specific internal energy (J/kg).
-        """
+        """Return electron internal energy for the given density and temperature."""
         try:
             return self.e_interp(np.stack([rho, T], axis=-1))
         except Exception as e:
@@ -277,7 +287,11 @@ class TabulatedEOS:
 
     def __str__(self):
         """Returns a string representation of the TabulatedEOS object."""
-        return f"TabulatedEOS(rho_grid={self.rho_grid.shape}, T_grid={self.T_grid.shape}, p_table={self.p_table.shape}, e_table={self.e_table.shape})"
+        return (
+            f"TabulatedEOS(rho_grid={self.rho_grid.shape}, "
+            f"T_grid={self.T_grid.shape}, "
+            f"p_table={self.p_table.shape}, e_table={self.e_table.shape})"
+        )
 
     def __repr__(self):
         """Returns a string representation of the TabulatedEOS object."""

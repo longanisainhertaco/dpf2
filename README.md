@@ -60,6 +60,34 @@ result = simulation.run()
 
 Configuration files use the `DPFConfig` schema defined in this repository. See `examples/quickstart.ipynb` for a walk-through in a Jupyter notebook.
 
+### Equation of State Backends
+
+The simulator supports both tabulated and ideal–gas equations of state. The
+backend is selected via the ``eos_model`` entry in the configuration.  For a
+simple ideal gas:
+
+```json
+{
+  "physics_models": {
+    "eos_model": "ideal_gas",
+    "gamma": 1.4,
+    "mu": 2.0
+  }
+}
+```
+
+A tabulated EOS with a two–species mixture can be configured as:
+
+```json
+{
+  "physics": {
+    "eosModel": "tabulated",
+    "eosTablePath": "tests/data/sesame_dummy.csv",
+    "mixtureFractions": "Ar:0.9,He:0.1"
+  }
+}
+```
+
 ## Server Mode (Experimental)
 
 A lightweight Flask server is provided for remote execution and basic job management. The implementation is not production ready and exposes only minimal endpoints. Install the `[server]` extra and launch with `python -m dpf2.simulation.dpf_simulator_server`. See [`src/dpf2/simulation/dpf_simulator_server.py`](src/dpf2/simulation/dpf_simulator_server.py) and [`tests/test_api_endpoints.py`](tests/test_api_endpoints.py) for the current interface.

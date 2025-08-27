@@ -10,6 +10,7 @@ import pytest
 
 from dpf2.simulation.eos_selector import select_eos  # type: ignore
 from dpf2.simulation.eos import TabulatedEOS  # type: ignore
+from dpf2.eos.ideal_gas import IdealGasEOS
 
 
 def _create_species_eos_file(tmp_path: Path, species: str, p_val: float = 1.0, e_val: float = 1.0) -> Path:
@@ -84,4 +85,39 @@ def test_select_eos_negative_fraction(tmp_path):
             "tabulated",
             table_file=str(tmp_path),
             mixture_fractions="A:-0.1,B:1.1",
+        )
+
+
+def test_select_eos_ideal_gas():
+    eos = select_eos("ideal_gas", gamma=1.4, mu=2.0)
+    assert isinstance(eos, IdealGasEOS)
+
+
+def test_select_eos_ideal_gas_mixture_str():
+    eos = select_eos(
+        "ideal_gas",
+        gamma=1.4,
+        mu=2.0,
+        mixture_fractions="A:1.0",
+    )
+    assert isinstance(eos, IdealGasEOS)
+
+
+def test_select_eos_ideal_gas_mixture_dict():
+    eos = select_eos(
+        "ideal_gas",
+        gamma=1.4,
+        mu=2.0,
+        mixture_fractions={"A": 1.0},
+    )
+    assert isinstance(eos, IdealGasEOS)
+
+
+def test_select_eos_ideal_gas_invalid_mixture():
+    with pytest.raises(ValueError):
+        select_eos(
+            "ideal_gas",
+            gamma=1.4,
+            mu=2.0,
+            mixture_fractions="A:0.5,B:0.4",
         )
