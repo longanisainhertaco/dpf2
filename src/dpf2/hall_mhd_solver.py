@@ -10,7 +10,8 @@ can proceed incrementally.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, Dict
+from typing import Protocol
 
 import numpy as np
 try:  # pragma: no cover - allow running without SciPy
@@ -21,11 +22,31 @@ except Exception:  # pragma: no cover
 from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase
 from .eos import EOSBase, IdealGasEOS
 
+class ChemistryModule(Protocol):
+    """Minimal interface for chemistry plugins."""
+
+    def ionization_state(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
+        """Return mean charge state."""
+
+
+class RadiationModule(Protocol):  # pragma: no cover - docs only
+    """Minimal interface for radiation plugins."""
+
+    def loss(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
+        """Return volumetric energy-loss rate."""
+
+    def opacity(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray: ...
+
+    def emissivity(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray: ...
+
+    def couple(self, energy: list[float], dt: float) -> list[float]: ...
+
+
 try:  # pragma: no cover - chemistry is optional in tests
     from .chemistry import ChemistryModel, SahaEquilibrium
 except Exception:  # pragma: no cover
-    class ChemistryModel:  # minimal stub
-        def ionization_state(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:  # noqa: D401
+    class ChemistryModel(ChemistryModule):
+        def ionization_state(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
             return np.ones_like(rho)
 
     class SahaEquilibrium(ChemistryModel):
@@ -34,8 +55,8 @@ except Exception:  # pragma: no cover
 try:  # pragma: no cover - radiation package optional
     from .radiation import RadiationBase
 except Exception:  # pragma: no cover
-    class RadiationBase:  # type: ignore[misc]
-        def loss(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:  # noqa: D401
+    class RadiationBase(RadiationModule):  # type: ignore[misc]
+        def loss(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
             return np.zeros_like(rho)
 
 
@@ -195,6 +216,8 @@ class MHDState:
         Total energy density [J/m^3].
     B : ndarray
         Magnetic field vector [T].
+    temperatures : dict[str, ndarray] | None
+        Mapping of species names to temperature fields.
     Te : ndarray | None
         Electron temperature [K] when using two-temperature models.
     Ti : ndarray | None
@@ -211,6 +234,7 @@ class MHDState:
     Te: np.ndarray | None = None
     Ti: np.ndarray | None = None
     eta: np.ndarray | None = None
+    temperatures: Dict[str, np.ndarray] | None = None
 
 
 @dataclass
@@ -230,8 +254,8 @@ class HallMHDSolver(PlasmaSolverBase):
 
     mesh: Any = field(default=None)
     eos: EOSBase = field(default_factory=IdealGasEOS)
-    chemistry: ChemistryModel = field(default_factory=SahaEquilibrium)
-    radiation: RadiationBase | None = None
+    chemistry: ChemistryModule = field(default_factory=SahaEquilibrium)
+    radiation: RadiationModule | None = None
     sheath: KineticSheath | None = None
     eta: float = 0.0
     hall_coeff: float = 0.0
@@ -295,9 +319,18 @@ class HallMHDSolver(PlasmaSolverBase):
         B = state.B.copy()
         Te = None if state.Te is None else state.Te.copy()
         Ti = None if state.Ti is None else state.Ti.copy()
+        temps = (
+            {k: v.copy() for k, v in state.temperatures.items()}
+            if state.temperatures is not None
+            else {}
+        )
+        if Te is not None:
+            temps.setdefault("Te", Te)
+        if Ti is not None:
+            temps.setdefault("Ti", Ti)
         eta_field = state.eta.copy() if state.eta is not None else self.eta
 
-        dims = rho.ndim
+        dims = len(rho.shape)
 
         v = mom / rho[..., None]
         B2 = np.sum(B**2, axis=-1)
@@ -323,10 +356,9 @@ class HallMHDSolver(PlasmaSolverBase):
         flux_rho = np.zeros((dims,) + rho.shape)
         flux_mom = np.zeros((dims,) + mom.shape)
         flux_energy = np.zeros((dims,) + energy.shape)
-        if Te is not None:
-            flux_Te = np.zeros((dims,) + Te.shape)
-        if Ti is not None:
-            flux_Ti = np.zeros((dims,) + Ti.shape)
+        flux_temp: Dict[str, np.ndarray] = {
+            name: np.zeros((dims,) + arr.shape) for name, arr in temps.items()
+        }
 
         prim_vars = [rho, v[..., 0], v[..., 1], v[..., 2], B[..., 0], B[..., 1], B[..., 2], p]
         for i in range(dims):
@@ -351,10 +383,8 @@ class HallMHDSolver(PlasmaSolverBase):
             flux_rho[i] = fr
             flux_mom[i] = fm
             flux_energy[i] = fe
-            if Te is not None:
-                flux_Te[i] = Te * v[..., i]
-            if Ti is not None:
-                flux_Ti[i] = Ti * v[..., i]
+            for name in temps:
+                flux_temp[name][i] = temps[name] * v[..., i]
 
         # Corner-transport-upwind transverse flux correction
         for i in range(dims):
@@ -365,35 +395,26 @@ class HallMHDSolver(PlasmaSolverBase):
                 for k in range(3):
                     flux_mom[i][..., k] -= 0.5 * _dd(flux_mom[j][..., k], j)
                 flux_energy[i] -= 0.5 * _dd(flux_energy[j], j)
-                if Te is not None:
-                    flux_Te[i] -= 0.5 * _dd(flux_Te[j], j)
-                if Ti is not None:
-                    flux_Ti[i] -= 0.5 * _dd(flux_Ti[j], j)
+                for name in temps:
+                    flux_temp[name][i] -= 0.5 * _dd(flux_temp[name][j], j)
 
         drho = np.zeros_like(rho)
         denergy = np.zeros_like(energy)
         dmom = np.zeros_like(mom)
-        if Te is not None:
-            dTe = np.zeros_like(Te)
-        if Ti is not None:
-            dTi = np.zeros_like(Ti)
+        dtemp: Dict[str, np.ndarray] = {name: np.zeros_like(arr) for name, arr in temps.items()}
         for i in range(dims):
             drho += flux_rho[i] - np.roll(flux_rho[i], 1, axis=i)
             denergy += flux_energy[i] - np.roll(flux_energy[i], 1, axis=i)
             for j in range(3):
                 dmom[..., j] += flux_mom[i][..., j] - np.roll(flux_mom[i][..., j], 1, axis=i)
-            if Te is not None:
-                dTe += flux_Te[i] - np.roll(flux_Te[i], 1, axis=i)
-            if Ti is not None:
-                dTi += flux_Ti[i] - np.roll(flux_Ti[i], 1, axis=i)
+            for name in temps:
+                dtemp[name] += flux_temp[name][i] - np.roll(flux_temp[name][i], 1, axis=i)
 
         rho -= dt * drho
         energy -= dt * denergy
         mom -= dt * dmom
-        if Te is not None:
-            Te -= dt * dTe / np.maximum(rho, 1e-30)
-        if Ti is not None:
-            Ti -= dt * dTi / np.maximum(rho, 1e-30)
+        for name in temps:
+            temps[name] -= dt * dtemp[name] / np.maximum(rho, 1e-30)
 
         if self.radiation is not None:
             if hasattr(self.radiation, "opacity"):
@@ -484,21 +505,24 @@ class HallMHDSolver(PlasmaSolverBase):
         else:
             heating = float(eta_field) * np.sum(J**2, axis=-1)
         energy += dt * heating
-        if Te is not None:
-            Te += dt * heating / np.maximum(rho, 1e-30)
+        for name in temps:
+            temps[name] += dt * heating / np.maximum(rho, 1e-30)
 
         self.last_J = J
         self.last_E = E
 
+        Te_out = temps.pop("Te", None)
+        Ti_out = temps.pop("Ti", None)
         new_state = MHDState(
             rho=rho,
             mom=mom,
             energy=energy,
             B=B,
             psi=psi,
-            Te=Te,
-            Ti=Ti,
+            Te=Te_out,
+            Ti=Ti_out,
             eta=None if np.isscalar(eta_field) else eta_field,
+            temperatures=temps if temps else None,
         )
 
         self.apply_boundary_conditions(new_state)
