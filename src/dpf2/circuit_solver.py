@@ -20,6 +20,7 @@ from scipy.integrate import solve_ivp
 from .circuit_config import CircuitConfig
 from .core.circuit import RLCCircuitSolver
 from .core.bases import PlasmaSolverBase
+from .physics.energy import EnergyTracker
 
 __all__ = ["CircuitSolver", "RLCCircuit", "run_circuit_simulation"]
 
@@ -114,6 +115,7 @@ class CircuitSolver:
         back_emf: float,
         dt: float,
         plasma_feedback: dict[str, float] | None = None,
+        energy_tracker: EnergyTracker | None = None,
     ) -> Tuple[float, float]:
         """Explicit Euler advance with optional plasma feedback."""
 
@@ -152,6 +154,13 @@ class CircuitSolver:
         self.time.append(t + dt)
         self.currents.append(new_current)
         self.voltages.append(new_voltage)
+
+        if energy_tracker is not None:
+            Ltot = self.circuit.L + Lp
+            energy_tracker.add(
+                capacitor=0.5 * self.circuit.C * new_voltage**2,
+                inductive=0.5 * Ltot * new_current**2,
+            )
 
         return new_current, new_voltage
 
