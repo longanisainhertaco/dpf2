@@ -66,6 +66,9 @@ class ValidationSuite(ConfigSectionBase):
     observable_uncertainties: Optional[Dict[str, float]] = Field(
         None, alias="observableUncertainties"
     )
+    observable_uncertainty_ranges: Optional[Dict[str, Tuple[float, float]]] = Field(
+        None, alias="observableUncertaintyRanges"
+    )
 
     # Validation target configuration
     validation_targets: List[str] = Field(
@@ -183,13 +186,26 @@ class ValidationSuite(ConfigSectionBase):
         update: Dict[str, Any] = {}
         if values.observable_weighting:
             update["observable_weighting"] = norm_weights
-        if values.observable_uncertainties and values.validation_score_model == "weighted":
+
+        # Combine uncertainties from ranges and scalars ----------------
+        uncertainties = dict(values.observable_uncertainties or {})
+        if values.observable_uncertainty_ranges:
+            for obs, rng in values.observable_uncertainty_ranges.items():
+                if len(rng) != 2:
+                    raise ValueError("uncertainty ranges must have two entries")
+                lo, hi = rng
+                if lo > hi:
+                    raise ValueError("uncertainty range lower bound must be <= upper bound")
+                uncertainties[obs] = (hi - lo) / 2.0
+
+        if uncertainties and values.validation_score_model == "weighted":
             score = 1.0
             for t in values.validation_targets:
-                u = values.observable_uncertainties.get(t, 0.0) if values.observable_uncertainties else 0.0
+                u = uncertainties.get(t, 0.0)
                 w = norm_weights.get(t, 0.0)
                 score -= u * w
             update["computed_validation_score"] = score
+            update["observable_uncertainties"] = uncertainties
         score = update.get("computed_validation_score", values.computed_validation_score)
         if score is not None:
             update["validation_passed"] = score >= values.score_pass_threshold
@@ -266,10 +282,101 @@ def compute_error_metrics(
     return errors
 
 
+def load_pinch_dataset(dataset_dir: Path) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+    """Load benchmark pinch traces from ``dataset_dir``.
+
+    The directory must contain CSV files named ``current.csv``, ``voltage.csv``,
+    ``neutron_yield.csv`` and ``radius.csv`` each with two columns:
+    ``time`` and ``value``.
+    """
+
+    traces = {}
+    for name in ["current", "voltage", "neutron_yield", "radius"]:
+        traces[name] = _load_profile_csv(dataset_dir / f"{name}.csv")
+    return traces
+
+
+def _rmse(sim: Tuple[np.ndarray, np.ndarray], ref: Tuple[np.ndarray, np.ndarray]) -> float:
+    """Compute RMSE between two time series."""
+
+    sim_t, sim_v = sim
+    ref_t, ref_v = ref
+    interp_v = np.interp(ref_t, sim_t, sim_v)
+    return float(np.sqrt(np.mean((interp_v - ref_v) ** 2)))
+
+
+def _peak_time(profile: Tuple[np.ndarray, np.ndarray]) -> float:
+    t, v = profile
+    return float(t[int(np.argmax(v))])
+
+
+def _peak_timing_error(
+    sim: Tuple[np.ndarray, np.ndarray], ref: Tuple[np.ndarray, np.ndarray]
+) -> float:
+    """Absolute difference in peak times between two profiles."""
+
+    return abs(_peak_time(sim) - _peak_time(ref))
+
+
+def _integrated_energy(
+    current: Tuple[np.ndarray, np.ndarray], voltage: Tuple[np.ndarray, np.ndarray]
+) -> float:
+    t, i = current
+    v = np.interp(t, voltage[0], voltage[1])
+    return float(np.trapz(i * v, t))
+
+
+def _energy_balance_error(
+    sim_I: Tuple[np.ndarray, np.ndarray],
+    sim_V: Tuple[np.ndarray, np.ndarray],
+    ref_I: Tuple[np.ndarray, np.ndarray],
+    ref_V: Tuple[np.ndarray, np.ndarray],
+) -> float:
+    """Difference in discharge energy between simulation and reference."""
+
+    return abs(
+        _integrated_energy(sim_I, sim_V) - _integrated_energy(ref_I, ref_V)
+    )
+
+
+def compute_pinch_error_metrics(
+    sim_outputs: Dict[str, Tuple[np.ndarray, np.ndarray]],
+    dataset_dir: Path,
+    tolerances: Dict[str, float],
+) -> Dict[str, Any]:
+    """Compute RMSE, peak timing and energy balance errors for pinch traces."""
+
+    bench = load_pinch_dataset(dataset_dir)
+    errors = {
+        f"{name}_rmse": _rmse(sim_outputs[name], bench[name])
+        for name in ["current", "voltage", "neutron_yield", "radius"]
+    }
+    errors.update(
+        {
+            f"{name}_t_peak": _peak_timing_error(
+                sim_outputs[name], bench[name]
+            )
+            for name in ["current", "voltage", "radius"]
+        }
+    )
+    errors["energy_diff"] = _energy_balance_error(
+        sim_outputs["current"],
+        sim_outputs["voltage"],
+        bench["current"],
+        bench["voltage"],
+    )
+    errors["passed"] = all(
+        errors.get(k, 0.0) <= tolerances.get(k, float("inf")) for k in errors
+    )
+    return errors
+
+
 __all__ = [
     "ValidationSuite",
     "load_benchmark_dataset",
     "compare_gv_timing",
     "compare_profiles",
     "compute_error_metrics",
+    "load_pinch_dataset",
+    "compute_pinch_error_metrics",
 ]

@@ -1,5 +1,7 @@
 from .mhd import ResistiveMHD
+
 from .pic_driver import PicDriver
+
 
 # Import optional modules individually so that a failure in one does not
 # prevent access to the others.  This keeps ``HallMHD`` available even when
@@ -21,7 +23,7 @@ try:  # pragma: no cover - exercised when dependency is available
 except Exception:  # pragma: no cover - fallback for minimal environments
     neutral_density_source = wall_ablation_source = None  # type: ignore
 
-__all__ = ["ResistiveMHD"]
+__all__ = ["ResistiveMHD", "EnergyTracker"]
 
 if ZeroDPlasma is not None:
     __all__.append("ZeroDPlasma")

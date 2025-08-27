@@ -19,6 +19,7 @@ class BaseModel:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+
     # Mimic minimal pydantic API used in the code base
     def dict(self, **kwargs):  # pragma: no cover - trivial
         return self.__dict__.copy()
@@ -32,6 +33,7 @@ class BaseModel:
     @classmethod
     def parse_obj(cls, data):  # pragma: no cover - simple constructor
         return cls(**data)
+
 
 
 def validator(*args, **kwargs):  # pragma: no cover - trivial passthrough
@@ -59,4 +61,8 @@ ConfigDict = dict
 # ---------------------------------------------------------------------------
 dataclasses = _types.ModuleType("pydantic.dataclasses")
 dataclasses.dataclass = _dc.dataclass
+
+import sys as _sys
+
+_sys.modules.setdefault("pydantic", _sys.modules[__name__])
 

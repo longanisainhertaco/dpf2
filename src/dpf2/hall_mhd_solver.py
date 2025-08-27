@@ -20,6 +20,7 @@ except Exception:  # pragma: no cover
 
 from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase
 from .eos import EOSBase, IdealGasEOS
+
 try:  # pragma: no cover - chemistry is optional in tests
     from .chemistry import ChemistryModel, SahaEquilibrium
 except Exception:  # pragma: no cover
@@ -36,6 +37,7 @@ except Exception:  # pragma: no cover
     class RadiationBase:  # type: ignore[misc]
         def loss(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:  # noqa: D401
             return np.zeros_like(rho)
+
 
 __all__ = ["MHDState", "HallMHDSolver"]
 
@@ -230,6 +232,7 @@ class HallMHDSolver(PlasmaSolverBase):
     eos: EOSBase = field(default_factory=IdealGasEOS)
     chemistry: ChemistryModel = field(default_factory=SahaEquilibrium)
     radiation: RadiationBase | None = None
+    sheath: KineticSheath | None = None
     eta: float = 0.0
     hall_coeff: float = 0.0
     rad_coeff: float = 0.0
@@ -270,6 +273,7 @@ class HallMHDSolver(PlasmaSolverBase):
         dt: float,
         current: float = 0.0,
         voltage: float = 0.0,
+        energy_tracker: EnergyTracker | None = None,
     ) -> MHDState:  # pragma: no cover - skeleton
         """Advance the state by ``dt`` seconds using a higher-order MHD update.
 
@@ -284,7 +288,6 @@ class HallMHDSolver(PlasmaSolverBase):
 
         self.amr_refinement(state)
         self.apply_boundary_conditions(state)
-        self.current = current
 
         rho = state.rho.copy()
         mom = state.mom.copy()
@@ -305,6 +308,15 @@ class HallMHDSolver(PlasmaSolverBase):
         T = self.eos.temperature(rho, specific_e)
         p = self.eos.pressure(rho, T)
         zbar = self.chemistry.ionization_state(rho, T)
+
+        if self.sheath is not None:
+            ni = float(np.mean(rho)) / max(self.sheath.ion_mass, 1e-30)
+            ne = ni * float(np.mean(zbar))
+            thickness, imp_flux, ion_flux = self.sheath.evolve(ni, ne, float(np.mean(T)), dt)
+            rho += imp_flux * dt * self.sheath.ion_mass
+            energy -= self.rad_coeff * imp_flux * dt
+            current = min(current, ion_flux)
+            self.last_sheath = {"thickness": thickness, "impurity_flux": imp_flux}
 
         # --- High-order Godunov fluxes (MUSCL-Hancock) ---
         gamma = getattr(self.eos, "gamma", 5.0 / 3.0)
@@ -508,6 +520,24 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.circuit is not None:
             self.current, self.back_emf = self.circuit.step(
                 self.current, self.back_emf, dt, {"Lp": L_new, "emf": emf}
+            )
+
+        if energy_tracker is not None:
+            v_final = mom / rho[..., None]
+            B2_final = np.sum(B ** 2, axis=-1)
+            kinetic_final = 0.5 * rho * np.sum(v_final**2, axis=-1)
+            magnetic_final = 0.5 * B2_final
+            thermal_final = energy - kinetic_final - magnetic_final
+            rad = (
+                float(np.sum(self.last_rad_loss) * dt)
+                if self.last_rad_loss is not None
+                else 0.0
+            )
+            energy_tracker.add(
+                kinetic=float(np.sum(kinetic_final)),
+                thermal=float(np.sum(thermal_final)),
+                magnetic=float(np.sum(magnetic_final)),
+                radiative=rad,
             )
 
         return new_state

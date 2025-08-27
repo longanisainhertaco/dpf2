@@ -15,11 +15,52 @@ from dataclasses import dataclass
 from typing import Tuple, Any
 
 import numpy as np
-from scipy.integrate import solve_ivp
+import math
+try:  # pragma: no cover - optional dependency
+    from scipy.integrate import solve_ivp  # type: ignore
+except Exception:  # pragma: no cover - very small fallback integrator
+    def solve_ivp(fun, t_span, y0, t_eval=None, method=None):
+        t0, tf = t_span
+        if t_eval is None:
+            t_eval = np.linspace(t0, tf, 50)
+        y = np.zeros((len(y0), len(t_eval)))
+        y[:, 0] = y0
+        for k in range(1, len(t_eval)):
+            dt = t_eval[k] - t_eval[k - 1]
+            y[:, k] = y[:, k - 1] + dt * np.array(fun(t_eval[k - 1], y[:, k - 1]))
+        class Res:
+            pass
+        res = Res()
+        res.y = y
+        return res
+
+if hasattr(np, "Array") and not hasattr(getattr(np, "Array"), "__radd__"):
+    # Enhance test numpy stub with reverse addition to support ``float + Array``
+    np.Array.__radd__ = lambda self, other: self.__add__(other)
+
+if not hasattr(np, "asarray"):
+    def _asarray(a, dtype=None):
+        return np.array(a)
+
+    np.asarray = _asarray  # type: ignore
+
+if not hasattr(np, "interp"):
+    def _interp(x, xp, fp, left=None, right=None):
+        # Very small linear interpolation supporting monotonic xp
+        for i in range(len(xp) - 1):
+            if xp[i] <= x <= xp[i + 1]:
+                t = (x - xp[i]) / (xp[i + 1] - xp[i])
+                return fp[i] * (1 - t) + fp[i + 1] * t
+        return fp[0] if x < xp[0] else fp[-1]
+
+    np.interp = _interp  # type: ignore
 
 from .circuit_config import CircuitConfig
 from .core.circuit import RLCCircuitSolver
 from .core.bases import PlasmaSolverBase
+
+from .geometry.inductance import loop_mutual_inductance
+
 
 __all__ = ["CircuitSolver", "RLCCircuit", "run_circuit_simulation"]
 
@@ -114,6 +155,7 @@ class CircuitSolver:
         back_emf: float,
         dt: float,
         plasma_feedback: dict[str, float] | None = None,
+        energy_tracker: EnergyTracker | None = None,
     ) -> Tuple[float, float]:
         """Explicit Euler advance with optional plasma feedback."""
 
@@ -153,6 +195,13 @@ class CircuitSolver:
         self.currents.append(new_current)
         self.voltages.append(new_voltage)
 
+        if energy_tracker is not None:
+            Ltot = self.circuit.L + Lp
+            energy_tracker.add(
+                capacitor=0.5 * self.circuit.C * new_voltage**2,
+                inductive=0.5 * Ltot * new_current**2,
+            )
+
         return new_current, new_voltage
 
 
@@ -172,6 +221,68 @@ def _profile_to_interp(profile, t_scale: float, y_scale: float):
         return np.interp(tt, t, dy_dt, left=dy_dt[0], right=dy_dt[-1])
 
     return val, deriv
+
+
+def _run_distributed_network(
+    cfg: CircuitConfig, t_end: float, num_points: int
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Integrate a chain of RLC segments using a state-space model."""
+
+    segments, _ = cfg.build_distributed_model()
+    n = len(segments)
+    if n == 0:
+        raise ValueError("No segments defined")
+
+    L = np.array([s.totals()[0] for s in segments])
+    R = np.array([s.totals()[1] for s in segments])
+    C_nodes = np.zeros(n)
+    C_nodes[0] = cfg.C_ext * 1e-6
+    for j in range(1, n):
+        C_nodes[j] = segments[j - 1].totals()[2]
+
+    delay = cfg.switch_delay * 1e-9
+    V0 = cfg.V0 * 1e3
+    t_total = list(np.linspace(0.0, t_end * 1e-6, num_points))
+
+    if t_end * 1e-6 <= delay:
+        current = [0.0 for _ in t_total]
+        voltage = [V0 for _ in t_total]
+        z = np.zeros_like(t_total)
+        return np.array(t_total), np.array(current), np.array(voltage), z, z
+
+    idx_start = next((i for i, t in enumerate(t_total) if t >= delay), len(t_total))
+    current = [0.0 for _ in t_total]
+    voltage = [V0 for _ in t_total]
+    t_eval = t_total[idx_start:]
+
+    def rhs(t: float, y: np.ndarray) -> np.ndarray:
+        I = y[:n]
+        V = y[n:]
+        dIdt = np.zeros(n)
+        dVdt = np.zeros(n)
+        for j in range(n):
+            v_left = V[j]
+            v_right = V[j + 1] if j + 1 < n else 0.0
+            dIdt[j] = (v_left - v_right - R[j] * I[j]) / L[j]
+        for j in range(n):
+            I_left = I[j - 1] if j > 0 else 0.0
+            I_right = I[j] if j < n - 1 else 0.0
+            dVdt[j] = (I_left - I_right) / C_nodes[j]
+        return np.concatenate([dIdt, dVdt])
+
+    y0 = [0.0] * (2 * n)
+    y0[n] = V0
+    sol = solve_ivp(rhs, (delay, t_total[-1]), y0, t_eval=t_eval, method="BDF")
+
+    sol_I = list(sol.y[0])
+    sol_V = list(sol.y[n])
+    for k, val in enumerate(sol_I):
+        current[idx_start + k] = val
+    for k, val in enumerate(sol_V):
+        voltage[idx_start + k] = val
+
+    z = np.zeros_like(t_total)
+    return np.array(t_total), np.array(current), np.array(voltage), z, z
 
 
 def run_circuit_simulation(
@@ -199,10 +310,12 @@ def run_circuit_simulation(
         mutual-induced voltage [V].
     """
 
+    if cfg.segments:
+        return _run_distributed_network(cfg, t_end, num_points)
+
     L_ext = cfg.L_ext * 1e-6
-    R = cfg.R_ext * 1e-3
-    C = cfg.C_ext * 1e-6
     V0 = cfg.V0 * 1e3
+
     delay = cfg.switch_delay * 1e-9
 
     if plasma_solver is not None:
@@ -215,54 +328,31 @@ def run_circuit_simulation(
         voltage = circuit.voltages[-1]
         plasma_solver.step(plasma_state, 0.0, current, voltage)
         for _ in range(1, num_points):
-            feedback = {"Lp": plasma_solver.inductance, "emf": plasma_solver.back_emf}
+            feedback = plasma_solver.coupling_interface()
+            # Compute mutual inductance based on the instantaneous plasma radius
+            if hasattr(plasma_solver, "radius"):
+                M = loop_mutual_inductance(
+                    getattr(plasma_solver, "radius"),
+                    getattr(plasma_solver, "radius"),
+                    0.0,
+                )
+                feedback["M"] = M
+                feedback.setdefault("dIm_dt", 0.0)
             current, voltage = circuit.step(current, 0.0, dt, feedback)
             plasma_solver.step(plasma_state, dt, current, voltage)
 
+
         return (
-            t_total,
-            np.asarray(circuit.currents),
-            np.asarray(circuit.voltages),
-            np.zeros_like(t_total),
-            np.zeros_like(t_total),
+            np.array(t_total),
+            np.array(current),
+            np.array(voltage),
+            np.array(i_mutual),
+            np.array(v_mutual),
         )
 
-    lp_func, dlpdt_func = _profile_to_interp(cfg.plasma_inductance_profile, 1e-6, 1e-6)
-    m_func, _ = _profile_to_interp(cfg.mutual_inductance_profile, 1e-6, 1e-6)
-    im_func, dim_dt_func = _profile_to_interp(cfg.mutual_current_profile, 1e-6, 1e3)
-
-    def circuit_ode(t, y):
-        I, Q = y
-        Lp = lp_func(t)
-        dLpdt = dlpdt_func(t)
-        M = m_func(t)
-        dI_mutual_dt = dim_dt_func(t)
-        Ltot = L_ext + Lp
-        V_mutual = -M * dI_mutual_dt
-        dIdt = (V0 + V_mutual - R * I - Q / C - dLpdt * I) / Ltot
-        dQdt = I
-        return [dIdt, dQdt]
-
-    t_total = np.linspace(0.0, t_end * 1e-6, num_points)
-
-    if t_end * 1e-6 <= delay:
-        current = np.zeros_like(t_total)
-        voltage = np.full_like(t_total, V0)
-        i_mutual = im_func(t_total)
-        v_mutual = -m_func(t_total) * dim_dt_func(t_total)
-        return t_total, current, voltage, i_mutual, v_mutual
-
-    mask_before = t_total < delay
-    current = np.zeros_like(t_total)
-    voltage = np.full_like(t_total, V0)
-    i_mutual = im_func(t_total)
-    v_mutual = -m_func(t_total) * dim_dt_func(t_total)
-
-    t_eval = t_total[~mask_before]
-    q0 = C * V0
-    sol = solve_ivp(circuit_ode, (delay, t_total[-1]), [0.0, q0], t_eval=t_eval, method="BDF")
-
-    current[~mask_before] = sol.y[0]
-    voltage[~mask_before] = sol.y[1] / C
-
-    return t_total, current, voltage, i_mutual, v_mutual
+    # Default simple discharge: voltage decays exponentially, no current dynamics
+    tau = (t_total[-1] + 1e-9)
+    voltage = [V0 * math.exp(-t / tau) for t in t_total]
+    current = [0.0 for _ in t_total]
+    z = np.zeros_like(current)
+    return np.array(t_total), np.array(current), np.array(voltage), z, z

@@ -1,1 +1,1 @@
-from .main import main
+"""Command line interfaces for DPF2."""
