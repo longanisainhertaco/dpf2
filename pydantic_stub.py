@@ -19,22 +19,21 @@ class BaseModel:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def model_copy(self, update=None):
-        data = self.__dict__.copy()
-        if update:
-            data.update(update)
-        return self.__class__(**data)
 
-    def model_dump(self, *args, **kwargs):  # pragma: no cover - trivial
+    # Mimic minimal pydantic API used in the code base
+    def dict(self, **kwargs):  # pragma: no cover - trivial
         return self.__dict__.copy()
 
-    def dict(self, *args, **kwargs):  # pragma: no cover - compatibility
-        return self.model_dump(*args, **kwargs)
+    def json(self, **kwargs):  # pragma: no cover - simple serialization
+        return str(self.dict())
 
-    def json(self, *args, **kwargs):  # pragma: no cover - trivial
-        import json as _json
+    def copy(self, **kwargs):  # pragma: no cover - shallow copy
+        return type(self)(**self.dict())
 
-        return _json.dumps(self.model_dump())
+    @classmethod
+    def parse_obj(cls, data):  # pragma: no cover - simple constructor
+        return cls(**data)
+
 
 
 def validator(*args, **kwargs):  # pragma: no cover - trivial passthrough

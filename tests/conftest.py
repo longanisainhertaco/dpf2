@@ -2,18 +2,15 @@ import sys
 from pathlib import Path
 
 # Provide a minimal ``numpy`` implementation for environments where the
-# dependency is unavailable.  The stub registers itself under ``sys.modules``
-# as ``numpy``.
-import runpy
 
-# Execute the ``numpy`` stub to provide a minimal implementation when the
-# real dependency is unavailable.  The stub registers itself in ``sys.modules``.
-runpy.run_path(Path(__file__).with_name("numpy_stub.py"))
-# Provide a minimal ``pydantic`` implementation if the real package is missing.
-try:  # pragma: no cover - executed when dependency exists
-    import pydantic  # type: ignore
+# dependency is unavailable.  If the real ``numpy`` package is installed the
+# stub is skipped and the genuine implementation is used.
+try:  # pragma: no cover - prefer real numpy
+    import numpy  # noqa: F401
 except Exception:  # pragma: no cover - fallback to stub
-    runpy.run_path(Path(__file__).resolve().parent.parent / "pydantic_stub.py")
+    import runpy
+    runpy.run_path(Path(__file__).with_name("numpy_stub.py"))
+
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:

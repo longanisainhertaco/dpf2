@@ -1,5 +1,7 @@
 from .mhd import ResistiveMHD
-from .energy import EnergyTracker
+
+from .pic_driver import PicDriver
+
 
 # Import optional modules individually so that a failure in one does not
 # prevent access to the others.  This keeps ``HallMHD`` available even when
@@ -29,3 +31,4 @@ if HallMHD is not None:
     __all__.append("HallMHD")
 if neutral_density_source is not None:
     __all__.extend(["neutral_density_source", "wall_ablation_source"])
+__all__.append("PicDriver")
