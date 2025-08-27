@@ -1,0 +1,12 @@
+{
+  "device": "UNU",
+  "shot": 1,
+  "diagnostics": {
+    "current": {
+      "units": "normalized"
+    },
+    "voltage": {
+      "units": "normalized"
+    }
+  }
+}

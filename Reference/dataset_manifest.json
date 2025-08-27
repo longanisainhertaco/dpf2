@@ -1,0 +1,53 @@
+{
+  "PF1000": {
+    "shots": [
+      {
+        "shot": 1,
+        "files": {
+          "csv": "PF1000/shot001.csv",
+          "hdf5": "PF1000/shot001.h5",
+          "metadata": "PF1000/metadata.json"
+        },
+        "diagnostics": {
+          "time_us": "us",
+          "current_norm": "normalized",
+          "voltage_norm": "normalized"
+        }
+      }
+    ]
+  },
+  "NX2": {
+    "shots": [
+      {
+        "shot": 1,
+        "files": {
+          "csv": "NX2/shot001.csv",
+          "hdf5": "NX2/shot001.h5",
+          "metadata": "NX2/metadata.json"
+        },
+        "diagnostics": {
+          "time_us": "us",
+          "current_norm": "normalized",
+          "voltage_norm": "normalized"
+        }
+      }
+    ]
+  },
+  "UNU": {
+    "shots": [
+      {
+        "shot": 1,
+        "files": {
+          "csv": "UNU/shot001.csv",
+          "hdf5": "UNU/shot001.h5",
+          "metadata": "UNU/metadata.json"
+        },
+        "diagnostics": {
+          "time_us": "us",
+          "current_norm": "normalized",
+          "voltage_norm": "normalized"
+        }
+      }
+    ]
+  }
+}
