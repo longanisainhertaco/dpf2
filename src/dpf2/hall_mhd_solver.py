@@ -18,6 +18,7 @@ from scipy.constants import mu_0
 from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase
 from .eos import EOSBase, IdealGasEOS
 from .chemistry import ChemistryModel, SahaEquilibrium
+from .boundary_conditions import KineticSheath
 from .radiation import RadiationBase
 from .physics.energy import EnergyTracker
 
@@ -194,6 +195,7 @@ class HallMHDSolver(PlasmaSolverBase):
     eos: EOSBase = field(default_factory=IdealGasEOS)
     chemistry: ChemistryModel = field(default_factory=SahaEquilibrium)
     radiation: RadiationBase | None = None
+    sheath: KineticSheath | None = None
     eta: float = 0.0
     hall_coeff: float = 0.0
     rad_coeff: float = 0.0
@@ -246,7 +248,6 @@ class HallMHDSolver(PlasmaSolverBase):
         """
 
         self.apply_boundary_conditions(state)
-        self.current = current
 
         rho = state.rho.copy()
         mom = state.mom.copy()
@@ -262,6 +263,15 @@ class HallMHDSolver(PlasmaSolverBase):
         T = self.eos.temperature(rho, specific_e)
         p = self.eos.pressure(rho, T)
         zbar = self.chemistry.ionization_state(rho, T)
+
+        if self.sheath is not None:
+            ni = float(np.mean(rho)) / max(self.sheath.ion_mass, 1e-30)
+            ne = ni * float(np.mean(zbar))
+            thickness, imp_flux, ion_flux = self.sheath.evolve(ni, ne, float(np.mean(T)), dt)
+            rho += imp_flux * dt * self.sheath.ion_mass
+            energy -= self.rad_coeff * imp_flux * dt
+            current = min(current, ion_flux)
+            self.last_sheath = {"thickness": thickness, "impurity_flux": imp_flux}
 
         # --- High-order Godunov fluxes (MUSCL-Hancock) ---
         gamma = getattr(self.eos, "gamma", 5.0 / 3.0)

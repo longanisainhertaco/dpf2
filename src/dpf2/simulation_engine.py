@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+
 from pathlib import Path
 from typing import Dict
+
 
 import numpy as np
 
@@ -18,9 +20,11 @@ from .pinch_models import (
     PinchModelBase,
     MHDPinchModel,
 )
+
 from .physics.energy import EnergyTracker
 
-__all__ = ["SimulationEngine"]
+
+__all__ = ["SimulationEngine", "SimulationResults", "EnsembleResults"]
 
 
 @dataclass
@@ -49,6 +53,48 @@ class SimulationResults:
         return data
 
 
+@dataclass
+class EnsembleResults:
+    """Statistics aggregated from multiple realizations."""
+
+    time: np.ndarray
+    current_mean: np.ndarray
+    current_std: np.ndarray
+    radius_mean: np.ndarray
+    radius_std: np.ndarray
+    temperature_mean: np.ndarray
+    temperature_std: np.ndarray
+    pressure_mean: np.ndarray
+    pressure_std: np.ndarray
+    neutron_yield_mean: float
+    neutron_yield_std: float
+    axial_position_mean: Optional[np.ndarray] | None = None
+    axial_position_std: Optional[np.ndarray] | None = None
+
+    def to_dict(self) -> Dict[str, object]:
+        data: Dict[str, object] = {
+            "time": self.time.tolist(),
+            "current_mean": self.current_mean.tolist(),
+            "current_std": self.current_std.tolist(),
+            "pinch_radius_mean": self.radius_mean.tolist(),
+            "pinch_radius_std": self.radius_std.tolist(),
+            "temperature_mean": self.temperature_mean.tolist(),
+            "temperature_std": self.temperature_std.tolist(),
+            "pressure_mean": self.pressure_mean.tolist(),
+            "pressure_std": self.pressure_std.tolist(),
+            "neutron_yield_mean": self.neutron_yield_mean,
+            "neutron_yield_std": self.neutron_yield_std,
+        }
+        if self.axial_position_mean is not None and self.axial_position_std is not None:
+            data.update(
+                {
+                    "axial_position_mean": self.axial_position_mean.tolist(),
+                    "axial_position_std": self.axial_position_std.tolist(),
+                }
+            )
+        return data
+
+
 class SimulationEngine:
     """Execute a minimal Dense Plasma Focus simulation."""
 
@@ -71,6 +117,7 @@ class SimulationEngine:
         self,
         method: str = "analytical",
         pinch_model: str = "analytic",
+
         energy_csv: str | Path | None = None,
         energy_tol: float | None = None,
     ) -> SimulationResults:
@@ -150,4 +197,6 @@ class SimulationEngine:
             neutron_yield=pres.neutron_yield,
             axial_position=pres.axial_position,
             energies=energies,
+
         )
+
