@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from typing import Any
 
 from dpf2.ai import SurrogateModel, TorchSurrogateModel, ONNXSurrogateModel
 
@@ -8,7 +9,7 @@ class DummySurrogate(SurrogateModel):
     def __init__(self):
         super().__init__("/tmp/model")
 
-    def predict(self, inputs: np.ndarray) -> np.ndarray:
+    def predict(self, inputs: Any) -> Any:
         return inputs * 2
 
 
