@@ -33,7 +33,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Literal
 
-from pydantic import ConfigDict, Field, root_validator
+try:  # pragma: no cover - runtime dependency handling
+    from pydantic import ConfigDict, Field, root_validator
+    from pydantic import BaseModel
+except Exception:  # pragma: no cover - fallback to lightweight stubs
+    from pydantic_stub import BaseModel, ConfigDict, Field, root_validator
 
 def model_validator(*, mode: str = "after"):
     def decorator(func):
@@ -53,15 +57,31 @@ def model_validator(*, mode: str = "after"):
 
     return decorator
 
-from pydantic import BaseModel
 if not hasattr(BaseModel, "model_validate"):
     BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
 if not hasattr(BaseModel, "model_dump"):
-    BaseModel.model_dump = BaseModel.dict
+    if hasattr(BaseModel, "dict"):
+        BaseModel.model_dump = BaseModel.dict
+    else:  # pragma: no cover - stub behaviour
+        BaseModel.model_dump = lambda self, *_, **__: self.__dict__
 if not hasattr(BaseModel, "model_dump_json"):
-    BaseModel.model_dump_json = BaseModel.json
-if not hasattr(BaseModel, "model_copy"):
-    BaseModel.model_copy = BaseModel.copy
+    if hasattr(BaseModel, "json"):
+        BaseModel.model_dump_json = BaseModel.json
+    else:  # pragma: no cover - stub behaviour
+        import json as _json
+
+        BaseModel.model_dump_json = lambda self, *_, **__: _json.dumps(self.__dict__)
+if True:  # replace ``model_copy`` with a lightweight implementation
+    def _copy(self, update=None, **__):
+        new = self.__class__()
+        for k, v in self.__dict__.items():
+            setattr(new, k, v)
+        if update:
+            for k, v in update.items():
+                setattr(new, k, v)
+        return new
+
+    BaseModel.model_copy = _copy
 
 from .core_schema import (
     ConfigSectionBase,
@@ -70,6 +90,23 @@ from .core_schema import (
     CircuitFaultTypeEnum,
 )
 from .units_settings import UnitsSettings
+
+
+class SegmentConfig(BaseModel):
+    """Configuration for a single transmission line segment."""
+
+    length: float = Field(..., metadata={"units": "m", "category": "Circuit", "group": "Distributed"})
+    L: float = Field(..., metadata={"units": "μH", "category": "Circuit", "group": "Distributed"})
+    R: float = Field(..., metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"})
+    C: float = Field(..., metadata={"units": "μF", "category": "Circuit", "group": "Distributed"})
+
+
+class SwitchConfig(BaseModel):
+    """Configuration for a simple resistive switch."""
+
+    closed: bool = Field(True, metadata={"category": "Circuit", "group": "Distributed"})
+    r_on: float = Field(1.0, alias="rOn", metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"})
+    r_off: float = Field(1.0e6, alias="rOff", metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"})
 
 
 class CircuitConfig(ConfigSectionBase):
@@ -101,6 +138,14 @@ class CircuitConfig(ConfigSectionBase):
     )
     switch_delay: float = Field(
         ..., alias="switchDelay", metadata={"units": "ns", "category": "Circuit", "group": "LRC"}
+    )
+
+    # --- Distributed Model ----------------------------------------------
+    segments: Optional[List[SegmentConfig]] = Field(
+        None, metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    switches: Optional[List[SwitchConfig]] = Field(
+        None, metadata={"category": "Circuit", "group": "Distributed"}
     )
 
     # --- Coupling & Plasma Effects ------------------------------------
@@ -198,6 +243,49 @@ class CircuitConfig(ConfigSectionBase):
 
     def required_fields(self) -> List[str]:
         return [name for name, f in self.model_fields.items() if f.is_required()]
+
+    # ------------------------------------------------------------------
+    def build_distributed_model(self):
+        """Return ``TransmissionLineSegment`` and ``Switch`` objects.
+
+        This helper constructs runtime objects used by the distributed
+        circuit solver.  Values are converted from the configuration
+        units (μH, mΩ, μF) into SI units per metre as required by
+        :class:`dpf2.distributed_circuit.TransmissionLineSegment`.
+        """
+
+        from .distributed_circuit import TransmissionLineSegment, Switch
+
+        segments: List[TransmissionLineSegment] = []
+        if self.segments:
+            for seg in self.segments:
+                length = seg.length
+                L = seg.L * 1e-6
+                R = seg.R * 1e-3
+                C = seg.C * 1e-6
+                if length <= 0.0:
+                    length = 1.0
+                segments.append(
+                    TransmissionLineSegment(
+                        length=length,
+                        L_per_m=L / length,
+                        R_per_m=R / length,
+                        C_per_m=C / length,
+                    )
+                )
+
+        switches: List[Switch] = []
+        if self.switches:
+            for sw in self.switches:
+                switches.append(
+                    Switch(
+                        closed=sw.closed,
+                        R_on=sw.r_on * 1e-3,
+                        R_off=sw.r_off * 1e-3,
+                    )
+                )
+
+        return segments, switches
 
     def get_field_metadata(self) -> Dict[str, Dict[str, object]]:
         return {name: (field.json_schema_extra or field.metadata or {}) for name, field in self.model_fields.items()}
