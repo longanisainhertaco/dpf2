@@ -25,4 +25,6 @@ jobs:
         run: mypy .
       - name: Test
         run: pytest
+      - name: Validation benchmark
+        run: python -m dpf2.cli.validate --config examples/config.json --dataset PF1000
 
