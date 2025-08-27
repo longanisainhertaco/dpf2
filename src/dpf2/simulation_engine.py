@@ -1,4 +1,3 @@
-"""Core driver for minimal DPF simulations."""
 from __future__ import annotations
 
 import json
@@ -10,7 +9,8 @@ import numpy as np
 from .dpf_config import DPFConfig
 from .circuit_config import CircuitConfig
 
-from .circuit_solver import RLCCircuit, CircuitSolver
+from .circuit_solver import RLCCircuit, CircuitSolver, run_circuit_simulation
+from .core.bases import PlasmaSolverBase
 from .pinch_models import (
     AnalyticPinchModel,
     SemiAnalyticPinchModel,
@@ -61,10 +61,33 @@ class SimulationEngine:
         return CircuitSolver(circuit)
 
     # ------------------------------------------------------------------
-    def run(self, method: str = "analytical", pinch_model: str = "analytic") -> SimulationResults:
+    def run(
+        self,
+        method: str = "analytical",
+        pinch_model: str = "analytic",
+        plasma_solver: PlasmaSolverBase | None = None,
+    ) -> SimulationResults:
         sc = self.config.simulation_control
         dt = sc.min_dt or 1e-9
         t_end = sc.time_end - sc.time_start
+
+        if plasma_solver is not None:
+            cc: CircuitConfig = self.config.circuit_config
+            num = int(t_end / dt) + 1
+            t, current, _, _, _ = run_circuit_simulation(
+                cc, t_end * 1e6, num_points=num, plasma_solver=plasma_solver, plasma_state=None
+            )
+            zeros = np.zeros_like(t)
+            return SimulationResults(
+                time=t,
+                current=current,
+                radius=zeros,
+                temperature=zeros,
+                pressure=zeros,
+                neutron_yield=0.0,
+                axial_position=None,
+            )
+
         circuit = self._setup_circuit()
         t, current = circuit.solve(t_end, dt, method=method)
 

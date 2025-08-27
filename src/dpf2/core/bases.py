@@ -27,6 +27,18 @@ class PlasmaSolverBase(ABC):
         """
         raise NotImplementedError
 
+    # ------------------------------------------------------------------
+    def coupling_interface(self) -> dict[str, float]:
+        """Return circuit coupling terms for the current plasma state.
+
+        The mapping should contain at least the plasma inductance ``Lp`` in
+        Henries and the induced electromotive force ``emf`` in Volts.  Plasma
+        solvers that do not actively couple to the circuit may rely on this
+        default implementation which returns zero for both quantities.
+        """
+
+        return {"Lp": 0.0, "emf": 0.0}
+
 
 class CircuitSolverBase(ABC):
     """Interface for external circuit solvers."""

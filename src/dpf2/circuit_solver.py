@@ -20,6 +20,7 @@ from scipy.integrate import solve_ivp
 from .circuit_config import CircuitConfig
 from .core.circuit import RLCCircuitSolver
 from .core.bases import PlasmaSolverBase
+from .geometry.inductance import loop_mutual_inductance
 
 __all__ = ["CircuitSolver", "RLCCircuit", "run_circuit_simulation"]
 
@@ -215,7 +216,16 @@ def run_circuit_simulation(
         voltage = circuit.voltages[-1]
         plasma_solver.step(plasma_state, 0.0, current, voltage)
         for _ in range(1, num_points):
-            feedback = {"Lp": plasma_solver.inductance, "emf": plasma_solver.back_emf}
+            feedback = plasma_solver.coupling_interface()
+            # Compute mutual inductance based on the instantaneous plasma radius
+            if hasattr(plasma_solver, "radius"):
+                M = loop_mutual_inductance(
+                    getattr(plasma_solver, "radius"),
+                    getattr(plasma_solver, "radius"),
+                    0.0,
+                )
+                feedback["M"] = M
+                feedback.setdefault("dIm_dt", 0.0)
             current, voltage = circuit.step(current, 0.0, dt, feedback)
             plasma_solver.step(plasma_state, dt, current, voltage)
 
