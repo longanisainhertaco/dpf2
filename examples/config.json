@@ -70,6 +70,7 @@
   "physics_models": {
     "eos_model": "ideal_gas",
     "gamma": 1.4,
+    "mu": 2.0,
     "two_temperature_model_enabled": false,
     "neutral_fluid_enabled": false,
     "initial_neutral_pressure_torr": null,
