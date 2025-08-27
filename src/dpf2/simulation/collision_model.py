@@ -278,8 +278,8 @@ class ElectronNeutralCollision(CollisionProcess):
 class IonizationProcess(CollisionProcess):
     """Ionization of neutrals by electron impact.
 
-    Particle creation is represented only by rate sampling; actual particle
-    insertion is left as a placeholder."""
+    Particle creation is represented by sampling from the ionization rate and
+    inserting new ions and electrons into the simulation state."""
     def __init__(self, ionization_energy=13.6, cross_section_file="ionization_cross_section.h5"):
         self.ionization_energy = ionization_energy * e_charge  # Convert eV to Joules
         self.cross_section_data = CrossSectionData(cross_section_file)
@@ -288,27 +288,42 @@ class IonizationProcess(CollisionProcess):
         try:
             if not hasattr(state, "species"):
                 return
-            for name, spc in state.species.items():
-                if spc['q'] < 0:  # Electrons
-                    ne = state.field_manager.ne
-                    Te = state.field_manager.Te
-                    nn = state.field_manager.nn
-                    # Use energy-dependent cross-section
-                    sigma_ion = self.cross_section_data(Te)
-                    # Ionization rate
-                    ionization_rate = ne * sigma_ion * np.sqrt(8 * kB * Te / (pi * m_e))
-                    # Create new ions and electrons
-                    num_new_ions = np.random.poisson(ionization_rate * nn * dt)
-                    # Add new particles (simplified - needs proper distribution)
-                    # ... (implementation for adding new particles) ...
+            if not hasattr(state, "field_manager"):
+                return
+            ne = state.field_manager.ne
+            Te = state.field_manager.Te
+            nn = getattr(state.field_manager, 'nn', 0.0)
+            sigma_ion = self.cross_section_data(Te)
+
+            ion_rate = ne * sigma_ion * np.sqrt(8 * kB * Te / (pi * m_e))
+
+            def _mean(val):
+                try:
+                    return float(np.mean(val))
+                except Exception:
+                    try:
+                        return float(sum(val) / len(val))
+                    except Exception:
+                        return float(val)
+
+            lam = _mean(ion_rate * nn) * dt
+            num_pairs = np.random.poisson(lam)
+            if num_pairs <= 0:
+                return
+            positions = state.sample_positions(num_pairs)
+            Te_mean = _mean(Te)
+            vel_e = state.sample_velocities(num_pairs, Te_mean, m_e)
+            vel_i = state.sample_velocities(num_pairs, Te_mean, m_p)
+            state.add_particles('e', -e_charge, m_e, positions, vel_e)
+            state.add_particles('ion', e_charge, m_p, positions, vel_i)
         except Exception as e:
             logger.error(f"Error applying ionization process: {e}")
 
 class RecombinationProcess(CollisionProcess):
     """Radiative recombination of ions and electrons.
 
-    Particle removal is not yet implemented and requires a proper selection
-    mechanism."""
+    Particle removal removes ion–electron pairs using a simple momentum
+    matching strategy to conserve charge and approximately conserve momentum."""
     def __init__(self, recombination_rate=1e-14):
         self.recombination_rate = recombination_rate
 
@@ -316,16 +331,45 @@ class RecombinationProcess(CollisionProcess):
         try:
             if not hasattr(state, "species"):
                 return
-            for name, spc in state.species.items():
-                if spc['q'] > 0:  # Ions
-                    ne = state.field_manager.ne
-                    ni = state.field_manager.ni
-                    # Recombination rate
-                    recombination_rate = self.recombination_rate * ne * ni
-                    # Remove ions and electrons
-                    num_removed_ions = np.random.poisson(recombination_rate * dt)
-                    # Remove particles (simplified - needs proper selection)
-                    # ... (implementation for removing particles) ...
+            if not hasattr(state, 'field_manager'):
+                return
+            ne = state.field_manager.ne
+            ni = getattr(state.field_manager, 'ni', ne)
+
+            def _mean(val):
+                try:
+                    return float(np.mean(val))
+                except Exception:
+                    try:
+                        return float(sum(val) / len(val))
+                    except Exception:
+                        return float(val)
+
+            lam = _mean(self.recombination_rate * ne * ni) * dt
+            num_pairs = np.random.poisson(lam)
+            # identify electron and ion species
+            e_name = next((n for n, sp in state.species.items() if sp.get('q', 0.0) < 0), None)
+            i_name = next((n for n, sp in state.species.items() if sp.get('q', 0.0) > 0), None)
+            if e_name is None or i_name is None:
+                return
+            sp_e = state.species[e_name]
+            sp_i = state.species[i_name]
+            num_pairs = min(num_pairs, sp_e['pos'].shape[0], sp_i['pos'].shape[0])
+            for _ in range(num_pairs):
+                if sp_e['pos'].shape[0] == 0 or sp_i['pos'].shape[0] == 0:
+                    break
+                if hasattr(np.random, 'randint'):
+                    idx_e = int(np.random.randint(0, sp_e['pos'].shape[0]))
+                else:
+                    idx_e = 0
+                p_e = sp_e['m'] * sp_e['vel'][idx_e]
+                ion_mom = sp_i['m'] * sp_i['vel']
+                try:
+                    idx_i = int(np.argmin(np.sum((ion_mom + p_e)**2, axis=1)))
+                except Exception:
+                    idx_i = 0
+                state.remove_particles(e_name, [idx_e])
+                state.remove_particles(i_name, [idx_i])
         except Exception as e:
             logger.error(f"Error applying recombination process: {e}")
 
