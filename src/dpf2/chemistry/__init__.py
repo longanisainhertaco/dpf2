@@ -40,7 +40,7 @@ class SahaEquilibrium:
     Z: float = 1.0
 
     def ionization_state(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:  # noqa: ARG002
-        return np.full_like(T, 0.5 * self.Z)
+        return np.full(T.shape, 0.5 * self.Z)
 
 
 @dataclass

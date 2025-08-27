@@ -14,7 +14,11 @@ def _uniform_state(shape):
     magnetic = 0.5 * np.sum(B[0, 0, 0] ** 2)
     energy = p / (gamma - 1.0) + kinetic + magnetic
     energy = np.full(shape, energy)
-    return MHDState(rho=rho, mom=mom, energy=energy, B=B)
+    Te = np.full(shape, p / rho)
+    Ti = np.full(shape, p / rho)
+    temps = {"Te": Te, "Ti": Ti}
+    eta = np.zeros(shape)
+    return MHDState(rho=rho, mom=mom, energy=energy, B=B, eta=eta, temperatures=temps)
 
 
 def test_energy_conservation():
