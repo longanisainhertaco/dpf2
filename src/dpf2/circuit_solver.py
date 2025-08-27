@@ -58,7 +58,9 @@ if not hasattr(np, "interp"):
 from .circuit_config import CircuitConfig
 from .core.circuit import RLCCircuitSolver
 from .core.bases import PlasmaSolverBase
-from .physics.energy import EnergyTracker
+
+from .geometry.inductance import loop_mutual_inductance
+
 
 __all__ = ["CircuitSolver", "RLCCircuit", "run_circuit_simulation"]
 
@@ -313,28 +315,33 @@ def run_circuit_simulation(
 
     L_ext = cfg.L_ext * 1e-6
     V0 = cfg.V0 * 1e3
-    t_total = list(np.linspace(0.0, t_end * 1e-6, num_points))
 
-    # Special case: plasma inductance only (used in tests)
-    if cfg.plasma_inductance_profile and not cfg.mutual_inductance_profile:
-        # Assume a linear profile for tests: Lp(t) = slope * t
-        start, end = cfg.plasma_inductance_profile[0], cfg.plasma_inductance_profile[-1]
-        slope = (end[1] - start[1]) / ((end[0] - start[0]) * 1e-6) * 1e-6  # H/s
-        current = [V0 * t / (L_ext + slope * t) for t in t_total]
-        voltage = [V0 for _ in t_total]
-        z = np.zeros_like(current)
-        return np.array(t_total), np.array(current), np.array(voltage), z, z
+    delay = cfg.switch_delay * 1e-9
 
-    # Special case: mutual inductance drive only
-    if cfg.mutual_inductance_profile and cfg.mutual_current_profile:
-        # Assume constant mutual inductance and linear current profile
-        M = cfg.mutual_inductance_profile[0][1] * 1e-6
-        (t0, i0), (t1, i1) = cfg.mutual_current_profile
-        slope = (i1 - i0) / ((t1 - t0) * 1e-6) * 1e3  # A/s
-        i_mutual = [i0 * 1e3 + slope * t for t in t_total]
-        current = [-(M / L_ext) * im for im in i_mutual]
-        v_mutual = [-M * slope for _ in t_total]
-        voltage = [V0 for _ in t_total]
+    if plasma_solver is not None:
+        # Explicit coupling with a plasma model using the lightweight circuit solver
+        dt = t_end * 1e-6 / (num_points - 1)
+        circuit = RLCCircuitSolver(L_ext=L_ext, R_ext=R, C_ext=C, V0=V0)
+        t_total = np.linspace(0.0, t_end * 1e-6, num_points)
+
+        current = circuit.currents[-1]
+        voltage = circuit.voltages[-1]
+        plasma_solver.step(plasma_state, 0.0, current, voltage)
+        for _ in range(1, num_points):
+            feedback = plasma_solver.coupling_interface()
+            # Compute mutual inductance based on the instantaneous plasma radius
+            if hasattr(plasma_solver, "radius"):
+                M = loop_mutual_inductance(
+                    getattr(plasma_solver, "radius"),
+                    getattr(plasma_solver, "radius"),
+                    0.0,
+                )
+                feedback["M"] = M
+                feedback.setdefault("dIm_dt", 0.0)
+            current, voltage = circuit.step(current, 0.0, dt, feedback)
+            plasma_solver.step(plasma_state, dt, current, voltage)
+
+
         return (
             np.array(t_total),
             np.array(current),

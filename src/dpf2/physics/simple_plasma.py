@@ -44,6 +44,12 @@ class ZeroDPlasma(PlasmaSolverBase):
         return state
 
     # ------------------------------------------------------------------
+    def coupling_interface(self) -> dict[str, float]:  # pragma: no cover - simple
+        """Expose the latest circuit coupling terms."""
+
+        return dict(self.circuit_feedback)
+
+    # ------------------------------------------------------------------
     # Radiation coupling
     # ------------------------------------------------------------------
     def apply_radiation(
