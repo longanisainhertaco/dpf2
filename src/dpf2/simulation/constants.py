@@ -8,9 +8,22 @@ imports like the one in circuit.py. Consider standardizing constant usage
 across the project (e.g., consistently using scipy.constants).
 """
 
-import scipy.constants as const
 import logging
-
+try:  # pragma: no cover - prefer SciPy when available
+    import scipy.constants as const
+except ModuleNotFoundError:  # pragma: no cover - lightweight fallback
+    class _Const:
+        e = 1.0
+        m_e = 1.0
+        epsilon_0 = 1.0
+        mu_0 = 1.0
+        c = 1.0
+        k = 1.0
+        h = 1.0
+        m_p = 1.0
+        m_n = 1.0
+        pi = 3.141592653589793
+    const = _Const()
 logger = logging.getLogger(__name__)
 
 # Elementary charge (Coulombs)

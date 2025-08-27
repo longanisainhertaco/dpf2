@@ -187,9 +187,29 @@ class DPFSimulation:
 
                 # --- circuit update ---
                 try:
-                    # Provide placeholder current/back‑EMF to satisfy the circuit
-                    # interface; real simulations would supply meaningful values.
-                    self.circuit.step(0.0, 0.0, self.dt)
+                    # Obtain the plasma current and any induced back‑EMF from the
+                    # plasma solver if available.  Fallback to the field manager
+                    # for the current and zero EMF when the solver does not
+                    # expose them.  Likewise retrieve optional plasma feedback
+                    # terms such as a time varying inductance.
+                    current = getattr(self.solver, "current", None)
+                    if callable(current):
+                        current = current()
+                    if current is None:
+                        try:
+                            current = self.field_manager.get_J()
+                        except Exception:
+                            current = 0.0
+
+                    back_emf = getattr(self.solver, "back_emf", None)
+                    if callable(back_emf):
+                        back_emf = back_emf()
+                    if back_emf is None:
+                        back_emf = 0.0
+
+                    feedback = getattr(self.solver, "circuit_feedback", None)
+
+                    self.circuit.step(current, back_emf, self.dt, feedback)
                 except Exception as exc:
                     logger.error(f"Circuit step failed: {exc}")
 
