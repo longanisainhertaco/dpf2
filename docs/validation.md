@@ -24,3 +24,38 @@ repository. Benchmark definitions and expected diagnostic outputs are stored in
 To update or add a benchmark, edit or create the JSON files in
 `tests/benchmarks` and ensure the expected outputs match the new results. Commit
 these baseline files together with any code changes.
+
+## Uncertainty Propagation
+
+The validation workflow now supports Monte-Carlo exploration of experimental
+uncertainties. The `ExperimentalVariabilityModel` describes jitter in capacitor
+voltage, fill pressure, and geometric tolerances. The helper class
+`MonteCarloVariability` draws random realizations of these quantities and feeds
+them to the `SimulationEngine`. Statistics for current, pressure and neutron
+yield are aggregated (mean and standard deviation) across the ensemble.
+
+```python
+from dpf2.dpf_config import DPFConfig
+from dpf2.experimental_variability import ExperimentalVariabilityModel, MonteCarloVariability
+from dpf2.simulation_engine import SimulationEngine
+
+cfg = DPFConfig.with_defaults()
+var_cfg = ExperimentalVariabilityModel.with_defaults().model_copy(update={
+    "pressure_jitter_pct": 5,
+    "per_field_distribution_params": {
+        "capacitor_voltage": {"jitter_pct": 2.0},
+        "cathode_gap_degrees": {"jitter_pct": 1.0},
+    },
+    "stochastic_run_id": 42,
+})
+variability = MonteCarloVariability(var_cfg, realizations=50)
+engine = SimulationEngine(cfg)
+ensemble = engine.run(variability=variability)
+
+# ensemble.current_mean and ensemble.current_std bound the current trace
+```
+
+When plotting diagnostics, the mean trace may be surrounded with an uncertainty
+band using the ±1σ envelope from the ensemble statistics. The same approach
+applies to neutron yield time series, providing an intuitive visualization of
+expected experimental scatter.

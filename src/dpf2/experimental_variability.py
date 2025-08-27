@@ -221,4 +221,110 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
         return values
 
 
-__all__ = ["ExperimentalVariabilityModel"]
+import numpy as np
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - for type hints only
+    from .dpf_config import DPFConfig
+
+
+class MonteCarloVariability:
+    """Utility for applying Monte-Carlo variations to a :class:`DPFConfig`.
+
+    The sampler draws perturbations for capacitor voltage, fill pressure and
+    selected geometric quantities using the distribution information stored in
+    :class:`ExperimentalVariabilityModel`.  The resulting configurations can be
+    fed to :class:`~dpf2.simulation_engine.SimulationEngine` to execute an
+    ensemble of runs.
+    """
+
+    def __init__(self, model: ExperimentalVariabilityModel, realizations: int) -> None:
+        self.model = model
+        self.realizations = realizations
+        self.rng = np.random.default_rng(model.stochastic_run_id)
+
+    # ------------------------------------------------------------------
+    def _distribution(self, field: str) -> tuple[str, float]:
+        """Return distribution type and relative jitter for ``field``."""
+
+        dist = (
+            self.model.per_field_distributions.get(field, self.model.distribution_model)
+            if self.model.per_field_distributions
+            else self.model.distribution_model
+        )
+        params = self.model.distribution_params or {}
+        if self.model.per_field_distribution_params and field in self.model.per_field_distribution_params:
+            params = self.model.per_field_distribution_params[field]
+
+        if field == "fill_pressure":
+            pct = self.model.pressure_jitter_pct / 100.0
+        else:
+            pct = params.get("jitter_pct", params.get("std_pct", 0.0)) / 100.0
+        return dist, pct
+
+    # ------------------------------------------------------------------
+    def _sample_scalar(self, field: str, nominal: float) -> np.ndarray:
+        dist, pct = self._distribution(field)
+        if pct == 0.0:
+            return np.full(self.realizations, nominal)
+        if dist == "uniform":
+            span = nominal * pct
+            return self.rng.uniform(nominal - span, nominal + span, self.realizations)
+        if dist == "normal":
+            sigma = nominal * pct
+            return self.rng.normal(nominal, sigma, self.realizations)
+        if dist == "lognormal":
+            sigma = pct
+            mu = np.log(nominal) - 0.5 * sigma**2
+            return self.rng.lognormal(mean=mu, sigma=sigma, size=self.realizations)
+        raise ValueError(f"Unknown distribution: {dist}")
+
+    # Public API -------------------------------------------------------
+    def sample_capacitor_voltage(self, nominal: float) -> np.ndarray:
+        return self._sample_scalar("capacitor_voltage", nominal)
+
+    def sample_fill_pressure(self, nominal: float) -> np.ndarray:
+        return self._sample_scalar("fill_pressure", nominal)
+
+    def sample_geometry_tolerances(self, geometry: Dict[str, float]) -> List[Dict[str, float]]:
+        samples: List[Dict[str, float]] = []
+        for _ in range(self.realizations):
+            g_sample: Dict[str, float] = {}
+            for name, value in geometry.items():
+                g_sample[name] = self._sample_scalar(name, value)[0]
+            samples.append(g_sample)
+        return samples
+
+    def generate_configurations(self, base_config: "DPFConfig") -> List["DPFConfig"]:
+        from .dpf_config import DPFConfig  # Local import to avoid circular ref
+
+        voltage_samples = self.sample_capacitor_voltage(base_config.circuit_config.V0)
+        pressure_samples = self.sample_fill_pressure(
+            base_config.initial_conditions.paschen_model.gas_pressure_torr
+        )
+        geom_samples = self.sample_geometry_tolerances(
+            {"cathode_gap_degrees": base_config.electrode_geometry.cathode_gap_degrees}
+        )
+
+        configs: List[DPFConfig] = []
+        for i in range(self.realizations):
+            cfg = base_config.model_copy(deep=True)
+            cfg = cfg.model_copy(
+                update={
+                    "circuit_config": cfg.circuit_config.model_copy(update={"V0": voltage_samples[i]}),
+                    "initial_conditions": cfg.initial_conditions.model_copy(
+                        update={
+                            "paschen_model": cfg.initial_conditions.paschen_model.model_copy(
+                                update={"gas_pressure_torr": pressure_samples[i]}
+                            )
+                        }
+                    ),
+                    "electrode_geometry": cfg.electrode_geometry.model_copy(update=geom_samples[i]),
+                }
+            )
+            configs.append(cfg)
+        return configs
+
+
+__all__ = ["ExperimentalVariabilityModel", "MonteCarloVariability"]
+

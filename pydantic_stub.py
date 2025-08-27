@@ -19,6 +19,23 @@ class BaseModel:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+    def model_copy(self, update=None):
+        data = self.__dict__.copy()
+        if update:
+            data.update(update)
+        return self.__class__(**data)
+
+    def model_dump(self, *args, **kwargs):  # pragma: no cover - trivial
+        return self.__dict__.copy()
+
+    def dict(self, *args, **kwargs):  # pragma: no cover - compatibility
+        return self.model_dump(*args, **kwargs)
+
+    def json(self, *args, **kwargs):  # pragma: no cover - trivial
+        import json as _json
+
+        return _json.dumps(self.model_dump())
+
 
 def validator(*args, **kwargs):  # pragma: no cover - trivial passthrough
     def decorator(func):
@@ -45,4 +62,8 @@ ConfigDict = dict
 # ---------------------------------------------------------------------------
 dataclasses = _types.ModuleType("pydantic.dataclasses")
 dataclasses.dataclass = _dc.dataclass
+
+import sys as _sys
+
+_sys.modules.setdefault("pydantic", _sys.modules[__name__])
 

@@ -136,13 +136,15 @@ class PhysicsModels(BaseModel):
     pease_bragginski_limit_check: bool = False
     instability_models_enabled: bool = False
     instability_thresholds: Optional[Dict[str, float]] = None
+    impurity_fractions: Dict[str, float] = Field(default_factory=dict)
+    sheath_parameters: Dict[str, float] = Field(default_factory=dict)
     doc: Optional[str] = None
 
     @classmethod
     def with_defaults(cls):
         return cls(
             eos_model="ideal_gas",
-            gamma=1.4
+            gamma=1.4,
         )
 
 class CircuitConfig(BaseModel):

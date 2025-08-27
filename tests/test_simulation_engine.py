@@ -1,7 +1,8 @@
 import numpy as np
 
 from dpf2.dpf_config import DPFConfig
-from dpf2.simulation_engine import SimulationEngine
+from dpf2.simulation_engine import SimulationEngine, EnsembleResults
+from dpf2.experimental_variability import ExperimentalVariabilityModel, MonteCarloVariability
 
 
 def test_engine_runs():
@@ -37,3 +38,24 @@ def test_engine_runs():
     as_dict = results.to_dict()
     for key in ["time", "current", "pinch_radius", "temperature", "pressure", "neutron_yield"]:
         assert key in as_dict
+
+
+def test_engine_ensemble_statistics():
+    cfg = DPFConfig.with_defaults()
+    cfg = cfg.model_copy(update={"simulation_control": cfg.simulation_control.model_copy(update={"time_end": 1e-6})})
+    var_cfg = ExperimentalVariabilityModel.with_defaults().model_copy(
+        update={
+            "pressure_jitter_pct": 5.0,
+            "stochastic_run_id": 1,
+            "per_field_distribution_params": {
+                "capacitor_voltage": {"jitter_pct": 1.0},
+                "cathode_gap_degrees": {"jitter_pct": 0.5},
+            },
+        }
+    )
+    variability = MonteCarloVariability(var_cfg, realizations=2)
+    engine = SimulationEngine(cfg)
+    results = engine.run(variability=variability)
+    assert isinstance(results, EnsembleResults)
+    assert results.current_mean.shape == results.time.shape
+    assert results.current_std.shape == results.time.shape
