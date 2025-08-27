@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import sys
 import json
@@ -145,27 +147,32 @@ class AdvancedWarpXSimulation:
             raise
 
     def visualize_diagnostics(self):
-        """Placeholder for diagnostics visualization (extend as needed)."""
-        logger.info("Visualizing diagnostics is not yet implemented.")
+        """Dump refined meshes and tagging statistics."""
+        try:
+            # Write out the current mesh hierarchy
+            pywarpx.warpx.write_plotfile("diags/refined_mesh")
+
+            # Persist cell tagging statistics for post‑analysis
+            stats = pywarpx.amr.tagging_stats()
+            os.makedirs("diags", exist_ok=True)
+            with open("diags/tagging_stats.json", "w", encoding="utf-8") as fh:
+                json.dump(stats, fh)
+            logger.info("AMR diagnostics written to diags/ directory")
+        except Exception as e:  # pragma: no cover - depends on optional libs
+            logger.error(f"Failed to write AMR diagnostics: {e}")
 
     def refine_grid(self, state: SimulationState):
-        """Refines the grid based on particle density."""
+        """Refine the mesh where the density exceeds the threshold."""
         try:
             if not self.config["enable_amr"]:
                 return
 
-            rho = state.density  # Access density from SimulationState
-
-            # Implement AMR logic based on density
-            # Example: Refine where density exceeds a threshold
-            for level in range(self.config["amr_levels"]):
-                for i in range(self.config["ncell"][0]):
-                    for j in range(self.config["ncell"][1]):
-                        for k in range(self.config["ncell"][2]):
-                            if rho[i, j, k] > self.config["refinement_threshold"]:
-                                # Refine the grid at this location
-                                # (Implementation depends on your AMR library)
-                                logger.debug(f"Refining grid at ({i}, {j}, {k})")
+            rho = state.density
+            mask = rho > self.config["refinement_threshold"]
+            if np.any(mask):
+                # Tag cells for refinement and invoke WarpX to regrid
+                pywarpx.amr.tag_cells(mask.astype(np.int8))
+                pywarpx.warpx.regrid()
         except Exception as e:
             logger.error(f"Error during grid refinement: {e}")
 

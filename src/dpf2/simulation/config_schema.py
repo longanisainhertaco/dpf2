@@ -144,6 +144,19 @@ class FieldManagerConfig(BaseModel):
     field_smoothing_strength: float = Field(0.0, description="Strength of field smoothing")
     # Add other parameters as needed
 
+
+class AMRConfig(BaseModel):
+    """Configuration for adaptive mesh refinement."""
+
+    enable: bool = False
+    max_level: int = Field(1, ge=1, description="Maximum AMR level")
+    refinement_threshold: float = Field(
+        1.0, description="Density threshold triggering refinement"
+    )
+    diag_interval: int = Field(
+        10, ge=1, description="Interval for dumping AMR diagnostics"
+    )
+
 class SimulationConfig(BaseModel):
     """Main configuration for the DPF simulation."""
     grid_shape: List[int] = Field(..., min_items=3, max_items=3, description="Number of grid points (nx, ny, nz)")
@@ -161,6 +174,7 @@ class SimulationConfig(BaseModel):
     diagnostics: Optional[DiagnosticsConfig] = None
     geometry: Optional[GeometryConfig] = None
     field_manager: FieldManagerConfig = Field(default_factory=FieldManagerConfig, description="Configuration for the FieldManager.")
+    amr: AMRConfig = Field(default_factory=AMRConfig, description="Adaptive mesh refinement settings")
     provenance: Optional[Dict[str, Any]] = None
     telemetry: Optional[Dict[str, Any]] = None
     io: Optional[Dict[str, Any]] = None

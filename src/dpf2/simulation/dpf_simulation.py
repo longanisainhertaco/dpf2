@@ -14,7 +14,19 @@ import numpy as np
 import random
 from datetime import datetime
 
-from .config_schema import SimulationConfig, FieldManagerConfig  # Import FieldManagerConfig
+try:  # Prefer package-local imports
+    from .config_schema import SimulationConfig, FieldManagerConfig, PICConfig, AMRConfig
+except Exception:  # pragma: no cover - fallback when loaded as a script
+    from config_schema import SimulationConfig, FieldManagerConfig  # type: ignore
+    class PICConfig:  # type: ignore
+        pass
+    class AMRConfig:  # type: ignore
+        enable: bool = False
+        max_level: int = 1
+        refinement_threshold: float = 1.0
+        diag_interval: int = 10
+
+_AMR = AMRConfig
 from .module_registry import ModuleRegistry
 from .collision_model import CollisionModel
 from .radiation_model import RadiationModel
@@ -48,6 +60,7 @@ class DPFSimulation:
         self.step_count = 0
         self.current_time = 0.0
         self.dt = self.config.dt_init
+        self.amr_config = getattr(self.config, "amr", _AMR())
 
         # Initialize modules
         self.registry = ModuleRegistry()
@@ -85,7 +98,8 @@ class DPFSimulation:
                 dz=self.config.dz,
                 domain_lo=self.config.domain_lo,
                 boundary_conditions=self.config.field_manager.boundary_conditions,
-                field_manager=self.field_manager  # Pass FieldManager to SimulationState
+                field_manager=self.field_manager,
+                amr_config=self.amr_config,
             )
 
             self.solver = select_solver(
@@ -99,11 +113,18 @@ class DPFSimulation:
                 field_manager=self.field_manager,
             )
 
-            self.pic_solver = (
-                PICSolver(config=self.config.pic.dict(), field_manager=self.field_manager)
-                if self.config.pic
-                else None
-            )
+            self.pic_solver = None
+            if self.config.pic:
+                pic_cfg = self.config.pic.dict()
+                pic_cfg.update(
+                    {
+                        "amr": self.amr_config.enable,
+                        "density_threshold": self.amr_config.refinement_threshold,
+                    }
+                )
+                self.pic_solver = PICSolver(
+                    config=PICConfig(**pic_cfg), field_manager=self.field_manager
+                )
 
             if self.config.collision:
                 self.modules["collision"] = self.registry.create(
