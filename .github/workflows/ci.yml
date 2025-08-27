@@ -25,6 +25,8 @@ jobs:
         run: mypy .
       - name: Test
         run: pytest
+
       - name: Validate pinch benchmarks
         run: python scripts/validate_pinch.py
+
 

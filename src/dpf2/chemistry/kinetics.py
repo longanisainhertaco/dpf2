@@ -6,7 +6,10 @@ This module provides a tiny collisional–radiative model that evolves the
 populations of multiple charge states using tabulated ionisation and
 recombination coefficients.  The implementation is intentionally compact
 and aimed at unit tests rather than high fidelity simulation.  The rate
-coefficients typically originate from reduced FLYCHK/CRM datasets.
+coefficients typically originate from reduced FLYCHK/CRM datasets.  The
+original version of the module supported only a single species.  For the
+sheath/impurity tests we extend the tables to hold data for multiple
+species while retaining backwards compatibility with the previous API.
 """
 
 from pathlib import Path
@@ -68,26 +71,57 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 class RateTable:
-    """Tabulated ionisation and recombination rate coefficients."""
+    """Tabulated ionisation and recombination rate coefficients.
 
-    def __init__(self, T: list[float], k_ion: list[float], k_rec: list[float]):
-        self.T = T
-        self.k_ion = k_ion
-        self.k_rec = k_rec
+    Parameters
+    ----------
+    data:
+        Mapping of species name to a dictionary containing temperature
+        points and ionisation/recombination coefficients.  When a plain
+        list is supplied (the legacy behaviour) the data are associated
+        with a default species named ``"base"``.
+    """
+
+    def __init__(self, data: dict[str, dict[str, list[float]]]):
+        self.data = data
 
     @classmethod
-    def from_csv(cls, path: str | Path) -> "RateTable":
-        data = np.loadtxt(path, delimiter=",", skiprows=1)
-        T = [row[0] for row in data]
-        k_i = [row[1] for row in data]
-        k_r = [row[2] for row in data]
-        return cls(T=T, k_ion=k_i, k_rec=k_r)
+    def from_csv(cls, path: str | Path | dict[str, str | Path]) -> "RateTable":
+        """Create a rate table from one or more CSV files.
 
-    def ion_rate(self, T) -> list[float]:
-        return np.interp(T, self.T, self.k_ion, left=self.k_ion[0], right=self.k_ion[-1])
+        ``path`` may be either a single file (legacy behaviour) or a
+        mapping of species name to file.  Each CSV is expected to contain
+        three columns: temperature, ionisation rate and recombination
+        rate.
+        """
 
-    def rec_rate(self, T) -> list[float]:
-        return np.interp(T, self.T, self.k_rec, left=self.k_rec[0], right=self.k_rec[-1])
+        if isinstance(path, (str, Path)):
+            files = {"base": path}
+        else:
+            files = path
+
+        out: dict[str, dict[str, list[float]]] = {}
+        for sp, p in files.items():
+            data = np.loadtxt(p, delimiter=",", skiprows=1)
+            out[sp] = {
+                "T": [row[0] for row in data],
+                "k_ion": [row[1] for row in data],
+                "k_rec": [row[2] for row in data],
+            }
+        return cls(out)
+
+    # ------------------------------------------------------------------
+    def ion_rate(self, T, species: str = "base") -> list[float]:
+        table = self.data[species]
+        return np.interp(
+            T, table["T"], table["k_ion"], left=table["k_ion"][0], right=table["k_ion"][-1]
+        )
+
+    def rec_rate(self, T, species: str = "base") -> list[float]:
+        table = self.data[species]
+        return np.interp(
+            T, table["T"], table["k_rec"], left=table["k_rec"][0], right=table["k_rec"][-1]
+        )
 
 
 class RateEquations:
@@ -95,15 +129,15 @@ class RateEquations:
 
     The solver tracks the population ``n[i]`` of each charge state ``i``
     starting with the neutral at ``i=0``.  A single set of ionisation and
-    recombination coefficients is applied between adjacent charge states
-    which suffices for the lightweight chemistry regression tests.  Source
-    terms may be supplied for each level to model processes such as neutral
-    influx from wall ablation.
+    recombination coefficients is applied between adjacent charge states.
+    The ``species`` argument selects which table from :class:`RateTable`
+    to use; by default the legacy ``"base"`` species is employed.
     """
 
-    def __init__(self, rates: RateTable, levels: int = 2):
+    def __init__(self, rates: RateTable, levels: int = 2, species: str = "base"):
         self.rates = rates
         self.levels = levels
+        self.species = species
 
     # ------------------------------------------------------------------
     # Helper diagnostics
@@ -128,8 +162,8 @@ class RateEquations:
     def rhs(self, n: list[float], T: float) -> list[float]:
         """Time derivatives for charge state populations ``n``."""
 
-        k_i = self.rates.ion_rate([T])[0]
-        k_r = self.rates.rec_rate([T])[0]
+        k_i = self.rates.ion_rate([T], self.species)[0]
+        k_r = self.rates.rec_rate([T], self.species)[0]
         ne = self.electron_density(n)
 
         dn = np.zeros_like(n)
@@ -173,6 +207,34 @@ class RateEquations:
             raise ValueError("sources must provide one entry per charge state")
         dn = [dni + src for dni, src in zip(dn, sources)]
         return [ni + dt * dni for ni, dni in zip(n, dn)]
+
+
+class ImpurityModel:
+    """Convenience wrapper for evolving impurity charge states.
+
+    The class simply combines :class:`RateTable` and :class:`RateEquations`
+    for a named species.  It exposes ``step``/``mean_charge`` helpers used
+    by the Hall-MHD solver tests which need a lightweight impurity model.
+    """
+
+    def __init__(self, species: str, rates: RateTable, charge_states: int = 2) -> None:
+        self.species = species
+        self.equations = RateEquations(rates, levels=charge_states, species=species)
+
+    def step(
+        self,
+        n: list[float],
+        T: float,
+        dt: float,
+        sources: list[float] | None = None,
+    ) -> list[float]:
+        return self.equations.step(n, T, dt, sources)
+
+    def mean_charge(self, n: list[float]) -> float:
+        return self.equations.mean_charge(n)
+
+    def electron_density(self, n: list[float]) -> float:
+        return self.equations.electron_density(n)
 
 class MultiSpeciesTransport:
     """Very small multi‑species diffusion and wall ablation model.
@@ -241,5 +303,10 @@ class MultiSpeciesTransport:
         return updated
 
 
-__all__ = ["RateTable", "RateEquations", "MultiSpeciesTransport"]
+__all__ = [
+    "RateTable",
+    "RateEquations",
+    "ImpurityModel",
+    "MultiSpeciesTransport",
+]
 
