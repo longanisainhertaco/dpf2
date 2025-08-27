@@ -1,0 +1,12 @@
+{
+  "device": "NX2",
+  "shot": 1,
+  "diagnostics": {
+    "current": {
+      "units": "normalized"
+    },
+    "voltage": {
+      "units": "normalized"
+    }
+  }
+}
