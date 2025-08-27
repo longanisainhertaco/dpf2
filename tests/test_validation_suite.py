@@ -87,6 +87,21 @@ def test_uncertainty_and_weighting_combined_score(tmp_path: Path):
     assert cfg.validation_passed
 
 
+def test_uncertainty_range_influences_score(tmp_path: Path):
+    data = base_data(tmp_path)
+    data["observableUncertaintyRanges"] = {"I(t)": (-0.05, 0.05), "Yn": (-0.1, 0.1)}
+    data["validationScoreModel"] = "weighted"
+    cfg = ValidationSuite.model_validate(data)
+    assert cfg.computed_validation_score == pytest.approx(0.925)
+
+
+def test_invalid_uncertainty_range_raises(tmp_path: Path):
+    data = base_data(tmp_path)
+    data["observableUncertaintyRanges"] = {"I(t)": (0.1, -0.1)}
+    with pytest.raises(ValueError):
+        ValidationSuite.model_validate(data)
+
+
 def test_hash_changes_with_score_model_or_dataset(tmp_path: Path):
     data = base_data(tmp_path)
     cfg1 = ValidationSuite.model_validate(data)
