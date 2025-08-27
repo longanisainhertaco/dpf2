@@ -9,6 +9,11 @@ import runpy
 # Execute the ``numpy`` stub to provide a minimal implementation when the
 # real dependency is unavailable.  The stub registers itself in ``sys.modules``.
 runpy.run_path(Path(__file__).with_name("numpy_stub.py"))
+# Provide a minimal ``pydantic`` implementation if the real package is missing.
+try:  # pragma: no cover - executed when dependency exists
+    import pydantic  # type: ignore
+except Exception:  # pragma: no cover - fallback to stub
+    runpy.run_path(Path(__file__).resolve().parent.parent / "pydantic_stub.py")
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:

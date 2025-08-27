@@ -20,6 +20,7 @@ from .eos import EOSBase, IdealGasEOS
 from .chemistry import ChemistryModel, SahaEquilibrium
 from .boundary_conditions import KineticSheath
 from .radiation import RadiationBase
+from .physics.energy import EnergyTracker
 
 __all__ = ["MHDState", "HallMHDSolver"]
 
@@ -233,6 +234,7 @@ class HallMHDSolver(PlasmaSolverBase):
         dt: float,
         current: float = 0.0,
         voltage: float = 0.0,
+        energy_tracker: EnergyTracker | None = None,
     ) -> MHDState:  # pragma: no cover - skeleton
         """Advance the state by ``dt`` seconds using a higher-order MHD update.
 
@@ -445,6 +447,24 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.circuit is not None:
             self.current, self.back_emf = self.circuit.step(
                 self.current, self.back_emf, dt, {"Lp": L_new, "emf": emf}
+            )
+
+        if energy_tracker is not None:
+            v_final = mom / rho[..., None]
+            B2_final = np.sum(B ** 2, axis=-1)
+            kinetic_final = 0.5 * rho * np.sum(v_final**2, axis=-1)
+            magnetic_final = 0.5 * B2_final
+            thermal_final = energy - kinetic_final - magnetic_final
+            rad = (
+                float(np.sum(self.last_rad_loss) * dt)
+                if self.last_rad_loss is not None
+                else 0.0
+            )
+            energy_tracker.add(
+                kinetic=float(np.sum(kinetic_final)),
+                thermal=float(np.sum(thermal_final)),
+                magnetic=float(np.sum(magnetic_final)),
+                radiative=rad,
             )
 
         return new_state
