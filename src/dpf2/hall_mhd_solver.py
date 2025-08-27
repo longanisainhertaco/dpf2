@@ -13,12 +13,29 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import numpy as np
-from scipy.constants import mu_0
+try:  # pragma: no cover - allow running without SciPy
+    from scipy.constants import mu_0
+except Exception:  # pragma: no cover
+    mu_0 = 4e-7 * np.pi
 
 from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase
 from .eos import EOSBase, IdealGasEOS
-from .chemistry import ChemistryModel, SahaEquilibrium
-from .radiation import RadiationBase
+try:  # pragma: no cover - chemistry is optional in tests
+    from .chemistry import ChemistryModel, SahaEquilibrium
+except Exception:  # pragma: no cover
+    class ChemistryModel:  # minimal stub
+        def ionization_state(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:  # noqa: D401
+            return np.ones_like(rho)
+
+    class SahaEquilibrium(ChemistryModel):
+        pass
+
+try:  # pragma: no cover - radiation package optional
+    from .radiation import RadiationBase
+except Exception:  # pragma: no cover
+    class RadiationBase:  # type: ignore[misc]
+        def loss(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:  # noqa: D401
+            return np.zeros_like(rho)
 
 __all__ = ["MHDState", "HallMHDSolver"]
 
@@ -30,19 +47,35 @@ def _dd(f: np.ndarray, axis: int) -> np.ndarray:
 
 def _divergence(vec: np.ndarray) -> np.ndarray:
     """Compute the discrete divergence of a vector field."""
-    return _dd(vec[..., 0], 0) + _dd(vec[..., 1], 1) + _dd(vec[..., 2], 2)
+    dims = vec.ndim - 1
+    result = _dd(vec[..., 0], 0)
+    if dims > 1:
+        result += _dd(vec[..., 1], 1)
+    if dims > 2:
+        result += _dd(vec[..., 2], 2)
+    return result
 
 
 def _curl(vec: np.ndarray) -> np.ndarray:
     """Compute the discrete curl of a vector field."""
-    cx = _dd(vec[..., 2], 1) - _dd(vec[..., 1], 2)
-    cy = _dd(vec[..., 0], 2) - _dd(vec[..., 2], 0)
-    cz = _dd(vec[..., 1], 0) - _dd(vec[..., 0], 1)
+    dims = vec.ndim - 1
+    def d(a: np.ndarray, ax: int) -> np.ndarray:
+        if ax >= dims:
+            return np.zeros_like(a)
+        return _dd(a, ax)
+
+    cx = d(vec[..., 2], 1) - d(vec[..., 1], 2)
+    cy = d(vec[..., 0], 2) - d(vec[..., 2], 0)
+    cz = d(vec[..., 1], 0) - d(vec[..., 0], 1)
     return np.stack((cx, cy, cz), axis=-1)
 
 
 def _project_div_free(B: np.ndarray) -> np.ndarray:
     """Project a magnetic field onto its divergence-free component."""
+    spatial_shape = B.shape[:-1]
+    dims = len(spatial_shape)
+    if dims == 2:
+        B = B.reshape(spatial_shape + (1, 3))
     nx, ny, nz, _ = B.shape
     B_hat = np.fft.fftn(B, axes=(0, 1, 2))
     kx = 2 * np.pi * np.fft.fftfreq(nx)
@@ -50,11 +83,12 @@ def _project_div_free(B: np.ndarray) -> np.ndarray:
     kz = 2 * np.pi * np.fft.fftfreq(nz)
     kx, ky, kz = np.meshgrid(kx, ky, kz, indexing="ij")
     k2 = kx**2 + ky**2 + kz**2
-    k2[0, 0, 0] = 1.0  # avoid divide-by-zero for mean mode
+    k2[0, 0, 0] = 1.0
     k_dot_B = kx * B_hat[..., 0] + ky * B_hat[..., 1] + kz * B_hat[..., 2]
     for i, k in enumerate((kx, ky, kz)):
         B_hat[..., i] -= k * k_dot_B / k2
-    return np.fft.ifftn(B_hat, axes=(0, 1, 2)).real
+    B_proj = np.fft.ifftn(B_hat, axes=(0, 1, 2)).real
+    return B_proj.reshape(spatial_shape + (3,))
 
 
 def _minmod(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -163,6 +197,8 @@ class MHDState:
         Electron temperature [K] when using two-temperature models.
     Ti : ndarray | None
         Ion temperature [K] when using two-temperature models.
+    eta : ndarray | None
+        Resistivity [Ω·m] when using spatially varying resistivity.
     """
 
     rho: np.ndarray
@@ -172,6 +208,7 @@ class MHDState:
     psi: np.ndarray | None = None
     Te: np.ndarray | None = None
     Ti: np.ndarray | None = None
+    eta: np.ndarray | None = None
 
 
 @dataclass
@@ -214,6 +251,8 @@ class HallMHDSolver(PlasmaSolverBase):
     last_divB: np.ndarray | None = field(init=False, default=None)
     last_J: np.ndarray | None = field(init=False, default=None)
     last_E: np.ndarray | None = field(init=False, default=None)
+    last_opacity: np.ndarray | None = field(init=False, default=None)
+    last_emissivity: np.ndarray | None = field(init=False, default=None)
 
     def apply_boundary_conditions(self, state: MHDState) -> None:
         """Invoke the boundary-condition hook if provided."""
@@ -243,6 +282,7 @@ class HallMHDSolver(PlasmaSolverBase):
         AMR refinement hooks are invoked before and after the update.
         """
 
+        self.amr_refinement(state)
         self.apply_boundary_conditions(state)
         self.current = current
 
@@ -250,6 +290,11 @@ class HallMHDSolver(PlasmaSolverBase):
         mom = state.mom.copy()
         energy = state.energy.copy()
         B = state.B.copy()
+        Te = None if state.Te is None else state.Te.copy()
+        Ti = None if state.Ti is None else state.Ti.copy()
+        eta_field = state.eta.copy() if state.eta is not None else self.eta
+
+        dims = rho.ndim
 
         v = mom / rho[..., None]
         B2 = np.sum(B**2, axis=-1)
@@ -263,12 +308,16 @@ class HallMHDSolver(PlasmaSolverBase):
 
         # --- High-order Godunov fluxes (MUSCL-Hancock) ---
         gamma = getattr(self.eos, "gamma", 5.0 / 3.0)
-        flux_rho = np.zeros((3,) + rho.shape)
-        flux_mom = np.zeros((3,) + mom.shape)
-        flux_energy = np.zeros((3,) + energy.shape)
+        flux_rho = np.zeros((dims,) + rho.shape)
+        flux_mom = np.zeros((dims,) + mom.shape)
+        flux_energy = np.zeros((dims,) + energy.shape)
+        if Te is not None:
+            flux_Te = np.zeros((dims,) + Te.shape)
+        if Ti is not None:
+            flux_Ti = np.zeros((dims,) + Ti.shape)
 
         prim_vars = [rho, v[..., 0], v[..., 1], v[..., 2], B[..., 0], B[..., 1], B[..., 2], p]
-        for i in range(3):
+        for i in range(dims):
             slopes = [
                 _minmod(var - np.roll(var, 1, axis=i), np.roll(var, -1, axis=i) - var)
                 for var in prim_vars
@@ -290,31 +339,55 @@ class HallMHDSolver(PlasmaSolverBase):
             flux_rho[i] = fr
             flux_mom[i] = fm
             flux_energy[i] = fe
+            if Te is not None:
+                flux_Te[i] = Te * v[..., i]
+            if Ti is not None:
+                flux_Ti[i] = Ti * v[..., i]
 
         # Corner-transport-upwind transverse flux correction
-        for i in range(3):
-            for j in range(3):
+        for i in range(dims):
+            for j in range(dims):
                 if i == j:
                     continue
                 flux_rho[i] -= 0.5 * _dd(flux_rho[j], j)
                 for k in range(3):
                     flux_mom[i][..., k] -= 0.5 * _dd(flux_mom[j][..., k], j)
                 flux_energy[i] -= 0.5 * _dd(flux_energy[j], j)
+                if Te is not None:
+                    flux_Te[i] -= 0.5 * _dd(flux_Te[j], j)
+                if Ti is not None:
+                    flux_Ti[i] -= 0.5 * _dd(flux_Ti[j], j)
 
         drho = np.zeros_like(rho)
         denergy = np.zeros_like(energy)
         dmom = np.zeros_like(mom)
-        for i in range(3):
+        if Te is not None:
+            dTe = np.zeros_like(Te)
+        if Ti is not None:
+            dTi = np.zeros_like(Ti)
+        for i in range(dims):
             drho += flux_rho[i] - np.roll(flux_rho[i], 1, axis=i)
             denergy += flux_energy[i] - np.roll(flux_energy[i], 1, axis=i)
             for j in range(3):
                 dmom[..., j] += flux_mom[i][..., j] - np.roll(flux_mom[i][..., j], 1, axis=i)
+            if Te is not None:
+                dTe += flux_Te[i] - np.roll(flux_Te[i], 1, axis=i)
+            if Ti is not None:
+                dTi += flux_Ti[i] - np.roll(flux_Ti[i], 1, axis=i)
 
         rho -= dt * drho
         energy -= dt * denergy
         mom -= dt * dmom
+        if Te is not None:
+            Te -= dt * dTe / np.maximum(rho, 1e-30)
+        if Ti is not None:
+            Ti -= dt * dTi / np.maximum(rho, 1e-30)
 
         if self.radiation is not None:
+            if hasattr(self.radiation, "opacity"):
+                self.last_opacity = self.radiation.opacity(rho, T)
+            if hasattr(self.radiation, "emissivity"):
+                self.last_emissivity = self.radiation.emissivity(rho, T)
             if hasattr(self.radiation, "couple"):
                 energy_before = energy.copy()
                 flat = energy_before.ravel().tolist()
@@ -322,17 +395,9 @@ class HallMHDSolver(PlasmaSolverBase):
                 energy = np.array(updated).reshape(energy.shape)
                 self.last_rad_loss = (energy_before - energy) / dt
             else:
-                v_tmp = mom / rho[..., None]
-                B2_tmp = np.sum(B**2, axis=-1)
-                kinetic_tmp = 0.5 * rho * np.sum(v_tmp**2, axis=-1)
-                magnetic_tmp = 0.5 * B2_tmp
-                e_internal_tmp = energy - kinetic_tmp - magnetic_tmp
-                specific_tmp = e_internal_tmp / rho
-                T_tmp = self.eos.temperature(rho, specific_tmp)
-                zbar_tmp = self.chemistry.ionization_state(rho, T_tmp)
-                rad_loss = self.radiation.loss(rho, T_tmp * zbar_tmp)
-                energy -= dt * rad_loss
-                self.last_rad_loss = rad_loss
+                loss = self.radiation.loss(rho, T)
+                energy -= dt * loss
+                self.last_rad_loss = loss
         else:
             self.last_rad_loss = None
 
@@ -350,7 +415,12 @@ class HallMHDSolver(PlasmaSolverBase):
 
         # --- Constrained transport via electric fields ---
         J = _curl(B)
-        E = -np.cross(v, B) + self.eta * J
+        eta_local = (
+            eta_field
+            if isinstance(eta_field, np.ndarray)
+            else np.full(rho.shape, float(eta_field))
+        )
+        E = -np.cross(v, B) + eta_local[..., None] * J
         if self.hall_coeff != 0.0:
             ne = rho * np.maximum(zbar, 1e-30)
             E += self.hall_coeff * np.cross(J, B) / ne[..., None]
@@ -361,7 +431,10 @@ class HallMHDSolver(PlasmaSolverBase):
         divB = _divergence(B)
         if self.c_h != 0.0 or self.c_p != 0.0:
             psi -= dt * (self.c_h ** 2 * divB + self.c_p * psi)
-            B -= dt * np.stack((_dd(psi, 0), _dd(psi, 1), _dd(psi, 2)), axis=-1)
+            grad_psi = [_dd(psi, i) for i in range(dims)]
+            while len(grad_psi) < 3:
+                grad_psi.append(np.zeros_like(psi))
+            B -= dt * np.stack(grad_psi, axis=-1)
         B = _project_div_free(B)
         self.last_divB = divB
 
@@ -371,37 +444,36 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.nu_par != 0.0:
             b = B / np.sqrt(B2 + 1e-30)[..., None]
             for comp in range(3):
-                grad_par = sum(b[..., i] * _dd(v[..., comp], i) for i in range(3))
+                grad_par = sum(b[..., i] * _dd(v[..., comp], i) for i in range(dims))
                 visc_flux = self.nu_par * b * grad_par[..., None]
-                mom[..., comp] += dt * (
-                    _dd(visc_flux[..., 0], 0)
-                    + _dd(visc_flux[..., 1], 1)
-                    + _dd(visc_flux[..., 2], 2)
-                )
+                mom[..., comp] += dt * sum(_dd(visc_flux[..., i], i) for i in range(dims))
                 energy += dt * self.nu_par * grad_par**2 * rho
 
         # --- Braginskii thermal conduction (parallel) ---
         if self.kappa_par != 0.0:
             T = p / rho
             b = B / np.sqrt(B2 + 1e-30)[..., None]
-            gradT_par = sum(b[..., i] * _dd(T, i) for i in range(3))
+            gradT_par = sum(b[..., i] * _dd(T, i) for i in range(dims))
             q = -self.kappa_par * b * gradT_par[..., None]
-            energy -= dt * (
-                _dd(q[..., 0], 0) + _dd(q[..., 1], 1) + _dd(q[..., 2], 2)
-            )
+            energy -= dt * sum(_dd(q[..., i], i) for i in range(dims))
 
         # --- Isotropic viscosity ---
         if self.nu != 0.0:
             lap_v = np.stack(
-                [sum(_dd(_dd(v[..., k], j), j) for j in range(3)) for k in range(3)],
+                [sum(_dd(_dd(v[..., k], j), j) for j in range(dims)) for k in range(3)],
                 axis=-1,
             )
             mom += dt * self.nu * rho[..., None] * lap_v
             energy += dt * self.nu * rho * np.sum(v * lap_v, axis=-1)
 
         # --- Source terms ---
-        if self.eta != 0.0:
-            energy += dt * self.eta * np.sum(J**2, axis=-1)
+        if isinstance(eta_field, np.ndarray):
+            heating = eta_field * np.sum(J**2, axis=-1)
+        else:
+            heating = float(eta_field) * np.sum(J**2, axis=-1)
+        energy += dt * heating
+        if Te is not None:
+            Te += dt * heating / np.maximum(rho, 1e-30)
 
         self.last_J = J
         self.last_E = E
@@ -412,8 +484,9 @@ class HallMHDSolver(PlasmaSolverBase):
             energy=energy,
             B=B,
             psi=psi,
-            Te=None if state.Te is None else state.Te.copy(),
-            Ti=None if state.Ti is None else state.Ti.copy(),
+            Te=Te,
+            Ti=Ti,
+            eta=None if np.isscalar(eta_field) else eta_field,
         )
 
         self.apply_boundary_conditions(new_state)

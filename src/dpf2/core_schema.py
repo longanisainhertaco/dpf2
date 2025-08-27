@@ -20,7 +20,10 @@ from typing import (
 import logging
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, root_validator
+try:  # pragma: no cover - allow operation without pydantic
+    from pydantic import BaseModel, ConfigDict, Field, root_validator
+except Exception:  # pragma: no cover
+    from pydantic_stub import BaseModel, ConfigDict, Field, root_validator  # type: ignore
 
 
 logger = logging.getLogger(__name__)

@@ -19,6 +19,20 @@ class BaseModel:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+    # Mimic minimal pydantic API used in the code base
+    def dict(self, **kwargs):  # pragma: no cover - trivial
+        return self.__dict__.copy()
+
+    def json(self, **kwargs):  # pragma: no cover - simple serialization
+        return str(self.dict())
+
+    def copy(self, **kwargs):  # pragma: no cover - shallow copy
+        return type(self)(**self.dict())
+
+    @classmethod
+    def parse_obj(cls, data):  # pragma: no cover - simple constructor
+        return cls(**data)
+
 
 def validator(*args, **kwargs):  # pragma: no cover - trivial passthrough
     def decorator(func):
