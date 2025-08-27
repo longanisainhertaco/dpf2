@@ -27,9 +27,28 @@ logger = logging.getLogger(__name__)
 
 # --- Diagnostic Base Class ---
 class Diagnostic(DiagnosticsBase):
+    """Base class for all simulation diagnostics.
+
+    Sub-classes are expected to produce a *payload* mapping of
+    ``{name: array_like}`` for each time step.  The :meth:`record` method
+    handles timestamping and error logging while :meth:`to_hdf5` serialises
+    the accumulated records using a minimal schema::
+
+        <diagnostic name>/
+            time [N]        -- record times
+            <payload-key>   -- stacked payload arrays
+
+    Diagnostic authors should either supply a ``payload`` directly or a
+    ``callback`` returning one when calling ``super().record``.  Additional
+    metadata may be written by overriding :meth:`to_hdf5` and invoking
+    ``super().to_hdf5`` first.
+    """
+
     def __init__(self, name, field_manager: FieldManager):
         self.name = name
         self.field_manager = field_manager
+        # Store individual records as dictionaries ``{"time": t, ...}``
+        self.data: list[dict] = []
 
     def record(
         self,
@@ -39,11 +58,48 @@ class Diagnostic(DiagnosticsBase):
         pic=None,
         radiation=None,
         state: SimulationState = None,
+        *,
+        payload=None,
+        callback=None,
     ):
-        raise NotImplementedError
+        """Record a diagnostic data point.
+
+        Parameters
+        ----------
+        t:
+            Simulation time in seconds.
+        payload, callback:
+            Either a mapping of dataset names to values or a callback
+            returning such a mapping.  When provided, the data is stored
+            alongside the timestamp.
+        """
+
+        try:
+            if callback is not None:
+                payload = callback()
+            if payload is None:
+                return
+            self.data.append({"time": float(t), **payload})
+        except Exception:  # pragma: no cover - error path
+            logger.exception("diagnostic %s failed to record", self.name)
 
     def to_hdf5(self, hdf5_group):
-        raise NotImplementedError
+        """Serialise records to an ``hdf5_group``.
+
+        Returns the created HDF5 group to allow subclasses to attach
+        additional datasets or attributes.
+        """
+
+        grp = hdf5_group.require_group(self.name)
+        try:
+            if self.data:
+                grp.create_dataset("time", data=[d["time"] for d in self.data])
+                keys = [k for k in self.data[0] if k != "time"]
+                for k in keys:
+                    grp.create_dataset(k, data=np.array([d[k] for d in self.data]))
+        except Exception:  # pragma: no cover - error path
+            logger.exception("diagnostic %s failed to serialise", self.name)
+        return grp
 
 # --- Interferometry ---
 class Interferometry(Diagnostic):
@@ -51,29 +107,28 @@ class Interferometry(Diagnostic):
         super().__init__(name, field_manager)
         self.p0 = np.array(p0)
         self.p1 = np.array(p1)
-        self.data = []
 
     def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
-        rho = state.density
-        dx = state.dx
-        domain_lo = state.domain_lo
-        L = np.linalg.norm(self.p1 - self.p0)
-        Np = int(np.ceil(L / dx))
-        pts = np.linspace(self.p0, self.p1, Np)
-        dens = []
-        for pt in pts:
-            xi, yi, zi = (pt[0] - domain_lo[0]) / dx, (pt[1] - domain_lo[1]) / dx, (pt[2] - domain_lo[2]) / dx
-            i, j, k = int(np.floor(xi)), int(np.floor(yi)), int(np.floor(zi))
-            dens.append(rho[i, j, k])
-        line_integral = np.trapz(dens, dx=dx)
-        # Calculate phase shift (simplified)
-        phase_shift = line_integral * 2.25e-18  # Example constant
-        self.data.append({'time': t, 'phase_shift': phase_shift})
+        def _compute():
+            rho = state.density
+            dx = state.dx
+            domain_lo = state.domain_lo
+            L = np.linalg.norm(self.p1 - self.p0)
+            Np = int(np.ceil(L / dx))
+            pts = np.linspace(self.p0, self.p1, Np)
+            dens = []
+            for pt in pts:
+                xi, yi, zi = (pt[0] - domain_lo[0]) / dx, (pt[1] - domain_lo[1]) / dx, (pt[2] - domain_lo[2]) / dx
+                i, j, k = int(np.floor(xi)), int(np.floor(yi)), int(np.floor(zi))
+                dens.append(rho[i, j, k])
+            line_integral = np.trapz(dens, dx=dx)
+            phase_shift = line_integral * 2.25e-18  # Example constant
+            return {"phase_shift": phase_shift}
+
+        super().record(t, circuit, fluid, pic=pic, radiation=radiation, state=state, callback=_compute)
 
     def to_hdf5(self, hdf5_group):
-        grp = hdf5_group.create_group(self.name)
-        grp.create_dataset('time', data=[d['time'] for d in self.data])
-        grp.create_dataset('phase_shift', data=[d['phase_shift'] for d in self.data])
+        return super().to_hdf5(hdf5_group)
 
 # --- X-ray Detector ---
 class XrayDetector(Diagnostic):
@@ -82,12 +137,11 @@ class XrayDetector(Diagnostic):
         self.position = np.array(position)
         self.energy_bins = energy_bins or [0, np.inf]
         self.detector_response = detector_response or (lambda E: 1.0)  # Default: constant efficiency
-        self.data = []
 
     def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
-        if radiation:
-            dx = state.dx
-            domain_lo = state.domain_lo
+        def _compute():
+            if not radiation:
+                return None
             if hasattr(radiation, 'get_energy_resolved_emission'):
                 energy_bins, P_rad_energy = radiation.get_energy_resolved_emission(state)
             else:
@@ -98,17 +152,19 @@ class XrayDetector(Diagnostic):
             signal = 0.0
             for i, E_bin in enumerate(energy_bins[:-1]):
                 detector_efficiency = self.detector_response(E_bin)
-                # Integrate over the volume
-                # distance from cell centers
-                dxs = state._X - self.position[0]; dys = state._Y - self.position[1]; dzs = state._Z - self.position[2]
+                dxs = state._X - self.position[0]
+                dys = state._Y - self.position[1]
+                dzs = state._Z - self.position[2]
                 dist2 = dxs * dxs + dys * dys + dzs * dzs
                 signal += np.sum(P_rad_energy[i] * state.cell_volume / dist2) * detector_efficiency
-            self.data.append({'time': t, 'signal': signal})
+            return {"signal": signal}
+
+        super().record(t, circuit, fluid, pic=pic, radiation=radiation, state=state, callback=_compute)
 
     def to_hdf5(self, hdf5_group):
-        grp = hdf5_group.create_group(self.name)
-        grp.create_dataset('time', data=[d['time'] for d in self.data])
-        grp.create_dataset('signal', data=[d['signal'] for d in self.data])
+        grp = super().to_hdf5(hdf5_group)
+        grp.create_dataset('energy_bins', data=self.energy_bins)
+        return grp
 
 # --- Neutron Detector ---
 class NeutronDetector(Diagnostic):
@@ -117,25 +173,29 @@ class NeutronDetector(Diagnostic):
         self.position = np.array(position)
         self.time_bins = time_bins
         self.reaction = reaction
-        self.data = []
 
     def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
-        if pic and hasattr(pic, 'get_neutron_events'):
-            events = pic.get_neutron_events(reaction=self.reaction)
-            tof = []
-            for ev in events:
-                ev_pos = np.array(ev['position'])
-                E_n = ev['energy'] * 1.602e-13  # keV->J
-                v = np.sqrt(2 * E_n / m_n)
-                dist = np.linalg.norm(ev_pos - self.position)
-                tof.append(ev['time'] + dist / v)
-            hist, _ = np.histogram(tof, bins=self.time_bins)
-            self.data.append({'time': t, 'histogram': hist})
+        def _compute():
+            if pic and hasattr(pic, 'get_neutron_events'):
+                events = pic.get_neutron_events(reaction=self.reaction)
+                tof = []
+                for ev in events:
+                    ev_pos = np.array(ev['position'])
+                    E_n = ev['energy'] * 1.602e-13  # keV->J
+                    v = np.sqrt(2 * E_n / m_n)
+                    dist = np.linalg.norm(ev_pos - self.position)
+                    tof.append(ev['time'] + dist / v)
+                hist, _ = np.histogram(tof, bins=self.time_bins)
+                return {"histogram": hist}
+            return None
+
+        super().record(t, circuit, fluid, pic=pic, radiation=radiation, state=state, callback=_compute)
 
     def to_hdf5(self, hdf5_group):
-        grp = hdf5_group.create_group(self.name)
-        grp.create_dataset('time', data=[d['time'] for d in self.data])
-        grp.create_dataset('histogram', data=np.array([d['histogram'] for d in self.data]), compression='gzip')
+        grp = super().to_hdf5(hdf5_group)
+        grp.create_dataset('time_bins', data=self.time_bins)
+        grp.attrs['reaction'] = self.reaction
+        return grp
 
 # --- Mode Analysis ---
 class ModeAnalysis(Diagnostic):
