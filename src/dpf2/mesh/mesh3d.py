@@ -144,8 +144,10 @@ class Mesh3D:
     ) -> None:
         """Linearly interpolate ghost-cell values for a curved boundary.
 
-        This helper currently only supports boundaries normal to the ``z`` axis.
-        Passing ``axis`` as ``0`` or ``1`` will raise :class:`NotImplementedError`.
+        Supports boundaries normal to any axis.  The ``surface`` function should
+        return the physical location of the curved boundary along the normal
+        direction.  Its arguments depend on ``axis``: ``(y, z)`` for
+        ``axis=0``, ``(x, z)`` for ``axis=1`` and ``(x, y)`` for ``axis=2``.
 
         Parameters
         ----------
@@ -154,7 +156,7 @@ class Mesh3D:
             place.
         axis:
             Direction normal to the boundary: ``0`` for ``x``, ``1`` for ``y``
-            and ``2`` for ``z``.  Only ``axis=2`` is implemented.
+            and ``2`` for ``z``.
         side:
             ``"low"`` or ``"high"`` indicating which side to operate on.
         ghosts:
@@ -166,33 +168,78 @@ class Mesh3D:
         Only a straightforward linear extrapolation is implemented which is
         sufficient for regression tests and simple applications.
         """
-
         arr = field
-        if axis != 2:  # pragma: no cover - only ``z`` boundaries are supported
-            raise NotImplementedError("only z-axis interpolation is implemented")
+        if side not in {"low", "high"}:  # pragma: no cover - input validation
+            raise ValueError("side must be 'low' or 'high'")
 
-        k_int = ghosts if side == "low" else ghosts + self.nz - 1
-        k_ghost = k_int - 1 if side == "low" else k_int + 1
-
-        for i in range(self.nx):
-            ii = ghosts + i
-            x_c = 0.5 * (self.x[i] + self.x[i + 1])
+        if axis == 2:
+            k_int = ghosts if side == "low" else ghosts + self.nz - 1
+            k_ghost = k_int - 1 if side == "low" else k_int + 1
+            z_c = 0.5 * (self.z[k_int - ghosts] + self.z[k_int - ghosts + 1])
+            for i in range(self.nx):
+                ii = ghosts + i
+                x_c = 0.5 * (self.x[i] + self.x[i + 1])
+                for j in range(self.ny):
+                    jj = ghosts + j
+                    y_c = 0.5 * (self.y[j] + self.y[j + 1])
+                    boundary_z = surface(x_c, y_c)
+                    boundary_value = value(x_c, y_c, boundary_z)
+                    distance_surface = (
+                        z_c - boundary_z if side == "low" else boundary_z - z_c
+                    )
+                    if distance_surface == 0:
+                        arr[ii][jj][k_ghost] = boundary_value
+                    else:
+                        interior = arr[ii][jj][k_int]
+                        arr[ii][jj][k_ghost] = interior + (
+                            (boundary_value - interior) * self.dz / distance_surface
+                        )
+        elif axis == 0:
+            i_int = ghosts if side == "low" else ghosts + self.nx - 1
+            i_ghost = i_int - 1 if side == "low" else i_int + 1
+            x_c = 0.5 * (self.x[i_int - ghosts] + self.x[i_int - ghosts + 1])
             for j in range(self.ny):
                 jj = ghosts + j
                 y_c = 0.5 * (self.y[j] + self.y[j + 1])
-                z_c = 0.5 * (self.z[k_int - ghosts] + self.z[k_int - ghosts + 1])
-                boundary_z = surface(x_c, y_c)
-                boundary_value = value(x_c, y_c, boundary_z)
-                distance_surface = (
-                    z_c - boundary_z if side == "low" else boundary_z - z_c
-                )
-                if distance_surface == 0:
-                    arr[ii][jj][k_ghost] = boundary_value
-                else:
-                    interior = arr[ii][jj][k_int]
-                    arr[ii][jj][k_ghost] = interior + (
-                        (boundary_value - interior) * self.dz / distance_surface
+                for k in range(self.nz):
+                    kk = ghosts + k
+                    z_c = 0.5 * (self.z[k] + self.z[k + 1])
+                    boundary_x = surface(y_c, z_c)
+                    boundary_value = value(boundary_x, y_c, z_c)
+                    distance_surface = (
+                        x_c - boundary_x if side == "low" else boundary_x - x_c
                     )
+                    if distance_surface == 0:
+                        arr[i_ghost][jj][kk] = boundary_value
+                    else:
+                        interior = arr[i_int][jj][kk]
+                        arr[i_ghost][jj][kk] = interior + (
+                            (boundary_value - interior) * self.dx / distance_surface
+                        )
+        elif axis == 1:
+            j_int = ghosts if side == "low" else ghosts + self.ny - 1
+            j_ghost = j_int - 1 if side == "low" else j_int + 1
+            y_c = 0.5 * (self.y[j_int - ghosts] + self.y[j_int - ghosts + 1])
+            for i in range(self.nx):
+                ii = ghosts + i
+                x_c = 0.5 * (self.x[i] + self.x[i + 1])
+                for k in range(self.nz):
+                    kk = ghosts + k
+                    z_c = 0.5 * (self.z[k] + self.z[k + 1])
+                    boundary_y = surface(x_c, z_c)
+                    boundary_value = value(x_c, boundary_y, z_c)
+                    distance_surface = (
+                        y_c - boundary_y if side == "low" else boundary_y - y_c
+                    )
+                    if distance_surface == 0:
+                        arr[ii][j_ghost][kk] = boundary_value
+                    else:
+                        interior = arr[ii][j_int][kk]
+                        arr[ii][j_ghost][kk] = interior + (
+                            (boundary_value - interior) * self.dy / distance_surface
+                        )
+        else:  # pragma: no cover - invalid axis
+            raise NotImplementedError("axis must be 0, 1 or 2")
 
 __all__ = ["Mesh3D", "MeshCell3D"]
 
