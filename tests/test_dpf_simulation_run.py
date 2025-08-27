@@ -20,10 +20,15 @@ class DummyCircuit:
     def __init__(self, collision_model=None, field_manager=None, **kwargs):
         self.current = 0.0
         self.voltage = kwargs.get("V0", 0.0)
-    def step(self, state, dt):
+
+    def step(self, current, back_emf, dt, feedback=None):
+        """Simple integrator incrementing current for testing."""
         self.current += dt
+        return self.current, self.voltage
+
     def get_current(self):
         return self.current
+
     def get_voltage(self):
         return self.voltage
 
@@ -50,6 +55,15 @@ def test_run_calls_modules(monkeypatch):
 
     solver = DummySolver()
 
+    # Create package placeholders so that relative imports in dpf_simulation
+    # resolve correctly when the module is loaded from a file path.
+    pkg = ModuleType("dpf2")
+    pkg.__path__ = []  # type: ignore[attr-defined]
+    sim_pkg = ModuleType("dpf2.simulation")
+    sim_pkg.__path__ = []  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "dpf2", pkg)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation", sim_pkg)
+
     # Stub external dependencies before importing simulation module
     dummy_trace = types.SimpleNamespace()
     monkeypatch.setitem(sys.modules, "opencensus", types.SimpleNamespace(trace=dummy_trace))
@@ -69,12 +83,14 @@ def test_run_calls_modules(monkeypatch):
             return cls(field_manager=field_manager, **config)
     module_registry_mod.ModuleRegistry = ModuleRegistry
     monkeypatch.setitem(sys.modules, "module_registry", module_registry_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.module_registry", module_registry_mod)
 
     collision_mod = ModuleType("collision_model")
     class CollisionModel(DummyCollision):
         """Simple collision model inheriting base behavior."""
     collision_mod.CollisionModel = CollisionModel
     monkeypatch.setitem(sys.modules, "collision_model", collision_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.collision_model", collision_mod)
 
     radiation_mod = ModuleType("radiation_model")
     class RadiationModel:
@@ -84,6 +100,7 @@ def test_run_calls_modules(monkeypatch):
             return {}
     radiation_mod.RadiationModel = RadiationModel
     monkeypatch.setitem(sys.modules, "radiation_model", radiation_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.radiation_model", radiation_mod)
 
     hybrid_mod = ModuleType("hybrid_controller")
     class HybridController:
@@ -91,20 +108,24 @@ def test_run_calls_modules(monkeypatch):
             """No-op hybrid step."""
     hybrid_mod.HybridController = HybridController
     monkeypatch.setitem(sys.modules, "hybrid_controller", hybrid_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.hybrid_controller", hybrid_mod)
 
     eos_selector_mod = ModuleType("eos_selector")
     eos_selector_mod.select_eos = lambda *a, **k: DummyEOS()
     monkeypatch.setitem(sys.modules, "eos_selector", eos_selector_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.eos_selector", eos_selector_mod)
 
     solver_selector_mod = ModuleType("solver_selector")
     solver_selector_mod.select_solver = lambda backend, config, field_manager: solver
     monkeypatch.setitem(sys.modules, "solver_selector", solver_selector_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.solver_selector", solver_selector_mod)
 
     circuit_mod = ModuleType("circuit")
     class CircuitModel(DummyCircuit):
         """Circuit model using DummyCircuit implementation."""
     circuit_mod.CircuitModel = CircuitModel
     monkeypatch.setitem(sys.modules, "circuit", circuit_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.circuit", circuit_mod)
 
     utils_mod = ModuleType("utils")
     class FieldManager:
@@ -118,6 +139,7 @@ def test_run_calls_modules(monkeypatch):
     utils_mod.FieldManager = FieldManager
     utils_mod.SimulationState = SimulationState
     monkeypatch.setitem(sys.modules, "utils", utils_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.utils", utils_mod)
 
     diagnostics_mod = ModuleType("diagnostics")
     class Diagnostics(DummyDiagnostics):
@@ -134,12 +156,14 @@ def test_run_calls_modules(monkeypatch):
             """No-op PIC step."""
     pic_solver_mod.PICSolver = PICSolver
     monkeypatch.setitem(sys.modules, "pic_solver", pic_solver_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.pic_solver", pic_solver_mod)
 
     import importlib.util
     from pathlib import Path
 
     spec = importlib.util.spec_from_file_location(
-        "dpf_simulation", Path(__file__).resolve().parent.parent / "src/dpf2/simulation/dpf_simulation.py"
+        "dpf2.simulation.dpf_simulation",
+        Path(__file__).resolve().parent.parent / "src/dpf2/simulation/dpf_simulation.py",
     )
     simmod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(simmod)
@@ -185,15 +209,24 @@ def test_run_calls_modules(monkeypatch):
 
     coll = sim.modules["collision"]
     diag = sim.modules["diagnostics"]
-    assert sim.current_time == pytest.approx(1.0)
+    assert abs(sim.current_time - 1.0) < 1e-12
     assert solver.dt_calls == sim.step_count
     assert coll.apply_calls == sim.step_count
     assert coll.checkpoint_calls == sim.step_count
     # diagnostics should record once per step with increasing times
     assert len(diag.records) == sim.step_count
-    assert diag.records[0] == pytest.approx(0.0)
-    assert diag.records[-1] == pytest.approx(sim.current_time - sim.dt)
+    assert abs(diag.records[0] - 0.0) < 1e-12
+    assert abs(diag.records[-1] - (sim.current_time - sim.dt)) < 1e-12
 
     # checkpoint data should be captured for each step
     assert len(diag.checkpoints) == sim.step_count
     assert diag.checkpoints[-1]["collision"]["calls"] == sim.step_count
+    eos_selector_mod = ModuleType("eos_selector")
+    eos_selector_mod.select_eos = lambda *a, **k: DummyEOS()
+    monkeypatch.setitem(sys.modules, "eos_selector", eos_selector_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.eos_selector", eos_selector_mod)
+
+    solver_selector_mod = ModuleType("solver_selector")
+    solver_selector_mod.select_solver = lambda backend, config, field_manager: solver
+    monkeypatch.setitem(sys.modules, "solver_selector", solver_selector_mod)
+    monkeypatch.setitem(sys.modules, "dpf2.simulation.solver_selector", solver_selector_mod)

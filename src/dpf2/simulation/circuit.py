@@ -1,13 +1,29 @@
 import numpy as np
+import math
 import logging
 try:
     import sympy as sp
 except ModuleNotFoundError:  # pragma: no cover - handled for environments without sympy
     sp = None
-from scipy.special import erf, erfi
-from scipy.constants import mu_0, c
-from scipy.interpolate import interp1d
-from scipy.integrate import solve_ivp
+try:  # pragma: no cover - provide lightweight fallbacks when SciPy is absent
+    from scipy.special import erf, erfi
+    from scipy.constants import mu_0, c
+    from scipy.interpolate import interp1d
+    from scipy.integrate import solve_ivp
+except ModuleNotFoundError:  # pragma: no cover
+    from math import erf
+
+    def erfi(x):  # type: ignore[override]
+        return x
+
+    mu_0 = 1.0  # vacuum permeability (stub)
+    c = 1.0     # speed of light (stub)
+
+    def interp1d(*args, **kwargs):  # pragma: no cover - simple stub
+        raise ModuleNotFoundError("scipy not available")
+
+    def solve_ivp(*args, **kwargs):  # pragma: no cover - simple stub
+        raise ModuleNotFoundError("scipy not available")
 from typing import Dict, Any, Optional
 from .utils import SimulationState, FieldManager
 
@@ -313,7 +329,7 @@ class CircuitModel:
         if not isinstance(z, (int, float)) or z <= 0:
             raise ValueError("Sheath position must be a positive number.")
 
-        L_plasma = mu_0 / (2 * np.pi) * z * np.log(self.b / self.a)
+        L_plasma = mu_0 / (2 * math.pi) * z * math.log(self.b / self.a)
         return L_plasma
 
     def plasma_resistance(self, state: SimulationState) -> float:
@@ -349,29 +365,67 @@ class CircuitModel:
         except ValueError as e:
             raise ValueError(f"Invalid plasma parameters: {e}")
 
-    def step(self, state: SimulationState, dt: float, method: str = "RK4") -> float:
-        """
-        Integrates the circuit ODEs over dt.
+    def step(
+        self,
+        current: float,
+        back_emf: float,
+        dt: float,
+        plasma_feedback: Optional[Dict[str, float]] = None,
+    ) -> tuple[float, float]:
+        """Advance the circuit state by ``dt`` seconds.
 
-        Args:
-            state: The current state of the simulation.
-            dt: The time step [s].
-            method: The integration method to use ("RK4" or "trapezoidal").
+        Parameters
+        ----------
+        current:
+            Instantaneous circuit current supplied by the plasma solver.
+        back_emf:
+            External electromotive force applied to the circuit (Volts).
+        dt:
+            Time step in seconds.
+        plasma_feedback:
+            Optional mapping containing plasma coupling terms.  Recognised keys
+            are ``"Lp"`` for the plasma inductance and either ``"emf"`` for the
+            induced back‑EMF or ``"dLpdt"`` for its time derivative.
 
-        Returns:
-            The circuit current [A].
+        Returns
+        -------
+        tuple(float, float)
+            The updated ``(current, voltage)`` pair.
         """
+
         if not isinstance(dt, (int, float)) or dt <= 0:
             raise ValueError("Time step (dt) must be a positive number.")
 
-        if method == "RK4":
-            return self._step_rk4(state, dt)
-        elif method == "trapezoidal":
-            return self._step_trapezoidal(state, dt)
-        elif method == "half_step":
-            return self._half_step(state, dt)
+        Lp = 0.0
+        emf = 0.0
+        dLpdt = 0.0
+        if plasma_feedback:
+            Lp = plasma_feedback.get("Lp", 0.0)
+            if "emf" in plasma_feedback:
+                emf = plasma_feedback["emf"]
+            else:
+                dLpdt = plasma_feedback.get("dLpdt", 0.0)
+
+        R_tot = self.R0 + self.ESR
+        L_tot = self.L0 + self.ESL + self.Ls + Lp
+
+        voltage = self.get_voltage()
+
+        if emf != 0.0:
+            numerator = -R_tot * current - voltage - emf - back_emf
         else:
-            raise ValueError(f"Invalid method: {method}")
+            numerator = -R_tot * current - voltage - dLpdt * current - back_emf
+
+        dIdt = numerator / L_tot if L_tot != 0.0 else 0.0
+        dVdt = -current / self.C
+
+        new_current = current + dIdt * dt
+        new_voltage = voltage + dVdt * dt
+
+        self.I = new_current
+        self.Q = new_voltage * self.C
+
+        return new_current, new_voltage
 
     def _step_rk4(self, state: SimulationState, dt: float) -> float:
         """
