@@ -1,6 +1,8 @@
 # DPF2 Simulator
 
-A minimal Dense Plasma Focus (DPF) simulator implemented in Python. This project provides a command line interface and simple models for the external circuit and pinch dynamics.
+A Dense Plasma Focus (DPF) simulator implemented in Python. This project provides a command line interface and simple models for the external circuit and pinch dynamics.
+The purpose of this project is to experiment with LLM capabilities and to use existing, verified research papers to drive a dense plasma focus simulation tool, that will be open
+to the scientific community to further explore.
 
 ## Documentation
 
