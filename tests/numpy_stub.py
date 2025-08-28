@@ -156,6 +156,20 @@ def zeros_like(arr):
     return zeros(array(arr).shape)
 
 
+def diag(arr):
+    arr = array(arr).data
+    # Extract diagonal for 2-D arrays
+    if isinstance(arr, list) and arr and isinstance(arr[0], list):
+        return array([arr[i][i] for i in range(min(len(arr), len(arr[0])))] )
+    # Construct diagonal matrix from 1-D input
+    if isinstance(arr, list):
+        n = len(arr)
+        mat = [[0.0]*n for _ in range(n)]
+        for i, v in enumerate(arr):
+            mat[i][i] = v
+        return array(mat)
+    return array([[arr]])
+
 def full(shape, fill_value):
     if isinstance(shape, tuple):
         if len(shape) == 1:
@@ -275,6 +289,7 @@ np = types.SimpleNamespace(
     array=array,
     zeros=zeros,
     zeros_like=zeros_like,
+    diag=diag,
     full=full,
     stack=stack,
     testing=types.SimpleNamespace(assert_allclose=lambda a,b,rtol=1e-8,atol=1e-8: (

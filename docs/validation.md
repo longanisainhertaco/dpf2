@@ -86,3 +86,14 @@ contributions of 1 nH, 0.1 Ω and 2 nF is combined with a closed 1 mΩ switch.
 The diagonal R, L and C matrices assembled from this setup are compared against
 `ReferenceMaterial/distributed_circuit.json` and must agree within a relative
 tolerance of **10⁻9**.
+
+## Coupled Benchmarks
+
+### Coupled Current Trace
+
+A zero-dimensional plasma model with a linearly increasing inductance is
+explicitly coupled to a series RLC circuit. The capacitor is initially charged
+to 1 kV and discharged for 1 µs with a 10 ns time step. The resulting current
+waveform is stored in `ReferenceMaterial/coupled_current.json` and the
+regression test in `tests/validation/test_coupled_current_trace.py` requires the
+L1 error between the simulated and reference traces to remain below **1e-6**.

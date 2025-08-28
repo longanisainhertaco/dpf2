@@ -22,6 +22,33 @@ from dpf2.diagnostics.synthetic_signals import (
 from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
 
+
+def _prompt_with_range(prompt: str, default: float, minimum: float, maximum: float, tip: str) -> float:
+    """Prompt the user for a floating point value within a range.
+
+    Displays ``tip`` whenever the entered value falls outside ``minimum`` and
+    ``maximum`` and reprompts until a valid value is provided.
+    """
+
+    while True:
+        value = click.prompt(prompt, type=float, default=default)
+        if minimum <= value <= maximum:
+            return value
+        click.echo(f"{prompt} must be between {minimum} and {maximum}. {tip}")
+
+
+def _validate_range(name: str, value: float, minimum: float, maximum: float, tip: str) -> float:
+    """Validate that ``value`` lies within the given range.
+
+    Raises ``click.BadParameter`` with a contextual tip on failure.
+    """
+
+    if not (minimum <= value <= maximum):
+        raise click.BadParameter(
+            f"{name} must be between {minimum} and {maximum}. {tip}"
+        )
+    return value
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +60,15 @@ def main() -> None:
 @main.command()
 @click.option("-c", "--config", type=click.Path(exists=False), help="Path to config file")
 @click.option("-o", "--output", type=click.Path(), default="output", help="Output directory")
+@click.option("--voltage", type=float, help="Charging voltage [V]")
+@click.option(
+    "--segment-length",
+    "segment_length",
+    type=float,
+    help="Electrode segment length [m]",
+)
 @click.option("--verbose", is_flag=True, help="Report solver progress and energy diagnostics")
+
 @click.option(
     "--synthetic",
     type=click.Path(exists=True, dir_okay=False),
@@ -41,13 +76,71 @@ def main() -> None:
     help="Run synthetic diagnostics using configuration file",
 )
 def simulate(config: str | None, output: str, verbose: bool, synthetic: str | None) -> None:
+
     """Run a DPF simulation."""
     try:
         if verbose:
             logging.basicConfig(level=logging.INFO)
         cfg = DPFConfig.from_file(config) if config else DPFConfig()
+
+        # Prompt and validate voltage
+        if voltage is None:
+            voltage = _prompt_with_range(
+                "Charging voltage [V]",
+                cfg.charging_voltage,
+                1000.0,
+                100000.0,
+                "Tip: values are in volts; try 15000 for 15 kV.",
+            )
+        else:
+            voltage = _validate_range(
+                "voltage", voltage, 1000.0, 100000.0, "Check the units (volts)."
+            )
+
+        # Prompt and validate segment length
+        if segment_length is None:
+            segment_length = _prompt_with_range(
+                "Segment length [m]",
+                cfg.electrode_length,
+                0.01,
+                1.0,
+                "Tip: specify meters; e.g. 0.1 for 10 cm.",
+            )
+        else:
+            segment_length = _validate_range(
+                "segment length",
+                segment_length,
+                0.01,
+                1.0,
+                "Ensure the length is given in metres.",
+            )
+
+        cfg.charging_voltage = voltage
+        cfg.electrode_length = segment_length
+
         sim = DPFSimulation(cfg)
-        times, currents, voltages = sim.run(output_dir=output, verbose=verbose)
+
+        progress_cb = None
+        pbar = None
+        if verbose:
+            from tqdm import tqdm
+
+            dt0 = cfg.cfl_number * min(sim.mesh.dr, sim.mesh.dz)
+            total_steps = int(cfg.end_time / dt0) + 1 if dt0 > 0 else None
+            pbar = tqdm(total=total_steps, desc="Simulating", unit="step")
+
+            def _update(step: int, time: float) -> None:
+                pbar.update(1)
+                pbar.set_postfix(time=f"{time:.3e}s")
+
+            progress_cb = _update
+
+        times, currents, voltages = sim.run(
+            output_dir=output, verbose=verbose, progress_cb=progress_cb
+        )
+
+        if pbar is not None:
+            pbar.close()
 
         if synthetic:
             cfg_data = json.loads(Path(synthetic).read_text())
