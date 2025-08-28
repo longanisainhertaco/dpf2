@@ -1,0 +1,6 @@
+# Fill gas configuration template
+# gas_type must be one of: deuterium, helium, neon, argon, xenon
+# initial_pressure in Pascals (>0)
+
+gas_type: deuterium
+initial_pressure: 133.3

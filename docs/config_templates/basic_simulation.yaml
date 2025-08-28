@@ -1,0 +1,36 @@
+# Basic DPF simulation configuration template
+# Generated from DPFConfig schema with validation hints
+
+# --- Device size ---------------------------------------------------------
+# cathode_radius: meters, >0
+cathode_radius: 0.015
+# anode_radius: meters, must be > cathode_radius
+anode_radius: 0.025
+# electrode_length: meters
+electrode_length: 0.10
+
+# --- Capacitor bank ------------------------------------------------------
+# capacitance: Farads, >0
+capacitance: 3.0e-05
+# inductance: Henrys, >0
+inductance: 2.0e-08
+# resistance: Ohms, >=0
+resistance: 0.01
+# charging_voltage: Volts
+charging_voltage: 15000.0
+
+# --- Fill gas ------------------------------------------------------------
+# gas_type: deuterium | helium | neon | argon | xenon
+gas_type: deuterium
+# initial_pressure: Pascals, >0
+initial_pressure: 133.3
+
+# --- Mesh and runtime settings ------------------------------------------
+# nr_cells: integer >0
+nr_cells: 100
+# nz_cells: integer >0
+nz_cells: 200
+# cfl_number: 0 < value <= 1
+cfl_number: 0.5
+# end_time: seconds, >0
+end_time: 1.0e-05

@@ -1,0 +1,7 @@
+# Capacitor bank configuration template
+# All values must be positive numbers (resistance >= 0)
+
+capacitance: 3.0e-05     # Farads
+inductance: 2.0e-08      # Henrys
+resistance: 0.01         # Ohms
+charging_voltage: 15000  # Volts

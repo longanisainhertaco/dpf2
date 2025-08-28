@@ -1,0 +1,6 @@
+# Device geometry template with validation hints
+# Each length is in meters and must be positive.
+
+cathode_radius: 0.015      # Cathode radius > 0
+anode_radius: 0.025        # Anode radius > cathode_radius
+electrode_length: 0.10     # Electrode length > 0
