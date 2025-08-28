@@ -79,7 +79,13 @@ class Diagnostic(DiagnosticsBase):
                 payload = callback()
             if payload is None:
                 return
-            self.data.append({"time": float(t), **payload})
+            # Attach simulation time and wall-clock timestamp for provenance
+            record = {
+                "time": float(t),
+                "wall_time": float(time.time()),
+            }
+            record.update(payload)
+            self.data.append(record)
         except Exception:  # pragma: no cover - error path
             logger.exception("diagnostic %s failed to record", self.name)
 
@@ -91,12 +97,24 @@ class Diagnostic(DiagnosticsBase):
         """
 
         grp = hdf5_group.require_group(self.name)
+        # Minimal openPMD-like identifiers
+        grp.attrs.setdefault("openPMD", "1.1.0")
+        grp.attrs.setdefault("openPMDextension", 0)
+
         try:
             if self.data:
-                grp.create_dataset("time", data=[d["time"] for d in self.data])
-                keys = [k for k in self.data[0] if k != "time"]
+                times = [d["time"] for d in self.data]
+                wtimes = [d.get("wall_time", float("nan")) for d in self.data]
+                t_ds = grp.create_dataset("time", data=times)
+                t_ds.attrs["unitSI"] = 1.0
+                wt_ds = grp.create_dataset("wall_time", data=wtimes)
+                wt_ds.attrs["unitSI"] = 1.0
+
+                keys = [k for k in self.data[0] if k not in ("time", "wall_time")]
                 for k in keys:
-                    grp.create_dataset(k, data=np.array([d[k] for d in self.data]))
+                    arr = np.array([d[k] for d in self.data])
+                    ds = grp.create_dataset(k, data=arr)
+                    ds.attrs["unitSI"] = 1.0
         except Exception:  # pragma: no cover - error path
             logger.exception("diagnostic %s failed to serialise", self.name)
         return grp
@@ -423,17 +441,21 @@ class Diagnostics:
         """Write diagnostics to HDF5."""
         try:
             with h5py.File(self.hdf5_filename, 'w') as f:
-                # Provenance / config
-                cfggrp = f.create_group('config')
-                for k,v in self.config.items():
-                    cfggrp.attrs[k] = json.dumps(v)
+                f.attrs.update({"openPMD": "1.1.0", "openPMDextension": 0})
+                # Provenance / config snapshot
+                prov = f.create_group('provenance')
+                prov.attrs['created'] = time.time()
+                prov.attrs['software'] = 'dpf2'
+                prov.create_dataset('config', data=np.string_(json.dumps(self.config)))
 
                 # Time series
                 ts = f.create_group('time_series')
+                ts.attrs.update({"openPMD": "1.1.0", "openPMDextension": 0})
                 keys = list(self.summary[0].keys())
                 for key in keys:
                     data = [rec[key] for rec in self.summary]
-                    ts.create_dataset(key, data=data, compression='gzip')
+                    ds = ts.create_dataset(key, data=data, compression='gzip')
+                    ds.attrs['unitSI'] = 1.0
 
                 # Snapshots
                 snaps = f.create_group('snapshots')
@@ -448,6 +470,7 @@ class Diagnostics:
 
                 # Diagnostic-specific data
                 diag_grp = f.create_group('diagnostics')
+                diag_grp.attrs.update({"openPMD": "1.1.0", "openPMDextension": 0})
                 for diagnostic in self.diagnostics:
                     diagnostic.to_hdf5(diag_grp)
         except Exception as e:
