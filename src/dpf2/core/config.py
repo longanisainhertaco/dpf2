@@ -68,8 +68,15 @@ class DPFConfig:
             return cls(**data)
         except (TypeError, ValidationError) as e:
             fields: list[str] = []
+            hints: dict[str, str] = {}
             if isinstance(e, ValidationError):
-                fields = [".".join(map(str, err["loc"])) for err in e.errors()]
+                for err in e.errors():
+                    field = ".".join(map(str, err["loc"]))
+                    fields.append(field)
+                    hints[field] = err["msg"]
+                hint_msg = "; ".join(f"{f}: {m}" for f, m in hints.items())
+            else:
+                hint_msg = str(e)
             raise ConfigurationError(
-                f"Error validating configuration: {e}", fields=fields
+                f"Error validating configuration: {hint_msg}", fields=fields, hints=hints
             ) from e

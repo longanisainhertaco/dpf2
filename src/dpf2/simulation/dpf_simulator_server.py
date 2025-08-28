@@ -39,7 +39,12 @@ sock = Sock(app)
 def _handle_config_error(err: ConfigurationError):
     """Return a JSON response for configuration errors."""
     logger.error("Configuration error: %s", err)
-    return jsonify({"error": str(err)}), 400
+    payload = {"error": str(err)}
+    if getattr(err, "hints", None):
+        payload["hints"] = err.hints
+    elif getattr(err, "fields", None):
+        payload["fields"] = err.fields
+    return jsonify(payload), 400
 
 
 @app.errorhandler(SimulationRuntimeError)

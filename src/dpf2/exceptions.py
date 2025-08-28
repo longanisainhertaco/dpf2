@@ -15,11 +15,20 @@ class ConfigurationError(DPFError):
         Optional list of configuration field names that are related to the
         error.  These can be displayed by CLI helpers to guide the user
         towards the problematic parts of the configuration.
+    hints:
+        Optional mapping of configuration field names to contextual hint
+        messages describing why validation failed for that field.
     """
 
-    def __init__(self, message: str, fields: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        fields: list[str] | None = None,
+        hints: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.fields = fields or []
+        self.hints = hints or {}
 
 class SimulationRuntimeError(DPFError):
     """Raised for runtime errors occurring during simulation execution."""

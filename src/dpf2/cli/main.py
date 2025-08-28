@@ -197,6 +197,11 @@ def main() -> None:
     default=None,
     help="Run synthetic diagnostics using configuration file",
 )
+@click.option(
+    "--diagnostics",
+    is_flag=True,
+    help="Save key waveforms and diagnostics at completion",
+)
 @click.option("--wizard", is_flag=True, help="Interactive mode to build configuration")
 def simulate(
     config: str | None,
@@ -205,6 +210,7 @@ def simulate(
     segment_length: float | None,
     verbose: bool,
     synthetic: str | None,
+    diagnostics: bool,
     wizard: bool,
 ) -> None:
 
@@ -266,6 +272,32 @@ def simulate(
 
         sim = DPFSimulation(cfg)
 
+        live_times: list[float] = []
+        live_currents: list[float] = []
+        live_voltages: list[float] = []
+        plot_backend: tuple | None = None
+        if click.get_text_stream("stdout").isatty():
+            try:
+                import matplotlib.pyplot as mplt
+
+                if hasattr(mplt, "ion") and hasattr(mplt, "subplots"):
+                    mplt.ion()
+                    fig, ax = mplt.subplots()
+                    (line_i,) = ax.plot([], [], label="current")
+                    (line_v,) = ax.plot([], [], label="voltage")
+                    ax.set_xlabel("time [s]")
+                    ax.legend()
+                    fig.tight_layout()
+                    plot_backend = ("matplotlib", mplt, fig, ax, line_i, line_v)
+            except Exception:
+                try:
+                    import plotext as ptx
+
+                    plot_backend = ("plotext", ptx)
+                    ptx.clt()
+                except Exception:
+                    plot_backend = None
+
         progress_cb = None
         pbar = None
         if verbose:
@@ -278,6 +310,49 @@ def simulate(
             def _update(step: int, time: float) -> None:
                 pbar.update(1)
                 pbar.set_postfix(time=f"{time:.3e}s")
+                if plot_backend is not None:
+                    live_times.append(sim.time)
+                    live_currents.append(sim.current)
+                    live_voltages.append(sim.voltage)
+                    if plot_backend[0] == "matplotlib":
+                        _, plt, fig, ax, line_i, line_v = plot_backend
+                        line_i.set_data(live_times, live_currents)
+                        line_v.set_data(live_times, live_voltages)
+                        ax.relim()
+                        ax.autoscale_view()
+                        fig.canvas.draw()
+                        fig.canvas.flush_events()
+                    else:
+                        _, plt = plot_backend
+                        plt.clt()
+                        plt.plot(live_times, live_currents, label="current")
+                        plt.plot(live_times, live_voltages, label="voltage")
+                        plt.xlabel("time [s]")
+                        plt.legend()
+                        plt.show()
+
+            progress_cb = _update
+        elif plot_backend is not None:
+            def _update(step: int, time: float) -> None:
+                live_times.append(sim.time)
+                live_currents.append(sim.current)
+                live_voltages.append(sim.voltage)
+                if plot_backend[0] == "matplotlib":
+                    _, plt, fig, ax, line_i, line_v = plot_backend
+                    line_i.set_data(live_times, live_currents)
+                    line_v.set_data(live_times, live_voltages)
+                    ax.relim()
+                    ax.autoscale_view()
+                    fig.canvas.draw()
+                    fig.canvas.flush_events()
+                else:
+                    _, plt = plot_backend
+                    plt.clt()
+                    plt.plot(live_times, live_currents, label="current")
+                    plt.plot(live_times, live_voltages, label="voltage")
+                    plt.xlabel("time [s]")
+                    plt.legend()
+                    plt.show()
 
             progress_cb = _update
 
@@ -288,6 +363,12 @@ def simulate(
 
         if pbar is not None:
             pbar.close()
+        if plot_backend and plot_backend[0] == "matplotlib":
+            plt = plot_backend[1]
+            try:
+                plt.ioff()
+            except Exception:
+                pass
 
         if synthetic:
             cfg_data = json.loads(Path(synthetic).read_text())
@@ -313,6 +394,21 @@ def simulate(
             out_file.write_text(json.dumps(outputs))
             click.echo(json.dumps(outputs))
 
+        if diagnostics:
+            diag = {
+                "time": times,
+                "current": currents,
+                "voltage": voltages,
+                "summary": {
+                    "peak_current": max(currents) if currents else 0.0,
+                    "peak_voltage": max(voltages) if voltages else 0.0,
+                    "final_time": times[-1] if times else 0.0,
+                },
+            }
+            diag_file = Path(output) / "diagnostics.json"
+            diag_file.write_text(json.dumps(diag))
+            click.echo(f"Diagnostics written to {diag_file}")
+
         try:
             import matplotlib.pyplot as plt
 
@@ -336,7 +432,10 @@ def simulate(
     except ConfigurationError as e:
         logger.error("Configuration error: %s", e)
         msg = f"Configuration error: {e}"
-        if getattr(e, "fields", None):
+        if getattr(e, "hints", None):
+            hint_msg = "; ".join(f"{f}: {h}" for f, h in e.hints.items())
+            msg += f"\nHint: {hint_msg}"
+        elif getattr(e, "fields", None):
             msg += f". Check fields: {', '.join(e.fields)}"
         raise click.ClickException(msg)
     except SimulationRuntimeError as e:
@@ -375,7 +474,10 @@ def validate_config(config: str) -> None:
         click.echo("Configuration is valid")
     except ConfigurationError as e:
         msg = str(e)
-        if getattr(e, "fields", None):
+        if getattr(e, "hints", None):
+            hint_msg = "; ".join(f"{f}: {h}" for f, h in e.hints.items())
+            msg += f"\nHint: {hint_msg}"
+        elif getattr(e, "fields", None):
             msg += f"\nCheck fields: {', '.join(e.fields)}"
         raise click.ClickException(msg)
 
