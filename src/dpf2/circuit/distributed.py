@@ -56,13 +56,19 @@ class TransmissionLineSegment:
 
 
 @dataclass
-class TriggeredSwitch:
-    """Idealised resistive switch with a single trigger time.
+
+
+class Switch:
+    """Idealised switch model with optional trigger times and parasitics.
 
     ``from_node`` and ``to_node`` identify the nodes bridged by the
-    switch. ``closed`` specifies the initial state at ``t = 0``.  If
-    ``trigger_time`` is provided the state toggles at that time.  The
-    instantaneous resistance is returned by :meth:`resistance`.
+    switch.  ``trigger_times`` is an optional sequence of times in
+    seconds when the switch state should toggle.  ``L_parasitic`` and
+    ``C_parasitic`` provide fixed inductive and capacitive contributions
+    irrespective of the switch state while ``R_parasitic`` is a series
+    resistance always present in addition to the state-dependent value
+    returned by :meth:`resistance`.
+
     """
 
     from_node: int
@@ -70,21 +76,20 @@ class TriggeredSwitch:
     closed: bool = True
     R_on: float = 1e-3
     R_off: float = 1e6
-    trigger_time: float | None = None
+
+    trigger_times: Sequence[float] | None = None
+    L_parasitic: float = 0.0
+    R_parasitic: float = 0.0
+    C_parasitic: float = 0.0
+
 
     def resistance(self, t: float | None = None) -> float:
         """Return the instantaneous resistance of the switch."""
 
-        state = self.closed
-        if self.trigger_time is not None and t is not None and t >= self.trigger_time:
-            state = not state
-        return self.R_on if state else self.R_off
 
+        base = self.R_on if self.closed else self.R_off
+        return base + self.R_parasitic
 
-# Backwards compatibility -------------------------------------------------
-# ``Switch`` used to be the public name of ``TriggeredSwitch``.  Provide an
-# alias so older imports continue to function.
-Switch = TriggeredSwitch
 
 
 def assemble_matrices(
@@ -115,6 +120,11 @@ def assemble_matrices(
     if switches is not None:
         for i, sw in enumerate(switches):
             if i < n:
-                R[i, i] += sw.resistance(t)
+
+                R[i, i] += sw.resistance()
+                L[i, i] += sw.L_parasitic
+                C[i, i] += sw.C_parasitic
+
+
 
     return R, L, C
