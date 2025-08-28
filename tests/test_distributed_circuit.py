@@ -55,6 +55,14 @@ spec.loader.exec_module(circuit_mod)
 CircuitModel = circuit_mod.CircuitModel
 SwitchModel = circuit_mod.SwitchModel
 
+# Remove the temporary package stubs so that other tests can import the real package
+sys.modules.pop("dpf2", None)
+sys.modules.pop("dpf2.simulation", None)
+sys.modules.pop("dpf2.core", None)
+sys.modules.pop("dpf2.core.bases", None)
+sys.modules.pop("dpf2.simulation.utils", None)
+sys.modules.pop("dpf2.simulation.constants", None)
+
 
 class DummyCollision:
     def spitzer_resistivity(self, *args, **kwargs):
@@ -219,4 +227,74 @@ def test_parasitic_elements_affect_dynamics():
 
     assert not np.isclose(base.get_current(), with_parasitics.get_current())
     assert not np.isclose(base.get_voltage(), with_parasitics.get_voltage())
+
+
+# ---------------------------------------------------------------------------
+# New tests exercising the light‑weight distributed circuit solver
+
+# Load the lightweight distributed circuit utilities directly from the source
+module_path = Path(__file__).resolve().parent.parent / "src/dpf2/circuit/distributed.py"
+spec = importlib.util.spec_from_file_location("dpf2.circuit.distributed", module_path)
+dist_mod = importlib.util.module_from_spec(spec)
+sys.modules["dpf2.circuit.distributed"] = dist_mod
+spec.loader.exec_module(dist_mod)
+TransmissionLineSegment = dist_mod.TransmissionLineSegment
+TriggeredSwitch = dist_mod.TriggeredSwitch
+
+module_path_rlc = Path(__file__).resolve().parent.parent / "src/dpf2/rlc_solver.py"
+spec_rlc = importlib.util.spec_from_file_location("dpf2.rlc_solver", module_path_rlc)
+rlc_mod = importlib.util.module_from_spec(spec_rlc)
+sys.modules["dpf2.rlc_solver"] = rlc_mod
+spec_rlc.loader.exec_module(rlc_mod)
+solve_distributed_circuit = rlc_mod.solve_distributed_circuit
+
+
+def test_lumped_vs_distributed_segments_and_energy():
+    """Two half segments should behave like a single lumped element."""
+
+    V0 = 1000.0
+    L_tot = 1e-6
+    C_tot = 1e-6
+
+    lumped = [
+        TransmissionLineSegment(
+            from_node=0,
+            to_node=1,
+            length=1.0,
+            L_per_m=L_tot,
+            R_per_m=0.0,
+            C_per_m=C_tot,
+        )
+    ]
+
+    distributed = [
+        TransmissionLineSegment(
+            from_node=0,
+            to_node=1,
+            length=0.5,
+            L_per_m=L_tot / 2,
+            R_per_m=0.0,
+            C_per_m=C_tot / 2,
+        ),
+        TransmissionLineSegment(
+            from_node=1,
+            to_node=2,
+            length=0.5,
+            L_per_m=L_tot / 2,
+            R_per_m=0.0,
+            C_per_m=C_tot / 2,
+        ),
+    ]
+
+    res_l = solve_distributed_circuit(lumped, None, V0=V0, t_end=1e-6, dt=1e-8)
+    res_d = solve_distributed_circuit(distributed, None, V0=V0, t_end=1e-6, dt=1e-8)
+
+    assert np.allclose(res_l.current, res_d.current, rtol=1e-3, atol=1e-6)
+    assert np.allclose(res_l.voltage, res_d.voltage, rtol=1e-3, atol=1e-6)
+
+    # With zero resistance the system energy should remain constant
+    initial = 0.5 * C_tot * V0**2
+    final = 0.5 * C_tot * res_d.voltage[-1] ** 2 + 0.5 * L_tot * res_d.current[-1] ** 2
+    assert np.isclose(initial, final, rtol=1e-3)
+
 

@@ -6,12 +6,14 @@ to the scientific community to further explore.
 
 ## Documentation
 
-Full documentation, including a user guide and API reference, lives in the [docs/](docs/index.md) directory and is available as a MkDocs site. Build and view it locally with:
+Full documentation, including a user guide, CLI reference, and API reference, lives in the [docs/](docs/index.md) directory and is available as a MkDocs site. Build and view it locally with:
 
 ```bash
 pip install -r docs/requirements.txt
 mkdocs serve
 ```
+
+For details on the command line interface, see [docs/cli.md](docs/cli.md).
 
 ## Installation
 

@@ -189,18 +189,30 @@ class CircuitSolver:
 
 def _profile_to_interp(profile, t_scale: float, y_scale: float):
     """Return interpolation functions for profile value and derivative."""
+
     if profile is None:
         return (lambda t: 0.0, lambda t: 0.0)
+
     arr = np.asarray(profile, dtype=float)
-    t = arr[:, 0] * t_scale
-    y = arr[:, 1] * y_scale
-    dy_dt = np.gradient(y, t, edge_order=2)
+    t_vals = arr[:, 0] * t_scale
+    y_vals = arr[:, 1] * y_scale
 
-    def val(tt):
-        return np.interp(tt, t, y, left=y[0], right=y[-1])
+    def val(tt: float) -> float:
+        return float(np.interp(tt, t_vals, y_vals, left=y_vals[0], right=y_vals[-1]))
 
-    def deriv(tt):
-        return np.interp(tt, t, dy_dt, left=dy_dt[0], right=dy_dt[-1])
+    def deriv(tt: float) -> float:
+        if tt <= t_vals[0]:
+            i = 0
+        elif tt >= t_vals[-1]:
+            i = len(t_vals) - 2
+        else:
+            i = 0
+            while i < len(t_vals) - 1 and not (t_vals[i] <= tt <= t_vals[i + 1]):
+                i += 1
+        dt = t_vals[i + 1] - t_vals[i]
+        if dt == 0:
+            return 0.0
+        return (y_vals[i + 1] - y_vals[i]) / dt
 
     return val, deriv
 
@@ -293,10 +305,21 @@ def run_circuit_simulation(
     """
 
     if cfg.segments:
-        return _run_distributed_network(cfg, t_end, num_points)
+        # Build distributed model and delegate to the lightweight solver
+        segments, switches = cfg.build_distributed_model()
+        dt = t_end * 1e-6 / (num_points - 1)
+        sol = solve_distributed_circuit(
+            segments, switches, V0=cfg.V0 * 1e3, t_end=t_end * 1e-6, dt=dt
+        )
+        z = np.zeros_like(sol.current)
+        return sol.t, sol.current, sol.voltage, z, z
 
+    # Basic series RLC with optional time varying inductances
     L_ext = cfg.L_ext * 1e-6
+    R_ext = cfg.R_ext * 1e-3
+    C_ext = cfg.C_ext * 1e-6
     V0 = cfg.V0 * 1e3
+
 
     delay = cfg.switch_delay * 1e-9
 
@@ -333,3 +356,4 @@ def run_circuit_simulation(
     current = [0.0 for _ in t_total]
     z = np.zeros_like(current)
     return np.array(t_total), np.array(current), np.array(voltage), z, z
+
