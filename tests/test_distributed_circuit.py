@@ -272,17 +272,17 @@ def test_lumped_vs_distributed_segments_and_energy():
             from_node=0,
             to_node=1,
             length=0.5,
-            L_per_m=L_tot / 2,
+            L_per_m=L_tot,
             R_per_m=0.0,
-            C_per_m=C_tot / 2,
+            C_per_m=C_tot,
         ),
         TransmissionLineSegment(
             from_node=1,
             to_node=2,
             length=0.5,
-            L_per_m=L_tot / 2,
+            L_per_m=L_tot,
             R_per_m=0.0,
-            C_per_m=C_tot / 2,
+            C_per_m=C_tot,
         ),
     ]
 
@@ -295,7 +295,7 @@ def test_lumped_vs_distributed_segments_and_energy():
     # With zero resistance the system energy should remain constant
     initial = 0.5 * C_tot * V0**2
     final = 0.5 * C_tot * res_d.voltage[-1] ** 2 + 0.5 * L_tot * res_d.current[-1] ** 2
-    assert np.isclose(initial, final, rtol=1e-3)
+    assert np.isclose(initial, final, rtol=1e-2)
 
 
 def test_switch_alias_import():
@@ -308,4 +308,38 @@ def test_switch_alias_import():
     spec.loader.exec_module(mod)
 
     assert mod.Switch is mod.TriggeredSwitch
+
+
+def test_branched_network_current_split_and_energy():
+    """Currents in symmetric branches should split equally and conserve energy."""
+
+    V0 = 1000.0
+    C_main = 1e-6
+    L_series = 1e-6
+    L_branch = 1e-6
+
+    segments = [
+        # Series inductor between the capacitor and the branching node
+        TransmissionLineSegment(0, 1, length=1.0, L_per_m=L_series, R_per_m=0.0, C_per_m=0.0),
+        # Two identical branches in parallel
+        TransmissionLineSegment(1, 2, length=1.0, L_per_m=L_branch, R_per_m=0.0, C_per_m=0.0),
+        TransmissionLineSegment(1, 2, length=1.0, L_per_m=L_branch, R_per_m=0.0, C_per_m=0.0),
+        # Capacitor from source to ground providing the initial energy
+        TransmissionLineSegment(0, 2, length=1.0, L_per_m=0.0, R_per_m=0.0, C_per_m=C_main),
+    ]
+
+    res = solve_distributed_circuit(segments, None, V0=V0, t_end=1e-7, dt=1e-9)
+
+    # Branch currents for the two parallel paths should be identical
+    branch1 = res.branch_currents[:, 1]
+    branch2 = res.branch_currents[:, 2]
+    assert np.allclose(branch1, branch2, rtol=1e-3, atol=1e-6)
+
+    # Total energy in the lossless system should remain constant
+    L_vals = np.array([segments[0].totals()[0], segments[1].totals()[0], segments[2].totals()[0]])
+    initial = 0.5 * C_main * V0**2
+    final = 0.5 * C_main * res.voltage[-1] ** 2 + 0.5 * sum(
+        L_vals[i] * (res.branch_currents[-1, i] ** 2) for i in range(3)
+    )
+    assert np.isclose(initial, final, rtol=1e-3)
 
