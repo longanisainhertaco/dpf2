@@ -71,14 +71,20 @@ def test_interferometry_serialisation(tmp_path):
     state = types.SimpleNamespace(density=np.full((1, 1, 1), 1.0), dx=1.0, domain_lo=(0, 0, 0))
 
     diag.record(0.0, None, None, state=state)
+    expected = diag.data[0]["phase_shift"]
+    wall = diag.data[0]["wall_time"]
 
     with h5py.File(tmp_path / "out.h5", "w") as h5:
         diag.to_hdf5(h5)
 
     with h5py.File(tmp_path / "out.h5", "r") as h5:
         grp = h5["int"]
+        assert grp.attrs["openPMD"] == "1.1.0"
         assert np.allclose(grp["time"].data, [0.0])
-        assert "phase_shift" in grp
+        assert np.allclose(grp["wall_time"].data, [wall])
+        assert np.allclose(grp["phase_shift"].data, [expected])
+        assert grp["time"].attrs["unitSI"] == 1.0
+        assert grp["phase_shift"].attrs["unitSI"] == 1.0
 
 
 def test_xray_detector_serialisation(tmp_path):
@@ -95,15 +101,20 @@ def test_xray_detector_serialisation(tmp_path):
     )
 
     diag.record(0.0, None, None, radiation=radiation, state=state)
+    expected = diag.data[0]["signal"]
+    wall = diag.data[0]["wall_time"]
 
     with h5py.File(tmp_path / "out.h5", "w") as h5:
         diag.to_hdf5(h5)
 
     with h5py.File(tmp_path / "out.h5", "r") as h5:
         grp = h5["xray"]
+        assert grp.attrs["openPMD"] == "1.1.0"
         assert np.allclose(grp["time"].data, [0.0])
-        assert "signal" in grp
+        assert np.allclose(grp["wall_time"].data, [wall])
+        assert np.allclose(grp["signal"].data, [expected])
         assert grp["energy_bins"].data == diag.energy_bins
+        assert grp["signal"].attrs["unitSI"] == 1.0
 
 
 def test_neutron_detector_serialisation(tmp_path):
@@ -117,14 +128,20 @@ def test_neutron_detector_serialisation(tmp_path):
     )
 
     diag.record(0.0, None, None, pic=pic)
+    expected = diag.data[0]["histogram"]
+    wall = diag.data[0]["wall_time"]
 
     with h5py.File(tmp_path / "out.h5", "w") as h5:
         diag.to_hdf5(h5)
 
     with h5py.File(tmp_path / "out.h5", "r") as h5:
         grp = h5["nd"]
+        assert grp.attrs["openPMD"] == "1.1.0"
         assert np.allclose(grp["time"].data, [0.0])
+        assert np.allclose(grp["wall_time"].data, [wall])
         assert np.array(grp["histogram"].data).shape == (1, len(bins) - 1)
+        assert np.allclose(grp["histogram"].data[0], expected)
         assert np.allclose(grp["time_bins"].data, bins)
+        assert grp["histogram"].attrs["unitSI"] == 1.0
         assert grp.attrs["reaction"] == "DD"
 
