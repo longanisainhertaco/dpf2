@@ -29,6 +29,24 @@ const_stub = types.ModuleType("dpf2.simulation.constants")
 const_stub.e = const_stub.me = const_stub.epsilon0 = 1.0
 sys.modules["dpf2.simulation.constants"] = const_stub
 
+# Minimal core stubs required by ``CircuitModel``
+core_stub = types.ModuleType("dpf2.core")
+bases_stub = types.ModuleType("dpf2.core.bases")
+
+class CouplingState:
+    """Lightweight replacement for the real ``CouplingState`` dataclass."""
+
+    def __init__(self, Lp: float = 0.0, emf: float = 0.0, current: float = 0.0, voltage: float = 0.0):
+        self.Lp = Lp
+        self.emf = emf
+        self.current = current
+        self.voltage = voltage
+
+bases_stub.CouplingState = CouplingState
+core_stub.bases = bases_stub
+sys.modules["dpf2.core"] = core_stub
+sys.modules["dpf2.core.bases"] = bases_stub
+
 module_path = Path(__file__).resolve().parent.parent / "src/dpf2/simulation/circuit.py"
 spec = importlib.util.spec_from_file_location("dpf2.simulation.circuit", module_path)
 circuit_mod = importlib.util.module_from_spec(spec)
