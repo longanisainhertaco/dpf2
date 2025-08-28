@@ -18,7 +18,7 @@ from .synthetic_signals import (
     rogowski_signal,
     bdot_signal,
 )
-from .streaming import NeutronYieldStreamer, XRayEmissionStreamer
+from .streaming import NeutronYieldStreamer, XRayEmissionStreamer, RealTimeComparator
 
 __all__ = [
     "compute_neutron_yield",
@@ -32,6 +32,7 @@ __all__ = [
     "bdot_signal",
     "NeutronYieldStreamer",
     "XRayEmissionStreamer",
+    "RealTimeComparator",
 ]
 
 # Compatibility helpers -------------------------------------------------------
