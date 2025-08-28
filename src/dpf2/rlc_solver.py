@@ -15,12 +15,12 @@ used by the tests introduced in this exercise.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Sequence, Any
 from concurrent.futures import ThreadPoolExecutor
 
 # ``numpy`` may be replaced by a light‑weight stub in the test environment but
 # it provides the minimal functionality used below (``array``).
-import numpy as np
+from .gpu_utils import xp, solve_linear, to_cpu
 import cmath
 
 from .circuit.distributed import TransmissionLineSegment, TriggeredSwitch, assemble_matrices
@@ -40,14 +40,19 @@ __all__ = ["run_circuit_simulation", "solve_distributed_circuit", "DistributedRL
 
 @dataclass
 class DistributedRLCSolution:
-    """Container returned by :func:`solve_distributed_circuit`."""
+    """Container returned by :func:`solve_distributed_circuit`.
 
-    t: np.ndarray
-    current: np.ndarray
-    voltage: np.ndarray
-    branch_currents: np.ndarray
-    node_voltages: np.ndarray
-    reflections: np.ndarray | None = None
+
+    The arrays may originate from either :mod:`numpy` or :mod:`cupy`
+    depending on the active backend.
+    """
+
+    t: Any
+    current: Any
+    voltage: Any
+    branch_currents: Any
+    node_voltages: Any
+
 
 
 # ---------------------------------------------------------------------------
@@ -87,10 +92,10 @@ def solve_distributed_circuit(
     # solution is obtained via multiplication of ABCD matrices and reflection
     # coefficients are tracked for each segment.
     if frequency is not None and segments:
-        w = 2.0 * np.pi * frequency
+        w = 2.0 * xp.pi * frequency
         n_steps = int(t_end / dt) + 1
-        t = np.array([i * dt for i in range(n_steps)])
-        vin = np.array([np.sin(w * ti) for ti in t]) * V0
+        t = xp.array([i * dt for i in range(n_steps)])
+        vin = xp.array([xp.sin(w * ti) for ti in t]) * V0
 
         if Z_load is None:
             ZL = segments[-1].characteristic_impedance(frequency)
@@ -136,24 +141,25 @@ def solve_distributed_circuit(
 
         amp = abs(H)
         phase = cmath.phase(H)
-        vout = np.array([np.sin(w * ti + phase) for ti in t]) * (amp * V0)
+        vout = xp.array([xp.sin(w * ti + phase) for ti in t]) * (amp * V0)
 
-        node_voltages = np.zeros((len(t), 2))
+        node_voltages = xp.zeros((len(t), 2))
         node_voltages[:, 0] = vin
         node_voltages[:, 1] = vout
 
         I_amp = V0 / (abs(Zin) if Zin != 0 else 1e-12)
         I_phase = -cmath.phase(Zin)
-        current = np.array([np.sin(w * ti + I_phase) for ti in t]) * I_amp
+        current = xp.array([xp.sin(w * ti + I_phase) for ti in t]) * I_amp
         branch_currents = current[:, None]
 
         return DistributedRLCSolution(
-            t=t,
-            current=current,
-            voltage=vin,
-            branch_currents=branch_currents,
-            node_voltages=node_voltages,
-            reflections=np.array(reflections),
+
+            t=to_cpu(t),
+            current=to_cpu(current),
+            voltage=to_cpu(vin),
+            branch_currents=to_cpu(branch_currents),
+            node_voltages=to_cpu(node_voltages),
+
         )
 
     # ------------------------------------------------------------------
@@ -167,11 +173,11 @@ def solve_distributed_circuit(
         nodes.add(sw.to_node)
     if not nodes:
         return DistributedRLCSolution(
-            t=np.zeros(0),
-            current=np.zeros(0),
-            voltage=np.zeros(0),
-            branch_currents=np.zeros((0, 0)),
-            node_voltages=np.zeros((0, 0)),
+            t=to_cpu(xp.zeros(0)),
+            current=to_cpu(xp.zeros(0)),
+            voltage=to_cpu(xp.zeros(0)),
+            branch_currents=to_cpu(xp.zeros((0, 0))),
+            node_voltages=to_cpu(xp.zeros((0, 0))),
         )
 
     node_list = sorted(nodes)
@@ -235,10 +241,10 @@ def solve_distributed_circuit(
     n_steps = int(t_end / dt) + 1
     t = [i * dt for i in range(n_steps)]
 
-    currents = np.zeros((n_steps, n_branches))
-    node_voltages = np.zeros((n_steps, n_nodes))
-    total_I = np.zeros(n_steps)
-    V_cap = np.zeros(n_steps)
+    currents = xp.zeros((n_steps, n_branches))
+    node_voltages = xp.zeros((n_steps, n_nodes))
+    total_I = xp.zeros(n_steps)
+    V_cap = xp.zeros(n_steps)
 
     total_I[0] = I0
     V_cap[0] = V0
@@ -246,36 +252,9 @@ def solve_distributed_circuit(
 
     # ------------------------------------------------------------------
     def _solve(M, b):
-        """Solve ``M x = b`` using ``numpy.linalg.solve`` if available."""
+        """Solve ``M x = b`` using the accelerated backend."""
 
-        try:  # pragma: no cover - prefer real numpy implementation
-            return np.linalg.solve(M, b)  # type: ignore[attr-defined]
-        except Exception:  # pragma: no cover - lightweight fallback
-            # Very small dense Gaussian elimination suitable for the tests
-            M = [[float(M[i][j]) for j in range(len(b))] for i in range(len(b))]
-            b = [float(bb) for bb in b]
-            n = len(b)
-            for i in range(n):
-                pivot = M[i][i]
-                if pivot == 0.0:
-                    for j in range(i + 1, n):
-                        if M[j][i] != 0.0:
-                            M[i], M[j] = M[j], M[i]
-                            b[i], b[j] = b[j], b[i]
-                            pivot = M[i][i]
-                            break
-                factor = pivot
-                for j in range(i, n):
-                    M[i][j] /= factor
-                b[i] /= factor
-                for k in range(n):
-                    if k == i:
-                        continue
-                    factor = M[k][i]
-                    for j in range(i, n):
-                        M[k][j] -= factor * M[i][j]
-                    b[k] -= factor * b[i]
-            return np.array(b)
+        return solve_linear(M, b)
 
     # ------------------------------------------------------------------
     for k in range(1, n_steps):
@@ -288,8 +267,8 @@ def solve_distributed_circuit(
         n_unknown = len(unknown_nodes)
         unk_index = {n: i for i, n in enumerate(unknown_nodes)}
 
-        M = np.zeros((n_unknown, n_unknown))
-        rhs = np.zeros(n_unknown)
+        M = xp.zeros((n_unknown, n_unknown))
+        rhs = xp.zeros(n_unknown)
 
         # Pre-compute constants for each branch
         a_vals = [0.0] * n_branches
@@ -329,10 +308,10 @@ def solve_distributed_circuit(
         if n_unknown:
             v_unknown = _solve(M, rhs)
         else:
-            v_unknown = np.zeros(0)
+            v_unknown = xp.zeros(0)
 
         # Compose full node voltage vector
-        v_full = np.zeros(n_nodes)
+        v_full = xp.zeros(n_nodes)
         v_full[node_index[src]] = V_cap[k - 1]
         v_full[node_index[ground]] = 0.0
         for n in unknown_nodes:
@@ -375,9 +354,9 @@ def solve_distributed_circuit(
             sw.update(tk + dt)
 
     return DistributedRLCSolution(
-        t=np.array(t),
-        current=np.array(total_I),
-        voltage=np.array(V_cap),
-        branch_currents=np.array(currents),
-        node_voltages=np.array(node_voltages),
+        t=to_cpu(xp.array(t)),
+        current=to_cpu(xp.array(total_I)),
+        voltage=to_cpu(xp.array(V_cap)),
+        branch_currents=to_cpu(xp.array(currents)),
+        node_voltages=to_cpu(xp.array(node_voltages)),
     )
