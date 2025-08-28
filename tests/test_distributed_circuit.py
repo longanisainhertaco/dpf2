@@ -298,3 +298,14 @@ def test_lumped_vs_distributed_segments_and_energy():
     assert np.isclose(initial, final, rtol=1e-3)
 
 
+def test_switch_alias_import():
+    """Compatibility layer should expose ``Switch`` as an alias."""
+
+    module_path = Path(__file__).resolve().parent.parent / "src/dpf2/distributed_circuit.py"
+    spec = importlib.util.spec_from_file_location("dpf2.distributed_circuit", module_path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["dpf2.distributed_circuit"] = mod
+    spec.loader.exec_module(mod)
+
+    assert mod.Switch is mod.TriggeredSwitch
+
