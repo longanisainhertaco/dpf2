@@ -3,10 +3,13 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import logging
 
 from ..mesh import Mesh2D
 from .config import DPFConfig
 from ..io.data_writer import DataWriter
+
+logger = logging.getLogger(__name__)
 
 
 class DPFSimulation:
@@ -46,7 +49,8 @@ class DPFSimulation:
         end_time: float | None = None,
         output_dir: str | None = None,
         output_interval: float | None = None,
-    ) -> None:
+        verbose: bool = False,
+    ) -> tuple[list[float], list[float], list[float]]:
         """Advance the simulation until ``end_time``.
 
         Parameters
@@ -58,6 +62,14 @@ class DPFSimulation:
         output_interval:
             Time between data dumps.  Defaults to ``end_time`` (only final
             state).
+        verbose:
+            If ``True`` prints progress and simple energy diagnostics.
+
+        Returns
+        -------
+        (times, currents, voltages): tuple[list[float], list[float], list[float]]
+            Time history of the main circuit quantities for quick-look plotting
+            or diagnostics.
         """
 
         end = end_time or self.config.end_time
@@ -70,6 +82,10 @@ class DPFSimulation:
         # Write initial state
         self.writer.write_hdf5({"current": self.current, "voltage": self.voltage}, time=self.time)
         last_output = self.time
+
+        times = [self.time]
+        currents = [self.current]
+        voltages = [self.voltage]
 
         while self.time < end:
             dt = min(
@@ -94,9 +110,21 @@ class DPFSimulation:
 
             self.time += dt
 
+            times.append(self.time)
+            currents.append(self.current)
+            voltages.append(self.voltage)
+
+            if verbose:
+                energy = 0.5 * self.config.capacitance * self.voltage**2 + 0.5 * self.config.inductance * self.current**2
+                logger.info(
+                    "t=%g s I=%g A V=%g V energy=%g J", self.time, self.current, self.voltage, energy
+                )
+
             if (self.time - last_output) >= interval or self.time >= end:
                 self.writer.write_hdf5(
                     {"current": self.current, "voltage": self.voltage},
                     time=self.time,
                 )
                 last_output = self.time
+
+        return times, currents, voltages

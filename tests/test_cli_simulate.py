@@ -32,8 +32,10 @@ def test_simulate_accepts_short_flags(monkeypatch, tmp_path):
         def __init__(self, cfg):
             captured["cfg"] = cfg
 
-        def run(self, output_dir):
+        def run(self, output_dir, verbose=False):
             captured["output"] = output_dir
+            captured["verbose"] = verbose
+            return [0.0], [0.0], [0.0]
 
     monkeypatch.setattr(cli_main.DPFConfig, "from_file", staticmethod(fake_from_file), raising=False)
     monkeypatch.setattr(cli_main, "DPFSimulation", DummySim)
