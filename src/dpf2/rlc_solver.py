@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Sequence
+from concurrent.futures import ThreadPoolExecutor
 
 # ``numpy`` may be replaced by a light‑weight stub in the test environment but
 # it provides the minimal functionality used below (``array``).
@@ -60,6 +61,7 @@ def solve_distributed_circuit(
     dt: float,
     I0: float = 0.0,
     frequency: float | None = None,
+    n_threads: int = 1,
 ) -> DistributedRLCSolution:
     """Integrate an RLC network using a very small nodal analysis scheme.
 
@@ -149,12 +151,24 @@ def solve_distributed_circuit(
 
     def _update_branch_lists(t: float) -> float:
         branches.clear()
-        for seg in segments:
+
+        def build_branch(seg: TransmissionLineSegment):
             L, R, _ = seg.totals(t, frequency)
             if L == 0.0 and R == 0.0:
-                continue  # pure capacitive branch handled via C matrix
+                return None  # pure capacitive branch handled via C matrix
             delay_steps = int(round(seg.delay() / dt)) if hasattr(seg, "delay") else 0
-            branches.append(_Branch(seg.from_node, seg.to_node, L or 1e-12, R, delay_steps))
+            return _Branch(seg.from_node, seg.to_node, L or 1e-12, R, delay_steps)
+
+        if n_threads > 1:
+            with ThreadPoolExecutor(max_workers=n_threads) as ex:
+                for br in ex.map(build_branch, segments):
+                    if br is not None:
+                        branches.append(br)
+        else:
+            for seg in segments:
+                br = build_branch(seg)
+                if br is not None:
+                    branches.append(br)
         for sw in switches:
             branches.append(
                 _Branch(sw.from_node, sw.to_node, sw.L_parasitic or 1e-12, sw.resistance(t), 0)
