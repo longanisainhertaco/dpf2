@@ -1,6 +1,7 @@
 from .mhd import ResistiveMHD
 
 from .pic_driver import PicDriver
+from .warpx_picmi import WarpXPicmiDriver
 
 
 # Import optional modules individually so that a failure in one does not
@@ -32,3 +33,4 @@ if HallMHD is not None:
 if neutral_density_source is not None:
     __all__.extend(["neutral_density_source", "wall_ablation_source"])
 __all__.append("PicDriver")
+__all__.append("WarpXPicmiDriver")
