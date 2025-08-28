@@ -12,7 +12,7 @@ All quantities are in SI units.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple, Any
+from typing import Tuple, Any, Callable
 
 import numpy as np
 import math
@@ -155,6 +155,7 @@ class CircuitSolver:
         back_emf: float,
         dt: float,
         energy_tracker: EnergyTracker | None = None,
+        update_coupling: Callable[[float, float], CouplingState] | None = None,
     ) -> CouplingState:
         """Explicit Euler advance with optional plasma feedback."""
 
@@ -165,15 +166,25 @@ class CircuitSolver:
         Lp = coupling.Lp
         emf = coupling.emf
         M = coupling.mutual_inductance
+        back_reaction = coupling.back_reaction
 
         Ltot = self.circuit.L + Lp
         num = self.circuit.V0 - self.circuit.R * current - voltage - emf - back_emf
         dIdt = num / Ltot
         dVdt = -current / self.circuit.C
-        back_reaction = M * dIdt if M != 0.0 else coupling.back_reaction
 
         new_current = current + dIdt * dt
         new_voltage = voltage + dVdt * dt
+
+        if update_coupling is not None:
+            fb = update_coupling(new_current, new_voltage)
+            Lp = fb.Lp
+            emf = fb.emf
+            M = fb.mutual_inductance
+            back_reaction = fb.back_reaction
+        else:
+            if M != 0.0:
+                back_reaction = M * dIdt
 
         self.time.append(t + dt)
         self.currents.append(new_current)
@@ -329,40 +340,40 @@ def run_circuit_simulation(
     C_ext = cfg.C_ext * 1e-6
     V0 = cfg.V0 * 1e3
 
+    t_total = np.linspace(0.0, t_end * 1e-6, num_points)
+    dt = t_total[1] - t_total[0] if len(t_total) > 1 else 0.0
 
-    delay = cfg.switch_delay * 1e-9
+    Lp_val, Lp_der = _profile_to_interp(cfg.plasma_inductance_profile, 1e-6, 1e-6)
+    M_val, M_der = _profile_to_interp(cfg.mutual_inductance_profile, 1e-6, 1e-6)
+    Im_val, Im_der = _profile_to_interp(cfg.mutual_current_profile, 1e-6, 1.0)
 
-    if plasma_solver is not None:
-        # Explicit coupling with a plasma model using the lightweight circuit solver
-        dt = t_end * 1e-6 / (num_points - 1)
-        circuit = RLCCircuitSolver(L_ext=L_ext, R_ext=R, C_ext=C, V0=V0)
-        t_total = np.linspace(0.0, t_end * 1e-6, num_points)
+    current = 0.0
+    voltage = V0
+    i_hist = [current]
+    v_hist = [voltage]
+    im_hist = [Im_val(0.0)]
+    vm_hist = [0.0]
 
-        current = circuit.currents[-1]
-        voltage = circuit.voltages[-1]
-        plasma_solver.step(plasma_state, 0.0, current, voltage)
-        for _ in range(1, num_points):
-            fb = plasma_solver.coupling_interface()
-            coupling = CouplingState(
-                Lp=fb.Lp, emf=fb.emf, current=current, voltage=voltage
-            )
-            updated = circuit.step(coupling, 0.0, dt)
-            current, voltage = updated.current, updated.voltage
-            plasma_solver.step(plasma_state, dt, current, voltage)
+    for t in t_total[1:]:
+        Lp = Lp_val(t)
+        dLpdt = Lp_der(t)
+        Ltot = L_ext + Lp
+        M = M_val(t)
+        back_emf = M * Im_der(t) + Im_val(t) * M_der(t)
+        dIdt = (voltage - R_ext * current - back_emf - current * dLpdt) / Ltot
+        dVdt = -current / C_ext
+        current += dIdt * dt
+        voltage += dVdt * dt
+        i_hist.append(current)
+        v_hist.append(voltage)
+        im_hist.append(Im_val(t))
+        vm_hist.append(back_emf)
 
-
-        return (
-            np.array(t_total),
-            np.array(current),
-            np.array(voltage),
-            np.array(i_mutual),
-            np.array(v_mutual),
-        )
-
-    # Default simple discharge: voltage decays exponentially, no current dynamics
-    tau = (t_total[-1] + 1e-9)
-    voltage = [V0 * math.exp(-t / tau) for t in t_total]
-    current = [0.0 for _ in t_total]
-    z = np.zeros_like(current)
-    return np.array(t_total), np.array(current), np.array(voltage), z, z
+    return (
+        t_total,
+        np.array(i_hist),
+        np.array(v_hist),
+        np.array(im_hist),
+        np.array(vm_hist),
+    )
 
