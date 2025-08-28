@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 # Backward compatibility wrapper
-from typing import Any
+from typing import Any, Sequence
+from concurrent.futures import ThreadPoolExecutor
 
 from .pinch_models import (
     AnalyticPinchModel,
@@ -67,6 +68,39 @@ def advance_plasma_with_circuit(
         back_reaction=back_reaction,
     )
 
+
+def advance_plasmas_with_circuit(
+    plasmas: Sequence[PlasmaSolverBase],
+    states: Sequence[Any],
+    couplings: Sequence[CouplingState],
+    dt: float,
+    n_threads: int = 1,
+) -> list[CouplingState]:
+    """Advance multiple plasma solvers in parallel.
+
+    Parameters
+    ----------
+    plasmas, states, couplings:
+        Sequences of plasma solvers, their corresponding state objects and
+        coupling states.
+    dt:
+        Timestep in seconds applied to all solvers.
+    n_threads:
+        Number of worker threads to use.  A value of ``1`` executes the
+        updates serially.
+    """
+
+    tasks = list(zip(plasmas, states, couplings))
+
+    def _run(args: tuple[PlasmaSolverBase, Any, CouplingState]) -> CouplingState:
+        p, s, c = args
+        return advance_plasma_with_circuit(p, s, c, dt)
+
+    if n_threads > 1:
+        with ThreadPoolExecutor(max_workers=n_threads) as ex:
+            return list(ex.map(_run, tasks))
+    return [_run(t) for t in tasks]
+
 __all__ = [
     "AnalyticPinchModel",
     "PinchResult",
@@ -75,4 +109,5 @@ __all__ = [
     "ablation_mass_energy_source",
     "insulator_sleeve_area",
     "advance_plasma_with_circuit",
+    "advance_plasmas_with_circuit",
 ]
