@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 
 from pathlib import Path
-from typing import Dict, Sequence
+from typing import Dict, Sequence, Callable
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -156,7 +156,17 @@ class SimulationEngine:
         energy_csv: str | None = None,
         energy_tol: float | None = None,
         diagnostics: Sequence[DiagnosticsBase] | None = None,
+        progress_cb: Callable[[int, float, float, float], None] | None = None,
     ) -> SimulationResults:
+        """Run the simulation and return aggregated results.
+
+        Parameters
+        ----------
+        progress_cb:
+            Optional callback invoked after each circuit step with
+            ``(step, time, current, voltage)`` allowing in-situ diagnostics
+            or live visualisation.
+        """
         sc = self.config.simulation_control
         dt = sc.min_dt or 1e-9
         t_end = sc.time_end - sc.time_start
@@ -189,6 +199,7 @@ class SimulationEngine:
 
         current = circuit.currents[-1]
         voltage = circuit.voltages[-1]
+        step = 0
         while circuit.time[-1] < t_end:
             state = CouplingState(current=current, voltage=voltage)
             # Optional multithreading for circuit stepping
@@ -209,6 +220,9 @@ class SimulationEngine:
                     diag.record(updated, circuit.time[-1])
 
             current, voltage = updated.current, updated.voltage
+            step += 1
+            if progress_cb is not None:
+                progress_cb(step, circuit.time[-1], current, voltage)
 
         t = np.array(circuit.time)
         current_arr = np.array(circuit.currents)

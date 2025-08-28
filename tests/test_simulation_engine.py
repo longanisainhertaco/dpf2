@@ -59,3 +59,21 @@ def test_engine_ensemble_statistics():
     assert isinstance(results, EnsembleResults)
     assert results.current_mean.shape == results.time.shape
     assert results.current_std.shape == results.time.shape
+
+
+def test_engine_progress_callback():
+    cfg = DPFConfig.with_defaults()
+    cfg = cfg.model_copy(
+        update={
+            "simulation_control": cfg.simulation_control.model_copy(update={"time_end": 1e-6})
+        }
+    )
+    engine = SimulationEngine(cfg)
+    calls: list[float] = []
+
+    def cb(step: int, time: float, current: float, voltage: float) -> None:
+        calls.append(time)
+
+    engine.run(progress_cb=cb)
+    assert len(calls) > 0
+    assert all(calls[i] <= calls[i + 1] for i in range(len(calls) - 1))
