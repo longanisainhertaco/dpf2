@@ -1,5 +1,6 @@
 """Models for distributed RLC circuits used in DPF simulations.
 
+
 This module defines lightweight data structures describing
 transmission line segments and switches.  The intent is to provide a
 minimal representation that can be translated from configuration data
@@ -12,13 +13,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
+
 import numpy as np
 
 __all__ = [
     "TransmissionLineSegment",
+
     "Switch",
+
     "assemble_matrices",
 ]
+
 
 
 @dataclass
@@ -35,10 +40,12 @@ class TransmissionLineSegment:
 
     from_node: int
     to_node: int
+
     length: float
     L_per_m: float
     R_per_m: float
     C_per_m: float
+
     L_parasitic: float = 0.0
     R_parasitic: float = 0.0
     C_parasitic: float = 0.0
@@ -46,16 +53,20 @@ class TransmissionLineSegment:
     R_profile: Sequence[tuple[float, float]] | None = None
     C_profile: Sequence[tuple[float, float]] | None = None
 
+
     def totals(self) -> tuple[float, float, float]:
         """Return the total ``L``, ``R`` and ``C`` for this segment."""
+
 
         L = self.L_per_m * self.length + self.L_parasitic
         R = self.R_per_m * self.length + self.R_parasitic
         C = self.C_per_m * self.length + self.C_parasitic
+
         return L, R, C
 
 
 @dataclass
+
 class Switch:
     """Idealised switch model with optional trigger times.
 
@@ -79,6 +90,7 @@ class Switch:
 
 def assemble_matrices(
     segments: Sequence[TransmissionLineSegment],
+
     switches: Sequence[Switch] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Assemble diagonal ``R``, ``L`` and ``C`` matrices for a network.
@@ -95,6 +107,7 @@ def assemble_matrices(
     L = np.zeros((n, n), dtype=float)
     C = np.zeros((n, n), dtype=float)
 
+
     for i, seg in enumerate(segments):
         L_tot, R_tot, C_tot = seg.totals()
         L[i, i] = L_tot
@@ -104,6 +117,8 @@ def assemble_matrices(
     if switches is not None:
         for i, sw in enumerate(switches):
             if i < n:
+
                 R[i, i] += sw.resistance()
+
 
     return R, L, C

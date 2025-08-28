@@ -307,10 +307,11 @@ class CircuitConfig(ConfigSectionBase):
 
     # ------------------------------------------------------------------
     def build_distributed_model(self):
-        """Return ``TransmissionLineSegment`` and ``Switch`` objects.
+        """Return ``TransmissionLineSegment`` and ``TriggeredSwitch`` objects.
 
         This helper constructs runtime objects used by the distributed
         circuit solver.  Values are converted from the configuration
+
         units (μH, mΩ, μF, ns) into SI units as required by
         :class:`dpf2.circuit.distributed.TransmissionLineSegment`.
         """
@@ -350,9 +351,10 @@ class CircuitConfig(ConfigSectionBase):
                     )
                 )
 
-        switches: List[Switch] = []
+        switches: List[TriggeredSwitch] = []
         if self.switches:
             for sw in self.switches:
+
                 trig = (
                     [t * 1e-9 for t in sw.trigger_times]
                     if sw.trigger_times is not None
@@ -363,6 +365,7 @@ class CircuitConfig(ConfigSectionBase):
                         from_node=sw.from_node,
                         to_node=sw.to_node,
                         closed=sw.closed,
+
                         R_on=sw.r_on * 1e-3,
                         R_off=sw.r_off * 1e-3,
                         trigger_times=trig,
