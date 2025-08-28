@@ -24,6 +24,7 @@ from .gpu_utils import xp, solve_linear, to_cpu
 import cmath
 
 from .circuit.distributed import TransmissionLineSegment, TriggeredSwitch, assemble_matrices
+from .core.bases import PlasmaSolverBase
 
 # Re-export for legacy tests
 # ``circuit_solver`` is a heavy dependency in the full project.  The tests in
@@ -69,6 +70,7 @@ def solve_distributed_circuit(
     frequency: float | None = None,
     Z_load: float | complex | None = None,
     n_threads: int = 1,
+    em_solver: PlasmaSolverBase | None = None,
 ) -> DistributedRLCSolution:
     """Integrate an RLC network using a very small nodal analysis scheme.
 
@@ -257,6 +259,8 @@ def solve_distributed_circuit(
         return solve_linear(M, b)
 
     # ------------------------------------------------------------------
+    em_state: Any | None = None
+
     for k in range(1, n_steps):
         tk = t[k - 1]
 
@@ -342,6 +346,13 @@ def solve_distributed_circuit(
                 tot += currents[k, idx_b]
             elif br.to_node == src:
                 tot -= currents[k, idx_b]
+
+        # Couple to optional EM solver
+        if em_solver is not None:
+            em_state = em_solver.step(em_state, dt, tot, V_cap[k - 1])
+            feedback = em_solver.coupling_interface().back_reaction
+            tot += feedback
+
         total_I[k] = tot
 
         # Capacitor voltage update
