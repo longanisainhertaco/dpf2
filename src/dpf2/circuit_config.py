@@ -372,6 +372,9 @@ class CircuitConfig(ConfigSectionBase):
         switches: List[TriggeredSwitch] = []
         if self.switches:
             for sw in self.switches:
+                trig = None
+                if sw.trigger_times:
+                    trig = [tt * 1e-9 for tt in sw.trigger_times]
                 switches.append(
                     TriggeredSwitch(
                         from_node=sw.from_node,
@@ -379,12 +382,10 @@ class CircuitConfig(ConfigSectionBase):
                         closed=sw.closed,
                         R_on=sw.r_on * 1e-3,
                         R_off=sw.r_off * 1e-3,
-
                         L_parasitic=sw.L_parasitic * 1e-6,
                         R_parasitic=sw.R_parasitic * 1e-3,
                         C_parasitic=sw.C_parasitic * 1e-6,
                         trigger_times=trig,
-
                     )
                 )
 
