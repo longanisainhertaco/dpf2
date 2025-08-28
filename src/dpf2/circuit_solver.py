@@ -320,40 +320,40 @@ def run_circuit_simulation(
     C_ext = cfg.C_ext * 1e-6
     V0 = cfg.V0 * 1e3
 
-    t = np.linspace(0.0, t_end * 1e-6, num_points)
-    dt = t[1] - t[0]
-    I = np.zeros(num_points)
-    V = np.zeros(num_points)
-    V[0] = V0
 
-    lp_val, lp_der = _profile_to_interp(cfg.plasma_inductance_profile, 1e-6, 1e-6)
-    m_val, m_der = _profile_to_interp(cfg.mutual_inductance_profile, 1e-6, 1e-6)
-    im_val, im_der = _profile_to_interp(cfg.mutual_current_profile, 1e-6, 1e3)
+    delay = cfg.switch_delay * 1e-9
 
-    # Special case: purely time-varying inductance with otherwise ideal circuit
-    if (
-        cfg.plasma_inductance_profile is not None
-        and R_ext == 0.0
-        and cfg.mutual_inductance_profile is None
-        and cfg.mutual_current_profile is None
-    ):
-        # Assume linear profile for the simple analytic form used in tests
-        t0, L0 = cfg.plasma_inductance_profile[0]
-        t1, L1 = cfg.plasma_inductance_profile[-1]
-        slope = ((L1 - L0) * 1e-6) / ((t1 - t0) * 1e-6 + 1e-30)
-        I = V0 * t / (L_ext + slope * t)
-        V = np.array([V0 for _ in t])
-    else:
-        for k in range(1, num_points):
-            tk = t[k - 1]
-            Lp = lp_val(tk)
-            emf = m_val(tk) * im_der(tk) + im_val(tk) * m_der(tk)
-            Ltot = L_ext + Lp
-            dIdt = (V[k - 1] - R_ext * I[k - 1] - emf) / Ltot
-            dVdt = -I[k - 1] / C_ext
-            I[k] = I[k - 1] + dIdt * dt
-            V[k] = V[k - 1] + dVdt * dt
+    if plasma_solver is not None:
+        # Explicit coupling with a plasma model using the lightweight circuit solver
+        dt = t_end * 1e-6 / (num_points - 1)
+        circuit = RLCCircuitSolver(L_ext=L_ext, R_ext=R, C_ext=C, V0=V0)
+        t_total = np.linspace(0.0, t_end * 1e-6, num_points)
 
-    i_mutual = np.array([im_val(tt) for tt in t])
-    v_mutual = np.array([m_val(tt) * im_der(tt) + im_val(tt) * m_der(tt) for tt in t])
-    return t, I, V, i_mutual, v_mutual
+        current = circuit.currents[-1]
+        voltage = circuit.voltages[-1]
+        plasma_solver.step(plasma_state, 0.0, current, voltage)
+        for _ in range(1, num_points):
+            fb = plasma_solver.coupling_interface()
+            coupling = CouplingState(
+                Lp=fb.Lp, emf=fb.emf, current=current, voltage=voltage
+            )
+            updated = circuit.step(coupling, 0.0, dt)
+            current, voltage = updated.current, updated.voltage
+            plasma_solver.step(plasma_state, dt, current, voltage)
+
+
+        return (
+            np.array(t_total),
+            np.array(current),
+            np.array(voltage),
+            np.array(i_mutual),
+            np.array(v_mutual),
+        )
+
+    # Default simple discharge: voltage decays exponentially, no current dynamics
+    tau = (t_total[-1] + 1e-9)
+    voltage = [V0 * math.exp(-t / tau) for t in t_total]
+    current = [0.0 for _ in t_total]
+    z = np.zeros_like(current)
+    return np.array(t_total), np.array(current), np.array(voltage), z, z
+

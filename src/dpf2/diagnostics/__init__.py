@@ -10,11 +10,21 @@ from pydantic import BaseModel, ConfigDict, Field, root_validator
 from .neutron_yield import compute_neutron_yield
 from .xray_spectra import compute_xray_spectrum
 from .scope_trace import compute_scope_trace
+from .synthetic_signals import (
+    current_waveform,
+    voltage_waveform,
+    rogowski_signal,
+    bdot_signal,
+)
 
 __all__ = [
     "compute_neutron_yield",
     "compute_xray_spectrum",
     "compute_scope_trace",
+    "current_waveform",
+    "voltage_waveform",
+    "rogowski_signal",
+    "bdot_signal",
 ]
 
 # Compatibility helpers -------------------------------------------------------
