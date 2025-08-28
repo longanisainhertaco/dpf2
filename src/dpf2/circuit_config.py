@@ -94,19 +94,80 @@ from .units_settings import UnitsSettings
 
 class SegmentConfig(BaseModel):
     """Configuration for a single transmission line segment."""
-
-    length: float = Field(..., metadata={"units": "m", "category": "Circuit", "group": "Distributed"})
-    L: float = Field(..., metadata={"units": "μH", "category": "Circuit", "group": "Distributed"})
-    R: float = Field(..., metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"})
-    C: float = Field(..., metadata={"units": "μF", "category": "Circuit", "group": "Distributed"})
+    length: float = Field(
+        ..., metadata={"units": "m", "category": "Circuit", "group": "Distributed"}
+    )
+    L: float = Field(
+        ..., metadata={"units": "μH", "category": "Circuit", "group": "Distributed"}
+    )
+    R: float = Field(
+        ..., metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"}
+    )
+    C: float = Field(
+        ..., metadata={"units": "μF", "category": "Circuit", "group": "Distributed"}
+    )
+    from_node: int = Field(
+        ..., alias="fromNode", metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    to_node: int = Field(
+        ..., alias="toNode", metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    L_parasitic: float = Field(
+        0.0,
+        alias="lParasitic",
+        metadata={"units": "μH", "category": "Circuit", "group": "Distributed"},
+    )
+    R_parasitic: float = Field(
+        0.0,
+        alias="rParasitic",
+        metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"},
+    )
+    C_parasitic: float = Field(
+        0.0,
+        alias="cParasitic",
+        metadata={"units": "μF", "category": "Circuit", "group": "Distributed"},
+    )
+    L_profile: Optional[TimeVoltageProfile] = Field(
+        None,
+        alias="lProfile",
+        metadata={"units": ["μs", "μH"], "category": "Circuit", "group": "Distributed"},
+    )
+    R_profile: Optional[TimeVoltageProfile] = Field(
+        None,
+        alias="rProfile",
+        metadata={"units": ["μs", "mΩ"], "category": "Circuit", "group": "Distributed"},
+    )
+    C_profile: Optional[TimeVoltageProfile] = Field(
+        None,
+        alias="cProfile",
+        metadata={"units": ["μs", "μF"], "category": "Circuit", "group": "Distributed"},
+    )
 
 
 class SwitchConfig(BaseModel):
     """Configuration for a simple resistive switch."""
-
+    from_node: int = Field(
+        ..., alias="fromNode", metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    to_node: int = Field(
+        ..., alias="toNode", metadata={"category": "Circuit", "group": "Distributed"}
+    )
     closed: bool = Field(True, metadata={"category": "Circuit", "group": "Distributed"})
-    r_on: float = Field(1.0, alias="rOn", metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"})
-    r_off: float = Field(1.0e6, alias="rOff", metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"})
+    r_on: float = Field(
+        1.0,
+        alias="rOn",
+        metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"},
+    )
+    r_off: float = Field(
+        1.0e6,
+        alias="rOff",
+        metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"},
+    )
+    trigger_times: Optional[List[float]] = Field(
+        None,
+        alias="triggerTimes",
+        metadata={"units": "ns", "category": "Circuit", "group": "Distributed"},
+    )
 
 
 class CircuitConfig(ConfigSectionBase):
@@ -250,11 +311,18 @@ class CircuitConfig(ConfigSectionBase):
 
         This helper constructs runtime objects used by the distributed
         circuit solver.  Values are converted from the configuration
-        units (μH, mΩ, μF) into SI units per metre as required by
-        :class:`dpf2.distributed_circuit.TransmissionLineSegment`.
+        units (μH, mΩ, μF, ns) into SI units as required by
+        :class:`dpf2.circuit.distributed.TransmissionLineSegment`.
         """
 
-        from .distributed_circuit import TransmissionLineSegment, Switch
+        from .circuit.distributed import TransmissionLineSegment, Switch
+
+        def _convert_profile(
+            prof: Optional[TimeVoltageProfile], scale_val: float
+        ) -> Optional[List[tuple[float, float]]]:
+            if prof is None:
+                return None
+            return [(t * 1e-6, v * scale_val) for t, v in prof]
 
         segments: List[TransmissionLineSegment] = []
         if self.segments:
@@ -267,21 +335,37 @@ class CircuitConfig(ConfigSectionBase):
                     length = 1.0
                 segments.append(
                     TransmissionLineSegment(
+                        from_node=seg.from_node,
+                        to_node=seg.to_node,
                         length=length,
                         L_per_m=L / length,
                         R_per_m=R / length,
                         C_per_m=C / length,
+                        L_parasitic=seg.L_parasitic * 1e-6,
+                        R_parasitic=seg.R_parasitic * 1e-3,
+                        C_parasitic=seg.C_parasitic * 1e-6,
+                        L_profile=_convert_profile(seg.L_profile, 1e-6),
+                        R_profile=_convert_profile(seg.R_profile, 1e-3),
+                        C_profile=_convert_profile(seg.C_profile, 1e-6),
                     )
                 )
 
         switches: List[Switch] = []
         if self.switches:
             for sw in self.switches:
+                trig = (
+                    [t * 1e-9 for t in sw.trigger_times]
+                    if sw.trigger_times is not None
+                    else None
+                )
                 switches.append(
                     Switch(
+                        from_node=sw.from_node,
+                        to_node=sw.to_node,
                         closed=sw.closed,
                         R_on=sw.r_on * 1e-3,
                         R_off=sw.r_off * 1e-3,
+                        trigger_times=trig,
                     )
                 )
 
