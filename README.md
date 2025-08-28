@@ -62,7 +62,7 @@ simulation = DPFSimulation(config)
 result = simulation.run()
 ```
 
-Configuration files use the `DPFConfig` schema defined in this repository. See `examples/quickstart.ipynb` for a walk-through in a Jupyter notebook.
+Configuration files use the `DPFConfig` schema defined in this repository. See the [quickstart tutorial](docs/tutorials/quickstart.md) or its [Jupyter notebook](examples/notebooks/quickstart.ipynb) for a walk-through.
 
 ### Equation of State Backends
 
