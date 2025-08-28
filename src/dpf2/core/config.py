@@ -67,4 +67,9 @@ class DPFConfig:
         try:
             return cls(**data)
         except (TypeError, ValidationError) as e:
-            raise ConfigurationError(f"Error validating configuration: {e}") from e
+            fields: list[str] = []
+            if isinstance(e, ValidationError):
+                fields = [".".join(map(str, err["loc"])) for err in e.errors()]
+            raise ConfigurationError(
+                f"Error validating configuration: {e}", fields=fields
+            ) from e

@@ -5,7 +5,21 @@ class DPFError(Exception):
     """Base class for all custom exceptions raised by DPF2."""
 
 class ConfigurationError(DPFError):
-    """Raised when a simulation or server configuration is invalid."""
+    """Raised when a simulation or server configuration is invalid.
+
+    Parameters
+    ----------
+    message:
+        Human readable error message.
+    fields:
+        Optional list of configuration field names that are related to the
+        error.  These can be displayed by CLI helpers to guide the user
+        towards the problematic parts of the configuration.
+    """
+
+    def __init__(self, message: str, fields: list[str] | None = None) -> None:
+        super().__init__(message)
+        self.fields = fields or []
 
 class SimulationRuntimeError(DPFError):
     """Raised for runtime errors occurring during simulation execution."""

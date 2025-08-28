@@ -2,9 +2,9 @@
 import json
 import logging
 import dataclasses
-import json
 from pathlib import Path
 from dataclasses import asdict
+from typing import Any
 
 import click
 
@@ -49,7 +49,130 @@ def _validate_range(name: str, value: float, minimum: float, maximum: float, tip
         )
     return value
 
+
+def _to_float(val: Any) -> float:
+    """Best-effort conversion to float supporting stubbed types."""
+    try:
+        return float(val)
+    except TypeError:
+        return float(getattr(val, "data", val))
+
 logger = logging.getLogger(__name__)
+
+
+def build_config_wizard() -> DPFConfig:
+    """Interactively build a :class:`DPFConfig` with contextual hints."""
+
+    click.echo("DPF2 configuration wizard\n")
+    defaults = DPFConfig()
+
+    # --- Device size -------------------------------------------------
+    click.echo("Device geometry:")
+    click.echo("  Electrode dimensions set the physical scale of the device.")
+    cathode_radius = click.prompt(
+        "Cathode radius [m]",
+        type=click.FloatRange(1e-3, 1.0),
+        default=defaults.cathode_radius,
+        show_default=True,
+    )
+    anode_radius = click.prompt(
+        "Anode radius [m] (must exceed cathode radius)",
+        type=click.FloatRange(1e-3, 1.0),
+        default=defaults.anode_radius,
+        show_default=True,
+    )
+    electrode_length = click.prompt(
+        "Electrode length [m]",
+        type=click.FloatRange(1e-3, 2.0),
+        default=defaults.electrode_length,
+        show_default=True,
+    )
+
+    # --- Fill gas ----------------------------------------------------
+    click.echo("\nPlasma fill parameters:")
+    gas_type = click.prompt(
+        "Fill gas", type=str, default=defaults.gas_type, show_default=True
+    )
+    initial_pressure = click.prompt(
+        "Initial pressure [Pa]",
+        type=click.FloatRange(1.0, None),
+        default=defaults.initial_pressure,
+        show_default=True,
+    )
+
+    # --- Capacitor bank ---------------------------------------------
+    click.echo("\nExternal circuit:")
+    click.echo("Capacitor bank and wiring values influence current rise.")
+    capacitance = click.prompt(
+        "Capacitance [F]",
+        type=click.FloatRange(1e-9, None),
+        default=defaults.capacitance,
+        show_default=True,
+    )
+    inductance = click.prompt(
+        "Inductance [H]",
+        type=click.FloatRange(1e-9, None),
+        default=defaults.inductance,
+        show_default=True,
+    )
+    resistance = click.prompt(
+        "Resistance [Ohm]",
+        type=click.FloatRange(0.0, None),
+        default=defaults.resistance,
+        show_default=True,
+    )
+    charging_voltage = click.prompt(
+        "Charging voltage [V]",
+        type=click.FloatRange(1.0, None),
+        default=defaults.charging_voltage,
+        show_default=True,
+    )
+
+    # --- Advanced options -------------------------------------------
+    advanced_cfg: dict[str, float | int] = {}
+    if click.confirm("Configure advanced mesh and timing options?", default=False):
+        click.echo("\nMesh and solver controls:")
+        advanced_cfg["nr_cells"] = click.prompt(
+            "Radial cells",
+            type=click.IntRange(1, 10000),
+            default=defaults.nr_cells,
+            show_default=True,
+        )
+        advanced_cfg["nz_cells"] = click.prompt(
+            "Axial cells",
+            type=click.IntRange(1, 10000),
+            default=defaults.nz_cells,
+            show_default=True,
+        )
+        advanced_cfg["cfl_number"] = click.prompt(
+            "CFL number",
+            type=click.FloatRange(0.0, 1.0),
+            default=defaults.cfl_number,
+            show_default=True,
+        )
+        advanced_cfg["end_time"] = click.prompt(
+            "Simulation end time [s]",
+            type=click.FloatRange(0.0, None),
+            default=defaults.end_time,
+            show_default=True,
+        )
+
+    cfg_dict = asdict(defaults)
+    cfg_dict.update(
+        {
+            "cathode_radius": cathode_radius,
+            "anode_radius": anode_radius,
+            "electrode_length": electrode_length,
+            "gas_type": gas_type,
+            "initial_pressure": initial_pressure,
+            "capacitance": capacitance,
+            "inductance": inductance,
+            "resistance": resistance,
+            "charging_voltage": charging_voltage,
+        }
+    )
+    cfg_dict.update(advanced_cfg)
+    return DPFConfig(**cfg_dict)
 
 
 @click.group()
@@ -68,55 +191,78 @@ def main() -> None:
     help="Electrode segment length [m]",
 )
 @click.option("--verbose", is_flag=True, help="Report solver progress and energy diagnostics")
-
 @click.option(
     "--synthetic",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
     help="Run synthetic diagnostics using configuration file",
 )
-def simulate(config: str | None, output: str, verbose: bool, synthetic: str | None) -> None:
+@click.option("--wizard", is_flag=True, help="Interactive mode to build configuration")
+def simulate(
+    config: str | None,
+    output: str,
+    voltage: float | None,
+    segment_length: float | None,
+    verbose: bool,
+    synthetic: str | None,
+    wizard: bool,
+) -> None:
 
     """Run a DPF simulation."""
     try:
         if verbose:
             logging.basicConfig(level=logging.INFO)
-        cfg = DPFConfig.from_file(config) if config else DPFConfig()
 
-        # Prompt and validate voltage
-        if voltage is None:
-            voltage = _prompt_with_range(
-                "Charging voltage [V]",
-                cfg.charging_voltage,
-                1000.0,
-                100000.0,
-                "Tip: values are in volts; try 15000 for 15 kV.",
-            )
+        if wizard:
+            cfg = build_config_wizard()
         else:
-            voltage = _validate_range(
-                "voltage", voltage, 1000.0, 100000.0, "Check the units (volts)."
-            )
+            cfg = DPFConfig.from_file(config) if config else DPFConfig()
 
-        # Prompt and validate segment length
-        if segment_length is None:
-            segment_length = _prompt_with_range(
-                "Segment length [m]",
-                cfg.electrode_length,
-                0.01,
-                1.0,
-                "Tip: specify meters; e.g. 0.1 for 10 cm.",
-            )
-        else:
-            segment_length = _validate_range(
-                "segment length",
-                segment_length,
-                0.01,
-                1.0,
-                "Ensure the length is given in metres.",
-            )
+            default_voltage = getattr(cfg, "charging_voltage", 15000.0)
+            default_length = getattr(cfg, "electrode_length", 0.10)
 
-        cfg.charging_voltage = voltage
-        cfg.electrode_length = segment_length
+            # Prompt and validate voltage
+            if voltage is None:
+                if click.get_text_stream("stdin").isatty():
+                    voltage = _prompt_with_range(
+                        "Charging voltage [V]",
+                        default_voltage,
+                        1000.0,
+                        100000.0,
+                        "Tip: values are in volts; try 15000 for 15 kV.",
+                    )
+                else:
+                    voltage = default_voltage
+            else:
+                voltage = _validate_range(
+                    "voltage", voltage, 1000.0, 100000.0, "Check the units (volts)."
+                )
+
+            # Prompt and validate segment length
+            if segment_length is None:
+                if click.get_text_stream("stdin").isatty():
+                    segment_length = _prompt_with_range(
+                        "Segment length [m]",
+                        default_length,
+                        0.01,
+                        1.0,
+                        "Tip: specify meters; e.g. 0.1 for 10 cm.",
+                    )
+                else:
+                    segment_length = default_length
+            else:
+                segment_length = _validate_range(
+                    "segment length",
+                    segment_length,
+                    0.01,
+                    1.0,
+                    "Ensure the length is given in metres.",
+                )
+
+            if hasattr(cfg, "charging_voltage"):
+                cfg.charging_voltage = voltage
+            if hasattr(cfg, "electrode_length"):
+                cfg.electrode_length = segment_length
 
         sim = DPFSimulation(cfg)
 
@@ -135,9 +281,10 @@ def simulate(config: str | None, output: str, verbose: bool, synthetic: str | No
 
             progress_cb = _update
 
-        times, currents, voltages = sim.run(
-            output_dir=output, verbose=verbose, progress_cb=progress_cb
-        )
+        run_kwargs = {"output_dir": output, "verbose": verbose}
+        if progress_cb is not None:
+            run_kwargs["progress_cb"] = progress_cb
+        times, currents, voltages = sim.run(**run_kwargs)
 
         if pbar is not None:
             pbar.close()
@@ -188,7 +335,10 @@ def simulate(config: str | None, output: str, verbose: bool, synthetic: str | No
                 click.echo(f"Plotting failed: {e}")
     except ConfigurationError as e:
         logger.error("Configuration error: %s", e)
-        raise click.ClickException(f"Configuration error: {e}")
+        msg = f"Configuration error: {e}"
+        if getattr(e, "fields", None):
+            msg += f". Check fields: {', '.join(e.fields)}"
+        raise click.ClickException(msg)
     except SimulationRuntimeError as e:
         logger.error("Simulation error: %s", e)
         raise click.ClickException(f"Simulation error: {e}")
@@ -214,6 +364,22 @@ def validate(config: str, dataset: str, outdir: str) -> None:
         raise click.ClickException(str(e))
 
 
+@main.command("validate-config")
+@click.option(
+    "--config", type=click.Path(exists=True, dir_okay=False), required=True
+)
+def validate_config(config: str) -> None:
+    """Validate a configuration file."""
+    try:
+        DPFConfig.from_file(config)
+        click.echo("Configuration is valid")
+    except ConfigurationError as e:
+        msg = str(e)
+        if getattr(e, "fields", None):
+            msg += f"\nCheck fields: {', '.join(e.fields)}"
+        raise click.ClickException(msg)
+
+
 @main.command()
 @click.option("--input", type=click.Path(file_okay=False), required=True)
 @click.option("--output", type=click.Path(), default="plot.png")
@@ -229,11 +395,48 @@ def plot(input: str, output: str) -> None:
     times, currents, voltages = [], [], []
     for fname in files:
         with h5py.File(fname, "r") as fh:
-            times.append(float(fh["time"][()]))
+            times.append(_to_float(fh["time"][()]))
             if "current" in fh:
-                currents.append(float(fh["current"][()]))
+                currents.append(_to_float(fh["current"][()]))
             if "voltage" in fh:
-                voltages.append(float(fh["voltage"][()]))
+                voltages.append(_to_float(fh["voltage"][()]))
+
+    if not currents:
+        raise click.ClickException("No current data available")
+
+    plt.figure()
+    plt.plot(times, currents, label="current")
+    if voltages:
+        plt.plot(times, voltages, label="voltage")
+    plt.xlabel("time [s]")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output)
+    click.echo(f"Plot written to {output}")
+
+
+@main.command("plot-run")
+@click.option(
+    "--run-dir", type=click.Path(file_okay=False, exists=True), required=True
+)
+@click.option("--output", type=click.Path(), default="plot.png")
+def plot_run(run_dir: str, output: str) -> None:
+    """Quickly plot current and voltage from an existing run directory."""
+    import h5py
+    import matplotlib.pyplot as plt
+
+    files = sorted(Path(run_dir).glob("data_*.h5"))
+    if not files:
+        raise click.ClickException(f"No HDF5 files found in {run_dir}")
+
+    times, currents, voltages = [], [], []
+    for fname in files:
+        with h5py.File(fname, "r") as fh:
+            times.append(_to_float(fh["time"][()]))
+            if "current" in fh:
+                currents.append(_to_float(fh["current"][()]))
+            if "voltage" in fh:
+                voltages.append(_to_float(fh["voltage"][()]))
 
     if not currents:
         raise click.ClickException("No current data available")
@@ -335,115 +538,7 @@ def schema() -> None:
 def wizard(output: str) -> None:
     """Interactive wizard for building a configuration."""
 
-    click.echo("DPF2 configuration wizard\n")
-    defaults = DPFConfig()
-
-    # --- Device size -------------------------------------------------
-    click.echo("Device geometry:")
-    click.echo("  Electrode dimensions set the physical scale of the device.")
-    cathode_radius = click.prompt(
-        "Cathode radius [m]",
-        type=click.FloatRange(1e-3, 1.0),
-        default=defaults.cathode_radius,
-        show_default=True,
-    )
-    anode_radius = click.prompt(
-        "Anode radius [m] (must exceed cathode radius)",
-        type=click.FloatRange(1e-3, 1.0),
-        default=defaults.anode_radius,
-        show_default=True,
-    )
-    electrode_length = click.prompt(
-        "Electrode length [m]",
-        type=click.FloatRange(1e-3, 2.0),
-        default=defaults.electrode_length,
-        show_default=True,
-    )
-
-    # --- Fill gas ----------------------------------------------------
-    click.echo("\nPlasma fill parameters:")
-    gas_type = click.prompt("Fill gas", type=str, default=defaults.gas_type, show_default=True)
-    initial_pressure = click.prompt(
-        "Initial pressure [Pa]",
-        type=click.FloatRange(1.0, None),
-        default=defaults.initial_pressure,
-        show_default=True,
-    )
-
-    # --- Capacitor bank ---------------------------------------------
-    click.echo("\nExternal circuit:")
-    click.echo("Capacitor bank and wiring values influence current rise.")
-    capacitance = click.prompt(
-        "Capacitance [F]",
-        type=click.FloatRange(1e-9, None),
-        default=defaults.capacitance,
-        show_default=True,
-    )
-    inductance = click.prompt(
-        "Inductance [H]",
-        type=click.FloatRange(1e-9, None),
-        default=defaults.inductance,
-        show_default=True,
-    )
-    resistance = click.prompt(
-        "Resistance [Ohm]",
-        type=click.FloatRange(0.0, None),
-        default=defaults.resistance,
-        show_default=True,
-    )
-    charging_voltage = click.prompt(
-        "Charging voltage [V]",
-        type=click.FloatRange(1.0, None),
-        default=defaults.charging_voltage,
-        show_default=True,
-    )
-
-    # --- Advanced options -------------------------------------------
-    advanced_cfg: dict[str, float | int] = {}
-    if click.confirm("Configure advanced mesh and timing options?", default=False):
-        click.echo("\nMesh and solver controls:")
-        advanced_cfg["nr_cells"] = click.prompt(
-            "Radial cells",
-            type=click.IntRange(1, 10000),
-            default=defaults.nr_cells,
-            show_default=True,
-        )
-        advanced_cfg["nz_cells"] = click.prompt(
-            "Axial cells",
-            type=click.IntRange(1, 10000),
-            default=defaults.nz_cells,
-            show_default=True,
-        )
-        advanced_cfg["cfl_number"] = click.prompt(
-            "CFL number",
-            type=click.FloatRange(0.0, 1.0),
-            default=defaults.cfl_number,
-            show_default=True,
-        )
-        advanced_cfg["end_time"] = click.prompt(
-            "Simulation end time [s]",
-            type=click.FloatRange(0.0, None),
-            default=defaults.end_time,
-            show_default=True,
-        )
-
-    cfg_dict = asdict(defaults)
-    cfg_dict.update(
-        {
-            "cathode_radius": cathode_radius,
-            "anode_radius": anode_radius,
-            "electrode_length": electrode_length,
-            "gas_type": gas_type,
-            "initial_pressure": initial_pressure,
-            "capacitance": capacitance,
-            "inductance": inductance,
-            "resistance": resistance,
-            "charging_voltage": charging_voltage,
-        }
-    )
-    cfg_dict.update(advanced_cfg)
-    cfg = DPFConfig(**cfg_dict)
-
+    cfg = build_config_wizard()
     with open(output, "w") as fh:
         json.dump(asdict(cfg), fh, indent=2)
 
