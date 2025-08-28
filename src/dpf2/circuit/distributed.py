@@ -87,12 +87,27 @@ class TransmissionLineSegment:
     L_profile: Sequence[tuple[float, float]] | None = None
     R_profile: Sequence[tuple[float, float]] | None = None
     C_profile: Sequence[tuple[float, float]] | None = None
+    propagation_velocity: float | None = None
+    skin_effect_coeff: float = 0.0
 
-    def totals(self, t: float = 0.0) -> tuple[float, float, float]:
-        """Return the total ``(L, R, C)`` for this segment at time ``t``."""
+    def delay(self) -> float:
+        """Return propagation delay for this segment in seconds."""
+
+        if self.propagation_velocity:
+            return self.length / self.propagation_velocity
+        return 0.0
+
+    def totals(self, t: float = 0.0, frequency: float | None = None) -> tuple[float, float, float]:
+        """Return the total ``(L, R, C)`` for this segment.
+
+        ``frequency`` can be provided to account for a simple skin effect model
+        where the resistive component increases with ``sqrt(frequency)``.
+        """
 
         L = self.L_per_m * self.length + self.L_parasitic + _interp_profile(self.L_profile, t)
         R = self.R_per_m * self.length + self.R_parasitic + _interp_profile(self.R_profile, t)
+        if frequency is not None and self.skin_effect_coeff:
+            R += self.skin_effect_coeff * self.length * float(np.sqrt(frequency))
         C = self.C_per_m * self.length + self.C_parasitic + _interp_profile(self.C_profile, t)
         return L, R, C
 
