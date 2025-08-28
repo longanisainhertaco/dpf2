@@ -192,6 +192,11 @@ def main() -> None:
 )
 @click.option("--verbose", is_flag=True, help="Report solver progress and energy diagnostics")
 @click.option(
+    "--live-plot",
+    is_flag=True,
+    help="Stream current/voltage plots during simulation",
+)
+@click.option(
     "--synthetic",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
@@ -209,6 +214,7 @@ def simulate(
     voltage: float | None,
     segment_length: float | None,
     verbose: bool,
+    live_plot: bool,
     synthetic: str | None,
     diagnostics: bool,
     wizard: bool,
@@ -276,27 +282,33 @@ def simulate(
         live_currents: list[float] = []
         live_voltages: list[float] = []
         plot_backend: tuple | None = None
-        if click.get_text_stream("stdout").isatty():
-            try:
-                import matplotlib.pyplot as mplt
-
-                if hasattr(mplt, "ion") and hasattr(mplt, "subplots"):
-                    mplt.ion()
-                    fig, ax = mplt.subplots()
-                    (line_i,) = ax.plot([], [], label="current")
-                    (line_v,) = ax.plot([], [], label="voltage")
-                    ax.set_xlabel("time [s]")
-                    ax.legend()
-                    fig.tight_layout()
-                    plot_backend = ("matplotlib", mplt, fig, ax, line_i, line_v)
-            except Exception:
+        if live_plot:
+            if click.get_text_stream("stdout").isatty():
                 try:
-                    import plotext as ptx
+                    import matplotlib.pyplot as mplt
 
-                    plot_backend = ("plotext", ptx)
-                    ptx.clt()
+                    if hasattr(mplt, "ion") and hasattr(mplt, "subplots"):
+                        mplt.ion()
+                        fig, ax = mplt.subplots()
+                        (line_i,) = ax.plot([], [], label="current")
+                        (line_v,) = ax.plot([], [], label="voltage")
+                        ax.set_xlabel("time [s]")
+                        ax.legend()
+                        fig.tight_layout()
+                        plot_backend = ("matplotlib", mplt, fig, ax, line_i, line_v)
                 except Exception:
-                    plot_backend = None
+                    try:
+                        import plotext as ptx
+
+                        plot_backend = ("plotext", ptx)
+                        ptx.clt()
+                    except Exception:
+                        plot_backend = None
+            else:
+                click.echo(
+                    "--live-plot requested but no interactive terminal detected; disabling.",
+                    err=True,
+                )
 
         progress_cb = None
         pbar = None
