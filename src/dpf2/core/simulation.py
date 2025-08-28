@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 import logging
 
 from ..mesh import Mesh2D
@@ -50,6 +50,7 @@ class DPFSimulation:
         output_dir: str | None = None,
         output_interval: float | None = None,
         verbose: bool = False,
+        progress_cb: Callable[[int, float], None] | None = None,
     ) -> tuple[list[float], list[float], list[float]]:
         """Advance the simulation until ``end_time``.
 
@@ -87,6 +88,7 @@ class DPFSimulation:
         currents = [self.current]
         voltages = [self.voltage]
 
+        step = 0
         while self.time < end:
             dt = min(
                 self.config.cfl_number * min(self.mesh.dr, self.mesh.dz),
@@ -109,6 +111,7 @@ class DPFSimulation:
                 )
 
             self.time += dt
+            step += 1
 
             times.append(self.time)
             currents.append(self.current)
@@ -119,6 +122,9 @@ class DPFSimulation:
                 logger.info(
                     "t=%g s I=%g A V=%g V energy=%g J", self.time, self.current, self.voltage, energy
                 )
+
+            if progress_cb is not None:
+                progress_cb(step, self.time)
 
             if (self.time - last_output) >= interval or self.time >= end:
                 self.writer.write_hdf5(
