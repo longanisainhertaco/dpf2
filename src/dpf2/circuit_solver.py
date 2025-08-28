@@ -57,7 +57,7 @@ if not hasattr(np, "interp"):
 
 from .circuit_config import CircuitConfig
 from .core.circuit import RLCCircuitSolver
-from .core.bases import PlasmaSolverBase
+from .core.bases import PlasmaSolverBase, CouplingState
 
 from .geometry.inductance import loop_mutual_inductance
 
@@ -151,40 +151,22 @@ class CircuitSolver:
 
     def step(
         self,
-        current: float,
+        coupling: CouplingState,
         back_emf: float,
         dt: float,
-        plasma_feedback: dict[str, float] | None = None,
         energy_tracker: EnergyTracker | None = None,
-    ) -> Tuple[float, float]:
+    ) -> CouplingState:
         """Explicit Euler advance with optional plasma feedback."""
 
-        voltage = self.voltages[-1]
+        current = coupling.current
+        voltage = coupling.voltage
         t = self.time[-1]
 
-        Lp = 0.0
-        dLpdt = 0.0
-        emf = 0.0
-        use_emf = False
-        if plasma_feedback:
-            Lp = plasma_feedback.get("Lp", 0.0)
-            if "emf" in plasma_feedback:
-                emf = plasma_feedback["emf"]
-                use_emf = True
-            else:
-                dLpdt = plasma_feedback.get("dLpdt", 0.0)
+        Lp = coupling.Lp
+        emf = coupling.emf
 
         Ltot = self.circuit.L + Lp
-        if use_emf:
-            num = self.circuit.V0 - self.circuit.R * current - voltage - emf - back_emf
-        else:
-            num = (
-                self.circuit.V0
-                - self.circuit.R * current
-                - voltage
-                - dLpdt * current
-                - back_emf
-            )
+        num = self.circuit.V0 - self.circuit.R * current - voltage - emf - back_emf
         dIdt = num / Ltot
         dVdt = -current / self.circuit.C
 
@@ -202,7 +184,7 @@ class CircuitSolver:
                 inductive=0.5 * Ltot * new_current**2,
             )
 
-        return new_current, new_voltage
+        return CouplingState(Lp=Lp, emf=emf, current=new_current, voltage=new_voltage)
 
 
 def _profile_to_interp(profile, t_scale: float, y_scale: float):
@@ -329,16 +311,10 @@ def run_circuit_simulation(
         plasma_solver.step(plasma_state, 0.0, current, voltage)
         for _ in range(1, num_points):
             feedback = plasma_solver.coupling_interface()
-            # Compute mutual inductance based on the instantaneous plasma radius
-            if hasattr(plasma_solver, "radius"):
-                M = loop_mutual_inductance(
-                    getattr(plasma_solver, "radius"),
-                    getattr(plasma_solver, "radius"),
-                    0.0,
-                )
-                feedback["M"] = M
-                feedback.setdefault("dIm_dt", 0.0)
-            current, voltage = circuit.step(current, 0.0, dt, feedback)
+            feedback.current = current
+            feedback.voltage = voltage
+            updated = circuit.step(feedback, 0.0, dt)
+            current, voltage = updated.current, updated.voltage
             plasma_solver.step(plasma_state, dt, current, voltage)
 
 

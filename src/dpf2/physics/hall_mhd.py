@@ -7,6 +7,7 @@ import numpy as np
 
 from .mhd import ResistiveMHD
 from ..mesh import Mesh2D, Mesh3D
+from ..core.bases import CouplingState
 
 
 @dataclass
@@ -33,7 +34,7 @@ class HallMHD(ResistiveMHD):
 
     # plasma inductance state (Henries)
     inductance: float = 0.0
-    circuit_feedback: dict[str, float] | None = field(default=None, init=False)
+    circuit_feedback: CouplingState | None = field(default=None, init=False)
 
     # ------------------------------------------------------------------
     # Primitive ↔ conservative conversions
@@ -97,7 +98,8 @@ class HallMHD(ResistiveMHD):
             applied back‑EMF.
         circuit:
             Optional circuit solver implementing ``step(current, back_emf, dt,
-            plasma_feedback)``.  When provided the circuit is advanced using the
+            ``circuit.step`` ``(CouplingState, back_emf, dt)`` interface. When provided
+            the circuit is advanced using the
             computed feedback terms and the updated current/back‑EMF are stored
             on the model instance.
         """
@@ -118,16 +120,11 @@ class HallMHD(ResistiveMHD):
         # accounted for via ``emf`` above.
         self.inductance = Lp
         self.back_emf = emf
-        self.circuit_feedback = {"Lp": Lp, "emf": emf}
+        self.circuit_feedback = CouplingState(Lp=Lp, emf=emf, current=self.current)
 
         if circuit is not None:
-            # ``circuit.step`` returns the updated current and circuit voltage.
-            # Only the current is retained; the plasma feedback remains stored
-            # on ``self.back_emf`` and ``self.circuit_feedback``.
-            new_current, _ = circuit.step(
-                self.current, 0.0, dt, self.circuit_feedback
-            )
-            self.current = new_current
+            updated = circuit.step(self.circuit_feedback, 0.0, dt)
+            self.current = updated.current
 
         return state
 

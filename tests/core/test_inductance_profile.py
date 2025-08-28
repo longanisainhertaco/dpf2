@@ -1,7 +1,7 @@
 import math
 
 from dpf2.core.circuit import RLCCircuitSolver
-from dpf2.core.bases import PlasmaSolverBase
+from dpf2.core.bases import PlasmaSolverBase, CouplingState
 from dpf2.geometry.inductance import coaxial_inductance
 
 
@@ -23,7 +23,7 @@ class AnalyticPlasma(PlasmaSolverBase):
     def coupling_interface(self):
         Lp = coaxial_inductance(self.radius, self.outer, self.length)
         self.history.append((self.time, Lp))
-        return {"Lp": Lp, "emf": 0.0}
+        return CouplingState(Lp=Lp, emf=0.0)
 
 
 def test_inductance_profile_recovery():
@@ -37,8 +37,11 @@ def test_inductance_profile_recovery():
     plasma.step(None, 0.0, current, voltage)
     for _ in range(1, steps):
         feedback = plasma.coupling_interface()
-        current, voltage = circuit.step(current, 0.0, dt, feedback)
-        plasma.step(None, dt, current, voltage)
+        feedback.current = current
+        feedback.voltage = voltage
+        updated = circuit.step(feedback, 0.0, dt)
+        plasma.step(None, dt, updated.current, updated.voltage)
+        current, voltage = updated.current, updated.voltage
 
     times = [t for t, _ in plasma.history]
     Lp_vals = [Lp for _, Lp in plasma.history]

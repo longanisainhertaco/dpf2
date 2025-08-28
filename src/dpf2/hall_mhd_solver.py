@@ -24,7 +24,7 @@ try:  # pragma: no cover - MPI is optional
 except Exception:  # pragma: no cover
     MPI = None
 
-from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase
+from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase, CouplingState
 from .eos import EOSBase, IdealGasEOS
 
 class ChemistryModule(Protocol):
@@ -278,7 +278,7 @@ class HallMHDSolver(PlasmaSolverBase):
     current: float = 0.0
     inductance: float = 0.0
     back_emf: float = 0.0
-    circuit_feedback: dict[str, float] | None = field(init=False, default=None)
+    circuit_feedback: CouplingState | None = field(init=False, default=None)
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
@@ -564,17 +564,16 @@ class HallMHDSolver(PlasmaSolverBase):
         emf = -dL * current
         self.inductance = L_new
         self.back_emf = emf
-        self.circuit_feedback = {"Lp": L_new, "emf": emf}
+        self.circuit_feedback = CouplingState(
+            Lp=L_new, emf=emf, current=current, voltage=voltage
+        )
 
-        # Optionally advance the coupled circuit solver in a closed loop
         if self.circuit is not None:
-            self.current, _ = self.circuit.step(current, 0.0, dt, self.circuit_feedback)
-
-        self.current = current
-        if self.circuit is not None:
-            self.current, self.back_emf = self.circuit.step(
-                self.current, self.back_emf, dt, {"Lp": L_new, "emf": emf}
-            )
+            updated = self.circuit.step(self.circuit_feedback, 0.0, dt)
+            self.current = updated.current
+            self.back_emf = updated.voltage
+        else:
+            self.current = current
 
         if energy_tracker is not None:
             v_final = mom / rho[..., None]
