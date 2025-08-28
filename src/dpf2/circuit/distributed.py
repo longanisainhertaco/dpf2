@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from typing import Iterable, Sequence, List
 
 import numpy as np
+import math
+import cmath
 
 __all__ = ["TransmissionLineSegment", "TriggeredSwitch", "assemble_matrices"]
 
@@ -89,6 +91,7 @@ class TransmissionLineSegment:
     C_profile: Sequence[tuple[float, float]] | None = None
     propagation_velocity: float | None = None
     skin_effect_coeff: float = 0.0
+    dielectric_loss_coeff: float = 0.0
 
     def delay(self) -> float:
         """Return propagation delay for this segment in seconds."""
@@ -97,19 +100,69 @@ class TransmissionLineSegment:
             return self.length / self.propagation_velocity
         return 0.0
 
-    def totals(self, t: float = 0.0, frequency: float | None = None) -> tuple[float, float, float]:
+    def totals(self, t: float = 0.0, frequency: float | None = None) -> tuple[float, float, float | complex]:
         """Return the total ``(L, R, C)`` for this segment.
 
-        ``frequency`` can be provided to account for a simple skin effect model
-        where the resistive component increases with ``sqrt(frequency)``.
+        ``frequency`` can be provided to account for frequency dependant skin
+        effect resistance and dielectric losses.  When ``frequency`` is given the
+        returned capacitance may be complex to model dielectric loss via a loss
+        tangent.  The simplistic models here are sufficient for the unit tests
+        and mirror the behaviour of the real application only qualitatively.
         """
 
         L = self.L_per_m * self.length + self.L_parasitic + _interp_profile(self.L_profile, t)
         R = self.R_per_m * self.length + self.R_parasitic + _interp_profile(self.R_profile, t)
         if frequency is not None and self.skin_effect_coeff:
-            R += self.skin_effect_coeff * self.length * float(np.sqrt(frequency))
+            R += self.skin_effect_coeff * self.length * float(math.sqrt(frequency))
         C = self.C_per_m * self.length + self.C_parasitic + _interp_profile(self.C_profile, t)
+        if frequency is not None and self.dielectric_loss_coeff:
+            loss_tan = self.dielectric_loss_coeff * float(math.sqrt(frequency))
+            C = complex(C) * (1.0 - 1j * loss_tan)
         return L, R, C
+
+    # ------------------------------------------------------------------
+    # Frequency domain helpers
+
+    def _params_at_freq(self, frequency: float) -> tuple[float, float, float, float]:
+        """Return per-unit ``(R, L, C, G)`` accounting for dispersion models."""
+
+        w = 2.0 * np.pi * frequency
+        R = self.R_per_m
+        if self.skin_effect_coeff:
+            R += self.skin_effect_coeff * float(math.sqrt(frequency))
+        L = self.L_per_m
+        C = self.C_per_m
+        G = 0.0
+        if self.dielectric_loss_coeff:
+            loss_tan = self.dielectric_loss_coeff * float(math.sqrt(frequency))
+            G = w * C * loss_tan
+        return R, L, C, G
+
+    def propagation_constant(self, frequency: float) -> complex:
+        """Return the complex propagation constant ``gamma`` at ``frequency``."""
+
+        w = 2.0 * np.pi * frequency
+        R, L, C, G = self._params_at_freq(frequency)
+        return cmath.sqrt((R + 1j * w * L) * (G + 1j * w * C))
+
+    def characteristic_impedance(self, frequency: float) -> complex:
+        """Return the characteristic impedance at ``frequency``."""
+
+        w = 2.0 * np.pi * frequency
+        R, L, C, G = self._params_at_freq(frequency)
+        return cmath.sqrt((R + 1j * w * L) / (G + 1j * w * C))
+
+    def reflection_coefficient(self, frequency: float, Z_load: float | complex | None) -> complex:
+        """Return the reflection coefficient for a load ``Z_load``.
+
+        ``Z_load`` may be ``None`` or ``np.inf`` to model an open circuit.
+        """
+
+        Z0 = self.characteristic_impedance(frequency)
+        if Z_load is None or Z_load == np.inf:
+            return 1.0 + 0.0j
+        ZL = complex(Z_load)
+        return (ZL - Z0) / (ZL + Z0)
 
 
 @dataclass

@@ -4,6 +4,8 @@ from pathlib import Path
 import importlib.util
 import types
 import numpy as np
+import cmath
+import math
 import pytest
 
 # Load CircuitModel without importing the full dpf2 package
@@ -344,32 +346,74 @@ def test_branched_network_current_split_and_energy():
     assert np.isclose(initial, final, rtol=1e-3)
 
 
-def test_transmission_line_phase_delay_and_skin_attenuation():
+def test_transmission_line_phase_and_attenuation_across_frequencies():
     seg = TransmissionLineSegment(
         0,
         1,
-        length=10.0,
-        L_per_m=0.0,
-        R_per_m=0.0,
-        C_per_m=0.0,
-        propagation_velocity=1e8,
+        length=1.0,
+        L_per_m=1e-6,
+        R_per_m=1e-3,
+        C_per_m=1e-9,
         skin_effect_coeff=1e-3,
+        dielectric_loss_coeff=1e-4,
     )
 
     f1 = 1e6
+    f2 = 5e6
     res1 = solve_distributed_circuit([seg], None, V0=1.0, t_end=5e-6, dt=1e-8, frequency=f1)
-    f2 = 4e6
     res2 = solve_distributed_circuit([seg], None, V0=1.0, t_end=5e-6, dt=1e-8, frequency=f2)
 
-    amp1 = max(res1.node_voltages[:, 1])
-    amp2 = max(res2.node_voltages[:, 1])
-    exp1 = np.exp(-seg.skin_effect_coeff * seg.length * np.sqrt(f1))
-    exp2 = np.exp(-seg.skin_effect_coeff * seg.length * np.sqrt(f2))
-    assert np.isclose(amp1, exp1, rtol=1e-3)
-    assert np.isclose(amp2, exp2, rtol=1e-3)
+    def _measure(res, freq):
+        vals_out = [row[1] for row in res.node_voltages]
+        vals_in = [row[0] for row in res.node_voltages]
+        amp = (max(vals_out) - min(vals_out)) / 2.0
+        period = int((1.0 / freq) / (res.t[1] - res.t[0]))
+        vals_in_period = vals_in[:period]
+        vals_out_period = vals_out[:period]
+        idx_in = max(range(len(vals_in_period)), key=lambda i: vals_in_period[i])
+        idx_out = max(range(len(vals_out_period)), key=lambda i: vals_out_period[i])
+        delay = res.t[idx_out] - res.t[idx_in]
+        phase = -2.0 * np.pi * freq * delay
+        return amp, phase
 
-    idx_in = max(range(len(res1.t)), key=lambda i: res1.node_voltages[i, 0])
-    idx_out = max(range(len(res1.t)), key=lambda i: res1.node_voltages[i, 1])
-    delay_meas = res1.t[idx_out] - res1.t[idx_in]
-    assert np.isclose(delay_meas, seg.delay(), rtol=1e-3, atol=res1.t[1] - res1.t[0])
+    amp1, phase1 = _measure(res1, f1)
+    amp2, phase2 = _measure(res2, f2)
+
+    H1 = cmath.exp(-seg.propagation_constant(f1) * seg.length)
+    H2 = cmath.exp(-seg.propagation_constant(f2) * seg.length)
+    assert np.isclose(amp1, abs(H1), rtol=1e-2)
+    assert np.isclose(amp2, abs(H2), rtol=1e-2)
+    assert np.isclose(phase1, cmath.phase(H1), rtol=1e-2, atol=2e-2)
+    assert np.isclose(phase2, cmath.phase(H2), rtol=1e-2, atol=1e-1)
+
+
+def test_reflection_coefficient_frequency_dependence():
+    seg = TransmissionLineSegment(
+        0,
+        1,
+        length=1.0,
+        L_per_m=1e-6,
+        R_per_m=1e-3,
+        C_per_m=1e-9,
+        skin_effect_coeff=1e-3,
+        dielectric_loss_coeff=1e-4,
+    )
+    ZL = 75.0
+    f1, f2 = 1e6, 5e6
+    r1 = seg.reflection_coefficient(f1, ZL)
+    r2 = seg.reflection_coefficient(f2, ZL)
+
+    def _manual(freq):
+        w = 2.0 * np.pi * freq
+        R = seg.R_per_m + seg.skin_effect_coeff * math.sqrt(freq)
+        L = seg.L_per_m
+        C = seg.C_per_m
+        loss = seg.dielectric_loss_coeff * math.sqrt(freq)
+        G = w * C * loss
+        Z0 = cmath.sqrt((R + 1j * w * L) / (G + 1j * w * C))
+        return (ZL - Z0) / (ZL + Z0)
+
+    assert abs(r1 - _manual(f1)) < 1e-12
+    assert abs(r2 - _manual(f2)) < 1e-12
+    assert not np.isclose(abs(r1), abs(r2))
 
