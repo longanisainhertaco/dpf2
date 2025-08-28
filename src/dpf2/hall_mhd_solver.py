@@ -10,7 +10,7 @@ can proceed incrementally.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Tuple
 from typing import Protocol
 
 import numpy as np
@@ -18,6 +18,11 @@ try:  # pragma: no cover - allow running without SciPy
     from scipy.constants import mu_0
 except Exception:  # pragma: no cover
     mu_0 = 4e-7 * np.pi
+
+try:  # pragma: no cover - MPI is optional
+    from mpi4py import MPI  # type: ignore
+except Exception:  # pragma: no cover
+    MPI = None
 
 from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase
 from .eos import EOSBase, IdealGasEOS
@@ -64,12 +69,12 @@ __all__ = ["MHDState", "HallMHDSolver"]
 
 
 def _dd(f: np.ndarray, axis: int) -> np.ndarray:
-    """Centered difference with periodic boundaries and unit spacing."""
-    return (np.roll(f, -1, axis) - np.roll(f, 1, axis)) * 0.5
+    """Finite-volume forward difference with periodic boundaries."""
+    return np.roll(f, -1, axis) - f
 
 
 def _divergence(vec: np.ndarray) -> np.ndarray:
-    """Compute the discrete divergence of a vector field."""
+    """Compute a finite-volume divergence that preserves ``∇·(∇×A)=0``."""
     dims = vec.ndim - 1
     result = _dd(vec[..., 0], 0)
     if dims > 1:
@@ -80,12 +85,11 @@ def _divergence(vec: np.ndarray) -> np.ndarray:
 
 
 def _curl(vec: np.ndarray) -> np.ndarray:
-    """Compute the discrete curl of a vector field."""
+    """Compute a finite-volume curl consistent with the divergence kernel."""
     dims = vec.ndim - 1
+
     def d(a: np.ndarray, ax: int) -> np.ndarray:
-        if ax >= dims:
-            return np.zeros_like(a)
-        return _dd(a, ax)
+        return _dd(a, ax) if ax < dims else np.zeros_like(a)
 
     cx = d(vec[..., 2], 1) - d(vec[..., 1], 2)
     cy = d(vec[..., 0], 2) - d(vec[..., 2], 0)
@@ -268,6 +272,9 @@ class HallMHDSolver(PlasmaSolverBase):
     bc: Callable[[MHDState], None] | None = None
     refine: Callable[[MHDState], None] | None = None
     circuit: CircuitSolverBase | None = None
+    comm: Any | None = None  # MPI communicator for domain decomposition
+    amr: Any | None = None  # Optional AMReX mesh object
+    braginskii: Callable[[np.ndarray, np.ndarray, np.ndarray], Tuple[float, float]] | None = None
     current: float = 0.0
     inductance: float = 0.0
     back_emf: float = 0.0
@@ -291,6 +298,19 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.refine is not None:
             self.refine(state)
 
+    def exchange_boundaries(self, state: MHDState) -> None:
+        """Synchronise ghost zones across MPI ranks if a communicator is set."""
+        if self.comm is None or MPI is None:
+            return
+        arrays = [state.rho, state.mom, state.energy, state.B]
+        for arr in arrays:
+            self.comm.Allreduce(MPI.IN_PLACE, arr, op=MPI.SUM)
+
+    def amr_sync(self, state: MHDState) -> None:
+        """Invoke AMReX mesh synchronisation if available."""
+        if self.amr is not None and hasattr(self.amr, "sync"):
+            self.amr.sync(state)
+
     def step(
         self,
         state: MHDState,
@@ -312,6 +332,8 @@ class HallMHDSolver(PlasmaSolverBase):
 
         self.amr_refinement(state)
         self.apply_boundary_conditions(state)
+        self.exchange_boundaries(state)
+        self.amr_sync(state)
 
         rho = state.rho.copy()
         mom = state.mom.copy()
@@ -341,6 +363,10 @@ class HallMHDSolver(PlasmaSolverBase):
         T = self.eos.temperature(rho, specific_e)
         p = self.eos.pressure(rho, T)
         zbar = self.chemistry.ionization_state(rho, T)
+        if self.braginskii is not None:
+            nu_p, kappa_p = self.braginskii(rho, T, np.sqrt(B2))
+            self.nu_par = nu_p
+            self.kappa_par = kappa_p
 
         if self.sheath is not None:
             ni = float(np.mean(rho)) / max(self.sheath.ion_mass, 1e-30)
@@ -431,6 +457,8 @@ class HallMHDSolver(PlasmaSolverBase):
                 loss = self.radiation.loss(rho, T)
                 energy -= dt * loss
                 self.last_rad_loss = loss
+            if hasattr(self.radiation, "diffuse"):
+                self.radiation.diffuse(1.0, dt)
         else:
             self.last_rad_loss = None
 
@@ -527,6 +555,8 @@ class HallMHDSolver(PlasmaSolverBase):
 
         self.apply_boundary_conditions(new_state)
         self.amr_refinement(new_state)
+        self.exchange_boundaries(new_state)
+        self.amr_sync(new_state)
 
         # Expose plasma inductance and induced EMF for circuit coupling
         L_new = self.compute_plasma_inductance(new_state, current)
