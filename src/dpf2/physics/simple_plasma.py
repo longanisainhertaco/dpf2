@@ -40,7 +40,14 @@ class ZeroDPlasma(PlasmaSolverBase):
         Lp, emf = self.inductance_model(self.time, current, voltage)
         self.inductance = Lp
         self.back_emf = emf
-        self.circuit_feedback = CouplingState(Lp=Lp, emf=emf, current=current, voltage=voltage)
+        self.circuit_feedback = CouplingState(
+            Lp=Lp,
+            emf=emf,
+            current=current,
+            voltage=voltage,
+            mutual_inductance=0.0,
+            back_reaction=0.0,
+        )
         return state
 
     # ------------------------------------------------------------------
@@ -50,6 +57,8 @@ class ZeroDPlasma(PlasmaSolverBase):
         return CouplingState(
             Lp=self.circuit_feedback.Lp,
             emf=self.circuit_feedback.emf,
+            mutual_inductance=0.0,
+            back_reaction=0.0,
         )
 
     # ------------------------------------------------------------------

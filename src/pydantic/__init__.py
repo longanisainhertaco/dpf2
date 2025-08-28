@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses as _dc
 import types as _types
+import sys
 
 
 class BaseModel:
@@ -54,3 +55,10 @@ _dataclasses.dataclass = _dc.dataclass
 
 dataclasses = _types.ModuleType("pydantic.dataclasses")
 dataclasses.dataclass = _dc.dataclass
+sys.modules[__name__ + ".dataclasses"] = dataclasses
+
+
+class ValidationError(Exception):  # pragma: no cover - simple stub
+    """Minimal stand-in for :class:`pydantic.ValidationError`."""
+
+    pass

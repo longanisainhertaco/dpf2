@@ -164,11 +164,13 @@ class CircuitSolver:
 
         Lp = coupling.Lp
         emf = coupling.emf
+        M = coupling.mutual_inductance
 
         Ltot = self.circuit.L + Lp
         num = self.circuit.V0 - self.circuit.R * current - voltage - emf - back_emf
         dIdt = num / Ltot
         dVdt = -current / self.circuit.C
+        back_reaction = M * dIdt if M != 0.0 else coupling.back_reaction
 
         new_current = current + dIdt * dt
         new_voltage = voltage + dVdt * dt
@@ -184,7 +186,14 @@ class CircuitSolver:
                 inductive=0.5 * Ltot * new_current**2,
             )
 
-        return CouplingState(Lp=Lp, emf=emf, current=new_current, voltage=new_voltage)
+        return CouplingState(
+            Lp=Lp,
+            emf=emf,
+            current=new_current,
+            voltage=new_voltage,
+            mutual_inductance=M,
+            back_reaction=back_reaction,
+        )
 
 
 def _profile_to_interp(profile, t_scale: float, y_scale: float):

@@ -9,6 +9,14 @@ import click
 
 from dpf2.core.config import DPFConfig
 from dpf2.core.simulation import DPFSimulation
+from dpf2.core.bases import CouplingState
+from dpf2.diagnostics.synthetic_signals import (
+    current_waveform,
+    voltage_waveform,
+    rogowski_signal,
+    bdot_signal,
+)
+from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
 
 logger = logging.getLogger(__name__)
@@ -71,6 +79,8 @@ def validate(config: str, dataset: str, outdir: str) -> None:
     """Run a validation simulation and compare with experimental data."""
     from .validate import run_validation
     try:
+        from .validate import run_validation
+
         ok = run_validation(Path(config), dataset, outdir=Path(outdir))
         if not ok:
             raise click.ClickException("Validation failed")
@@ -111,6 +121,68 @@ def plot(input: str, output: str) -> None:
     plt.tight_layout()
     plt.savefig(output)
     click.echo(f"Plot written to {output}")
+
+
+@main.command()
+@click.option(
+    "--history",
+    type=click.Path(exists=True, dir_okay=False),
+    required=True,
+    help="JSON file containing a list of CouplingState dictionaries",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    required=False,
+    help="Optional synthetic diagnostics configuration JSON",
+)
+@click.option("--current", is_flag=True, help="Output current waveform")
+@click.option("--voltage", is_flag=True, help="Output voltage waveform")
+@click.option("--rogowski", is_flag=True, help="Output Rogowski signal")
+@click.option("--bdot", is_flag=True, help="Output B-dot signal")
+@click.option("--dt", type=float, default=1e-9, help="Time step for derivatives [s]")
+@click.option(
+    "--radius", type=float, default=0.01, help="Probe radius for B-dot signal [m]"
+)
+def diagnostics(
+    history: str,
+    config: str | None,
+    current: bool,
+    voltage: bool,
+    rogowski: bool,
+    bdot: bool,
+    dt: float,
+    radius: float,
+) -> None:
+    """Generate synthetic diagnostics from a coupling history."""
+
+    data = json.loads(Path(history).read_text())
+    states = [CouplingState(**d) for d in data]
+
+    outputs: dict[str, list[float]] = {}
+
+    if config:
+        cfg_data = json.loads(Path(config).read_text())
+        cfg = SyntheticDiagnostics.model_validate(cfg_data)
+        if cfg.synthetic_current_waveform_enabled:
+            outputs["current"] = current_waveform(states)
+        if cfg.synthetic_voltage_waveform_enabled:
+            outputs["voltage"] = voltage_waveform(states)
+        if cfg.synthetic_rogowski_signal_enabled:
+            outputs["rogowski"] = rogowski_signal(states, dt)
+        if cfg.synthetic_bdot_signal_enabled:
+            outputs["bdot"] = bdot_signal(states, radius, dt)
+
+    if current:
+        outputs["current"] = current_waveform(states)
+    if voltage:
+        outputs["voltage"] = voltage_waveform(states)
+    if rogowski:
+        outputs["rogowski"] = rogowski_signal(states, dt)
+    if bdot:
+        outputs["bdot"] = bdot_signal(states, radius, dt)
+
+    click.echo(json.dumps(outputs))
 
 
 @main.command()

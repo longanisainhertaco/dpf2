@@ -26,6 +26,22 @@ def voltage_waveform(history: Iterable[CouplingState]) -> List[float]:
     return [float(state.voltage) for state in history]
 
 
+def coupled_current_waveform(history: Iterable[CouplingState]) -> List[float]:
+    """Return current including simple back-reaction term.
+
+    The ``CouplingState.back_reaction`` value is interpreted as a voltage
+    contribution which is scaled by unity for this synthetic diagnostic.
+    """
+
+    return [float(state.current + state.back_reaction) for state in history]
+
+
+def coupled_voltage_waveform(history: Iterable[CouplingState]) -> List[float]:
+    """Return voltage including mutual inductance contribution."""
+
+    return [float(state.voltage + state.mutual_inductance) for state in history]
+
+
 def rogowski_signal(history: Iterable[CouplingState], dt: float) -> List[float]:
     """Compute a synthetic Rogowski coil signal ``dI/dt``."""
 
@@ -55,6 +71,8 @@ def bdot_signal(history: Iterable[CouplingState], radius: float, dt: float) -> L
 __all__ = [
     "current_waveform",
     "voltage_waveform",
+    "coupled_current_waveform",
+    "coupled_voltage_waveform",
     "rogowski_signal",
     "bdot_signal",
 ]

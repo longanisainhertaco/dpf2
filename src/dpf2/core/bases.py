@@ -21,23 +21,38 @@ class CouplingState:
     current, voltage:
         Circuit current and capacitor voltage supplied to the plasma
         solver for advancing its state.
+    mutual_inductance:
+        Effective mutual inductance linking the plasma and external
+        circuit (Henries).
+    back_reaction:
+        Voltage induced on the circuit due to plasma motion or other
+        back‑reaction effects (Volts).
     """
 
     Lp: float = 0.0
     emf: float = 0.0
     current: float = 0.0
     voltage: float = 0.0
+    mutual_inductance: float = 0.0
+    back_reaction: float = 0.0
 
-    def as_tuple(self) -> Tuple[float, float, float, float]:
-        """Return the state as ``(Lp, emf, current, voltage)`` tuple.
+    def as_tuple(self) -> Tuple[float, float, float, float, float, float]:
+        """Return the state as ``(Lp, emf, current, voltage, M, V_br)`` tuple.
 
-        This helper simplifies unpacking when a solver prefers positional
-        access.  The method is intentionally lightweight to keep the
-        ``CouplingState`` dataclass as a minimal container for exchanged
-        quantities.
+        The final two values correspond to the mutual inductance ``M`` and
+        back‑reaction voltage ``V_br``.  ``as_tuple`` is primarily a
+        convenience helper for lightweight solvers that prefer positional
+        access to the coupling terms.
         """
 
-        return self.Lp, self.emf, self.current, self.voltage
+        return (
+            self.Lp,
+            self.emf,
+            self.current,
+            self.voltage,
+            self.mutual_inductance,
+            self.back_reaction,
+        )
 
 
 class PlasmaSolverBase(ABC):

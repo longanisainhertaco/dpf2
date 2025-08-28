@@ -29,12 +29,21 @@ class ExternalCircuit(CircuitSolverBase):
         Lp = coupling.Lp
         emf = coupling.emf
         current = coupling.current
+        M = coupling.mutual_inductance
+        back_reaction = coupling.back_reaction
 
         Ltot = self.inductance + Lp
         dI = (back_emf - emf) * dt / max(Ltot, 1.0e-30)
         self.current = current + dI
         self.inductance = Ltot
-        return CouplingState(Lp=Lp, emf=emf, current=self.current, voltage=back_emf)
+        return CouplingState(
+            Lp=Lp,
+            emf=emf,
+            current=self.current,
+            voltage=back_emf,
+            mutual_inductance=M,
+            back_reaction=back_reaction,
+        )
 
 
 __all__ = ["ExternalCircuit"]
