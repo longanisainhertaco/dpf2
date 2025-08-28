@@ -27,8 +27,5 @@ jobs:
         run: pytest
       - name: Validate pinch benchmarks
         run: python scripts/validate_pinch.py
-
-      - name: Validate pinch benchmarks
-        run: python scripts/validate_pinch.py
-
-
+      - name: MHD performance scaling
+        run: pytest tests/test_mhd_performance.py -q
