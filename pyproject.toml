@@ -13,7 +13,8 @@ dependencies = [
     "numpy",
     "pydantic",
     "scipy",
-    "sympy"
+    "sympy",
+    "tqdm"
 ]
 
 [project.optional-dependencies]
