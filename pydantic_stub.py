@@ -56,6 +56,11 @@ def Field(default=None, **kwargs):  # pragma: no cover - trivial passthrough
 
 ConfigDict = dict
 
+
+class ValidationError(Exception):
+    """Placeholder for :class:`pydantic.ValidationError`."""
+    pass
+
 # ---------------------------------------------------------------------------
 # ``pydantic.dataclasses`` compatibility
 # ---------------------------------------------------------------------------
