@@ -1,24 +1,12 @@
-"""Backward compatibility wrapper for distributed circuit models.
 
-The implementations have moved to :mod:`dpf2.circuit.distributed`.
+"""Compatibility layer for distributed circuit models.
+
+The functionality has moved to :mod:`dpf2.circuit.distributed`.  This
+module re-exports the public API to maintain backwards compatibility
+with older import paths.
 """
-from .circuit.distributed import (
-    TransmissionLineSegment,
-    TriggeredSwitch,
-    ShuntCapacitance,
-    StrayInductance,
-    assemble_matrices,
-)
 
-# ``Switch`` was renamed to ``TriggeredSwitch``; provide an alias for
-# existing callers.
-Switch = TriggeredSwitch
+from .circuit.distributed import TransmissionLineSegment, Switch, assemble_matrices
 
-__all__ = [
-    "TransmissionLineSegment",
-    "TriggeredSwitch",
-    "ShuntCapacitance",
-    "StrayInductance",
-    "assemble_matrices",
-    "Switch",
-]
+__all__ = ["TransmissionLineSegment", "Switch", "assemble_matrices"]
+
