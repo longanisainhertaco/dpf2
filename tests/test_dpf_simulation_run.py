@@ -16,15 +16,23 @@ class DummySolver:
 class DummyEOS:
     """Dummy EOS used by the selector."""
 
+from dpf2.core.bases import CouplingState
+
+
 class DummyCircuit:
     def __init__(self, collision_model=None, field_manager=None, **kwargs):
         self.current = 0.0
         self.voltage = kwargs.get("V0", 0.0)
 
-    def step(self, current, back_emf, dt, feedback=None):
+    def step(self, coupling: CouplingState, back_emf, dt):
         """Simple integrator incrementing current for testing."""
-        self.current += dt
-        return self.current, self.voltage
+        self.current = coupling.current + dt
+        return CouplingState(
+            Lp=coupling.Lp,
+            emf=coupling.emf,
+            current=self.current,
+            voltage=self.voltage,
+        )
 
     def get_current(self):
         return self.current

@@ -28,14 +28,19 @@ def make_circuit():
     )
 
 
+from dpf2.core.bases import CouplingState
+
+
 def run_trace(inductances):
     circuit = make_circuit()
     dt = 1e-7
     trace = []
     for Lp in inductances:
         current = circuit.get_current()
-        circuit.step(current, 0.0, dt, {"Lp": Lp})
-        trace.append(circuit.get_current())
+        voltage = circuit.get_voltage()
+        coupling = CouplingState(Lp=Lp, emf=0.0, current=current, voltage=voltage)
+        updated = circuit.step(coupling, 0.0, dt)
+        trace.append(updated.current)
     return np.array(trace)
 
 

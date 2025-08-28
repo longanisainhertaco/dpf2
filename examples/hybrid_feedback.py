@@ -13,6 +13,7 @@ import numpy as np
 from dpf2.pinch_models import HybridPinchModel
 from dpf2.physics.pic_driver import PicDriver
 from dpf2.circuit_solver import CircuitSolver, RLCCircuit
+from dpf2.core.bases import CouplingState
 
 
 class MockPicDriver(PicDriver):
@@ -43,7 +44,9 @@ if __name__ == "__main__":
         radius, energy = pic.step(current, dt)
         # Simple feedback: plasma energy generates back EMF
         back_emf = energy * 1e-3
-        current, _ = circuit.step(current, back_emf, dt)
+        coupling = CouplingState(current=current, voltage=circuit.voltages[-1])
+        updated = circuit.step(coupling, back_emf, dt)
+        current = updated.current
 
     print(f"Final current: {current:.3e} A")
     print(f"Final radius:  {radius:.3e} m")
