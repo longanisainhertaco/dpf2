@@ -202,7 +202,13 @@ class MHDPinchModel(PinchModelBase):
 
 
 class HybridPinchModel(PinchModelBase):
-    """Hybrid pinch model coupling the fluid solver to an external PIC code."""
+    """Hybrid pinch model that swaps regions between PIC and fluid solvers.
+
+    The outer plasma is evolved with the simplified Hall‑MHD solver while an
+    inner region may be handled by an external PIC driver once the radius falls
+    below ``switch_radius``.  When the plasma expands past this radius the model
+    reverts to the fluid description.
+    """
 
     def __init__(
         self,
@@ -211,12 +217,14 @@ class HybridPinchModel(PinchModelBase):
         init_density: float = 1.0,
         init_pressure: float = 1e5,
         current_norm: float = 1e4,
+        switch_radius: float = 5e-3,
     ) -> None:
         self.pic_driver = pic_driver
         self.grid_shape = grid_shape
         self.init_density = init_density
         self.init_pressure = init_pressure
         self.current_norm = current_norm
+        self.switch_radius = switch_radius
         nx, ny, nz = grid_shape
         x = np.arange(nx) - nx / 2
         y = np.arange(ny) - ny / 2
@@ -256,9 +264,14 @@ class HybridPinchModel(PinchModelBase):
         pressure: list[float] = []
         energy_hist: list[float] = []
 
-        r_pic, e_pic = self.pic_driver.step(I[0], 0.0)
         rad, temp, pres, Etot = diagnostics(state)
-        radius.append(r_pic)
+        use_pic = rad <= self.switch_radius
+        if use_pic:
+            rad_pic, e_pic = self.pic_driver.step(I[0], 0.0)
+            rad = rad_pic
+        else:
+            e_pic = 0.0
+        radius.append(rad)
         temperature.append(temp)
         pressure.append(pres)
         energy_hist.append(Etot + e_pic)
@@ -267,9 +280,21 @@ class HybridPinchModel(PinchModelBase):
         for k in range(len(t) - 1):
             dt = t[k + 1] - t[k]
             state = solver.step(state, dt, current=I[k])
-            rad, temp, pres, Etot = diagnostics(state)
-            r_pic, e_pic = self.pic_driver.step(I[k], dt)
-            radius.append(r_pic)
+            rad_fluid, temp, pres, Etot = diagnostics(state)
+            if use_pic or rad_fluid <= self.switch_radius:
+                rad_pic, e_pic = self.pic_driver.step(I[k], dt if use_pic else 0.0)
+                rad = rad_pic
+                use_pic = True
+                if rad_fluid > self.switch_radius:
+                    use_pic = False
+            else:
+                rad = rad_fluid
+                e_pic = 0.0
+                if rad_fluid <= self.switch_radius:
+                    rad_pic, e_pic = self.pic_driver.step(I[k], 0.0)
+                    rad = rad_pic
+                    use_pic = True
+            radius.append(rad)
             temperature.append(temp)
             pressure.append(pres)
             energy_hist.append(Etot + e_pic)
