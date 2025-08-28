@@ -20,6 +20,7 @@ from typing import Sequence
 # ``numpy`` may be replaced by a light‑weight stub in the test environment but
 # it provides the minimal functionality used below (``array``).
 import numpy as np
+import cmath
 
 from .circuit.distributed import TransmissionLineSegment, TriggeredSwitch, assemble_matrices
 
@@ -70,31 +71,38 @@ def solve_distributed_circuit(
 
     switches = list(switches or [])
 
-    # Simplified analytic handling for pure transmission line problems.  If a
-    # ``frequency`` is supplied and all segments define a propagation velocity we
-    # treat the network as a cascade of delay lines with optional attenuation due
-    # to a very small skin‑effect resistance model.  This path is primarily used
-    # in regression tests and bypasses the general time domain solver.
-    if frequency is not None and segments and all(seg.propagation_velocity for seg in segments):
+    # Simplified frequency domain solution for cascaded transmission line
+    # segments.  When ``frequency`` is supplied we evaluate the telegrapher
+    # equations for each segment and assume the line is matched to avoid
+    # reflections.  The output voltage therefore only experiences the combined
+    # attenuation and phase delay described by the propagation constants of all
+    # segments.  This path is primarily used in unit tests and bypasses the more
+    # involved time domain solver.
+    if frequency is not None and segments:
         w = 2.0 * np.pi * frequency
         n_steps = int(t_end / dt) + 1
         t = np.array([i * dt for i in range(n_steps)])
         vin = np.array([np.sin(w * ti) for ti in t]) * V0
-        total_delay = sum(seg.delay() for seg in segments)
-        attenuation = 1.0
-        total_R = 0.0
+
+        gamma_total = 0.0 + 0.0j
         for seg in segments:
-            if seg.skin_effect_coeff:
-                attenuation *= np.exp(-seg.skin_effect_coeff * seg.length * np.sqrt(frequency))
-            total_R += seg.R_per_m * seg.length + seg.R_parasitic
-            if seg.skin_effect_coeff:
-                total_R += seg.skin_effect_coeff * seg.length * np.sqrt(frequency)
-        vout = np.array([np.sin(w * (ti - total_delay)) for ti in t]) * (attenuation * V0)
+            gamma_total += seg.propagation_constant(frequency) * seg.length
+
+        H = cmath.exp(-gamma_total)
+        amp = abs(H)
+        phase = cmath.phase(H)
+        vout = np.array([np.sin(w * ti + phase) for ti in t]) * (amp * V0)
+
         node_voltages = np.zeros((len(t), 2))
         node_voltages[:, 0] = vin
         node_voltages[:, 1] = vout
-        current = (vin - vout) / (total_R if total_R != 0 else 1e-12)
+
+        Zin = segments[0].characteristic_impedance(frequency)
+        I_amp = V0 / (abs(Zin) if Zin != 0 else 1e-12)
+        I_phase = -cmath.phase(Zin)
+        current = np.array([np.sin(w * ti + I_phase) for ti in t]) * I_amp
         branch_currents = current[:, None]
+
         return DistributedRLCSolution(
             t=t,
             current=current,
