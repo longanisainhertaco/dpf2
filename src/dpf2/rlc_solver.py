@@ -42,6 +42,7 @@ __all__ = ["run_circuit_simulation", "solve_distributed_circuit", "DistributedRL
 class DistributedRLCSolution:
     """Container returned by :func:`solve_distributed_circuit`.
 
+
     The arrays may originate from either :mod:`numpy` or :mod:`cupy`
     depending on the active backend.
     """
@@ -51,6 +52,7 @@ class DistributedRLCSolution:
     voltage: Any
     branch_currents: Any
     node_voltages: Any
+
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +67,7 @@ def solve_distributed_circuit(
     dt: float,
     I0: float = 0.0,
     frequency: float | None = None,
+    Z_load: float | complex | None = None,
     n_threads: int = 1,
 ) -> DistributedRLCSolution:
     """Integrate an RLC network using a very small nodal analysis scheme.
@@ -73,28 +76,69 @@ def solve_distributed_circuit(
     required by the unit tests.  All capacitors are aggregated into a single
     equivalent element between the first and last nodes.  Inductive branches are
     solved via a linear system enforcing Kirchhoff's current law at each node.
+    When ``frequency`` is provided the solver evaluates the telegrapher
+    equations in the frequency domain for cascaded transmission line segments
+    with an optional terminating ``Z_load``.
     """
 
     switches = list(switches or [])
 
     # Simplified frequency domain solution for cascaded transmission line
-    # segments.  When ``frequency`` is supplied we evaluate the telegrapher
-    # equations for each segment and assume the line is matched to avoid
-    # reflections.  The output voltage therefore only experiences the combined
-    # attenuation and phase delay described by the propagation constants of all
-    # segments.  This path is primarily used in unit tests and bypasses the more
-    # involved time domain solver.
+    # segments.  When ``frequency`` is supplied we evaluate the full telegrapher
+    # equations for each segment allowing mismatched characteristic impedances
+    # and an arbitrary terminating ``Z_load``.  Dispersion models supplied by
+    # :class:`TransmissionLineSegment` are honoured through the frequency
+    # dependant propagation constants and characteristic impedances.  The
+    # solution is obtained via multiplication of ABCD matrices and reflection
+    # coefficients are tracked for each segment.
     if frequency is not None and segments:
         w = 2.0 * xp.pi * frequency
         n_steps = int(t_end / dt) + 1
         t = xp.array([i * dt for i in range(n_steps)])
         vin = xp.array([xp.sin(w * ti) for ti in t]) * V0
 
-        gamma_total = 0.0 + 0.0j
-        for seg in segments:
-            gamma_total += seg.propagation_constant(frequency) * seg.length
+        if Z_load is None:
+            ZL = segments[-1].characteristic_impedance(frequency)
+        else:
+            ZL = np.inf if Z_load == np.inf else complex(Z_load)
 
-        H = cmath.exp(-gamma_total)
+        # Reflection coefficients are computed from the load backwards to the
+        # source while the overall ABCD matrix is accumulated from source to
+        # load.
+        reflections: list[complex] = []
+        Z_eff = ZL
+        for seg in reversed(segments):
+            refl = seg.reflection_coefficient(frequency, Z_eff)
+            reflections.insert(0, refl)
+            Z0 = seg.characteristic_impedance(frequency)
+            gamma = seg.propagation_constant(frequency)
+            tanh_gl = cmath.tanh(gamma * seg.length)
+            Z_eff = Z0 * (Z_eff + Z0 * tanh_gl) / (Z0 + Z_eff * tanh_gl)
+
+        A_tot, B_tot, C_tot, D_tot = 1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j
+        for seg in segments:
+            gamma = seg.propagation_constant(frequency) * seg.length
+            Z0 = seg.characteristic_impedance(frequency)
+            cosh_gl = cmath.cosh(gamma)
+            sinh_gl = cmath.sinh(gamma)
+            A = cosh_gl
+            B = Z0 * sinh_gl
+            C = (1.0 / Z0) * sinh_gl
+            D = cosh_gl
+            A_tot, B_tot, C_tot, D_tot = (
+                A_tot * A + B_tot * C,
+                A_tot * B + B_tot * D,
+                C_tot * A + D_tot * C,
+                C_tot * B + D_tot * D,
+            )
+
+        if ZL == np.inf:
+            H = 1.0 / A_tot
+            Zin = A_tot / C_tot if C_tot != 0 else np.inf
+        else:
+            H = 1.0 / (A_tot + B_tot / ZL)
+            Zin = (A_tot * ZL + B_tot) / (C_tot * ZL + D_tot)
+
         amp = abs(H)
         phase = cmath.phase(H)
         vout = xp.array([xp.sin(w * ti + phase) for ti in t]) * (amp * V0)
@@ -103,18 +147,19 @@ def solve_distributed_circuit(
         node_voltages[:, 0] = vin
         node_voltages[:, 1] = vout
 
-        Zin = segments[0].characteristic_impedance(frequency)
         I_amp = V0 / (abs(Zin) if Zin != 0 else 1e-12)
         I_phase = -cmath.phase(Zin)
         current = xp.array([xp.sin(w * ti + I_phase) for ti in t]) * I_amp
         branch_currents = current[:, None]
 
         return DistributedRLCSolution(
+
             t=to_cpu(t),
             current=to_cpu(current),
             voltage=to_cpu(vin),
             branch_currents=to_cpu(branch_currents),
             node_voltages=to_cpu(node_voltages),
+
         )
 
     # ------------------------------------------------------------------

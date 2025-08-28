@@ -23,8 +23,10 @@ jobs:
         run: flake8 .
       - name: Type check
         run: mypy .
-      - name: Test
-        run: pytest
+      - name: Unit tests
+        run: pytest --ignore=tests/validation
+      - name: Validation tests
+        run: pytest tests/validation -q
       - name: Validate pinch benchmarks
         run: python scripts/validate_pinch.py
       - name: MHD performance scaling

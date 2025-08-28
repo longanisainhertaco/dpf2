@@ -87,6 +87,26 @@ The diagonal R, L and C matrices assembled from this setup are compared against
 `ReferenceMaterial/distributed_circuit.json` and must agree within a relative
 tolerance of **10⁻9**.
 
+### ALEGRA Energy Deposition
+
+An energy history generated with the ALEGRA code serves as a benchmark for
+the resistive MHD module.  DPF2 recomputes the evolution for densities
+decreasing linearly from 1 to 0.6 and pressures increasing from 1 to 2 at
+times 0, 0.5 and 1 µs.  The reference energies are stored in
+`ReferenceMaterial/alegra_reference.json` and the regression test in
+`tests/validation/test_alegra_reference.py` requires agreement within a
+relative tolerance of **10⁻9**.
+
+### MACH2 Flux Validation
+
+A single-cell state initialized to unit density, 0.1 x-velocity and a small
+axial magnetic field is compared against fluxes produced by the MACH2 code.
+The x-direction fluxes from MACH2 are tabulated in
+`ReferenceMaterial/mach2_reference.json`.  The DPF2 implementation must
+reproduce these fluxes within a relative tolerance of **10⁻9** via
+`tests/validation/test_mach2_reference.py`.
+
+
 ## Coupled Benchmarks
 
 ### Coupled Current Trace
@@ -115,3 +135,12 @@ integrated neutron yield are stored in `ReferenceMaterial/z_machine_traces.json`
 The regression test in `tests/validation/test_exp_traces.py` recomputes these
 profiles and enforces agreement with the references to within a relative
 tolerance of **1e-9**.
+
+### Experimental Shot Trace
+
+An additional experimental discharge with L=1 H, R=2 Ω, C=0.5 F and
+1 V initial capacitor voltage is provided as an RLC benchmark.  Time,
+current and voltage traces together with the integrated neutron yield are
+recorded in `ReferenceMaterial/experimental_shot.json`.  The regression test
+`tests/validation/test_experimental_shot.py` verifies the reproduction of
+these series within a relative tolerance of **10⁻9**.
