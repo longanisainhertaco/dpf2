@@ -65,13 +65,24 @@ expected experimental scatter.
 ### MHD Shock Tube
 
 A Sod-type shock tube problem checks the resistive MHD module against the
-analytic solution published by Park et al. in 2023 [ReferenceMaterial/Park_POP_2023.pdf].
-The density profile at $t=0.15$ is required to match the reference with an
-L1 error below 10%.
+analytic solution published by Park et al. in 2023
+[ReferenceMaterial/Park_POP_2023.pdf].  The reference density profile at
+$t=0.1$ is stored in `ReferenceMaterial/mhd_shock_tube.json` and the solver
+output must reproduce it with an L1 error below **10%**.
 
 ### Hall-MHD Snowplow
 
 The Hall-MHD solver is validated with a coaxial snowplow inductance comparison.
 For a 1 A current and $(r_{\text{inner}}, r_{\text{outer}})$ of 1 and 2 cm, the
 computed plasma inductance is expected to match the analytic Lee model
-[ReferenceMaterial/Lee-paper.pdf] within 5%.
+[ReferenceMaterial/Lee-paper.pdf].  The expected inductance value is recorded
+in `ReferenceMaterial/hall_snowplow.json` and the numerical result must agree
+within **5%**.
+
+### Distributed Circuit Matrices
+
+A single 1 m transmission line segment (1 µH/m, 1 Ω/m, 1 µF/m) with parasitic
+contributions of 1 nH, 0.1 Ω and 2 nF is combined with a closed 1 mΩ switch.
+The diagonal R, L and C matrices assembled from this setup are compared against
+`ReferenceMaterial/distributed_circuit.json` and must agree within a relative
+tolerance of **10⁻9**.
