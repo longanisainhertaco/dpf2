@@ -159,44 +159,69 @@ def assemble_matrices(
     switches: Sequence[TriggeredSwitch] | None = None,
     t: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Assemble diagonal ``R``, ``L`` and ``C`` matrices for a network.
+    """Assemble node based ``R``, ``L`` and ``C`` matrices for a network.
 
-    The matrices simply contain the total values of each element on their
-    diagonals.  They are primarily a convenience for the unit tests and mimic a
-    very small subset of the behaviour of the real solver where a more complex
-    topology would be handled.
+    The original implementation used simple diagonal matrices assuming all
+    elements were connected in series.  For the extended exercises we need to be
+    able to handle arbitrary connectivity, branched networks and multiple
+    switches.  The matrices returned by this function therefore follow a very
+    small nodal analysis scheme: each two–terminal component stamps its value
+    into the matrices for the nodes it connects.  Kirchhoff's current and
+    voltage laws are implicitly satisfied by adding the value to both node
+    diagonals and subtracting it from the off–diagonal entries.
+
+    The row/column order of the matrices corresponds to the sorted list of all
+    node identifiers appearing in ``segments`` and ``switches``.  Components with
+    zero values simply have no effect on the matrices which keeps the
+    implementation concise while remaining perfectly adequate for the unit
+    tests.
     """
 
-    R_list: List[float] = []
-    L_list: List[float] = []
-    C_list: List[float] = []
+    switches = list(switches or [])
 
+    # Determine mapping from node identifiers to matrix indices
+    nodes = set()
     for seg in segments:
-        L, R, C = seg.totals(t)
-        R_list.append(R)
-        L_list.append(L)
-        C_list.append(C)
+        nodes.add(seg.from_node)
+        nodes.add(seg.to_node)
+    for sw in switches:
+        nodes.add(sw.from_node)
+        nodes.add(sw.to_node)
 
-    if switches:
-        for idx, sw in enumerate(switches):
-            if idx < len(R_list):
-                R_list[idx] += sw.resistance(t)
-                L_list[idx] += sw.L_parasitic
-                C_list[idx] += sw.C_parasitic
-            else:
-                R_list.append(sw.resistance(t))
-                L_list.append(sw.L_parasitic)
-                C_list.append(sw.C_parasitic)
-
-    n = len(R_list)
-    if n == 0:
+    if not nodes:
         return np.zeros((0, 0)), np.zeros((0, 0)), np.zeros((0, 0))
+
+    node_list = sorted(nodes)
+    idx = {node: i for i, node in enumerate(node_list)}
+    n = len(node_list)
 
     R = np.zeros((n, n))
     L = np.zeros((n, n))
     C = np.zeros((n, n))
-    for i in range(n):
-        R[i][i] = R_list[i]
-        L[i][i] = L_list[i]
-        C[i][i] = C_list[i]
+
+    def _stamp(i: int, j: int, value: float, mat: np.ndarray) -> None:
+        """Stamp a two‑terminal component value into ``mat``."""
+
+        if value == 0.0:
+            return
+        mat[i, i] += value
+        mat[j, j] += value
+        mat[i, j] -= value
+        mat[j, i] -= value
+
+    # Stamp transmission line segments
+    for seg in segments:
+        i, j = idx[seg.from_node], idx[seg.to_node]
+        L_val, R_val, C_val = seg.totals(t)
+        _stamp(i, j, R_val, R)
+        _stamp(i, j, L_val, L)
+        _stamp(i, j, C_val, C)
+
+    # Stamp switches (including parasitics)
+    for sw in switches:
+        i, j = idx[sw.from_node], idx[sw.to_node]
+        _stamp(i, j, sw.resistance(t), R)
+        _stamp(i, j, sw.L_parasitic, L)
+        _stamp(i, j, sw.C_parasitic, C)
+
     return R, L, C

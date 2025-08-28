@@ -10,8 +10,13 @@ from .circuit.distributed import (
     TransmissionLineSegment,
     TriggeredSwitch,
     assemble_matrices,
-    Switch,
 )
+
+# Historically the public API exposed ``Switch`` which is now represented by
+# :class:`TriggeredSwitch`.  Provide an explicit alias to maintain backwards
+# compatibility with code importing ``Switch`` from this module or the legacy
+# path ``dpf2.distributed_circuit``.
+Switch = TriggeredSwitch
 
 __all__ = ["TransmissionLineSegment", "TriggeredSwitch", "assemble_matrices", "Switch"]
 
