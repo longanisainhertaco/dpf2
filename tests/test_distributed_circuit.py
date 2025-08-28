@@ -343,3 +343,33 @@ def test_branched_network_current_split_and_energy():
     )
     assert np.isclose(initial, final, rtol=1e-3)
 
+
+def test_transmission_line_phase_delay_and_skin_attenuation():
+    seg = TransmissionLineSegment(
+        0,
+        1,
+        length=10.0,
+        L_per_m=0.0,
+        R_per_m=0.0,
+        C_per_m=0.0,
+        propagation_velocity=1e8,
+        skin_effect_coeff=1e-3,
+    )
+
+    f1 = 1e6
+    res1 = solve_distributed_circuit([seg], None, V0=1.0, t_end=5e-6, dt=1e-8, frequency=f1)
+    f2 = 4e6
+    res2 = solve_distributed_circuit([seg], None, V0=1.0, t_end=5e-6, dt=1e-8, frequency=f2)
+
+    amp1 = max(res1.node_voltages[:, 1])
+    amp2 = max(res2.node_voltages[:, 1])
+    exp1 = np.exp(-seg.skin_effect_coeff * seg.length * np.sqrt(f1))
+    exp2 = np.exp(-seg.skin_effect_coeff * seg.length * np.sqrt(f2))
+    assert np.isclose(amp1, exp1, rtol=1e-3)
+    assert np.isclose(amp2, exp2, rtol=1e-3)
+
+    idx_in = max(range(len(res1.t)), key=lambda i: res1.node_voltages[i, 0])
+    idx_out = max(range(len(res1.t)), key=lambda i: res1.node_voltages[i, 1])
+    delay_meas = res1.t[idx_out] - res1.t[idx_in]
+    assert np.isclose(delay_meas, seg.delay(), rtol=1e-3, atol=res1.t[1] - res1.t[0])
+
