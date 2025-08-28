@@ -416,4 +416,91 @@ def test_reflection_coefficient_frequency_dependence():
     assert abs(r1 - _manual(f1)) < 1e-12
     assert abs(r2 - _manual(f2)) < 1e-12
     assert not np.isclose(abs(r1), abs(r2))
+def _measure_amp_phase(node_voltages, t, freq):
+    vals_out = [row[1] for row in node_voltages]
+    vals_in = [row[0] for row in node_voltages]
+    amp = (max(vals_out) - min(vals_out)) / 2.0
+    period = int((1.0 / freq) / (t[1] - t[0]))
+    vals_in_period = vals_in[:period]
+    vals_out_period = vals_out[:period]
+    idx_in = max(range(len(vals_in_period)), key=lambda i: vals_in_period[i])
+    idx_out = max(range(len(vals_out_period)), key=lambda i: vals_out_period[i])
+    delay = t[idx_out] - t[idx_in]
+    phase = -2.0 * np.pi * freq * delay
+    return amp, phase
+
+
+def test_single_segment_reflection_and_phase():
+    seg = TransmissionLineSegment(
+        from_node=0,
+        to_node=1,
+        length=1.0,
+        L_per_m=2.5e-7,
+        R_per_m=0.0,
+        C_per_m=1e-10,
+    )
+    freq = 1e7
+    ZL = 25.0
+    sol = solve_distributed_circuit([seg], [], V0=1.0, t_end=2e-6, dt=1e-9, frequency=freq, Z_load=ZL)
+
+    gamma = seg.propagation_constant(freq)
+    Z0 = seg.characteristic_impedance(freq)
+    H = 1.0 / (cmath.cosh(gamma * seg.length) + (Z0 / ZL) * cmath.sinh(gamma * seg.length))
+    amp_exp = abs(H)
+    phase_exp = cmath.phase(H)
+
+    amp_sol, phase_sol = _measure_amp_phase(sol.node_voltages, sol.t, freq)
+    assert np.isclose(amp_sol, amp_exp, rtol=1e-3, atol=1e-6)
+    assert np.isclose(phase_sol, phase_exp, rtol=1e-1, atol=1e-6)
+    refl = (ZL - Z0) / (ZL + Z0)
+    assert np.isclose(sol.reflections[0], refl, rtol=1e-6, atol=1e-6)
+
+
+def test_two_segment_interface_reflection():
+    seg1 = TransmissionLineSegment(
+        from_node=0,
+        to_node=1,
+        length=0.5,
+        L_per_m=2.5e-7,
+        R_per_m=0.0,
+        C_per_m=1e-10,
+    )
+    seg2 = TransmissionLineSegment(
+        from_node=1,
+        to_node=2,
+        length=0.5,
+        L_per_m=5.625e-7,
+        R_per_m=0.0,
+        C_per_m=1e-10,
+    )
+    freq = 1e7
+    ZL = seg2.characteristic_impedance(freq)
+    sol = solve_distributed_circuit([seg1, seg2], [], V0=1.0, t_end=2e-6, dt=1e-9, frequency=freq, Z_load=ZL)
+
+    Z0_1 = seg1.characteristic_impedance(freq)
+    Z0_2 = seg2.characteristic_impedance(freq)
+    gamma1 = seg1.propagation_constant(freq) * seg1.length
+    gamma2 = seg2.propagation_constant(freq) * seg2.length
+    M1 = [
+        [cmath.cosh(gamma1), Z0_1 * cmath.sinh(gamma1)],
+        [cmath.sinh(gamma1) / Z0_1, cmath.cosh(gamma1)],
+    ]
+    M2 = [
+        [cmath.cosh(gamma2), Z0_2 * cmath.sinh(gamma2)],
+        [cmath.sinh(gamma2) / Z0_2, cmath.cosh(gamma2)],
+    ]
+    # Manual 2x2 matrix multiplication
+    A = M1[0][0] * M2[0][0] + M1[0][1] * M2[1][0]
+    B = M1[0][0] * M2[0][1] + M1[0][1] * M2[1][1]
+    C = M1[1][0] * M2[0][0] + M1[1][1] * M2[1][0]
+    D = M1[1][0] * M2[0][1] + M1[1][1] * M2[1][1]
+    H = 1.0 / (A + B / ZL)
+    amp_exp = abs(H)
+    phase_exp = cmath.phase(H)
+    amp_sol, phase_sol = _measure_amp_phase(sol.node_voltages, sol.t, freq)
+    assert np.isclose(amp_sol, amp_exp, rtol=1e-3, atol=1e-6)
+    assert np.isclose(phase_sol, phase_exp, rtol=1e-1, atol=1e-6)
+    refl_int = (Z0_2 - Z0_1) / (Z0_2 + Z0_1)
+    assert np.isclose(sol.reflections[0], refl_int, rtol=1e-6, atol=1e-6)
+    assert np.isclose(sol.reflections[1], 0.0, atol=1e-12)
 
