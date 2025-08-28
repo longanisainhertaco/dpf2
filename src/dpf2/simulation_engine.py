@@ -13,7 +13,7 @@ from .dpf_config import DPFConfig
 from .circuit_config import CircuitConfig
 
 from .circuit_solver import RLCCircuit, CircuitSolver, run_circuit_simulation
-from .core.bases import PlasmaSolverBase
+from .core.bases import PlasmaSolverBase, CouplingState
 from .pinch_models import (
     AnalyticPinchModel,
     SemiAnalyticPinchModel,
@@ -152,13 +152,11 @@ class SimulationEngine:
         )
 
         current = circuit.currents[-1]
+        voltage = circuit.voltages[-1]
         while circuit.time[-1] < t_end:
-            current, _ = circuit.step(
-                current,
-                0.0,
-                dt,
-                energy_tracker=tracker,
-            )
+            state = CouplingState(current=current, voltage=voltage)
+            updated = circuit.step(state, 0.0, dt, energy_tracker=tracker)
+            current, voltage = updated.current, updated.voltage
 
         t = np.array(circuit.time)
         current_arr = np.array(circuit.currents)

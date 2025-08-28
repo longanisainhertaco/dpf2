@@ -50,6 +50,7 @@ from .collision_model import CollisionModel
 from .config_schema import HybridConfig
 from .models import PhysicsModule, SimulationState
 from .utils import FieldManager
+from ..core.bases import CouplingState
 
 # Physical constants
 mu0      = 4*np.pi*1e-7
@@ -230,7 +231,13 @@ class HybridController(PhysicsModule):
             #I = self.fluid.compute_total_current()
             I = self.field_manager.get_J()
             # Pass the fluid current and zero back‑EMF to the circuit model.
-            self.circuit.step(I, 0.0, dt)
+            voltage = (
+                self.circuit.get_voltage()
+                if hasattr(self.circuit, "get_voltage")
+                else 0.0
+            )
+            state = CouplingState(current=I, voltage=voltage)
+            self.circuit.step(state, 0.0, dt)
 
             # 3. Radiation
             self.radiation.apply(state, dt)
@@ -259,7 +266,13 @@ class HybridController(PhysicsModule):
             self._apply_feedback(state, fb, regions)
 
             # 4. Circuit update
-            self.circuit.step(0.0, 0.0, dt)
+            voltage = (
+                self.circuit.get_voltage()
+                if hasattr(self.circuit, "get_voltage")
+                else 0.0
+            )
+            state = CouplingState(current=0.0, voltage=voltage)
+            self.circuit.step(state, 0.0, dt)
 
             # 5. Radiation effects
             self.radiation.apply(state, dt)

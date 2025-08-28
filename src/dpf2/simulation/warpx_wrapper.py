@@ -49,6 +49,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     ) from exc
 from .collision_model import CollisionModel  # Assuming you have this
 from .utils import FieldManager
+from ..core.bases import CouplingState
 
 # Configure logger
 logger = logging.getLogger('WarpXWrapper')
@@ -354,11 +355,17 @@ class WarpXWrapper:
                 if self.circuit:
                     t_c = time.perf_counter()
                     I_pic = self.get_total_current()
-                    # The circuit interface expects the present current,
-                    # an applied back‑EMF and the timestep.  The stub circuit
-                    # used here does not provide a detailed model so we pass
-                    # the PIC current and zero EMF.
-                    self.circuit.step(I_pic, 0.0, dt)
+                    # The circuit interface expects the present state and an
+                    # applied back‑EMF.  The stub circuit used here does not
+                    # provide a detailed model so we pass the PIC current and
+                    # zero EMF/inductance.
+                    voltage = (
+                        self.circuit.get_voltage()
+                        if hasattr(self.circuit, "get_voltage")
+                        else 0.0
+                    )
+                    state = CouplingState(current=I_pic, voltage=voltage)
+                    self.circuit.step(state, 0.0, dt)
                     self.warp.applyBoundaryB(self.circuit.I)
                     timings['circuit'] += time.perf_counter() - t_c
             t_map = time.perf_counter()

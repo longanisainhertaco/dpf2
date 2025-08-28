@@ -37,6 +37,7 @@ from .circuit import CircuitModel
 from .utils import FieldManager, SimulationState
 from ..diagnostics import Diagnostics
 from .pic_solver import PICSolver
+from ..core.bases import CouplingState
 try:
     from ..exceptions import SimulationRuntimeError
 except Exception:  # pragma: no cover - fallback for standalone usage
@@ -230,7 +231,28 @@ class DPFSimulation:
 
                     feedback = getattr(self.solver, "circuit_feedback", None)
 
-                    self.circuit.step(current, back_emf, self.dt, feedback)
+                    if isinstance(feedback, CouplingState):
+                        coupling = feedback
+                        coupling.current = current
+                        coupling.voltage = (
+                            self.circuit.get_voltage()
+                            if hasattr(self.circuit, "get_voltage")
+                            else 0.0
+                        )
+                    else:
+                        feedback = feedback or {}
+                        coupling = CouplingState(
+                            Lp=feedback.get("Lp", 0.0),
+                            emf=feedback.get("emf", 0.0),
+                            current=current,
+                            voltage=(
+                                self.circuit.get_voltage()
+                                if hasattr(self.circuit, "get_voltage")
+                                else 0.0
+                            ),
+                        )
+
+                    self.circuit.step(coupling, back_emf, self.dt)
                 except Exception as exc:
                     logger.error(f"Circuit step failed: {exc}")
 

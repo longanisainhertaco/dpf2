@@ -103,12 +103,20 @@ def test_hybrid_step_combines_fluid_and_pic():
                 'pressure_density': pressure_density,
             }
 
+    from dpf2.core.bases import CouplingState
+
     class DummyCircuit:
         def __init__(self):
             self.step_calls = 0
-        def step(self, current, back_emf, dt, feedback=None):
+
+        def step(self, coupling: CouplingState, back_emf, dt):
             self.step_calls += 1
-            return current, 0.0
+            return CouplingState(
+                current=coupling.current,
+                voltage=0.0,
+                Lp=coupling.Lp,
+                emf=coupling.emf,
+            )
 
     class DummyRadiation:
         def __init__(self):

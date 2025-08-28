@@ -32,6 +32,7 @@ core_mod = importlib.util.module_from_spec(core_spec)
 sys.modules["dpf2.core.circuit"] = core_mod
 core_spec.loader.exec_module(core_mod)  # type: ignore[misc]
 RLCCircuitSolver = core_mod.RLCCircuitSolver
+from dpf2.core.bases import CouplingState
 
 plasma_spec = importlib.util.spec_from_file_location(
     "dpf2.physics.simple_plasma", module_base / "physics/simple_plasma.py"
@@ -66,9 +67,15 @@ def main() -> None:
     plasma.step(None, 0.0, current, voltage)
 
     for _ in range(steps):
-        feedback = {"Lp": plasma.inductance, "emf": plasma.back_emf}
-        current, voltage = circuit.step(current, 0.0, dt, feedback)
-        plasma.step(None, dt, current, voltage)
+        feedback = CouplingState(
+            Lp=plasma.inductance,
+            emf=plasma.back_emf,
+            current=current,
+            voltage=voltage,
+        )
+        updated = circuit.step(feedback, 0.0, dt)
+        plasma.step(None, dt, updated.current, updated.voltage)
+        current, voltage = updated.current, updated.voltage
 
     Lp = plasma.inductance
     initial_energy = 0.5 * circuit.C_ext * circuit.V0 ** 2
