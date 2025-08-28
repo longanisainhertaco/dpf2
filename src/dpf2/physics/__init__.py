@@ -1,5 +1,8 @@
 from .mhd import ResistiveMHD
-
+from .energy import EnergyTracker
+from .pic import SimplePIC
+from .eos import TabulatedEOS, load_tabulated_eos, load_standard_eos
+from .radiation import RadiationTransport
 from .pic_driver import PicDriver
 from .warpx_picmi import WarpXPicmiDriver
 
@@ -24,7 +27,15 @@ try:  # pragma: no cover - exercised when dependency is available
 except Exception:  # pragma: no cover - fallback for minimal environments
     neutral_density_source = wall_ablation_source = None  # type: ignore
 
-__all__ = ["ResistiveMHD", "EnergyTracker"]
+__all__ = [
+    "ResistiveMHD",
+    "EnergyTracker",
+    "SimplePIC",
+    "TabulatedEOS",
+    "load_tabulated_eos",
+    "load_standard_eos",
+    "RadiationTransport",
+]
 
 if ZeroDPlasma is not None:
     __all__.append("ZeroDPlasma")
