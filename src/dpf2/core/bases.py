@@ -5,7 +5,28 @@ from here to avoid duplication."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
+
+
+@dataclass
+class CouplingState:
+    """Coupling information exchanged between plasma and circuit solvers.
+
+    Attributes
+    ----------
+    Lp, emf:
+        Plasma inductance in Henries and induced electromotive force in
+        Volts.
+    current, voltage:
+        Circuit current and capacitor voltage supplied to the plasma
+        solver for advancing its state.
+    """
+
+    Lp: float = 0.0
+    emf: float = 0.0
+    current: float = 0.0
+    voltage: float = 0.0
 
 
 class PlasmaSolverBase(ABC):
@@ -28,16 +49,14 @@ class PlasmaSolverBase(ABC):
         raise NotImplementedError
 
     # ------------------------------------------------------------------
-    def coupling_interface(self) -> dict[str, float]:
+    def coupling_interface(self) -> CouplingState:
         """Return circuit coupling terms for the current plasma state.
 
-        The mapping should contain at least the plasma inductance ``Lp`` in
-        Henries and the induced electromotive force ``emf`` in Volts.  Plasma
-        solvers that do not actively couple to the circuit may rely on this
-        default implementation which returns zero for both quantities.
+        Plasma solvers that do not actively couple to the circuit may rely on
+        this default implementation which returns zeros for all quantities.
         """
 
-        return {"Lp": 0.0, "emf": 0.0}
+        return CouplingState()
 
 
 class CircuitSolverBase(ABC):
@@ -46,12 +65,11 @@ class CircuitSolverBase(ABC):
     @abstractmethod
     def step(
         self,
-        current: float,
+        coupling: CouplingState,
         back_emf: float,
         dt: float,
-        plasma_feedback: dict[str, float] | None = None,
-    ) -> tuple[float, float]:
-        """Return updated ``(current, voltage)`` after ``dt`` seconds."""
+    ) -> CouplingState:
+        """Advance the circuit state by ``dt`` seconds."""
         raise NotImplementedError
 
 
@@ -65,6 +83,7 @@ class DiagnosticsBase(ABC):
 
 
 __all__ = [
+    "CouplingState",
     "PlasmaSolverBase",
     "CircuitSolverBase",
     "DiagnosticsBase",

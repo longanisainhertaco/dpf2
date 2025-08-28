@@ -26,6 +26,7 @@ except ModuleNotFoundError:  # pragma: no cover
         raise ModuleNotFoundError("scipy not available")
 from typing import Dict, Any, Optional
 from .utils import SimulationState, FieldManager
+from ..core.bases import CouplingState
 
 # Physical constants (moved to the top)
 from .constants import e, me, epsilon0
@@ -367,54 +368,27 @@ class CircuitModel:
 
     def step(
         self,
-        current: float,
+        coupling: CouplingState,
         back_emf: float,
         dt: float,
-        plasma_feedback: Optional[Dict[str, float]] = None,
-    ) -> tuple[float, float]:
-        """Advance the circuit state by ``dt`` seconds.
-
-        Parameters
-        ----------
-        current:
-            Instantaneous circuit current supplied by the plasma solver.
-        back_emf:
-            External electromotive force applied to the circuit (Volts).
-        dt:
-            Time step in seconds.
-        plasma_feedback:
-            Optional mapping containing plasma coupling terms.  Recognised keys
-            are ``"Lp"`` for the plasma inductance and either ``"emf"`` for the
-            induced back‑EMF or ``"dLpdt"`` for its time derivative.
-
-        Returns
-        -------
-        tuple(float, float)
-            The updated ``(current, voltage)`` pair.
-        """
+    ) -> CouplingState:
+        """Advance the circuit state by ``dt`` seconds."""
 
         if not isinstance(dt, (int, float)) or dt <= 0:
             raise ValueError("Time step (dt) must be a positive number.")
 
-        Lp = 0.0
-        emf = 0.0
-        dLpdt = 0.0
-        if plasma_feedback:
-            Lp = plasma_feedback.get("Lp", 0.0)
-            if "emf" in plasma_feedback:
-                emf = plasma_feedback["emf"]
-            else:
-                dLpdt = plasma_feedback.get("dLpdt", 0.0)
+        current = coupling.current
+        voltage = coupling.voltage
+        Lp = coupling.Lp
+        emf = coupling.emf
 
         R_tot = self.R0 + self.ESR
         L_tot = self.L0 + self.ESL + self.Ls + Lp
 
-        voltage = self.get_voltage()
-
         if emf != 0.0:
             numerator = -R_tot * current - voltage - emf - back_emf
         else:
-            numerator = -R_tot * current - voltage - dLpdt * current - back_emf
+            numerator = -R_tot * current - voltage - back_emf
 
         dIdt = numerator / L_tot if L_tot != 0.0 else 0.0
         dVdt = -current / self.C
@@ -425,7 +399,7 @@ class CircuitModel:
         self.I = new_current
         self.Q = new_voltage * self.C
 
-        return new_current, new_voltage
+        return CouplingState(Lp=Lp, emf=emf, current=new_current, voltage=new_voltage)
 
     def _step_rk4(self, state: SimulationState, dt: float) -> float:
         """

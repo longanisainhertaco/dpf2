@@ -1,3 +1,4 @@
+
 import sys
 from pathlib import Path
 import importlib.util
@@ -200,3 +201,4 @@ def test_parasitic_elements_affect_dynamics():
 
     assert not np.isclose(base.get_current(), with_parasitics.get_current())
     assert not np.isclose(base.get_voltage(), with_parasitics.get_voltage())
+

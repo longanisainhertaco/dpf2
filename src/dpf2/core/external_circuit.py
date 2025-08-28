@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .bases import CircuitSolverBase
+from .bases import CircuitSolverBase, CouplingState
 
 
 @dataclass
@@ -20,29 +20,21 @@ class ExternalCircuit(CircuitSolverBase):
 
     def step(
         self,
-        current: float,
+        coupling: CouplingState,
         back_emf: float,
         dt: float,
-        plasma_feedback: dict[str, float] | None = None,
-    ) -> tuple[float, float]:
-        """Advance the circuit state by ``dt`` seconds.
+    ) -> CouplingState:
+        """Advance the circuit state by ``dt`` seconds."""
 
-        ``back_emf`` represents an applied voltage drop across the inductance.
-        ``plasma_feedback`` may supply the instantaneous plasma inductance and
-        its time derivative via the keys ``"Lp"`` and ``"dLpdt"`` respectively.
-        """
-
-        Lp = 0.0
-        dLpdt = 0.0
-        if plasma_feedback:
-            Lp = plasma_feedback.get("Lp", 0.0)
-            dLpdt = plasma_feedback.get("dLpdt", 0.0)
+        Lp = coupling.Lp
+        emf = coupling.emf
+        current = coupling.current
 
         Ltot = self.inductance + Lp
-        dI = (back_emf - dLpdt * current) * dt / max(Ltot, 1.0e-30)
+        dI = (back_emf - emf) * dt / max(Ltot, 1.0e-30)
         self.current = current + dI
         self.inductance = Ltot
-        return self.current, back_emf
+        return CouplingState(Lp=Lp, emf=emf, current=self.current, voltage=back_emf)
 
 
 __all__ = ["ExternalCircuit"]

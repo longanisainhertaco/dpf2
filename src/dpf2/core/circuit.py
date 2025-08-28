@@ -14,7 +14,7 @@ history arrays that may be inspected after a simulation run.
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .bases import CircuitSolverBase
+from .bases import CircuitSolverBase, CouplingState
 
 
 @dataclass
@@ -43,7 +43,7 @@ class RLCCircuitSolver(CircuitSolverBase):
     time: list[float] = field(default_factory=lambda: [0.0])
     currents: list[float] = field(default_factory=lambda: [0.0])
     voltages: list[float] = field(init=False)
-    last_feedback: dict[str, float] = field(default_factory=dict, init=False)
+    last_feedback: CouplingState = field(default_factory=CouplingState, init=False)
 
     def __post_init__(self) -> None:  # pragma: no cover - trivial
         self.voltages = [self.V0]
@@ -63,71 +63,28 @@ class RLCCircuitSolver(CircuitSolverBase):
     # ------------------------------------------------------------------
     def step(
         self,
-        current: float,
+        coupling: CouplingState,
         back_emf: float,
         dt: float,
-        plasma_feedback: dict[str, float] | None = None,
-    ) -> tuple[float, float]:
-        """Advance the circuit state by ``dt`` seconds.
+    ) -> CouplingState:
+        """Advance the circuit state by ``dt`` seconds."""
 
-        Parameters
-        ----------
-        current:
-            Present value of the circuit current.
-        back_emf:
-            External EMF applied to the circuit (Volts).  This term is added to
-            any plasma induced EMF supplied via ``plasma_feedback``.
-        dt:
-            Time step in seconds.
-        plasma_feedback:
-            Optional mapping containing coupling terms from the plasma solver.
-            Recognised keys are ``"Lp"`` for plasma inductance (Henries) and
-            either ``"dLpdt"`` for its time derivative or ``"emf"`` for the
-            induced back‑EMF (Volts).  Additional keys ``"M"`` and
-            ``"dIm_dt"`` may be supplied to override the mutual inductance
-            values returned by the callables passed at construction time.
-        """
-
-        voltage = self.voltages[-1]
+        current = coupling.current
+        voltage = coupling.voltage
         t = self.time[-1]
-        Lp = 0.0
-        dLpdt = 0.0
-        emf = 0.0
-        use_emf = False
-        M_pf = None
-        dIm_dt_pf = None
-        if plasma_feedback:
-            self.last_feedback = dict(plasma_feedback)
-            Lp = plasma_feedback.get("Lp", 0.0)
-            # ``emf`` and ``dLpdt`` are two alternative ways of supplying the
-            # coupling term arising from a time varying plasma inductance.  For
-            # the small regression tests the plasma solver reports the induced
-            # electromotive force directly via ``"emf"`` which takes precedence
-            # over ``"dLpdt"`` if both are given.
-            if "emf" in plasma_feedback:
-                emf = plasma_feedback["emf"]
-                use_emf = True
-            else:
-                dLpdt = plasma_feedback.get("dLpdt", 0.0)
-            M_pf = plasma_feedback.get("M")
-            dIm_dt_pf = plasma_feedback.get("dIm_dt")
-        else:
-            self.last_feedback = {}
+
+        Lp = coupling.Lp
+        emf = coupling.emf
+        self.last_feedback = CouplingState(
+            Lp=Lp, emf=emf, current=current, voltage=voltage
+        )
 
         M, dIm_dt = self._mutual_terms(t, dt)
-        if M_pf is not None:
-            M = M_pf
-        if dIm_dt_pf is not None:
-            dIm_dt = dIm_dt_pf
 
         Ltot = self.L_ext + Lp
         V_mutual = -M * dIm_dt
 
-        # Effective circuit equation:
-        #   (L_ext + Lp) dI/dt + R I + Q/C + dLpdt * I = V0 + V_mutual - emf - back_emf
-        # where ``emf`` already contains the Lp * dI/dt contribution supplied by
-        # the plasma model when available.
-        if use_emf:
+        if emf != 0.0:
             numerator = (
                 self.V0
                 + V_mutual
@@ -142,7 +99,6 @@ class RLCCircuitSolver(CircuitSolverBase):
                 + V_mutual
                 - self.R_ext * current
                 - voltage
-                - dLpdt * current
                 - back_emf
             )
         dIdt = numerator / Ltot
@@ -157,7 +113,7 @@ class RLCCircuitSolver(CircuitSolverBase):
         self.currents.append(new_current)
         self.voltages.append(new_voltage)
 
-        return new_current, new_voltage
+        return CouplingState(Lp=Lp, emf=emf, current=new_current, voltage=new_voltage)
 
 
 __all__ = ["RLCCircuitSolver"]
