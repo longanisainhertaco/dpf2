@@ -20,19 +20,25 @@ unit and integration tests throughout the code base.
 from __future__ import annotations
 
 from dataclasses import dataclass
-try:
-    import numpy as np  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - fallback for test environment
-    import types, math
+try:  # pragma: no cover - prefer GPU acceleration when available
+    import cupy as np  # type: ignore
+except Exception:  # pragma: no cover - fall back to numpy or a small stub
+    try:
+        import numpy as np  # type: ignore
+    except ModuleNotFoundError:  # pragma: no cover - very small fallback
+        import types, math
 
-    np = types.SimpleNamespace(
-        array=lambda x: list(x) if isinstance(x, (list, tuple)) else [x],
-        zeros=lambda shape: [[0.0] * shape[1] for _ in range(shape[0])] if isinstance(shape, tuple) else [0.0] * shape,
-        sqrt=math.sqrt,
-        dot=lambda a, b: sum(x * y for x, y in zip(a, b)),
-        zeros_like=lambda arr: [0.0 for _ in arr],
-        ndarray=list,
-    )
+        np = types.SimpleNamespace(
+            array=lambda x: list(x) if isinstance(x, (list, tuple)) else [x],
+            zeros=lambda shape: [[0.0] * shape[1] for _ in range(shape[0])] if isinstance(shape, tuple) else [0.0] * shape,
+            sqrt=math.sqrt,
+            dot=lambda a, b: sum(x * y for x, y in zip(a, b)),
+            zeros_like=lambda arr: [0.0 for _ in arr],
+            ndarray=list,
+            sin=math.sin,
+            cos=math.cos,
+            pi=math.pi,
+        )
 
 # ``MultiGroupDiffusion`` is an optional dependency; the lightweight stub below
 # allows importing this module in minimal test environments where the full
