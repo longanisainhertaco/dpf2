@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover - fallback for test environment
         def couple(self, energies, dt):
             return energies
 
-from ..core.bases import PlasmaSolverBase
+from ..core.bases import PlasmaSolverBase, CouplingState
 
 
 @dataclass
@@ -29,7 +29,7 @@ class ZeroDPlasma(PlasmaSolverBase):
 
     inductance_model: Callable[[float, float, float], tuple[float, float]]
     time: float = 0.0
-    circuit_feedback: dict[str, float] = field(init=False, default_factory=dict)
+    circuit_feedback: CouplingState = field(init=False, default_factory=CouplingState)
     inductance: float = 0.0
     back_emf: float = 0.0
 
@@ -40,14 +40,17 @@ class ZeroDPlasma(PlasmaSolverBase):
         Lp, emf = self.inductance_model(self.time, current, voltage)
         self.inductance = Lp
         self.back_emf = emf
-        self.circuit_feedback = {"Lp": Lp, "emf": emf}
+        self.circuit_feedback = CouplingState(Lp=Lp, emf=emf, current=current, voltage=voltage)
         return state
 
     # ------------------------------------------------------------------
-    def coupling_interface(self) -> dict[str, float]:  # pragma: no cover - simple
+    def coupling_interface(self) -> CouplingState:  # pragma: no cover - simple
         """Expose the latest circuit coupling terms."""
 
-        return dict(self.circuit_feedback)
+        return CouplingState(
+            Lp=self.circuit_feedback.Lp,
+            emf=self.circuit_feedback.emf,
+        )
 
     # ------------------------------------------------------------------
     # Radiation coupling
