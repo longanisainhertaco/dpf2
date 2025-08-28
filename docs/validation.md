@@ -60,6 +60,10 @@ band using the ±1σ envelope from the ensemble statistics. The same approach
 applies to neutron yield time series, providing an intuitive visualization of
 expected experimental scatter.
 
+### Statistical Error Bands
+
+Each benchmark stores the ensemble mean and one-sigma spread for peak current and neutron yield in `ReferenceMaterial` JSON files (for example, `shot_deuterium_20kV.json`). Monte-Carlo validation tests recompute these statistics and ensure experimental measurements fall inside the ±2σ envelope. When adding new benchmarks, record these statistics so the validation suite can enforce the error bands.
+
 ## Physics Regression Tests
 
 ### MHD Shock Tube
