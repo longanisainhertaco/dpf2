@@ -98,6 +98,14 @@ waveform is stored in `ReferenceMaterial/coupled_current.json` and the
 regression test in `tests/validation/test_coupled_current_trace.py` requires the
 L1 error between the simulated and reference traces to remain below **1e-6**.
 
+### Coupled Current and Voltage Traces
+
+A 1 µs discharge of the same coupled circuit is also sampled every 10 ns to
+provide reference time, current and voltage profiles. These series are recorded
+in `ReferenceMaterial/coupled_traces.json`. The regression test in
+`tests/validation/test_coupled_traces.py` recomputes the evolution and requires
+agreement with the references to within a relative tolerance of **1e-9**.
+
 ### Z-Machine Experimental Traces
 
 A unit-valued RLC discharge (L=1 H, R=1 Ω, C=1 F, V₀=1 V) provides reference
