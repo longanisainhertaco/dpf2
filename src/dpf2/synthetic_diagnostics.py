@@ -187,6 +187,21 @@ class SyntheticDiagnostics(ConfigSectionBase):
             f"Detectors: {num_det}, Geometry: {geom}, IDs: {ids}"
         )
 
+    def enabled_modules(self) -> List[str]:
+        """Return names of diagnostic modules enabled via configuration."""
+
+        mapping = {
+            "current_waveform": self.synthetic_current_waveform_enabled,
+            "voltage_waveform": self.synthetic_voltage_waveform_enabled,
+            "coupled_current_waveform": self.synthetic_coupled_current_waveform_enabled,
+            "coupled_voltage_waveform": self.synthetic_coupled_voltage_waveform_enabled,
+            "rogowski_signal": self.synthetic_rogowski_signal_enabled,
+            "bdot_signal": self.synthetic_bdot_signal_enabled,
+            "neutron_tof": self.synthetic_neutron_tof_enabled,
+            "xray_pinhole": self.synthetic_xray_pinhole_enabled,
+        }
+        return [name for name, flag in mapping.items() if flag]
+
     def hash_synthetic_diagnostics_config(self) -> str:
         data = self.model_dump(by_alias=True, exclude={"synthetic_diagnostics_config_hash"})
         serialized = json.dumps(data, sort_keys=True, default=str)

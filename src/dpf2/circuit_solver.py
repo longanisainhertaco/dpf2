@@ -310,10 +310,11 @@ def run_circuit_simulation(
         voltage = circuit.voltages[-1]
         plasma_solver.step(plasma_state, 0.0, current, voltage)
         for _ in range(1, num_points):
-            feedback = plasma_solver.coupling_interface()
-            feedback.current = current
-            feedback.voltage = voltage
-            updated = circuit.step(feedback, 0.0, dt)
+            fb = plasma_solver.coupling_interface()
+            coupling = CouplingState(
+                Lp=fb.Lp, emf=fb.emf, current=current, voltage=voltage
+            )
+            updated = circuit.step(coupling, 0.0, dt)
             current, voltage = updated.current, updated.voltage
             plasma_solver.step(plasma_state, dt, current, voltage)
 

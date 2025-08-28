@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Tuple
 
 
 @dataclass
@@ -27,6 +27,17 @@ class CouplingState:
     emf: float = 0.0
     current: float = 0.0
     voltage: float = 0.0
+
+    def as_tuple(self) -> Tuple[float, float, float, float]:
+        """Return the state as ``(Lp, emf, current, voltage)`` tuple.
+
+        This helper simplifies unpacking when a solver prefers positional
+        access.  The method is intentionally lightweight to keep the
+        ``CouplingState`` dataclass as a minimal container for exchanged
+        quantities.
+        """
+
+        return self.Lp, self.emf, self.current, self.voltage
 
 
 class PlasmaSolverBase(ABC):
