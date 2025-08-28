@@ -6,7 +6,12 @@ module re-exports the public API to maintain backwards compatibility
 with older import paths.
 """
 
-from .circuit.distributed import TransmissionLineSegment, Switch, assemble_matrices
+from .circuit.distributed import (
+    TransmissionLineSegment,
+    TriggeredSwitch,
+    assemble_matrices,
+    Switch,
+)
 
-__all__ = ["TransmissionLineSegment", "Switch", "assemble_matrices"]
+__all__ = ["TransmissionLineSegment", "TriggeredSwitch", "assemble_matrices", "Switch"]
 
