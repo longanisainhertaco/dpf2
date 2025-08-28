@@ -134,6 +134,9 @@ class SimulationEngine:
         if num_threads and num_threads > 1:
             self._executor = ThreadPoolExecutor(max_workers=num_threads)
 
+        # Adaptive mesh refinement driver
+        self._mesh = self._setup_mesh()
+
     # ------------------------------------------------------------------
     def _setup_circuit(self) -> CircuitSolver:
         cc: CircuitConfig = self.config.circuit_config
@@ -144,6 +147,18 @@ class SimulationEngine:
             V0=cc.V0 * 1e3,
         )
         return CircuitSolver(circuit)
+
+    # ------------------------------------------------------------------
+    def _setup_mesh(self):
+        """Instantiate an AMR mesh wrapper when refinement criteria provided."""
+        crit = self.config.parallel_settings.amr_refinement_criteria
+        if not crit:
+            return None
+        from .mesh import AMRMesh
+
+        gr = self.config.grid_resolution
+        shape = (getattr(gr, "nx", 1), getattr(gr, "ny", 1), getattr(gr, "nz", 1))
+        return AMRMesh(shape, crit)
 
     # ------------------------------------------------------------------
     def run(
@@ -207,6 +222,9 @@ class SimulationEngine:
             if diagnostics:
                 for diag in diagnostics:
                     diag.record(updated, circuit.time[-1])
+
+            if self._mesh is not None:
+                self._mesh.refine()
 
             current, voltage = updated.current, updated.voltage
 
