@@ -120,7 +120,13 @@ class HallMHD(ResistiveMHD):
         # accounted for via ``emf`` above.
         self.inductance = Lp
         self.back_emf = emf
-        self.circuit_feedback = CouplingState(Lp=Lp, emf=emf, current=self.current)
+        self.circuit_feedback = CouplingState(
+            Lp=Lp,
+            emf=emf,
+            current=self.current,
+            mutual_inductance=0.0,
+            back_reaction=0.0,
+        )
 
         if circuit is not None:
             updated = circuit.step(self.circuit_feedback, 0.0, dt)

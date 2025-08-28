@@ -30,7 +30,12 @@ def advance_plasma_with_circuit(
     plasma.step(state, dt, coupling.current, coupling.voltage)
     fb = plasma.coupling_interface()
     return CouplingState(
-        Lp=fb.Lp, emf=fb.emf, current=coupling.current, voltage=coupling.voltage
+        Lp=fb.Lp,
+        emf=fb.emf,
+        current=coupling.current,
+        voltage=coupling.voltage,
+        mutual_inductance=fb.mutual_inductance,
+        back_reaction=fb.back_reaction,
     )
 
 __all__ = [

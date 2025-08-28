@@ -381,6 +381,7 @@ class CircuitModel:
         voltage = coupling.voltage
         Lp = coupling.Lp
         emf = coupling.emf
+        M = coupling.mutual_inductance
 
         R_tot = self.R0 + self.ESR
         L_tot = self.L0 + self.ESL + self.Ls + Lp
@@ -392,6 +393,7 @@ class CircuitModel:
 
         dIdt = numerator / L_tot if L_tot != 0.0 else 0.0
         dVdt = -current / self.C
+        back_reaction = M * dIdt if M != 0.0 else coupling.back_reaction
 
         new_current = current + dIdt * dt
         new_voltage = voltage + dVdt * dt
@@ -399,7 +401,14 @@ class CircuitModel:
         self.I = new_current
         self.Q = new_voltage * self.C
 
-        return CouplingState(Lp=Lp, emf=emf, current=new_current, voltage=new_voltage)
+        return CouplingState(
+            Lp=Lp,
+            emf=emf,
+            current=new_current,
+            voltage=new_voltage,
+            mutual_inductance=M,
+            back_reaction=back_reaction,
+        )
 
     def _step_rk4(self, state: SimulationState, dt: float) -> float:
         """

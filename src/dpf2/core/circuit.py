@@ -113,7 +113,14 @@ class RLCCircuitSolver(CircuitSolverBase):
         self.currents.append(new_current)
         self.voltages.append(new_voltage)
 
-        return CouplingState(Lp=Lp, emf=emf, current=new_current, voltage=new_voltage)
+        return CouplingState(
+            Lp=Lp,
+            emf=emf,
+            current=new_current,
+            voltage=new_voltage,
+            mutual_inductance=M,
+            back_reaction=V_mutual,
+        )
 
 
 __all__ = ["RLCCircuitSolver"]

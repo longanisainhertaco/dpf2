@@ -13,6 +13,8 @@ from .scope_trace import compute_scope_trace
 from .synthetic_signals import (
     current_waveform,
     voltage_waveform,
+    coupled_current_waveform,
+    coupled_voltage_waveform,
     rogowski_signal,
     bdot_signal,
 )
@@ -23,6 +25,8 @@ __all__ = [
     "compute_scope_trace",
     "current_waveform",
     "voltage_waveform",
+    "coupled_current_waveform",
+    "coupled_voltage_waveform",
     "rogowski_signal",
     "bdot_signal",
 ]
