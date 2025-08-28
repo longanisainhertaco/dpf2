@@ -97,3 +97,13 @@ to 1 kV and discharged for 1 µs with a 10 ns time step. The resulting current
 waveform is stored in `ReferenceMaterial/coupled_current.json` and the
 regression test in `tests/validation/test_coupled_current_trace.py` requires the
 L1 error between the simulated and reference traces to remain below **1e-6**.
+
+### Z-Machine Experimental Traces
+
+A unit-valued RLC discharge (L=1 H, R=1 Ω, C=1 F, V₀=1 V) provides reference
+current and voltage traces along with synthetic plasma diagnostics computed as
+\(p = 10^{-2} I^2\) and \(T = 300 + 10^{-3} I\).  The time series and the
+integrated neutron yield are stored in `ReferenceMaterial/z_machine_traces.json`.
+The regression test in `tests/validation/test_exp_traces.py` recomputes these
+profiles and enforces agreement with the references to within a relative
+tolerance of **1e-9**.
