@@ -58,7 +58,7 @@ Run the CLI against the provided sample configuration:
 dpf2 simulate -c examples/config.json -o results.json
 ```
 
-For an interactive walk-through, open the Jupyter notebook in the `examples/quickstart.ipynb` file.
+For an interactive walk-through, open the Jupyter notebook in the `examples/notebooks/quickstart.ipynb` file.
 
 ## Server Usage
 
