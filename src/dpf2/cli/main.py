@@ -2,6 +2,7 @@
 import json
 import logging
 import dataclasses
+import json
 from pathlib import Path
 from dataclasses import asdict
 
@@ -13,6 +14,8 @@ from dpf2.core.bases import CouplingState
 from dpf2.diagnostics.synthetic_signals import (
     current_waveform,
     voltage_waveform,
+    coupled_current_waveform,
+    coupled_voltage_waveform,
     rogowski_signal,
     bdot_signal,
 )
@@ -65,13 +68,15 @@ def main() -> None:
     help="Electrode segment length [m]",
 )
 @click.option("--verbose", is_flag=True, help="Report solver progress and energy diagnostics")
-def simulate(
-    config: str | None,
-    output: str,
-    voltage: float | None,
-    segment_length: float | None,
-    verbose: bool,
-) -> None:
+
+@click.option(
+    "--synthetic",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Run synthetic diagnostics using configuration file",
+)
+def simulate(config: str | None, output: str, verbose: bool, synthetic: str | None) -> None:
+
     """Run a DPF simulation."""
     try:
         if verbose:
@@ -136,6 +141,30 @@ def simulate(
 
         if pbar is not None:
             pbar.close()
+
+        if synthetic:
+            cfg_data = json.loads(Path(synthetic).read_text())
+            diag_cfg = SyntheticDiagnostics.model_validate(cfg_data)
+            history = [
+                CouplingState(current=i, voltage=v) for i, v in zip(currents, voltages)
+            ]
+            dt = times[1] - times[0] if len(times) > 1 else 0.0
+            outputs: dict[str, list[float]] = {}
+            if diag_cfg.synthetic_current_waveform_enabled:
+                outputs["current"] = current_waveform(history)
+            if diag_cfg.synthetic_voltage_waveform_enabled:
+                outputs["voltage"] = voltage_waveform(history)
+            if diag_cfg.synthetic_coupled_current_waveform_enabled:
+                outputs["coupled_current"] = coupled_current_waveform(history)
+            if diag_cfg.synthetic_coupled_voltage_waveform_enabled:
+                outputs["coupled_voltage"] = coupled_voltage_waveform(history)
+            if diag_cfg.synthetic_rogowski_signal_enabled:
+                outputs["rogowski"] = rogowski_signal(history, dt)
+            if diag_cfg.synthetic_bdot_signal_enabled:
+                outputs["bdot"] = bdot_signal(history, 0.01, dt)
+            out_file = Path(output) / "synthetic_signals.json"
+            out_file.write_text(json.dumps(outputs))
+            click.echo(json.dumps(outputs))
 
         try:
             import matplotlib.pyplot as plt
