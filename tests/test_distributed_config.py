@@ -25,7 +25,7 @@ def test_build_distributed_model_parses_connections():
                     closed=True,
                     r_on=1.0,
                     r_off=1000.0,
-                    trigger_times=[10.0],
+                    trigger_time=10.0,
                 )
             ],
         }
@@ -37,4 +37,4 @@ def test_build_distributed_model_parses_connections():
     assert seg.L_profile == [(0.0, 1.0e-6)]
     sw = switches[0]
     assert sw.from_node == 1 and sw.to_node == 2
-    assert sw.trigger_times == [10.0e-9]
+    assert sw.trigger_time == 10.0e-9
