@@ -42,6 +42,7 @@ from .pinch_models import (
 )
 
 from .physics.energy import EnergyTracker
+from .physics.radiation import RadiationTransport, MultiGroupDiffusion
 
 
 __all__ = ["SimulationEngine", "SimulationResults", "EnsembleResults"]
@@ -222,27 +223,9 @@ class SimulationEngine:
         dt = sc.min_dt or 1e-9
         t_end = sc.time_end - sc.time_start
 
-        if plasma_solver is not None:
-            cc: CircuitConfig = self.config.circuit_config
-            num = int(t_end / dt) + 1
-            t, current, _, _, _ = run_circuit_simulation(
-                cc, t_end * 1e6, num_points=num, plasma_solver=plasma_solver, plasma_state=None
-            )
-            t_xp = self.xp.array(t)
-            cur_xp = self.xp.array(current)
-            zeros = self.xp.zeros_like(t_xp)
-            return SimulationResults(
-                time=self._to_numpy(t_xp),
-                current=self._to_numpy(cur_xp),
-                radius=self._to_numpy(zeros),
-                temperature=self._to_numpy(zeros),
-                pressure=self._to_numpy(zeros),
-                neutron_yield=0.0,
-                axial_position=None,
-            )
-
         circuit = self._setup_circuit()
         tracker = EnergyTracker()
+        radiation = RadiationTransport(MultiGroupDiffusion([0.0]), dx=1.0)
 
         # Record initial energies
         tracker.add(
@@ -253,8 +236,17 @@ class SimulationEngine:
         current = circuit.currents[-1]
         voltage = circuit.voltages[-1]
         step = 0
+        plasma_state = None
         while circuit.time[-1] < t_end:
             state = CouplingState(current=current, voltage=voltage)
+            if plasma_solver is not None:
+                plasma_state = plasma_solver.step(plasma_state, dt, current, voltage)
+                iface = plasma_solver.coupling_interface()
+                br = iface.back_reaction
+                if self.comm is not None and self.comm.size > 1:  # pragma: no cover - MPI
+                    br = self.comm.allreduce(br, op=MPI.SUM)
+                state.back_reaction = br
+
             # Optional multithreading for circuit stepping
             if self._executor is not None:
                 future = self._executor.submit(
@@ -264,9 +256,14 @@ class SimulationEngine:
             else:
                 updated = circuit.step(state, 0.0, dt, energy_tracker=tracker)
 
-            # Broadcast updated state across MPI ranks if requested
             if self.comm is not None and (self.comm.size > 1):  # pragma: no cover - MPI
                 updated = self.comm.bcast(updated, root=0)
+
+            # Radiation transport coupling
+            rad_in = tracker.thermal[-1] if tracker.thermal else 0.0
+            rad_out, rad_groups = radiation.step(rad_in, dt)
+            tracker.thermal[-1] = float(rad_out)
+            tracker.radiative[-1] = float(np.sum(rad_groups))
 
             if diagnostics:
                 for diag in diagnostics:

@@ -65,4 +65,26 @@ class SimplePIC(PlasmaSolverBase):
         return CouplingState(back_reaction=self.circuit_feedback.back_reaction)
 
 
-__all__ = ["SimplePIC"]
+@dataclass
+class HybridPIC(SimplePIC):
+    """Hybrid kinetic solver blending PIC particles with a fluid response.
+
+    The model extends :class:`SimplePIC` by adding a prescribed fraction of the
+    circuit current as a fluid contribution to the back‑reaction.  This keeps
+    the implementation intentionally lightweight while exercising the coupling
+    hooks in unit tests.
+    """
+
+    fluid_fraction: float = 0.0
+
+    def step(self, state: Any, dt: float, current: float, voltage: float) -> Any:
+        state = super().step(state, dt, current, voltage)
+        fluid_current = current * self.fluid_fraction
+        total = self.circuit_feedback.back_reaction + fluid_current
+        self.circuit_feedback = CouplingState(
+            current=current, voltage=voltage, back_reaction=total
+        )
+        return state
+
+
+__all__ = ["SimplePIC", "HybridPIC"]

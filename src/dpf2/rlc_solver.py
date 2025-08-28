@@ -22,6 +22,17 @@ from concurrent.futures import ThreadPoolExecutor
 # it provides the minimal functionality used below (``array``).
 from .gpu_utils import xp, solve_linear, to_cpu
 import cmath
+import numpy as np
+
+try:  # pragma: no cover - MPI is optional
+    from mpi4py import MPI  # type: ignore
+except Exception:  # pragma: no cover - graceful fallback when mpi4py missing
+    MPI = None
+
+try:  # pragma: no cover - GPU backend optional
+    from numba import cuda  # type: ignore
+except Exception:  # pragma: no cover - fallback when numba unavailable
+    cuda = None
 
 from .circuit.distributed import TransmissionLineSegment, TriggeredSwitch, assemble_matrices
 
@@ -82,6 +93,9 @@ def solve_distributed_circuit(
     """
 
     switches = list(switches or [])
+    comm = MPI.COMM_WORLD if MPI else None
+    rank = comm.Get_rank() if comm is not None else 0
+    size = comm.Get_size() if comm is not None else 1
 
     # Simplified frequency domain solution for cascaded transmission line
     # segments.  When ``frequency`` is supplied we evaluate the full telegrapher
@@ -94,72 +108,97 @@ def solve_distributed_circuit(
     if frequency is not None and segments:
         w = 2.0 * xp.pi * frequency
         n_steps = int(t_end / dt) + 1
-        t = xp.array([i * dt for i in range(n_steps)])
-        vin = xp.array([xp.sin(w * ti) for ti in t]) * V0
 
-        if Z_load is None:
-            ZL = segments[-1].characteristic_impedance(frequency)
+        if size > 1:
+            counts = [n_steps // size + (1 if r < n_steps % size else 0) for r in range(size)]
+            offsets = [sum(counts[:r]) for r in range(size)]
+            local_idx = range(offsets[rank], offsets[rank] + counts[rank])
+            t_local = xp.array([i * dt for i in local_idx])
+            vin_local = xp.array([xp.sin(w * ti) for ti in t_local]) * V0
+            if comm is not None:
+                t = xp.array(np.concatenate(comm.allgather(to_cpu(t_local))))
+                vin = xp.array(np.concatenate(comm.allgather(to_cpu(vin_local))))
         else:
-            ZL = np.inf if Z_load == np.inf else complex(Z_load)
+            t = xp.array([i * dt for i in range(n_steps)])
+            vin = xp.array([xp.sin(w * ti) for ti in t]) * V0
 
-        # Reflection coefficients are computed from the load backwards to the
-        # source while the overall ABCD matrix is accumulated from source to
-        # load.
-        reflections: list[complex] = []
-        Z_eff = ZL
-        for seg in reversed(segments):
-            refl = seg.reflection_coefficient(frequency, Z_eff)
-            reflections.insert(0, refl)
-            Z0 = seg.characteristic_impedance(frequency)
-            gamma = seg.propagation_constant(frequency)
-            tanh_gl = cmath.tanh(gamma * seg.length)
-            Z_eff = Z0 * (Z_eff + Z0 * tanh_gl) / (Z0 + Z_eff * tanh_gl)
+        if rank == 0:
+            if Z_load is None:
+                ZL = segments[-1].characteristic_impedance(frequency)
+            else:
+                ZL = np.inf if Z_load == np.inf else complex(Z_load)
 
-        A_tot, B_tot, C_tot, D_tot = 1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j
-        for seg in segments:
-            gamma = seg.propagation_constant(frequency) * seg.length
-            Z0 = seg.characteristic_impedance(frequency)
-            cosh_gl = cmath.cosh(gamma)
-            sinh_gl = cmath.sinh(gamma)
-            A = cosh_gl
-            B = Z0 * sinh_gl
-            C = (1.0 / Z0) * sinh_gl
-            D = cosh_gl
-            A_tot, B_tot, C_tot, D_tot = (
-                A_tot * A + B_tot * C,
-                A_tot * B + B_tot * D,
-                C_tot * A + D_tot * C,
-                C_tot * B + D_tot * D,
+            reflections: list[complex] = []
+            Z_eff = ZL
+            for seg in reversed(segments):
+                refl = seg.reflection_coefficient(frequency, Z_eff)
+                reflections.insert(0, refl)
+                Z0 = seg.characteristic_impedance(frequency)
+                gamma = seg.propagation_constant(frequency)
+                tanh_gl = cmath.tanh(gamma * seg.length)
+                Z_eff = Z0 * (Z_eff + Z0 * tanh_gl) / (Z0 + Z_eff * tanh_gl)
+
+            A_tot, B_tot, C_tot, D_tot = 1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j
+            for seg in segments:
+                gamma = seg.propagation_constant(frequency) * seg.length
+                Z0 = seg.characteristic_impedance(frequency)
+                cosh_gl = cmath.cosh(gamma)
+                sinh_gl = cmath.sinh(gamma)
+                A = cosh_gl
+                B = Z0 * sinh_gl
+                C = (1.0 / Z0) * sinh_gl
+                D = cosh_gl
+                A_tot, B_tot, C_tot, D_tot = (
+                    A_tot * A + B_tot * C,
+                    A_tot * B + B_tot * D,
+                    C_tot * A + D_tot * C,
+                    C_tot * B + D_tot * D,
+                )
+
+            if ZL == np.inf:
+                H = 1.0 / A_tot
+                Zin = A_tot / C_tot if C_tot != 0 else np.inf
+            else:
+                H = 1.0 / (A_tot + B_tot / ZL)
+                Zin = (A_tot * ZL + B_tot) / (C_tot * ZL + D_tot)
+
+            amp = abs(H)
+            phase = cmath.phase(H)
+            I_amp = V0 / (abs(Zin) if Zin != 0 else 1e-12)
+            I_phase = -cmath.phase(Zin)
+        else:  # pragma: no cover - non-root ranks receive broadcasts
+            amp = phase = I_amp = I_phase = 0.0
+
+        if comm is not None and size > 1:
+            amp = comm.bcast(amp, root=0)
+            phase = comm.bcast(phase, root=0)
+            I_amp = comm.bcast(I_amp, root=0)
+            I_phase = comm.bcast(I_phase, root=0)
+
+        if size > 1:
+            vout_local = xp.array([xp.sin(w * ti + phase) for ti in t_local]) * (amp * V0)
+            current_local = xp.array([xp.sin(w * ti + I_phase) for ti in t_local]) * I_amp
+            branch_local = current_local[:, None]
+            vout = xp.array(np.concatenate(comm.allgather(to_cpu(vout_local))))
+            current = xp.array(np.concatenate(comm.allgather(to_cpu(current_local))))
+            branch_currents = xp.array(
+                np.concatenate(comm.allgather(to_cpu(branch_local)), axis=0)
             )
-
-        if ZL == np.inf:
-            H = 1.0 / A_tot
-            Zin = A_tot / C_tot if C_tot != 0 else np.inf
         else:
-            H = 1.0 / (A_tot + B_tot / ZL)
-            Zin = (A_tot * ZL + B_tot) / (C_tot * ZL + D_tot)
-
-        amp = abs(H)
-        phase = cmath.phase(H)
-        vout = xp.array([xp.sin(w * ti + phase) for ti in t]) * (amp * V0)
+            vout = xp.array([xp.sin(w * ti + phase) for ti in t]) * (amp * V0)
+            current = xp.array([xp.sin(w * ti + I_phase) for ti in t]) * I_amp
+            branch_currents = current[:, None]
 
         node_voltages = xp.zeros((len(t), 2))
         node_voltages[:, 0] = vin
         node_voltages[:, 1] = vout
 
-        I_amp = V0 / (abs(Zin) if Zin != 0 else 1e-12)
-        I_phase = -cmath.phase(Zin)
-        current = xp.array([xp.sin(w * ti + I_phase) for ti in t]) * I_amp
-        branch_currents = current[:, None]
-
         return DistributedRLCSolution(
-
             t=to_cpu(t),
             current=to_cpu(current),
             voltage=to_cpu(vin),
             branch_currents=to_cpu(branch_currents),
             node_voltages=to_cpu(node_voltages),
-
         )
 
     # ------------------------------------------------------------------
