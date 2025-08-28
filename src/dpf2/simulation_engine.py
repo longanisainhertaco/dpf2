@@ -15,6 +15,20 @@ try:  # pragma: no cover - mpi4py may not be available
 except Exception:  # pragma: no cover - gracefully handle missing MPI
     MPI = None
 
+try:  # pragma: no cover - GPU backend optional
+    import cupy as cp  # type: ignore
+except Exception:  # pragma: no cover
+    cp = None  # type: ignore
+
+try:  # pragma: no cover - numba optional
+    from numba import njit  # type: ignore
+except Exception:  # pragma: no cover
+    def njit(*args, **kwargs):  # type: ignore[misc]
+        def wrapper(func):
+            return func
+
+        return wrapper
+
 from .dpf_config import DPFConfig
 from .circuit_config import CircuitConfig
 
@@ -31,6 +45,12 @@ from .physics.energy import EnergyTracker
 
 
 __all__ = ["SimulationEngine", "SimulationResults", "EnsembleResults"]
+
+
+@njit(cache=True)
+def _capacitor_energy(voltage: float, capacitance: float) -> float:
+    """Return stored energy in a capacitor using Numba for speed."""
+    return 0.5 * capacitance * voltage * voltage
 
 
 @dataclass
@@ -117,6 +137,10 @@ class SimulationEngine:
         ``1`` disables multithreading.  These hooks allow heavier
         simulations to leverage multicore machines without altering the
         core algorithm.
+    use_gpu:
+        When ``True`` and :mod:`cupy` is available, state arrays are
+        allocated on the GPU.  Computations fall back to NumPy when the
+        library is missing or a GPU is not present.
     """
 
     def __init__(
@@ -124,15 +148,27 @@ class SimulationEngine:
         config: DPFConfig,
         comm: "MPI.Comm | None" = None,
         num_threads: int = 1,
+        *,
+        use_gpu: bool = False,
     ) -> None:
         self.config = config.resolve_defaults()
         # MPI communicator -------------------------------------------------
         self.comm = comm if comm is not None else (MPI.COMM_WORLD if MPI else None)
         self.rank = self.comm.Get_rank() if self.comm is not None else 0
+        # GPU backend ------------------------------------------------------
+        self.use_gpu = bool(use_gpu and cp is not None)
+        self.xp = cp if self.use_gpu else np
         # Thread pool ------------------------------------------------------
         self._executor: ThreadPoolExecutor | None = None
         if num_threads and num_threads > 1:
             self._executor = ThreadPoolExecutor(max_workers=num_threads)
+
+    # ------------------------------------------------------------------
+    def _to_numpy(self, arr: np.ndarray | "cp.ndarray") -> np.ndarray:
+        """Convert ``arr`` to a NumPy array regardless of backend."""
+        if self.use_gpu and cp is not None:
+            return cp.asnumpy(arr)  # type: ignore[no-untyped-call]
+        return np.asarray(arr)
 
     # ------------------------------------------------------------------
     def _setup_circuit(self) -> CircuitSolver:
@@ -177,13 +213,15 @@ class SimulationEngine:
             t, current, _, _, _ = run_circuit_simulation(
                 cc, t_end * 1e6, num_points=num, plasma_solver=plasma_solver, plasma_state=None
             )
-            zeros = np.zeros_like(t)
+            t_xp = self.xp.array(t)
+            cur_xp = self.xp.array(current)
+            zeros = self.xp.zeros_like(t_xp)
             return SimulationResults(
-                time=t,
-                current=current,
-                radius=zeros,
-                temperature=zeros,
-                pressure=zeros,
+                time=self._to_numpy(t_xp),
+                current=self._to_numpy(cur_xp),
+                radius=self._to_numpy(zeros),
+                temperature=self._to_numpy(zeros),
+                pressure=self._to_numpy(zeros),
                 neutron_yield=0.0,
                 axial_position=None,
             )
@@ -193,7 +231,7 @@ class SimulationEngine:
 
         # Record initial energies
         tracker.add(
-            capacitor=0.5 * circuit.circuit.C * circuit.voltages[-1] ** 2,
+            capacitor=_capacitor_energy(circuit.voltages[-1], circuit.circuit.C),
             inductive=0.5 * circuit.circuit.L * circuit.currents[-1] ** 2,
         )
 
@@ -224,8 +262,10 @@ class SimulationEngine:
             if progress_cb is not None:
                 progress_cb(step, circuit.time[-1], current, voltage)
 
-        t = np.array(circuit.time)
-        current_arr = np.array(circuit.currents)
+        t_xp = self.xp.array(circuit.time)
+        current_xp = self.xp.array(circuit.currents)
+        t = self._to_numpy(t_xp)
+        current_arr = self._to_numpy(current_xp)
 
         if pinch_model == "analytic":
             plasma: PinchModelBase = AnalyticPinchModel()
