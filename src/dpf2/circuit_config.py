@@ -146,6 +146,7 @@ class SegmentConfig(BaseModel):
 
 class SwitchConfig(BaseModel):
     """Configuration for a simple resistive switch."""
+
     from_node: int = Field(
         ..., alias="fromNode", metadata={"category": "Circuit", "group": "Distributed"}
     )
@@ -163,6 +164,7 @@ class SwitchConfig(BaseModel):
         alias="rOff",
         metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"},
     )
+
     L_parasitic: float = Field(
         0.0,
         alias="lParasitic",
@@ -179,8 +181,9 @@ class SwitchConfig(BaseModel):
         metadata={"units": "μF", "category": "Circuit", "group": "Distributed"},
     )
     trigger_times: Optional[List[float]] = Field(
+
         None,
-        alias="triggerTimes",
+        alias="triggerTime",
         metadata={"units": "ns", "category": "Circuit", "group": "Distributed"},
     )
 
@@ -331,7 +334,7 @@ class CircuitConfig(ConfigSectionBase):
         :class:`dpf2.circuit.distributed.TransmissionLineSegment`.
         """
 
-        from .circuit.distributed import TransmissionLineSegment, Switch
+        from .circuit.distributed import TransmissionLineSegment, TriggeredSwitch
 
         def _convert_profile(
             prof: Optional[TimeVoltageProfile], scale_val: float
@@ -369,24 +372,19 @@ class CircuitConfig(ConfigSectionBase):
         switches: List[TriggeredSwitch] = []
         if self.switches:
             for sw in self.switches:
-
-                trig = (
-                    [t * 1e-9 for t in sw.trigger_times]
-                    if sw.trigger_times is not None
-                    else None
-                )
                 switches.append(
-                    Switch(
+                    TriggeredSwitch(
                         from_node=sw.from_node,
                         to_node=sw.to_node,
                         closed=sw.closed,
-
                         R_on=sw.r_on * 1e-3,
                         R_off=sw.r_off * 1e-3,
+
                         L_parasitic=sw.L_parasitic * 1e-6,
                         R_parasitic=sw.R_parasitic * 1e-3,
                         C_parasitic=sw.C_parasitic * 1e-6,
                         trigger_times=trig,
+
                     )
                 )
 
