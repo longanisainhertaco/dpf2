@@ -4,16 +4,22 @@ import json
 from dataclasses import dataclass
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Sequence
 
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
+
+try:  # pragma: no cover - mpi4py may not be available
+    from mpi4py import MPI  # type: ignore
+except Exception:  # pragma: no cover - gracefully handle missing MPI
+    MPI = None
 
 from .dpf_config import DPFConfig
 from .circuit_config import CircuitConfig
 
 from .circuit_solver import RLCCircuit, CircuitSolver, run_circuit_simulation
-from .core.bases import PlasmaSolverBase, CouplingState
+from .core.bases import PlasmaSolverBase, CouplingState, DiagnosticsBase
 from .pinch_models import (
     AnalyticPinchModel,
     SemiAnalyticPinchModel,
@@ -96,10 +102,37 @@ class EnsembleResults:
 
 
 class SimulationEngine:
-    """Execute a minimal Dense Plasma Focus simulation."""
+    """Execute a minimal Dense Plasma Focus simulation.
 
-    def __init__(self, config: DPFConfig) -> None:
+    Parameters
+    ----------
+    config:
+        Simulation configuration.
+    comm:
+        Optional MPI communicator used for synchronising state across
+        ranks. If not provided, ``MPI.COMM_WORLD`` is used when
+        ``mpi4py`` is available.
+    num_threads:
+        Number of worker threads used for circuit stepping. A value of
+        ``1`` disables multithreading.  These hooks allow heavier
+        simulations to leverage multicore machines without altering the
+        core algorithm.
+    """
+
+    def __init__(
+        self,
+        config: DPFConfig,
+        comm: "MPI.Comm | None" = None,
+        num_threads: int = 1,
+    ) -> None:
         self.config = config.resolve_defaults()
+        # MPI communicator -------------------------------------------------
+        self.comm = comm if comm is not None else (MPI.COMM_WORLD if MPI else None)
+        self.rank = self.comm.Get_rank() if self.comm is not None else 0
+        # Thread pool ------------------------------------------------------
+        self._executor: ThreadPoolExecutor | None = None
+        if num_threads and num_threads > 1:
+            self._executor = ThreadPoolExecutor(max_workers=num_threads)
 
     # ------------------------------------------------------------------
     def _setup_circuit(self) -> CircuitSolver:
@@ -119,7 +152,10 @@ class SimulationEngine:
         pinch_model: str = "analytic",
 
         plasma_solver: PlasmaSolverBase | None = None,
-
+        *,
+        energy_csv: str | None = None,
+        energy_tol: float | None = None,
+        diagnostics: Sequence[DiagnosticsBase] | None = None,
     ) -> SimulationResults:
         sc = self.config.simulation_control
         dt = sc.min_dt or 1e-9
@@ -155,7 +191,23 @@ class SimulationEngine:
         voltage = circuit.voltages[-1]
         while circuit.time[-1] < t_end:
             state = CouplingState(current=current, voltage=voltage)
-            updated = circuit.step(state, 0.0, dt, energy_tracker=tracker)
+            # Optional multithreading for circuit stepping
+            if self._executor is not None:
+                future = self._executor.submit(
+                    circuit.step, state, 0.0, dt, energy_tracker=tracker
+                )
+                updated = future.result()
+            else:
+                updated = circuit.step(state, 0.0, dt, energy_tracker=tracker)
+
+            # Broadcast updated state across MPI ranks if requested
+            if self.comm is not None and (self.comm.size > 1):  # pragma: no cover - MPI
+                updated = self.comm.bcast(updated, root=0)
+
+            if diagnostics:
+                for diag in diagnostics:
+                    diag.record(updated, circuit.time[-1])
+
             current, voltage = updated.current, updated.voltage
 
         t = np.array(circuit.time)
