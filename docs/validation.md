@@ -59,3 +59,19 @@ When plotting diagnostics, the mean trace may be surrounded with an uncertainty
 band using the ±1σ envelope from the ensemble statistics. The same approach
 applies to neutron yield time series, providing an intuitive visualization of
 expected experimental scatter.
+
+## Physics Regression Tests
+
+### MHD Shock Tube
+
+A Sod-type shock tube problem checks the resistive MHD module against the
+analytic solution published by Park et al. in 2023 [ReferenceMaterial/Park_POP_2023.pdf].
+The density profile at $t=0.15$ is required to match the reference with an
+L1 error below 10%.
+
+### Hall-MHD Snowplow
+
+The Hall-MHD solver is validated with a coaxial snowplow inductance comparison.
+For a 1 A current and $(r_{\text{inner}}, r_{\text{outer}})$ of 1 and 2 cm, the
+computed plasma inductance is expected to match the analytic Lee model
+[ReferenceMaterial/Lee-paper.pdf] within 5%.
