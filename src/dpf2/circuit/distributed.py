@@ -68,11 +68,15 @@ class TransmissionLineSegment:
 @dataclass
 
 class Switch:
-    """Idealised switch model with optional trigger times.
+    """Idealised switch model with optional trigger times and parasitics.
 
     ``from_node`` and ``to_node`` identify the nodes bridged by the
     switch.  ``trigger_times`` is an optional sequence of times in
-    seconds when the switch state should toggle.
+    seconds when the switch state should toggle.  ``L_parasitic`` and
+    ``C_parasitic`` provide fixed inductive and capacitive contributions
+    irrespective of the switch state while ``R_parasitic`` is a series
+    resistance always present in addition to the state-dependent value
+    returned by :meth:`resistance`.
     """
 
     from_node: int
@@ -81,11 +85,15 @@ class Switch:
     R_on: float = 1e-3
     R_off: float = 1e6
     trigger_times: Sequence[float] | None = None
+    L_parasitic: float = 0.0
+    R_parasitic: float = 0.0
+    C_parasitic: float = 0.0
 
     def resistance(self, t: float | None = None) -> float:
         """Return the instantaneous resistance of the switch."""
 
-        return self.R_on if self.closed else self.R_off
+        base = self.R_on if self.closed else self.R_off
+        return base + self.R_parasitic
 
 
 def assemble_matrices(
@@ -117,8 +125,9 @@ def assemble_matrices(
     if switches is not None:
         for i, sw in enumerate(switches):
             if i < n:
-
                 R[i, i] += sw.resistance()
+                L[i, i] += sw.L_parasitic
+                C[i, i] += sw.C_parasitic
 
 
     return R, L, C

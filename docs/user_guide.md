@@ -26,6 +26,20 @@ pip install -e .[diagnostics]
 
 Simulations are configured with the `DPFConfig` data class. Configuration files are written in JSON and validated against this schema. See `dpf_config.py` and related `*config.py` modules for field descriptions and default values.
 
+### Distributed Circuit Configuration
+
+The circuit section now supports a distributed representation composed of
+segments and switches.  Each `SegmentConfig` connects two nodes using the
+`from_node` and `to_node` fields and may include fixed parasitic
+inductance, resistance and capacitance values as well as optional
+time-dependent profiles for these quantities
+(`l_profile`, `r_profile`, `c_profile`).  `SwitchConfig` definitions have
+gained a `trigger_times` list in nanoseconds along with corresponding
+parasitic `l_parasitic`, `r_parasitic` and `c_parasitic` parameters.  The
+`CircuitConfig.build_distributed_model()` helper translates these
+configurations into `TransmissionLineSegment` and `Switch` instances from
+`dpf2.circuit.distributed` for use by network solvers.
+
 ## Physics Modules
 
 The core simulation is composed of modular physics components. Key modules include:

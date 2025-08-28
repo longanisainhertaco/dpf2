@@ -163,6 +163,21 @@ class SwitchConfig(BaseModel):
         alias="rOff",
         metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"},
     )
+    L_parasitic: float = Field(
+        0.0,
+        alias="lParasitic",
+        metadata={"units": "μH", "category": "Circuit", "group": "Distributed"},
+    )
+    R_parasitic: float = Field(
+        0.0,
+        alias="rParasitic",
+        metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"},
+    )
+    C_parasitic: float = Field(
+        0.0,
+        alias="cParasitic",
+        metadata={"units": "μF", "category": "Circuit", "group": "Distributed"},
+    )
     trigger_times: Optional[List[float]] = Field(
         None,
         alias="triggerTimes",
@@ -368,6 +383,9 @@ class CircuitConfig(ConfigSectionBase):
 
                         R_on=sw.r_on * 1e-3,
                         R_off=sw.r_off * 1e-3,
+                        L_parasitic=sw.L_parasitic * 1e-6,
+                        R_parasitic=sw.R_parasitic * 1e-3,
+                        C_parasitic=sw.C_parasitic * 1e-6,
                         trigger_times=trig,
                     )
                 )
