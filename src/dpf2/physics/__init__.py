@@ -27,6 +27,7 @@ try:  # pragma: no cover - exercised when dependency is available
 except Exception:  # pragma: no cover - fallback for minimal environments
     neutral_density_source = wall_ablation_source = None  # type: ignore
 
+
 __all__ = [
     "ResistiveMHD",
     "EnergyTracker",
@@ -37,6 +38,7 @@ __all__ = [
     "RadiationTransport",
 ]
 
+
 if ZeroDPlasma is not None:
     __all__.append("ZeroDPlasma")
 if HallMHD is not None:
@@ -45,3 +47,5 @@ if neutral_density_source is not None:
     __all__.extend(["neutral_density_source", "wall_ablation_source"])
 __all__.append("PicDriver")
 __all__.append("WarpXPicmiDriver")
+if RadiationMHDSolver is not None:
+    __all__.append("RadiationMHDSolver")

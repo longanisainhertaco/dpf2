@@ -230,6 +230,13 @@ def max_(vals):
 
 def dot(a: Array, b: Array) -> float:
     return sum(x * y for x, y in zip(array(a), array(b)))
+def mean(vals):
+    arr = array(vals)
+    data = arr.data if isinstance(arr, Array) else arr
+    if isinstance(data, list):
+        return sum(data) / len(data) if data else 0.0
+    return data
+
 
 
 def cross(a: Array, b: Array) -> Array:
@@ -303,6 +310,7 @@ np = types.SimpleNamespace(
     abs=abs_,
     max=max_,
     dot=dot,
+    mean=mean,
     cross=cross,
     clip=clip,
     sqrt=sqrt,
