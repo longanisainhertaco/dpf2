@@ -18,6 +18,7 @@ from .synthetic_signals import (
     rogowski_signal,
     bdot_signal,
 )
+from .streaming import NeutronYieldStreamer, XRayEmissionStreamer
 
 __all__ = [
     "compute_neutron_yield",
@@ -29,6 +30,8 @@ __all__ = [
     "coupled_voltage_waveform",
     "rogowski_signal",
     "bdot_signal",
+    "NeutronYieldStreamer",
+    "XRayEmissionStreamer",
 ]
 
 # Compatibility helpers -------------------------------------------------------
