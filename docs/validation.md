@@ -64,6 +64,22 @@ expected experimental scatter.
 
 Each benchmark stores the ensemble mean and one-sigma spread for peak current and neutron yield in `ReferenceMaterial` JSON files (for example, `shot_deuterium_20kV.json`). Monte-Carlo validation tests recompute these statistics and ensure experimental measurements fall inside the ±2σ envelope. When adding new benchmarks, record these statistics so the validation suite can enforce the error bands.
 
+### Uncertainty Bounds
+
+For time-dependent diagnostics the validation suite reports both the mean and
+two-sigma spread derived from the Monte-Carlo ensemble. These bounds correspond
+to an approximate 95% confidence interval and simulated traces are expected to
+remain within this envelope.
+
+## Parameter Inference
+
+High-resolution experimental traces can be used to infer uncertain circuit or
+plasma parameters. A typical workflow minimizes the L2 error between a measured
+trace and a family of simulated traces generated while scanning the parameters
+of interest. The optimal parameter set is returned along with a covariance
+estimate derived from the ensemble statistics, providing uncertainty bounds on
+the inferred quantities.
+
 ## Physics Regression Tests
 
 ### MHD Shock Tube
@@ -148,3 +164,12 @@ current and voltage traces together with the integrated neutron yield are
 recorded in `ReferenceMaterial/experimental_shot.json`.  The regression test
 `tests/validation/test_experimental_shot.py` verifies the reproduction of
 these series within a relative tolerance of **10⁻9**.
+
+### High-Resolution Experimental Trace
+
+A 1 µs discharge sampled at 10 ns provides a high‑resolution version of the
+experimental shot. The dataset in
+`ReferenceMaterial/experimental_shot_highres.json` stores time, current,
+voltage, pressure, temperature and the integrated neutron yield. The regression
+test `tests/validation/test_regression_highres.py` compares the solver output
+against this reference with a relative tolerance of **10⁻9**.
