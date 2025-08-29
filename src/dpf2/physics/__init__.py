@@ -47,5 +47,3 @@ if neutral_density_source is not None:
     __all__.extend(["neutral_density_source", "wall_ablation_source"])
 __all__.append("PicDriver")
 __all__.append("WarpXPicmiDriver")
-if RadiationMHDSolver is not None:
-    __all__.append("RadiationMHDSolver")
