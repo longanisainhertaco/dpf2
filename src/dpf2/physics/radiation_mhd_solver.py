@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Tuple
 
 import numpy as np
+from typing import Any
 
 try:  # pragma: no cover - GPU backend optional
     import cupy as cp  # type: ignore
@@ -22,7 +23,7 @@ except Exception:  # pragma: no cover
 from dpf2.core.bases import PlasmaSolverBase, CouplingState
 from ..eos import EOSBase, IdealGasEOS
 
-Array = np.ndarray
+Array = Any
 
 
 @dataclass
@@ -35,8 +36,26 @@ class AMRGrid:
     children: list["AMRGrid"] = field(default_factory=list)
 
     def refine(self, criterion: Callable[[Array], Array]) -> None:
-        """Refine cells according to ``criterion`` (no-op placeholder)."""
-        return
+        """Refine cells according to ``criterion``.
+
+        The ``criterion`` is evaluated on a dummy array with the same shape as
+        the grid.  When any cell satisfies the criterion a single child grid
+        with doubled resolution is created and attached to this grid.  This
+        provides a very small stand-in for a real AMR hierarchy.
+        """
+
+        dummy = np.zeros(self.shape)
+        mask = criterion(dummy)
+        if isinstance(mask, bool):
+            cond = mask
+        elif hasattr(np, "any"):
+            cond = np.any(mask)
+        else:
+            cond = any(bool(v) for row in mask for v in row)
+        if cond:
+            child_shape = tuple(s * 2 for s in self.shape)
+            child = AMRGrid(level=self.level + 1, shape=child_shape, parent=self)
+            self.children.append(child)
 
 
 @dataclass
@@ -73,12 +92,14 @@ class RadiationMHDSolver(PlasmaSolverBase):
         use_hall: bool = False,
         two_temperature: bool = False,
         use_gpu: bool = False,
+        refine_criterion: Callable[[Array], Array] | None = None,
     ) -> None:
         self.eos = eos or IdealGasEOS()
         self.use_hall = use_hall
         self.two_temperature = two_temperature
         self.use_gpu = bool(use_gpu and cp is not None)
         self.xp = cp if self.use_gpu else np
+        self.refine_criterion = refine_criterion
 
     # ------------------------------------------------------------------
     def allocate_state(self, shape: Tuple[int, int, int]) -> RadiationMHDState:
@@ -107,6 +128,8 @@ class RadiationMHDSolver(PlasmaSolverBase):
             state.electron_temp = state.electron_temp  # placeholder update
         if self.use_hall:
             state.magnetic = state.magnetic  # placeholder Hall term
+        if self.refine_criterion and state.grid is not None:
+            state.grid.refine(self.refine_criterion)
         return state
 
     # ------------------------------------------------------------------

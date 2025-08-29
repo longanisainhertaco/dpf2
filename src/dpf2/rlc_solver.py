@@ -64,6 +64,7 @@ class DistributedRLCSolution:
     voltage: Any
     branch_currents: Any
     node_voltages: Any
+    reflections: Any | None = None
 
 
 
@@ -99,108 +100,149 @@ def solve_distributed_circuit(
     rank = comm.Get_rank() if comm is not None else 0
     size = comm.Get_size() if comm is not None else 1
 
-    # Simplified frequency domain solution for cascaded transmission line
-    # segments.  When ``frequency`` is supplied we evaluate the full telegrapher
-    # equations for each segment allowing mismatched characteristic impedances
-    # and an arbitrary terminating ``Z_load``.  Dispersion models supplied by
-    # :class:`TransmissionLineSegment` are honoured through the frequency
-    # dependant propagation constants and characteristic impedances.  The
-    # solution is obtained via multiplication of ABCD matrices and reflection
-    # coefficients are tracked for each segment.
+    # Frequency domain telegrapher solution with branch-aware nodal analysis.
     if frequency is not None and segments:
         w = 2.0 * xp.pi * frequency
         n_steps = int(t_end / dt) + 1
 
-        if size > 1:
-            counts = [n_steps // size + (1 if r < n_steps % size else 0) for r in range(size)]
-            offsets = [sum(counts[:r]) for r in range(size)]
-            local_idx = range(offsets[rank], offsets[rank] + counts[rank])
-            t_local = xp.array([i * dt for i in local_idx])
-            vin_local = xp.array([xp.sin(w * ti) for ti in t_local]) * V0
-            if comm is not None:
-                t = xp.array(np.concatenate(comm.allgather(to_cpu(t_local))))
-                vin = xp.array(np.concatenate(comm.allgather(to_cpu(vin_local))))
-        else:
-            t = xp.array([i * dt for i in range(n_steps)])
-            vin = xp.array([xp.sin(w * ti) for ti in t]) * V0
+        t = xp.array([i * dt for i in range(n_steps)])
+        vin = xp.array([xp.sin(w * ti) for ti in t]) * V0
 
-        if rank == 0:
-            if Z_load is None:
-                ZL = segments[-1].characteristic_impedance(frequency)
+        # Build node list and admittance matrix
+        nodes: set[int] = set()
+        for seg in segments:
+            nodes.add(seg.from_node)
+            nodes.add(seg.to_node)
+        node_list = sorted(nodes)
+        src = node_list[0]
+        ground = node_list[-1]
+        node_index = {n: i for i, n in enumerate(node_list)}
+        n_nodes = len(node_list)
+
+        Y = np.zeros((n_nodes, n_nodes)) + 0j
+        for seg in segments:
+            gamma = seg.propagation_constant(frequency) * seg.length
+            Z0 = seg.characteristic_impedance(frequency)
+            sinh_gl = cmath.sinh(gamma)
+            cosh_gl = cmath.cosh(gamma)
+            if sinh_gl == 0:
+                # Treat as simple impedance
+                Y_self = 1.0 / Z0
+                Y_off = -1.0 / Z0
             else:
-                ZL = np.inf if Z_load == np.inf else complex(Z_load)
+                Y_self = (1.0 / Z0) * (cosh_gl / sinh_gl)  # coth
+                Y_off = -(1.0 / Z0) * (1.0 / sinh_gl)      # -csch
+            i = node_index[seg.from_node]
+            j = node_index[seg.to_node]
+            Y[i, i] += Y_self
+            Y[j, j] += Y_self
+            Y[i, j] += Y_off
+            Y[j, i] += Y_off
 
-            reflections: list[complex] = []
-            Z_eff = ZL
-            for seg in reversed(segments):
-                refl = seg.reflection_coefficient(frequency, Z_eff)
-                reflections.insert(0, refl)
-                Z0 = seg.characteristic_impedance(frequency)
-                gamma = seg.propagation_constant(frequency)
-                tanh_gl = cmath.tanh(gamma * seg.length)
-                Z_eff = Z0 * (Z_eff + Z0 * tanh_gl) / (Z0 + Z_eff * tanh_gl)
+        if Z_load is not None and Z_load != np.inf:
+            load_idx = node_index[segments[-1].to_node]
+            Y[load_idx, load_idx] += 1.0 / complex(Z_load)
 
-            A_tot, B_tot, C_tot, D_tot = 1.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j
-            for seg in segments:
-                gamma = seg.propagation_constant(frequency) * seg.length
-                Z0 = seg.characteristic_impedance(frequency)
-                cosh_gl = cmath.cosh(gamma)
-                sinh_gl = cmath.sinh(gamma)
-                A = cosh_gl
-                B = Z0 * sinh_gl
-                C = (1.0 / Z0) * sinh_gl
-                D = cosh_gl
-                A_tot, B_tot, C_tot, D_tot = (
-                    A_tot * A + B_tot * C,
-                    A_tot * B + B_tot * D,
-                    C_tot * A + D_tot * C,
-                    C_tot * B + D_tot * D,
-                )
+        # Solve for unknown node voltages
+        unknown_nodes = [n for n in node_list if n not in (src, ground)]
+        unk_idx = [node_index[n] for n in unknown_nodes]
+        if unk_idx:
+            Y_mat = [[Y[i][j] for j in unk_idx] for i in unk_idx]
+            rhs = [-Y[i][node_index[src]] * V0 for i in unk_idx]
 
-            if ZL == np.inf:
-                H = 1.0 / A_tot
-                Zin = A_tot / C_tot if C_tot != 0 else np.inf
-            else:
-                H = 1.0 / (A_tot + B_tot / ZL)
-                Zin = (A_tot * ZL + B_tot) / (C_tot * ZL + D_tot)
+            def _solve_complex(A, b):
+                n = len(b)
+                A = [row[:] for row in A]
+                b = b[:]
+                for i in range(n):
+                    pivot = A[i][i]
+                    for j in range(i, n):
+                        A[i][j] /= pivot
+                    b[i] /= pivot
+                    for k in range(n):
+                        if k == i:
+                            continue
+                        factor = A[k][i]
+                        for j in range(i, n):
+                            A[k][j] -= factor * A[i][j]
+                        b[k] -= factor * b[i]
+                return b
 
-            amp = abs(H)
-            phase = cmath.phase(H)
-            I_amp = V0 / (abs(Zin) if Zin != 0 else 1e-12)
-            I_phase = -cmath.phase(Zin)
-        else:  # pragma: no cover - non-root ranks receive broadcasts
-            amp = phase = I_amp = I_phase = 0.0
-
-        if comm is not None and size > 1:
-            amp = comm.bcast(amp, root=0)
-            phase = comm.bcast(phase, root=0)
-            I_amp = comm.bcast(I_amp, root=0)
-            I_phase = comm.bcast(I_phase, root=0)
-
-        if size > 1:
-            vout_local = xp.array([xp.sin(w * ti + phase) for ti in t_local]) * (amp * V0)
-            current_local = xp.array([xp.sin(w * ti + I_phase) for ti in t_local]) * I_amp
-            branch_local = current_local[:, None]
-            vout = xp.array(np.concatenate(comm.allgather(to_cpu(vout_local))))
-            current = xp.array(np.concatenate(comm.allgather(to_cpu(current_local))))
-            branch_currents = xp.array(
-                np.concatenate(comm.allgather(to_cpu(branch_local)), axis=0)
-            )
+            v_unknown = _solve_complex(Y_mat, rhs)
         else:
-            vout = xp.array([xp.sin(w * ti + phase) for ti in t]) * (amp * V0)
-            current = xp.array([xp.sin(w * ti + I_phase) for ti in t]) * I_amp
-            branch_currents = current[:, None]
+            v_unknown = []
 
-        node_voltages = xp.zeros((len(t), 2))
-        node_voltages[:, 0] = vin
-        node_voltages[:, 1] = vout
+        V_full = [0j] * n_nodes
+        V_full[node_index[src]] = V0
+        V_full[node_index[ground]] = 0.0
+        for n, val in zip(unknown_nodes, v_unknown):
+            V_full[node_index[n]] = val
+
+        # Branch currents phasor values
+        branch_phasors: list[complex] = []
+        for seg in segments:
+            gamma = seg.propagation_constant(frequency) * seg.length
+            Z0 = seg.characteristic_impedance(frequency)
+            sinh_gl = cmath.sinh(gamma)
+            cosh_gl = cmath.cosh(gamma)
+            if sinh_gl == 0:
+                Y_self = 1.0 / Z0
+                Y_off = -1.0 / Z0
+            else:
+                Y_self = (1.0 / Z0) * (cosh_gl / sinh_gl)
+                Y_off = -(1.0 / Z0) * (1.0 / sinh_gl)
+            i = node_index[seg.from_node]
+            j = node_index[seg.to_node]
+            I = Y_self * V_full[i] + Y_off * V_full[j]
+            branch_phasors.append(I)
+
+        # Total current from source
+        I_src = 0.0 + 0.0j
+        for seg, I in zip(segments, branch_phasors):
+            if seg.from_node == src:
+                I_src += I
+            elif seg.to_node == src:
+                I_src -= I
+
+        # Generate time series from phasors
+        node_voltages = xp.zeros((n_steps, n_nodes))
+        for idx in range(n_nodes):
+            amp = abs(V_full[idx])
+            phase = cmath.phase(V_full[idx])
+            node_voltages[:, idx] = xp.sin(w * t + phase) * amp
+
+        branch_currents = xp.zeros((n_steps, len(branch_phasors)))
+        for b, ph in enumerate(branch_phasors):
+            amp = abs(ph)
+            phase = cmath.phase(ph)
+            branch_currents[:, b] = xp.sin(w * t + phase) * amp
+
+        amp_I = abs(I_src)
+        phase_I = cmath.phase(I_src)
+        total_I = xp.array([xp.sin(w * ti + phase_I) for ti in t]) * amp_I
+
+        # Reflection coefficients for backward compatibility
+        if Z_load is None:
+            ZL = segments[-1].characteristic_impedance(frequency)
+        else:
+            ZL = np.inf if Z_load == np.inf else complex(Z_load)
+        reflections: list[complex] = []
+        Z_eff = ZL
+        for seg in reversed(segments):
+            refl = seg.reflection_coefficient(frequency, Z_eff)
+            reflections.insert(0, refl)
+            Z0 = seg.characteristic_impedance(frequency)
+            gamma = seg.propagation_constant(frequency)
+            tanh_gl = cmath.tanh(gamma * seg.length)
+            Z_eff = Z0 * (Z_eff + Z0 * tanh_gl) / (Z0 + Z_eff * tanh_gl)
 
         return DistributedRLCSolution(
             t=to_cpu(t),
-            current=to_cpu(current),
+            current=to_cpu(total_I),
             voltage=to_cpu(vin),
             branch_currents=to_cpu(branch_currents),
             node_voltages=to_cpu(node_voltages),
+            reflections=reflections,
         )
 
     # ------------------------------------------------------------------
