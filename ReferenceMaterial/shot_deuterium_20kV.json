@@ -1,0 +1,14 @@
+{
+  "fill_gas": "deuterium",
+  "bank_voltage_kv": 20.0,
+  "scale": 0.04,
+  "jitter_pct": 2.0,
+  "seed": 1234,
+  "samples": 100,
+  "current_mean": 801.4373935251056,
+  "current_std": 15.071831227417295,
+  "yield_mean": 0.6425290558368627,
+  "yield_std": 0.024143244061968445,
+  "expected_current": 820.0,
+  "expected_yield": 0.65
+}

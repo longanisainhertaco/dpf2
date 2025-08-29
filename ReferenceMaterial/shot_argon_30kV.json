@@ -1,0 +1,14 @@
+{
+  "fill_gas": "argon",
+  "bank_voltage_kv": 30.0,
+  "scale": 0.04,
+  "jitter_pct": 2.0,
+  "seed": 1234,
+  "samples": 100,
+  "current_mean": 1202.1560902876583,
+  "current_std": 22.607746841125945,
+  "yield_mean": 1.4456903756329411,
+  "yield_std": 0.05432229913942899,
+  "expected_current": 1180.0,
+  "expected_yield": 1.43
+}
