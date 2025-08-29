@@ -8,3 +8,6 @@ numba
 sympy
 werkzeug
 tqdm
+fastapi
+uvicorn
+python-multipart

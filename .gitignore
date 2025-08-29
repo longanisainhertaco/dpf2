@@ -7,3 +7,11 @@ env/
 # Byte-compiled / cache
 __pycache__/
 *.pyc
+
+# Web frontend artifacts
+web/frontend/node_modules/
+web/frontend/dist/
+
+# Web runtime logs and uploads
+web/audit.log
+web/uploads/
