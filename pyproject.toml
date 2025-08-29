@@ -21,7 +21,10 @@ dependencies = [
 server = [
     "flask",
     "flask-sock",
-    "werkzeug"
+    "werkzeug",
+    "fastapi",
+    "uvicorn",
+    "python-multipart"
 ]
 warpx = [
     "pywarpx",
