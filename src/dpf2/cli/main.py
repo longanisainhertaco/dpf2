@@ -5,6 +5,10 @@ import dataclasses
 from pathlib import Path
 from dataclasses import asdict
 from typing import Any
+import os
+import subprocess
+import tempfile
+import textwrap
 
 import click
 
@@ -21,6 +25,7 @@ from dpf2.diagnostics.synthetic_signals import (
 )
 from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
+from .errors import format_error
 
 
 def _prompt_with_range(prompt: str, default: float, minimum: float, maximum: float, tip: str) -> float:
@@ -56,6 +61,34 @@ def _to_float(val: Any) -> float:
         return float(val)
     except TypeError:
         return float(getattr(val, "data", val))
+
+
+def _launch_notebook() -> None:
+    """Launch Jupyter with DPF2 helpers preloaded."""
+    startup = textwrap.dedent(
+        """
+        import matplotlib.pyplot as plt
+        from dpf2.core.config import DPFConfig
+        from dpf2.core.simulation import DPFSimulation
+        from dpf2.synthetic_diagnostics import SyntheticDiagnostics
+        print('DPF2 notebook ready: DPFConfig, DPFSimulation, SyntheticDiagnostics loaded')
+        """
+    )
+    with tempfile.NamedTemporaryFile("w", delete=False) as fh:
+        fh.write(startup)
+    env = os.environ.copy()
+    env["PYTHONSTARTUP"] = fh.name
+    notebook = Path(__file__).resolve().parents[2] / "examples" / "notebooks" / "quickstart.ipynb"
+    try:
+        subprocess.run(["jupyter", "notebook", str(notebook)], env=env, check=True)
+    except FileNotFoundError:
+        raise click.ClickException(
+            format_error("NOTEBOOK", "Jupyter is not installed", "Install the 'notebook' package.")
+        )
+    except subprocess.CalledProcessError as e:
+        raise click.ClickException(
+            format_error("NOTEBOOK", f"Jupyter exited with code {e.returncode}")
+        )
 
 logger = logging.getLogger(__name__)
 
@@ -175,9 +208,20 @@ def build_config_wizard() -> DPFConfig:
     return DPFConfig(**cfg_dict)
 
 
-@click.group()
-def main() -> None:
+@click.group(invoke_without_command=True)
+@click.option(
+    "--notebook",
+    is_flag=True,
+    help="Launch Jupyter notebook with plotting widgets preloaded",
+)
+@click.pass_context
+def main(ctx: click.Context, notebook: bool) -> None:
     """Entry point for the DPF2 command line interface."""
+    if notebook:
+        _launch_notebook()
+        return
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @main.command()
@@ -443,19 +487,18 @@ def simulate(
                 click.echo(f"Plotting failed: {e}")
     except ConfigurationError as e:
         logger.error("Configuration error: %s", e)
-        msg = f"Configuration error: {e}"
+        hint = None
         if getattr(e, "hints", None):
-            hint_msg = "; ".join(f"{f}: {h}" for f, h in e.hints.items())
-            msg += f"\nHint: {hint_msg}"
+            hint = "; ".join(f"{f}: {h}" for f, h in e.hints.items())
         elif getattr(e, "fields", None):
-            msg += f". Check fields: {', '.join(e.fields)}"
-        raise click.ClickException(msg)
+            hint = f"Check fields: {', '.join(e.fields)}"
+        raise click.ClickException(format_error("CONFIG", str(e), hint))
     except SimulationRuntimeError as e:
         logger.error("Simulation error: %s", e)
-        raise click.ClickException(f"Simulation error: {e}")
+        raise click.ClickException(format_error("SIMULATION", str(e)))
     except Exception as e:
         logger.exception("Unexpected error running simulation")
-        raise click.ClickException(f"Unexpected error: {e}")
+        raise click.ClickException(format_error("UNEXPECTED", str(e)))
 
 
 @main.command()
@@ -470,9 +513,9 @@ def validate(config: str, dataset: str, outdir: str) -> None:
 
         ok = run_validation(Path(config), dataset, outdir=Path(outdir))
         if not ok:
-            raise click.ClickException("Validation failed")
+            raise click.ClickException(format_error("VALIDATION", "Validation failed"))
     except Exception as e:  # pragma: no cover - defensive
-        raise click.ClickException(str(e))
+        raise click.ClickException(format_error("VALIDATION", str(e)))
 
 
 @main.command("validate-config")
@@ -485,13 +528,12 @@ def validate_config(config: str) -> None:
         DPFConfig.from_file(config)
         click.echo("Configuration is valid")
     except ConfigurationError as e:
-        msg = str(e)
+        hint = None
         if getattr(e, "hints", None):
-            hint_msg = "; ".join(f"{f}: {h}" for f, h in e.hints.items())
-            msg += f"\nHint: {hint_msg}"
+            hint = "; ".join(f"{f}: {h}" for f, h in e.hints.items())
         elif getattr(e, "fields", None):
-            msg += f"\nCheck fields: {', '.join(e.fields)}"
-        raise click.ClickException(msg)
+            hint = f"Check fields: {', '.join(e.fields)}"
+        raise click.ClickException(format_error("CONFIG", str(e), hint))
 
 
 @main.command()
@@ -504,7 +546,7 @@ def plot(input: str, output: str) -> None:
 
     files = sorted(Path(input).glob("data_*.h5"))
     if not files:
-        raise click.ClickException(f"No HDF5 files found in {input}")
+        raise click.ClickException(format_error("PLOT", f"No HDF5 files found in {input}"))
 
     times, currents, voltages = [], [], []
     for fname in files:
@@ -516,7 +558,7 @@ def plot(input: str, output: str) -> None:
                 voltages.append(_to_float(fh["voltage"][()]))
 
     if not currents:
-        raise click.ClickException("No current data available")
+        raise click.ClickException(format_error("PLOT", "No current data available"))
 
     plt.figure()
     plt.plot(times, currents, label="current")
@@ -541,7 +583,7 @@ def plot_run(run_dir: str, output: str) -> None:
 
     files = sorted(Path(run_dir).glob("data_*.h5"))
     if not files:
-        raise click.ClickException(f"No HDF5 files found in {run_dir}")
+        raise click.ClickException(format_error("PLOT", f"No HDF5 files found in {run_dir}"))
 
     times, currents, voltages = [], [], []
     for fname in files:
@@ -553,7 +595,7 @@ def plot_run(run_dir: str, output: str) -> None:
                 voltages.append(_to_float(fh["voltage"][()]))
 
     if not currents:
-        raise click.ClickException("No current data available")
+        raise click.ClickException(format_error("PLOT", "No current data available"))
 
     plt.figure()
     plt.plot(times, currents, label="current")
@@ -598,34 +640,36 @@ def diagnostics(
     radius: float,
 ) -> None:
     """Generate synthetic diagnostics from a coupling history."""
+    try:
+        data = json.loads(Path(history).read_text())
+        states = [CouplingState(**d) for d in data]
 
-    data = json.loads(Path(history).read_text())
-    states = [CouplingState(**d) for d in data]
+        outputs: dict[str, list[float]] = {}
 
-    outputs: dict[str, list[float]] = {}
+        if config:
+            cfg_data = json.loads(Path(config).read_text())
+            cfg = SyntheticDiagnostics.model_validate(cfg_data)
+            if cfg.synthetic_current_waveform_enabled:
+                outputs["current"] = current_waveform(states)
+            if cfg.synthetic_voltage_waveform_enabled:
+                outputs["voltage"] = voltage_waveform(states)
+            if cfg.synthetic_rogowski_signal_enabled:
+                outputs["rogowski"] = rogowski_signal(states, dt)
+            if cfg.synthetic_bdot_signal_enabled:
+                outputs["bdot"] = bdot_signal(states, radius, dt)
 
-    if config:
-        cfg_data = json.loads(Path(config).read_text())
-        cfg = SyntheticDiagnostics.model_validate(cfg_data)
-        if cfg.synthetic_current_waveform_enabled:
+        if current:
             outputs["current"] = current_waveform(states)
-        if cfg.synthetic_voltage_waveform_enabled:
+        if voltage:
             outputs["voltage"] = voltage_waveform(states)
-        if cfg.synthetic_rogowski_signal_enabled:
+        if rogowski:
             outputs["rogowski"] = rogowski_signal(states, dt)
-        if cfg.synthetic_bdot_signal_enabled:
+        if bdot:
             outputs["bdot"] = bdot_signal(states, radius, dt)
 
-    if current:
-        outputs["current"] = current_waveform(states)
-    if voltage:
-        outputs["voltage"] = voltage_waveform(states)
-    if rogowski:
-        outputs["rogowski"] = rogowski_signal(states, dt)
-    if bdot:
-        outputs["bdot"] = bdot_signal(states, radius, dt)
-
-    click.echo(json.dumps(outputs))
+        click.echo(json.dumps(outputs))
+    except Exception as e:
+        raise click.ClickException(format_error("DIAGNOSTICS", str(e)))
 
 
 @main.command()
