@@ -1,6 +1,6 @@
 from .mhd import ResistiveMHD
 from .energy import EnergyTracker
-from .pic import SimplePIC
+from .pic import SimplePIC, HybridPIC
 from .eos import TabulatedEOS, load_tabulated_eos, load_standard_eos
 from .radiation import RadiationTransport
 from .pic_driver import PicDriver
@@ -32,6 +32,7 @@ __all__ = [
     "ResistiveMHD",
     "EnergyTracker",
     "SimplePIC",
+    "HybridPIC",
     "TabulatedEOS",
     "load_tabulated_eos",
     "load_standard_eos",
