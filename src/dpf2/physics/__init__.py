@@ -5,6 +5,8 @@ from .eos import TabulatedEOS, load_tabulated_eos, load_standard_eos
 from .radiation import RadiationTransport
 from .pic_driver import PicDriver
 from .warpx_picmi import WarpXPicmiDriver
+from .lower_hybrid_drift import LowerHybridDrift
+from .m0_instability import MZeroInstability
 
 
 # Import optional modules individually so that a failure in one does not
@@ -37,6 +39,8 @@ __all__ = [
     "load_tabulated_eos",
     "load_standard_eos",
     "RadiationTransport",
+    "LowerHybridDrift",
+    "MZeroInstability",
 ]
 
 

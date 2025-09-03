@@ -44,12 +44,11 @@ class Array:
 
     def __getitem__(self, idx):
         if isinstance(idx, tuple):
-            # broadcasting helpers used by unit tests
+            idx = tuple(slice(None) if i is Ellipsis else i for i in idx)
             if idx == (slice(None), None):
                 return Array([[v] for v in self.data])
             if idx == (None, slice(None)):
                 return Array([self.data])
-            # handle simple 2-D column access ``arr[:, j]``
             if len(idx) == 2 and isinstance(idx[0], slice) and idx[0] == slice(None) and isinstance(idx[1], int):
                 return Array([row[idx[1]] for row in self.data])
             arr = self.data
@@ -63,6 +62,7 @@ class Array:
         if isinstance(value, Array):
             value = value.data
         if isinstance(idx, tuple):
+            idx = tuple(slice(None) if i is Ellipsis else i for i in idx)
             if len(idx) == 2 and isinstance(idx[0], slice) and idx[0] == slice(None) and isinstance(idx[1], int):
                 for row, val in zip(self.data, value):
                     row[idx[1]] = val
@@ -156,6 +156,14 @@ def zeros_like(arr):
     return zeros(array(arr).shape)
 
 
+def ones(shape):
+    if isinstance(shape, tuple):
+        if len(shape) == 1:
+            return Array([1.0] * shape[0])
+        return Array([ones(shape[1:]).data for _ in range(shape[0])])
+    return Array([1.0] * shape)
+
+
 def diag(arr):
     arr = array(arr).data
     # Extract diagonal for 2-D arrays
@@ -176,6 +184,53 @@ def full(shape, fill_value):
             return Array([fill_value] * shape[0])
         return Array([full(shape[1:], fill_value).data for _ in range(shape[0])])
     return Array([fill_value] * shape)
+
+
+def loadtxt(path, delimiter=",", skiprows=0):
+    import csv
+
+    with open(path) as f:
+        reader = csv.reader(f)
+        rows = [row for row in reader][skiprows:]
+        return array([[float(r[0]), float(r[1])] for r in rows])
+
+
+def interp(x, xp, fp):
+    x = array(x).data
+    xp = array(xp).data
+    fp = array(fp).data
+    if isinstance(x, list):
+        return array([interp(v, xp, fp).data for v in x])
+    for i in range(len(xp) - 1):
+        if xp[i] <= x <= xp[i + 1]:
+            t = (x - xp[i]) / (xp[i + 1] - xp[i])
+            return array(fp[i] * (1 - t) + fp[i + 1] * t)
+    return array(fp[0])
+
+
+def argmax(arr):
+    arr = array(arr).data
+    if isinstance(arr, list):
+        return max(range(len(arr)), key=lambda i: arr[i])
+    return 0
+
+
+class _RNG:
+    def __init__(self, seed=0):
+        import random
+
+        self._rng = random.Random(seed)
+
+    def random(self, size):
+        if isinstance(size, tuple):
+            if len(size) == 1:
+                return Array([self._rng.random() for _ in range(size[0])])
+            return Array([self.random(size[1:]).data for _ in range(size[0])])
+        return Array([self._rng.random() for _ in range(size)])
+
+
+def default_rng(seed=0):
+    return _RNG(seed)
 
 
 def stack(arrs, axis=0):
@@ -296,8 +351,11 @@ np = types.SimpleNamespace(
     array=array,
     zeros=zeros,
     zeros_like=zeros_like,
+    ones=ones,
     diag=diag,
     full=full,
+    loadtxt=loadtxt,
+    interp=interp,
     stack=stack,
     testing=types.SimpleNamespace(assert_allclose=lambda a,b,rtol=1e-8,atol=1e-8: (
         None if allclose(a,b,rtol,atol) else (_ for _ in ()).throw(AssertionError("Arrays are not close"))
@@ -314,14 +372,16 @@ np = types.SimpleNamespace(
     cross=cross,
     clip=clip,
     sqrt=sqrt,
-      gradient=gradient,
-      isclose=isclose,
-      allclose=allclose,
-      array_equal=array_equal,
-      Array=Array,
-      inf=float("inf"),
-      pi=math.pi,
-  )
+    gradient=gradient,
+    isclose=isclose,
+    allclose=allclose,
+    array_equal=array_equal,
+    argmax=argmax,
+    random=types.SimpleNamespace(default_rng=default_rng),
+    Array=Array,
+    inf=float("inf"),
+    pi=math.pi,
+)
 
 sys.modules.setdefault("numpy", np)
 
