@@ -62,7 +62,7 @@ simulation = DPFSimulation(config)
 result = simulation.run()
 ```
 
-Configuration files use the `DPFConfig` schema defined in this repository. See the [quickstart tutorial](docs/tutorials/quickstart.md) or its [Jupyter notebook](examples/notebooks/quickstart.ipynb) for a walk-through. Launch the notebook directly with:
+Configuration files use the `DPFConfig` schema defined in this repository. See the [quickstart tutorial](docs/tutorials/quickstart.md) or its [Jupyter notebook](examples/notebooks/quickstart.ipynb) for a walk-through. For an interactive visualization of sheath dynamics with sliders controlling voltage and pressure, explore [sheath_animation.ipynb](examples/notebooks/sheath_animation.ipynb). Launch the notebooks directly with:
 
 ```bash
 dpf2 --notebook
