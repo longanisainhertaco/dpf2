@@ -15,6 +15,12 @@ def main() -> None:
     )
     parser.add_argument("--outfile", type=Path, default=Path("submit.sh"), help="Output script path")
     parser.add_argument("--nprocs", type=int, default=1, help="Number of MPI ranks")
+    parser.add_argument("--nodes", type=int, default=1, help="Number of nodes")
+    parser.add_argument("--gpus", type=int, default=0, help="GPUs per node")
+    parser.add_argument("--dependency", help="SLURM dependency specification")
+    parser.add_argument("--job-name", default="dpf2-sweep", help="Job name")
+    parser.add_argument("--output", default="slurm-%j.out", help="SLURM output file")
+    parser.add_argument("--stage", help="Directory to stage results after completion")
     args = parser.parse_args()
 
     cmd = (
@@ -25,10 +31,24 @@ def main() -> None:
     script = textwrap.dedent(
         f"""
         #!/bin/bash
+        #SBATCH -J {args.job_name}
+        #SBATCH -N {args.nodes}
         #SBATCH -n {args.nprocs}
-        {cmd}
+        #SBATCH -o {args.output}
         """
     )
+    if args.gpus:
+        script += f"#SBATCH --gpus={args.gpus}\n"
+    if args.dependency:
+        script += f"#SBATCH --dependency={args.dependency}\n"
+    script += f"\n{cmd}\n"
+    if args.stage:
+        script += textwrap.dedent(
+            f"""
+            mkdir -p {args.stage}
+            rsync -a results/ {args.stage}/
+            """
+        )
     args.outfile.write_text(script)
     print(f"Wrote batch script to {args.outfile}")
 
