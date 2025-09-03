@@ -27,7 +27,9 @@ def model_validator(*, mode: str = "after"):
 
 
 if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+    BaseModel.model_validate = classmethod(
+        lambda cls, d, **_: cls.parse_obj(d) if hasattr(cls, "parse_obj") else cls(**d)
+    )
 if not hasattr(BaseModel, "model_dump"):
     BaseModel.model_dump = BaseModel.dict
 if not hasattr(BaseModel, "model_dump_json"):
@@ -50,6 +52,20 @@ class ValidationSuite(ConfigSectionBase):
         allow_population_by_field_name=True,
         validate_default=True,
     )
+
+    # ------------------------------------------------------------------
+    @classmethod
+    def model_validate(cls, data: Dict[str, Any]) -> "ValidationSuite":
+        norm: Dict[str, Any] = {}
+        for name in cls.__annotations__:
+            alias = to_camel_case(name)
+            if alias in data:
+                norm[name] = data[alias]
+            elif name in data:
+                norm[name] = data[name]
+        inst = cls(**norm)
+        inst.check_rules()
+        return inst
 
     # ------------------------------------------------------------------
     # Experimental metadata
@@ -156,41 +172,39 @@ class ValidationSuite(ConfigSectionBase):
         return hashlib.sha256(serialized.encode()).hexdigest()
 
     # ------------------------------------------------------------------
-    @model_validator(mode="after")
-    def check_rules(cls, values: "ValidationSuite") -> "ValidationSuite":
-        if not Path(values.dataset_directory).exists():
+    def check_rules(self) -> None:
+        if not Path(self.dataset_directory).exists():
             raise ValueError("dataset_directory must exist")
-        for obs, path in values.observable_file_map.items():
+        for obs, path in self.observable_file_map.items():
             p = Path(path)
             if not p.exists():
                 raise ValueError(f"observable file {p} must exist")
-        if values.observable_format_spec:
-            if set(values.observable_format_spec.keys()) != set(values.observable_file_map.keys()):
+        if self.observable_format_spec:
+            if set(self.observable_format_spec.keys()) != set(self.observable_file_map.keys()):
                 raise ValueError("observable_format_spec keys must match observable_file_map")
-            for spec in values.observable_format_spec.values():
+            for spec in self.observable_format_spec.values():
                 if "time" not in spec or "value" not in spec:
                     raise ValueError("observable_format_spec entries must contain time and value")
-        if values.validation_time_window_us is not None:
-            start, end = values.validation_time_window_us
+        if self.validation_time_window_us is not None:
+            start, end = self.validation_time_window_us
             if start >= end:
                 raise ValueError("validation_time_window_us start must be < end")
-        if values.require_all_targets:
-            missing = [t for t in values.validation_targets if t not in values.observable_file_map]
+        if self.require_all_targets:
+            missing = [t for t in self.validation_targets if t not in self.observable_file_map]
             if missing:
                 raise ValueError(f"missing targets in observable_file_map: {missing}")
-        weights = values.observable_weighting or {t: 1.0 for t in values.validation_targets}
+        weights = self.observable_weighting or {t: 1.0 for t in self.validation_targets}
         total = sum(weights.values())
         if total <= 0:
             raise ValueError("observable_weighting must sum to > 0")
         norm_weights = {k: v / total for k, v in weights.items()}
-        update: Dict[str, Any] = {}
-        if values.observable_weighting:
-            update["observable_weighting"] = norm_weights
+        if self.observable_weighting:
+            self.observable_weighting = norm_weights
 
         # Combine uncertainties from ranges and scalars ----------------
-        uncertainties = dict(values.observable_uncertainties or {})
-        if values.observable_uncertainty_ranges:
-            for obs, rng in values.observable_uncertainty_ranges.items():
+        uncertainties = dict(self.observable_uncertainties or {})
+        if self.observable_uncertainty_ranges:
+            for obs, rng in self.observable_uncertainty_ranges.items():
                 if len(rng) != 2:
                     raise ValueError("uncertainty ranges must have two entries")
                 lo, hi = rng
@@ -198,20 +212,17 @@ class ValidationSuite(ConfigSectionBase):
                     raise ValueError("uncertainty range lower bound must be <= upper bound")
                 uncertainties[obs] = (hi - lo) / 2.0
 
-        if uncertainties and values.validation_score_model == "weighted":
+        if uncertainties and self.validation_score_model == "weighted":
             score = 1.0
-            for t in values.validation_targets:
+            for t in self.validation_targets:
                 u = uncertainties.get(t, 0.0)
                 w = norm_weights.get(t, 0.0)
                 score -= u * w
-            update["computed_validation_score"] = score
-            update["observable_uncertainties"] = uncertainties
-        score = update.get("computed_validation_score", values.computed_validation_score)
+            self.computed_validation_score = score
+            self.observable_uncertainties = uncertainties
+        score = getattr(self, "computed_validation_score", None)
         if score is not None:
-            update["validation_passed"] = score >= values.score_pass_threshold
-        if update:
-            values = values.model_copy(update=update)
-        return values
+            self.validation_passed = score >= self.score_pass_threshold
 
 
 def _load_profile_csv(path: Path) -> Tuple[np.ndarray, np.ndarray]:
@@ -248,7 +259,8 @@ def compare_profiles(
     sim_t, sim_v = sim_profile
     ref_t, ref_v = ref_profile
     interp_v = np.interp(ref_t, sim_t, sim_v)
-    return float(np.sqrt(np.mean((interp_v - ref_v) ** 2)))
+    diff = interp_v - ref_v
+    return float(np.sqrt(np.mean(diff * diff)))
 
 
 def compute_error_metrics(
@@ -302,7 +314,8 @@ def _rmse(sim: Tuple[np.ndarray, np.ndarray], ref: Tuple[np.ndarray, np.ndarray]
     sim_t, sim_v = sim
     ref_t, ref_v = ref
     interp_v = np.interp(ref_t, sim_t, sim_v)
-    return float(np.sqrt(np.mean((interp_v - ref_v) ** 2)))
+    diff = interp_v - ref_v
+    return float(np.sqrt(np.mean(diff * diff)))
 
 
 def _peak_time(profile: Tuple[np.ndarray, np.ndarray]) -> float:
@@ -371,6 +384,99 @@ def compute_pinch_error_metrics(
     return errors
 
 
+# ---------------------------------------------------------------------------
+# Embedded experimental datasets
+
+PF1000_DATA: Dict[str, Tuple[np.ndarray, np.ndarray]] = {
+    "current": (
+        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+        np.array([0.0, 200.0, 400.0, 200.0, 0.0, 0.0]),
+    ),
+    "voltage": (
+        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+        np.array([20.0, 15.0, 10.0, 5.0, 0.0, 0.0]),
+    ),
+    "neutron_yield": (
+        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+        np.array([0.0, 0.0, 1.0e11, 0.0, 0.0, 0.0]),
+    ),
+}
+
+MJOLNIR_DATA: Dict[str, Tuple[np.ndarray, np.ndarray]] = {
+    "current": (
+        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+        np.array([0.0, 100.0, 200.0, 100.0, 0.0, 0.0]),
+    ),
+    "voltage": (
+        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+        np.array([16.0, 12.0, 8.0, 4.0, 0.0, 0.0]),
+    ),
+    "neutron_yield": (
+        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+        np.array([0.0, 0.0, 5.0e9, 0.0, 0.0, 0.0]),
+    ),
+}
+
+_EXPERIMENTAL_DATA = {
+    "PF1000": PF1000_DATA,
+    "MJOLNIR": MJOLNIR_DATA,
+}
+
+
+def get_experiment_dataset(device: str) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+    """Return embedded benchmark waveforms for an experimental device."""
+
+    key = device.upper()
+    if key not in _EXPERIMENTAL_DATA:
+        raise KeyError(f"unknown device '{device}'")
+    return _EXPERIMENTAL_DATA[key]
+
+
+def compare_to_experiment(
+    sim_outputs: Dict[str, Tuple[np.ndarray, np.ndarray]],
+    device: str,
+    tolerances: Dict[str, float],
+) -> Dict[str, Any]:
+    """Compare simulation outputs against experimental waveforms.
+
+    Parameters
+    ----------
+    sim_outputs:
+        Mapping containing ``current``, ``voltage`` and ``neutron_yield`` entries as
+        ``(time, value)`` tuples.
+    device:
+        Name of the experimental device (``PF1000`` or ``MJOLNIR``).
+    tolerances:
+        Error bounds for waveform RMSE metrics (``current_rmse``, ``voltage_rmse``,
+        ``neutron_yield_rmse``) and the scaling law check ``yield_scaling_pct``.
+    """
+
+    ref = get_experiment_dataset(device)
+
+    metrics = {
+        f"{name}_rmse": _rmse(sim_outputs[name], ref[name])
+        for name in ["current", "voltage", "neutron_yield"]
+    }
+
+    # Scaling law: Yn ∝ I_peak^2 using constant derived from reference
+    ref_I_peak = float(np.max(ref["current"][1]))
+    ref_Y_peak = float(np.max(ref["neutron_yield"][1]))
+    k = ref_Y_peak / ref_I_peak**2 if ref_I_peak else 0.0
+
+    sim_I_peak = float(np.max(sim_outputs["current"][1]))
+    sim_Y_peak = float(np.max(sim_outputs["neutron_yield"][1]))
+    expected_y = k * sim_I_peak**2
+    metrics["yield_scaling_pct"] = (
+        abs(sim_Y_peak - expected_y) / expected_y * 100.0 if expected_y else float("inf")
+    )
+
+    metrics["passed"] = all(
+        metrics.get(k, 0.0) <= tolerances.get(k, float("inf")) for k in metrics
+    )
+
+    return metrics
+
+
 __all__ = [
     "ValidationSuite",
     "load_benchmark_dataset",
@@ -379,4 +485,8 @@ __all__ = [
     "compute_error_metrics",
     "load_pinch_dataset",
     "compute_pinch_error_metrics",
+    "PF1000_DATA",
+    "MJOLNIR_DATA",
+    "get_experiment_dataset",
+    "compare_to_experiment",
 ]
