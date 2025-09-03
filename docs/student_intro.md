@@ -15,5 +15,19 @@ Key ideas:
 - The field pushes plasma inward, increasing temperature and density.
 - Proper timing of diagnostics helps capture peak conditions.
 
-After watching the animation, students can explore more by running the
+## Interactive Sandbox Walk-Through
+
+The new sandbox lets you experiment with a simplified model directly in your
+browser or a Jupyter notebook.
+
+1. Launch the sandbox with:
+   ```bash
+   python -m dpf2.web.sandbox
+   ```
+2. Select the `student_sandbox.yaml` preset to load nominal device settings.
+3. Adjust fill pressure and capacitor voltage using the sliders and watch the
+   pinch animation update in real time.
+4. Download the run history to compare with classroom calculations.
+
+After exploring the sandbox, continue learning by running the
 [tutorials](tutorials/quickstart.md) or reading the [user guide](user_guide.md).
