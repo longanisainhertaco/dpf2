@@ -28,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Any
 
-import numpy as np
+from ..gpu_utils import xp as np
 
 from dpf2.core.bases import PlasmaSolverBase
 

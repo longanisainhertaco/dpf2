@@ -59,12 +59,20 @@ class XRayEmissionStreamer(DiagnosticsBase):
     ) -> None:
         self.callback = callback
         self.comparator = comparator
+        self._total = 0.0
 
     def record(self, state: CouplingState, time: float) -> None:
         power = abs(state.current * state.voltage) * 1.0e-3
+        self._total += power
         self.callback(time, power)
         if self.comparator is not None:
             self.comparator.compare(time, power)
+
+    @property
+    def total_power(self) -> float:
+        """Return accumulated X-ray emission estimate."""
+
+        return self._total
 
 
 class RealTimeComparator:
