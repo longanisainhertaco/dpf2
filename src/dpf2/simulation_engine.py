@@ -34,6 +34,7 @@ from .circuit_config import CircuitConfig
 
 from .circuit_solver import RLCCircuit, CircuitSolver, run_circuit_simulation
 from .core.bases import PlasmaSolverBase, CouplingState, DiagnosticsBase
+from .diagnostics import NeutronYieldStreamer, XRayEmissionStreamer
 from .pinch_models import (
     AnalyticPinchModel,
     SemiAnalyticPinchModel,
@@ -208,6 +209,8 @@ class SimulationEngine:
         energy_csv: str | None = None,
         energy_tol: float | None = None,
         diagnostics: Sequence[DiagnosticsBase] | None = None,
+        neutron_cb: Callable[[float, float], None] | None = None,
+        xray_cb: Callable[[float, float], None] | None = None,
         progress_cb: Callable[[int, float, float, float], None] | None = None,
     ) -> SimulationResults:
         """Run the simulation and return aggregated results.
@@ -218,6 +221,9 @@ class SimulationEngine:
             Optional callback invoked after each circuit step with
             ``(step, time, current, voltage)`` allowing in-situ diagnostics
             or live visualisation.
+        neutron_cb, xray_cb:
+            Callbacks receiving ``(time, value)`` for streaming neutron
+            yield and X-ray emission respectively.
         """
         sc = self.config.simulation_control
         dt = sc.min_dt or 1e-9
@@ -237,6 +243,12 @@ class SimulationEngine:
         voltage = circuit.voltages[-1]
         step = 0
         plasma_state = None
+        diag_list = list(diagnostics or [])
+        if neutron_cb is not None:
+            diag_list.append(NeutronYieldStreamer(neutron_cb))
+        if xray_cb is not None:
+            diag_list.append(XRayEmissionStreamer(xray_cb))
+
         while circuit.time[-1] < t_end:
             state = CouplingState(current=current, voltage=voltage)
             if plasma_solver is not None:
@@ -265,8 +277,8 @@ class SimulationEngine:
             tracker.thermal[-1] = float(rad_out)
             tracker.radiative[-1] = float(np.sum(rad_groups))
 
-            if diagnostics:
-                for diag in diagnostics:
+            if diag_list:
+                for diag in diag_list:
                     diag.record(updated, circuit.time[-1])
 
             if self._mesh is not None:

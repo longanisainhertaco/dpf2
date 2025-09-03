@@ -1,3 +1,4 @@
+
 import numpy as np
 
 from dpf2.physics.radiation_mhd_solver import RadiationMHDSolver
@@ -31,3 +32,4 @@ def test_frequency_domain_coupling_zero_back_reaction():
     assert np.allclose(res.current, ref.current)
     assert np.allclose(res.voltage, ref.voltage)
     assert solver.coupling_interface().back_reaction == 0.0
+
