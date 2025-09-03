@@ -289,6 +289,17 @@ class HallMHDSolver(PlasmaSolverBase):
     last_E: np.ndarray | None = field(init=False, default=None)
     last_opacity: np.ndarray | None = field(init=False, default=None)
     last_emissivity: np.ndarray | None = field(init=False, default=None)
+    cart_comm: Any | None = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        """Initialise MPI cartesian communicator for domain decomposition."""
+        if self.comm is not None and MPI is not None:
+            try:
+                size = self.comm.Get_size()
+                dims = MPI.Compute_dims(size, [0, 0, 0])
+                self.cart_comm = self.comm.Create_cart(dims, periods=[True, True, True])
+            except Exception:  # pragma: no cover - fall back to original comm
+                self.cart_comm = self.comm
 
     def apply_boundary_conditions(self, state: MHDState) -> None:
         """Invoke the boundary-condition hook if provided."""
@@ -316,13 +327,33 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.refine is not None:
             self.refine(state)
 
+    def _exchange_array(self, arr: np.ndarray) -> None:
+        """Exchange ghost cells of ``arr`` with neighbouring MPI ranks."""
+        cart = self.cart_comm
+        if cart is None:
+            return
+        spatial_dims = min(3, arr.ndim)
+        for axis in range(spatial_dims):
+            src, dest = cart.Shift(axis, 1)
+            if dest == MPI.PROC_NULL and src == MPI.PROC_NULL:
+                continue
+            send_hi = [slice(None)] * arr.ndim
+            recv_hi = [slice(None)] * arr.ndim
+            send_lo = [slice(None)] * arr.ndim
+            recv_lo = [slice(None)] * arr.ndim
+            send_hi[axis] = slice(-2, -1)
+            recv_hi[axis] = slice(-1, None)
+            send_lo[axis] = slice(1, 2)
+            recv_lo[axis] = slice(0, 1)
+            cart.Sendrecv(arr[tuple(send_hi)], dest=dest, recvbuf=arr[tuple(recv_hi)], source=src)
+            cart.Sendrecv(arr[tuple(send_lo)], dest=src, recvbuf=arr[tuple(recv_lo)], source=dest)
+
     def exchange_boundaries(self, state: MHDState) -> None:
         """Synchronise ghost zones across MPI ranks if a communicator is set."""
         if self.comm is None or MPI is None:
             return
-        arrays = [state.rho, state.mom, state.energy, state.B]
-        for arr in arrays:
-            self.comm.Allreduce(MPI.IN_PLACE, arr, op=MPI.SUM)
+        for arr in [state.rho, state.mom, state.energy, state.B]:
+            self._exchange_array(arr)
 
     def amr_sync(self, state: MHDState) -> None:
         """Invoke AMReX mesh synchronisation if available."""
