@@ -3,6 +3,8 @@ import cmath
 import math
 import numpy as np
 
+
+
 from dpf2.circuit.distributed import TransmissionLineSegment
 from dpf2.physics.radiation_mhd import RadiationMHDSolver
 from dpf2.rlc_solver import solve_distributed_circuit
@@ -40,7 +42,8 @@ def test_frequency_domain_coupling_zero_back_reaction():
     ref = solve_distributed_circuit([seg], [], V0=0.0, t_end=t_end, dt=dt, frequency=freq)
     assert np.allclose(res.current, ref.current)
     assert np.allclose(res.voltage, ref.voltage)
-    assert solver.coupling_interface().back_reaction == 0.0
+    iface = solver.coupling_interface()
+    assert iface.back_reaction == 0.0
 
 
 def _amp_phase(signal, t, w):
