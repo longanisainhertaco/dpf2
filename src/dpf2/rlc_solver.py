@@ -241,8 +241,14 @@ def solve_distributed_circuit(
                 V_in_t = float(to_cpu(vin[idx]))
                 em_state = em_solver.step(em_state, dt, I_src_t, V_in_t)
                 fb = em_solver.coupling_interface()
+                # Apply feedback to source signals and ensure all time-series
+                # arrays remain consistent.  A full network recomputation would
+                # be expensive, so the feedback is applied uniformly across all
+                # nodes and branches.
                 total_I[idx] += fb.back_reaction
                 vin[idx] += fb.voltage
+                node_voltages[idx, :] += fb.voltage
+                branch_currents[idx, :] += fb.back_reaction
 
         # Reflection coefficients for backward compatibility
         if Z_load is None:
@@ -477,8 +483,12 @@ def solve_distributed_circuit(
         # Couple to optional EM solver
         if em_solver is not None:
             em_state = em_solver.step(em_state, dt, tot, V_cap[k - 1])
-            feedback = em_solver.coupling_interface().back_reaction
-            tot += feedback
+            fb = em_solver.coupling_interface()
+            # Apply feedback uniformly so the precomputed branch currents and
+            # node voltages remain consistent with the adjusted source signals.
+            tot += fb.back_reaction
+            currents[k, :] += fb.back_reaction
+            node_voltages[k, :] += fb.voltage
 
         total_I[k] = tot
 
