@@ -26,7 +26,7 @@ def model_validator(*, mode: str = "after"):
     return decorator
 
 if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls(**d))
 if not hasattr(BaseModel, "model_dump"):
     BaseModel.model_dump = BaseModel.dict
 if not hasattr(BaseModel, "model_dump_json"):
@@ -35,6 +35,17 @@ if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
 from .core_schema import ConfigSectionBase, to_camel_case
+
+
+def from_camel_case(string: str) -> str:
+    out = []
+    for ch in string:
+        if ch.isupper():
+            out.append("_")
+            out.append(ch.lower())
+        else:
+            out.append(ch)
+    return "".join(out)
 from .units_settings import UnitsSettings
 
 
@@ -63,8 +74,10 @@ class NeutronYieldModel(ConfigSectionBase):
     beam_ion_species: str
     target_density_source: Literal["diagnostics", "constant", "user_file"] = "diagnostics"
     target_density_constant: Optional[float] = Field(None, metadata={"units": "cm^-3"})
+    target_density_diagnostic_path: Optional[Path] = None
     iedf_source: Literal["diagnostics", "user_file", "synthetic_gaussian"] = "diagnostics"
     iedf_user_path: Optional[Path] = None
+    iedf_diagnostic_path: Optional[Path] = None
     iedf_format: Optional[Literal["csv", "OpenPMD", "json"]] = "csv"
     fusion_cross_section_model: Literal["Bosch-Hale", "EXFOR", "tabulated"] = "Bosch-Hale"
     cross_section_table_path: Optional[Path] = None
@@ -84,7 +97,8 @@ class NeutronYieldModel(ConfigSectionBase):
     # Spectrum output and detector modeling
     neutron_spectrum_output_enabled: bool = True
     spectrum_energy_bins_MeV: Optional[List[float]] = None
-    spectrum_output_format: Optional[Literal["csv", "OpenPMD", "plot"]] = "csv"
+    anisotropic_spectrum: bool = False
+    spectrum_output_format: Optional[Literal["csv", "OpenPMD", "plot", "hdf5"]] = "csv"
     apply_detector_response_function: bool = False
     detector_response_file: Optional[Path] = None
     detector_response_normalization: Optional[Literal["none", "area", "peak", "custom"]] = "none"
@@ -135,10 +149,11 @@ class NeutronYieldModel(ConfigSectionBase):
             else "None"
         )
         fmt = self.spectrum_output_format or "n/a"
+        anis = "anisotropic" if self.anisotropic_spectrum else "isotropic"
         parts = [
             f"Fusion: {fuel} | Beam-target: {beam}, Ion: {ion}, σ(E): {sigma}",
             f"Thermonuclear: {th}, Maxwellian = {self.maxwellian_assumed}, Ti = {ti} keV",
-            f"Branching: DDn = {self.dd_branching_ratio} | Spectrum: {spec_bins} MeV → {fmt}",
+            f"Branching: DDn = {self.dd_branching_ratio} | Spectrum ({anis}): {spec_bins} MeV → {fmt}",
         ]
         if self.apply_detector_response_function:
             resp = self.detector_response_file.name if self.detector_response_file else "none"
@@ -155,7 +170,19 @@ class NeutronYieldModel(ConfigSectionBase):
         return hashlib.sha256(serialized.encode()).hexdigest()
 
     # ------------------------------------------------------------------
-    @model_validator(mode="after")
+    @classmethod
+    def model_validate(cls, data: Dict[str, Any]) -> "NeutronYieldModel":
+        alias_map = {to_camel_case(n): n for n in cls.__annotations__}
+        for n in list(alias_map):
+            if n.endswith("Mev"):
+                alias_map[n[:-3] + "MeV"] = alias_map[n]
+        cleaned = {
+            alias_map.get(k, from_camel_case(k)): v for k, v in data.items()
+        }
+        inst = cls(**cleaned)
+        return cls.check_rules(inst)
+
+    @classmethod
     def check_rules(cls, values: "NeutronYieldModel") -> "NeutronYieldModel":
         if (
             values.thermonuclear_model_enabled
@@ -185,9 +212,17 @@ class NeutronYieldModel(ConfigSectionBase):
         if values.apply_detector_response_function and values.detector_response_file is None:
             raise ValueError("detector_response_file required when apply_detector_response_function is True")
 
+        if values.dd_branching_ratio is not None and not (
+            0.0 <= values.dd_branching_ratio <= 1.0
+        ):
+            raise ValueError("dd_branching_ratio must be between 0 and 1")
+
         if values.spectrum_energy_bins_MeV is not None:
             if values.spectrum_energy_bins_MeV != sorted(values.spectrum_energy_bins_MeV):
                 raise ValueError("spectrum_energy_bins_MeV must be monotonically increasing")
+
+        if values.anisotropic_spectrum and values.spectrum_output_format != "hdf5":
+            raise ValueError("anisotropic_spectrum requires spectrum_output_format='hdf5'")
 
         if values.yield_integration_window_us is not None:
             s, e = values.yield_integration_window_us
