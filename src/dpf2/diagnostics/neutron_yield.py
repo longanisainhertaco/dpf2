@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
-import numpy as np
 import h5py_stub as h5py  # type: ignore
 
 
@@ -65,18 +64,24 @@ def save_anisotropic_spectrum_hdf5(
     energies: Sequence[float],
     angles: Sequence[float],
     spectrum: Sequence[Sequence[float]],
+    detector_names: Sequence[str] | None = None,
 ) -> None:
-    """Save anisotropic neutron spectrum in an HDF5 file."""
-    spec_arr = np.asarray(spectrum, dtype=float)
-    if spec_arr.shape != (len(angles), len(energies)):
+    """Save anisotropic neutron spectrum in an HDF5 file with per-detector datasets."""
+    spec_arr = [[float(v) for v in row] for row in spectrum]
+    if len(spec_arr) != len(angles) or any(len(row) != len(energies) for row in spec_arr):
         raise ValueError("spectrum shape must be (n_angles, n_energies)")
+    if detector_names is not None and len(detector_names) != len(angles):
+        raise ValueError("detector_names must match number of angles")
     with h5py.File(path, "w") as fh:
-        e_ds = fh.create_dataset("energy_MeV", data=np.asarray(energies, dtype=float))
+        e_ds = fh.create_dataset("energy_MeV", data=[float(e) for e in energies])
         e_ds.data = list(e_ds.data)
-        a_ds = fh.create_dataset("angle_deg", data=np.asarray(angles, dtype=float))
+        a_ds = fh.create_dataset("angle_deg", data=[float(a) for a in angles])
         a_ds.data = list(a_ds.data)
-        s_ds = fh.create_dataset("spectrum", data=spec_arr)
-        s_ds.data = [list(row) for row in spec_arr]
+        grp = fh.require_group("detectors")
+        for i, row in enumerate(spec_arr):
+            name = detector_names[i] if detector_names else f"detector_{i}"
+            ds = grp.create_dataset(name, data=row)
+            ds.data = list(row)
 
 
 __all__ = [
