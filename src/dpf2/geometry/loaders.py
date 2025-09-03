@@ -2,15 +2,49 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
+
+
+def _parse_step_like(lines: List[str]) -> Dict[str, Any]:
+    """Parse a tiny subset of STEP/IGES style geometry.
+
+    The parser understands lines beginning with ``NODE`` to define points and
+    ``TRI`` to define triangular faces.  Indices in ``TRI`` statements are
+    one-based to mimic common CAD conventions.
+    """
+
+    nodes: List[List[float]] = []
+    elements: List[List[int]] = []
+    for ln in lines:
+        parts = ln.split()
+        if not parts:
+            continue
+        tag, *rest = parts
+        if tag.upper() == "NODE" and len(rest) == 3:
+            nodes.append([float(v) for v in rest])
+        elif tag.upper() == "TRI" and len(rest) == 3:
+            elements.append([int(v) for v in rest])
+    return {"nodes": nodes, "elements": elements}
 
 
 def load_cad_geometry(path: Path) -> Dict[str, Any]:
     """Load a minimal CAD style geometry description from ``path``.
 
-    The expected format is JSON containing ``nodes`` and ``elements`` lists.
+    The loader understands a few simple formats used in tests:
+
+    * ``.json`` files containing ``nodes`` and ``elements`` lists.
+    * ``.step``/``.stp`` and ``.iges``/``.igs`` files with lines of the form
+      ``NODE x y z`` and ``TRI i j k``.
     """
-    return json.loads(Path(path).read_text())
+
+    p = Path(path)
+    suffix = p.suffix.lower()
+    if suffix == ".json":
+        return json.loads(p.read_text())
+    if suffix in {".step", ".stp", ".iges", ".igs"}:
+        lines = [ln.strip() for ln in p.read_text().splitlines() if ln.strip()]
+        return _parse_step_like(lines)
+    raise ValueError(f"Unsupported CAD format: {suffix}")
 
 
 def load_unstructured_mesh(path: Path) -> Dict[str, Any]:
@@ -31,3 +65,25 @@ def load_unstructured_mesh(path: Path) -> Dict[str, Any]:
     n_elem = int(lines[1 + n_nodes])
     elements = [list(map(int, ln.split())) for ln in lines[2 + n_nodes : 2 + n_nodes + n_elem]]
     return {"nodes": nodes, "elements": elements}
+
+
+def load_axisymmetric_mesh(path: Path) -> Dict[str, Any]:
+    """Load a minimal axisymmetric mesh description.
+
+    The file format is intentionally lightweight for tests.  If the file has a
+    ``.json`` suffix it should contain ``r`` and ``z`` coordinate arrays.  A
+    plain text format is also accepted where the first line lists ``nr nz``
+    followed by ``nr`` lines of radial coordinates and ``nz`` lines of axial
+    coordinates.  The result is returned as a dictionary with ``r`` and ``z``
+    entries.
+    """
+
+    p = Path(path)
+    if p.suffix.lower() == ".json":
+        return json.loads(p.read_text())
+
+    lines = [ln.strip() for ln in p.read_text().splitlines() if ln.strip()]
+    nr, nz = map(int, lines[0].split())
+    r = [float(lines[i + 1]) for i in range(nr)]
+    z = [float(lines[1 + nr + i]) for i in range(nz)]
+    return {"r": r, "z": z}

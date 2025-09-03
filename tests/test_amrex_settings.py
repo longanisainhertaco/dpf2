@@ -34,6 +34,26 @@ def test_invalid_material_override_key():
         AmrexSettings.model_validate(data)
 
 
+def test_new_electrode_shapes_supported():
+    data = base_data()
+    # Re-entrant anode
+    data["electrode_geometry"]["anode_shape"] = "reentrant"
+    data["electrode_geometry"]["reentrant_depth"] = 0.01
+    AmrexSettings.model_validate(data)
+
+    # Tapered anode
+    data = base_data()
+    data["electrode_geometry"]["anode_shape"] = "tapered"
+    data["electrode_geometry"]["taper_angle"] = 5.0
+    AmrexSettings.model_validate(data)
+
+    # Hollow anode
+    data = base_data()
+    data["electrode_geometry"]["anode_shape"] = "hollow"
+    data["electrode_geometry"]["inner_radius"] = 0.1
+    AmrexSettings.model_validate(data)
+
+
 def test_mesh_file_units_scale():
     data = base_data()
     data["electrode_geometry"]["mesh_file"] = "mesh.stl"

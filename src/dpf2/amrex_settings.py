@@ -29,7 +29,7 @@ def model_validator(*, mode: str = "after"):
     return decorator
 
 if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls(**d))
 if not hasattr(BaseModel, "model_dump"):
     BaseModel.model_dump = BaseModel.dict
 if not hasattr(BaseModel, "model_dump_json"):
@@ -56,12 +56,27 @@ class ElectrodeGeometry(ConfigSectionBase):
     cathode_type: Literal["bars", "ring", "custom"]
     cathode_bar_count: Optional[int] = Field(None, ge=2)
     cathode_gap_degrees: Optional[float] = None
-    anode_shape: Literal["cylinder", "cone", "knife", "custom"]
+    anode_shape: Literal[
+        "cylinder",
+        "cone",
+        "knife",
+        "reentrant",
+        "tapered",
+        "hollow",
+        "custom",
+    ]
     knife_edge_enabled: bool
     emitter_field_enhancement: Optional[float] = Field(None, ge=0.0)
     mesh_file: Optional[Path] = None
     mesh_file_units: Optional[Literal["cm", "m"]] = "cm"
     material_tagging_enabled: bool = False
+    reentrant_depth: Optional[float] = Field(None, ge=0.0, description="Depth of re-entrant feature [m]")
+    taper_angle: Optional[float] = Field(
+        None, ge=0.0, le=90.0, description="Taper angle for tapered electrodes [deg]"
+    )
+    inner_radius: Optional[float] = Field(
+        None, gt=0.0, description="Inner radius for hollow electrodes [m]"
+    )
 
     # ------------------------------------------------------------------
     @classmethod
