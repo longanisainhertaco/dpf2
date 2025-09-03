@@ -1,11 +1,13 @@
-"""Skeleton Hall-MHD solver with placeholders for advanced physics.
+"""Hall-MHD solver operating on three-dimensional grids.
 
-This module defines data structures and a minimal solver interface for a
-future 3-D resistive Hall-MHD implementation with anisotropic transport,
-constrained transport (CT) for divergence-free magnetic fields, and
-hooks for AMR integration.  The solver is intentionally incomplete but
-provides typed containers and method stubs so that further development
-can proceed incrementally.
+The solver advances mass density, momentum and magnetic fields using a
+second-order Godunov scheme with a constrained-transport magnetic field
+update to preserve ``∇·B = 0``.  Optional Braginskii transport
+coefficients supply parallel viscosity and thermal conduction.  The
+implementation also features lightweight MPI domain decomposition and
+hooks for adaptive-mesh refinement so that applications can refine the
+mesh or exchange ghost cells between ranks.  While still compact, the
+module serves as a functional reference used by the regression tests.
 """
 from __future__ import annotations
 
@@ -26,6 +28,8 @@ except Exception:  # pragma: no cover
 
 from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase, CouplingState
 from .eos import EOSBase, IdealGasEOS
+from .boundary_conditions import KineticSheath
+from .physics.energy import EnergyTracker
 
 class ChemistryModule(Protocol):
     """Minimal interface for chemistry plugins."""
