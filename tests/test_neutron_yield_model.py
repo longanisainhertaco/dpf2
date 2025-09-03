@@ -58,8 +58,10 @@ neutronYield:
   beamIonSpecies: D+
   targetDensitySource: diagnostics
   targetDensityConstant: null
+  targetDensityDiagnosticPath: null
   iedfSource: diagnostics
   iedfUserPath: null
+  iedfDiagnosticPath: null
   iedfFormat: csv
   fusionCrossSectionModel: Bosch-Hale
   crossSectionTablePath: null
@@ -77,6 +79,7 @@ neutronYield:
     reactivity: cm^3/s
   neutronSpectrumOutputEnabled: true
   spectrumEnergyBinsMeV: [1.0, 2.5, 14.1]
+  anisotropicSpectrum: false
   spectrumOutputFormat: csv
   applyDetectorResponseFunction: true
   detectorResponseFile: detectors/n_response.csv
@@ -123,4 +126,12 @@ def test_invalid_integration_window():
     data = base_data()
     data["yieldIntegrationWindowUs"] = [1.0, 0.5]
     with pytest.raises(ValueError, match="start < end"):
+        NeutronYieldModel.model_validate(data)
+
+
+def test_anisotropic_requires_hdf5():
+    data = base_data()
+    data["anisotropicSpectrum"] = True
+    data["spectrumOutputFormat"] = "csv"
+    with pytest.raises(ValueError, match="anisotropic_spectrum requires"):
         NeutronYieldModel.model_validate(data)

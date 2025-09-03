@@ -7,7 +7,12 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal
 from pydantic import BaseModel, ConfigDict, Field, root_validator
 
 # Local diagnostic computation utilities
-from .neutron_yield import compute_neutron_yield
+from .neutron_yield import (
+    compute_neutron_yield,
+    compute_beam_target_yield,
+    compute_thermonuclear_yield,
+    save_anisotropic_spectrum_hdf5,
+)
 from .xray_spectra import compute_xray_spectrum
 from .scope_trace import compute_scope_trace
 from .synthetic_signals import (
@@ -22,6 +27,9 @@ from .streaming import NeutronYieldStreamer, XRayEmissionStreamer, RealTimeCompa
 
 __all__ = [
     "compute_neutron_yield",
+    "compute_beam_target_yield",
+    "compute_thermonuclear_yield",
+    "save_anisotropic_spectrum_hdf5",
     "compute_xray_spectrum",
     "compute_scope_trace",
     "current_waveform",
