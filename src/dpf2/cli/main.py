@@ -327,32 +327,40 @@ def simulate(
         live_voltages: list[float] = []
         plot_backend: tuple | None = None
         if live_plot:
-            if click.get_text_stream("stdout").isatty():
-                try:
-                    import matplotlib.pyplot as mplt
-
-                    if hasattr(mplt, "ion") and hasattr(mplt, "subplots"):
-                        mplt.ion()
-                        fig, ax = mplt.subplots()
-                        (line_i,) = ax.plot([], [], label="current")
-                        (line_v,) = ax.plot([], [], label="voltage")
-                        ax.set_xlabel("time [s]")
-                        ax.legend()
-                        fig.tight_layout()
-                        plot_backend = ("matplotlib", mplt, fig, ax, line_i, line_v)
-                except Exception:
-                    try:
-                        import plotext as ptx
-
-                        plot_backend = ("plotext", ptx)
-                        ptx.clt()
-                    except Exception:
-                        plot_backend = None
-            else:
-                click.echo(
-                    "--live-plot requested but no interactive terminal detected; disabling.",
-                    err=True,
+            if not click.get_text_stream("stdout").isatty():
+                raise click.ClickException(
+                    format_error(
+                        "PLOT",
+                        "Live plotting requires an interactive terminal",
+                        "Run in a real terminal or omit --live-plot.",
+                    )
                 )
+            try:
+                import matplotlib.pyplot as mplt
+
+                if hasattr(mplt, "ion") and hasattr(mplt, "subplots"):
+                    mplt.ion()
+                    fig, ax = mplt.subplots()
+                    (line_i,) = ax.plot([], [], label="current")
+                    (line_v,) = ax.plot([], [], label="voltage")
+                    ax.set_xlabel("time [s]")
+                    ax.legend()
+                    fig.tight_layout()
+                    plot_backend = ("matplotlib", mplt, fig, ax, line_i, line_v)
+            except Exception:
+                try:
+                    import plotext as ptx
+
+                    plot_backend = ("plotext", ptx)
+                    ptx.clt()
+                except Exception:
+                    raise click.ClickException(
+                        format_error(
+                            "PLOT",
+                            "Live plotting requires matplotlib or plotext",
+                            "Install matplotlib or plotext to enable --live-plot.",
+                        )
+                    )
 
         progress_cb = None
         pbar = None

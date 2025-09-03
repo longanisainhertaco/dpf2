@@ -1,31 +1,49 @@
+"""Centralised error codes and remediation hints for the CLI."""
+
 from dataclasses import dataclass
 from typing import Optional
 
 
-@dataclass
+@dataclass(frozen=True)
 class CLIErrorInfo:
-    """Information describing a CLI error."""
+    """Definition of a CLI error with structured metadata."""
 
     code: str
-    hint: str
+    tip: str | None = None
 
 
 ERRORS: dict[str, CLIErrorInfo] = {
-    "CONFIG": CLIErrorInfo("E001", "Check configuration path and values."),
-    "SIMULATION": CLIErrorInfo("E002", "Verify simulation parameters."),
-    "VALIDATION": CLIErrorInfo("E003", "Ensure dataset path and config are correct."),
-    "PLOT": CLIErrorInfo("E004", "Confirm the input contains HDF5 outputs."),
-    "DIAGNOSTICS": CLIErrorInfo("E005", "Provide valid history and configuration JSON files."),
-    "NOTEBOOK": CLIErrorInfo("E006", "Install Jupyter to use notebook mode."),
-    "UNEXPECTED": CLIErrorInfo("E999", "Please report this issue."),
+    "CONFIG": CLIErrorInfo(
+        "CLI001", "Check configuration path and values."
+    ),
+    "SIMULATION": CLIErrorInfo(
+        "CLI002", "Verify simulation parameters."
+    ),
+    "VALIDATION": CLIErrorInfo(
+        "CLI003", "Ensure dataset path and config are correct."
+    ),
+    "PLOT": CLIErrorInfo(
+        "CLI004", "Confirm the input contains HDF5 outputs or install plotting backend."
+    ),
+    "DIAGNOSTICS": CLIErrorInfo(
+        "CLI005", "Provide valid history and configuration JSON files."
+    ),
+    "NOTEBOOK": CLIErrorInfo(
+        "CLI006", "Install Jupyter to use notebook mode."
+    ),
+    "UNEXPECTED": CLIErrorInfo(
+        "CLI999", "Please report this issue."
+    ),
 }
 
 
-def format_error(kind: str, message: str, hint: Optional[str] = None) -> str:
-    """Format an error message with code and remediation hint."""
+def format_error(kind: str, message: str, tip: Optional[str] = None) -> str:
+    """Format an error message with its code and remediation tip."""
+
     info = ERRORS.get(kind, ERRORS["UNEXPECTED"])
-    msg = f"[{info.code}] {message}"
-    hint_text = hint or info.hint
-    if hint_text:
-        msg += f"\nHint: {hint_text}"
-    return msg
+    text = f"[{info.code}] {message}"
+    hint = tip or info.tip
+    if hint:
+        text += f"\nHint: {hint}"
+    return text
+
