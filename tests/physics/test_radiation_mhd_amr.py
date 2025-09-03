@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from dpf2.physics.radiation_mhd_solver import RadiationMHDSolver
+from dpf2.physics.radiation_mhd import RadiationMHDSolver
 from dpf2.circuit.distributed import TransmissionLineSegment
 from dpf2.rlc_solver import solve_distributed_circuit
 
