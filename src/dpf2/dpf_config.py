@@ -177,6 +177,7 @@ class CircuitConfig(BaseModel):
         )
 
 class ElectrodeGeometry(BaseModel):
+    geometry_preset: Optional[Literal["mather", "filippov"]] = None
     cathode_type: str
     cathode_bar_count: int
     cathode_gap_degrees: float
@@ -190,12 +191,22 @@ class ElectrodeGeometry(BaseModel):
     inner_radius: Optional[float] = None
 
     @classmethod
-    def with_defaults(cls):
+    def with_defaults(cls, geometry_preset: Optional[str] = None):
+        if geometry_preset == "filippov":
+            return cls(
+                geometry_preset="filippov",
+                cathode_type="ring",
+                cathode_bar_count=0,
+                cathode_gap_degrees=0.0,
+                anode_shape="cylinder",
+            )
+        # default to mather-style geometry
         return cls(
+            geometry_preset="mather",
             cathode_type="bar",
             cathode_bar_count=10,
             cathode_gap_degrees=36.0,
-            anode_shape="cylinder"
+            anode_shape="cylinder",
         )
 
 class AmrexSettings(BaseModel):
