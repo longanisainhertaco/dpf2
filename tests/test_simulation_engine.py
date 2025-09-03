@@ -1,4 +1,10 @@
 import numpy as np
+import pydantic
+
+if not hasattr(pydantic.BaseModel, "parse_obj"):  # pragma: no cover - compatibility
+    pydantic.BaseModel.parse_obj = classmethod(lambda cls, d: cls(**d))
+if not hasattr(pydantic.BaseModel, "model_validate"):  # pragma: no cover - compatibility
+    pydantic.BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
 
 from dpf2.dpf_config import DPFConfig
 from dpf2.simulation_engine import SimulationEngine, EnsembleResults
@@ -13,6 +19,7 @@ def test_engine_runs():
     # basic shape checks
     assert results.current.size > 0
     assert results.time.shape == results.current.shape
+    assert results.voltage.shape == results.current.shape
     assert results.radius.shape == results.current.shape
     assert results.temperature.shape == results.current.shape
     assert results.pressure.shape == results.current.shape
@@ -36,7 +43,15 @@ def test_engine_runs():
 
     # ensure conversion to dictionary preserves keys
     as_dict = results.to_dict()
-    for key in ["time", "current", "pinch_radius", "temperature", "pressure", "neutron_yield"]:
+    for key in [
+        "time",
+        "current",
+        "voltage",
+        "pinch_radius",
+        "temperature",
+        "pressure",
+        "neutron_yield",
+    ]:
         assert key in as_dict
 
 

@@ -59,6 +59,7 @@ def _capacitor_energy(voltage: float, capacitance: float) -> float:
 class SimulationResults:
     time: np.ndarray
     current: np.ndarray
+    voltage: np.ndarray
     radius: np.ndarray
     temperature: np.ndarray
     pressure: np.ndarray
@@ -70,6 +71,7 @@ class SimulationResults:
         data = {
             "time": self.time.tolist(),
             "current": self.current.tolist(),
+            "voltage": self.voltage.tolist(),
             "pinch_radius": self.radius.tolist(),
             "temperature": self.temperature.tolist(),
             "pressure": self.pressure.tolist(),
@@ -291,8 +293,10 @@ class SimulationEngine:
 
         t_xp = self.xp.array(circuit.time)
         current_xp = self.xp.array(circuit.currents)
+        voltage_xp = self.xp.array(circuit.voltages)
         t = self._to_numpy(t_xp)
         current_arr = self._to_numpy(current_xp)
+        voltage_arr = self._to_numpy(voltage_xp)
 
         if pinch_model == "analytic":
             plasma: PinchModelBase = AnalyticPinchModel()
@@ -340,6 +344,7 @@ class SimulationEngine:
         return SimulationResults(
             time=pres.time,
             current=current_arr,
+            voltage=voltage_arr,
             radius=pres.radius,
             temperature=pres.temperature,
             pressure=pres.pressure,

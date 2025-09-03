@@ -1,0 +1,4 @@
+{
+  "current_peak_from_voltage": {"k": 5.0, "n": 1.0},
+  "neutron_yield_from_current": {"k": 1e5, "n": 4.0}
+}
