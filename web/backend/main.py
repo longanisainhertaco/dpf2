@@ -4,9 +4,10 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
+import asyncio
 from typing import Any, Dict
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
@@ -25,6 +26,9 @@ users = {
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app = FastAPI()
+
+progress_clients: Dict[str, set[WebSocket]] = {}
+diagnostic_clients: Dict[str, set[WebSocket]] = {}
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -58,11 +62,29 @@ class RunRequest(BaseModel):
     config: Dict[str, Any]
 
 
+async def broadcast_progress(run_id: str, progress: float) -> None:
+    for ws in list(progress_clients.get(run_id, set())):
+        await ws.send_json({"run_id": run_id, "progress": progress})
+
+
+async def broadcast_diagnostics(run_id: str, data: Dict[str, Any]) -> None:
+    for ws in list(diagnostic_clients.get(run_id, set())):
+        await ws.send_json({"run_id": run_id, "diagnostics": data})
+
+
 @app.post("/run")
-def run_simulation(req: RunRequest, user=Depends(get_current_user)):
+async def run_simulation(req: RunRequest, user=Depends(get_current_user)):
     cfg = DPFConfig.model_validate(req.config)
     run_id = dispatch_to_hpc(cfg, user["username"])
     logger.info("action=submit user=%s run_id=%s", user["username"], run_id)
+
+    async def _mock_progress() -> None:
+        for step in range(1, 11):
+            await asyncio.sleep(0.1)
+            await broadcast_progress(run_id, step / 10)
+        await broadcast_diagnostics(run_id, {"status": "completed"})
+
+    asyncio.create_task(_mock_progress())
     return {"run_id": run_id}
 
 
@@ -81,3 +103,25 @@ def get_results(run_id: str, user=Depends(require_role("admin"))):
         raise HTTPException(status_code=404, detail="Run not found")
     logger.info("action=get_results user=%s run_id=%s", user["username"], run_id)
     return json.loads(path.read_text())
+
+
+@app.websocket("/ws/progress/{run_id}")
+async def ws_progress(websocket: WebSocket, run_id: str):
+    await websocket.accept()
+    progress_clients.setdefault(run_id, set()).add(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        progress_clients[run_id].discard(websocket)
+
+
+@app.websocket("/ws/diagnostics/{run_id}")
+async def ws_diagnostics(websocket: WebSocket, run_id: str):
+    await websocket.accept()
+    diagnostic_clients.setdefault(run_id, set()).add(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        diagnostic_clients[run_id].discard(websocket)
