@@ -279,6 +279,8 @@ class HallMHDSolver(PlasmaSolverBase):
     inductance: float = 0.0
     back_emf: float = 0.0
     circuit_feedback: CouplingState | None = field(init=False, default=None)
+    anomalous_resistivity: Callable[[np.ndarray], np.ndarray] | None = None
+    voltage_spikes: list[float] = field(default_factory=list)
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
@@ -292,6 +294,22 @@ class HallMHDSolver(PlasmaSolverBase):
         """Invoke the boundary-condition hook if provided."""
         if self.bc is not None:
             self.bc(state)
+
+    def compute_anomalous_resistivity(self, J: np.ndarray) -> np.ndarray:
+        """Evaluate anomalous resistivity model and record voltage spikes."""
+
+        if self.anomalous_resistivity is None:
+            eta = np.zeros(J.shape[:-1])
+        else:
+            eta = self.anomalous_resistivity(J)
+        if hasattr(np, "abs"):
+            mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
+        else:  # pragma: no cover - very small stub fallback
+            mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
+        spike = float(np.max(eta * mag))
+        if spike != 0.0:
+            self.voltage_spikes.append(spike)
+        return eta
 
     def amr_refinement(self, state: MHDState) -> None:
         """Invoke the refinement callback if provided."""
@@ -481,7 +499,9 @@ class HallMHDSolver(PlasmaSolverBase):
             if isinstance(eta_field, np.ndarray)
             else np.full(rho.shape, float(eta_field))
         )
-        E = -np.cross(v, B) + eta_local[..., None] * J
+        eta_anom = self.compute_anomalous_resistivity(J)
+        eta_total = eta_local + eta_anom
+        E = -np.cross(v, B) + eta_total[..., None] * J
         if self.hall_coeff != 0.0:
             ne = rho * np.maximum(zbar, 1e-30)
             E += self.hall_coeff * np.cross(J, B) / ne[..., None]
@@ -528,10 +548,10 @@ class HallMHDSolver(PlasmaSolverBase):
             energy += dt * self.nu * rho * np.sum(v * lap_v, axis=-1)
 
         # --- Source terms ---
-        if isinstance(eta_field, np.ndarray):
-            heating = eta_field * np.sum(J**2, axis=-1)
+        if isinstance(eta_total, np.ndarray):
+            heating = eta_total * np.sum(J**2, axis=-1)
         else:
-            heating = float(eta_field) * np.sum(J**2, axis=-1)
+            heating = float(eta_total) * np.sum(J**2, axis=-1)
         energy += dt * heating
         for name in temps:
             temps[name] += dt * heating / np.maximum(rho, 1e-30)
@@ -549,7 +569,7 @@ class HallMHDSolver(PlasmaSolverBase):
             psi=psi,
             Te=Te_out,
             Ti=Ti_out,
-            eta=None if np.isscalar(eta_field) else eta_field,
+            eta=None if np.isscalar(eta_total) else eta_total,
             temperatures=temps if temps else None,
         )
 
