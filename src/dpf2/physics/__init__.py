@@ -3,7 +3,7 @@ from .energy import EnergyTracker
 from .pic import SimplePIC, HybridPIC
 from .eos import TabulatedEOS, load_tabulated_eos, load_standard_eos
 from .radiation import RadiationTransport
-from .pic_driver import PicDriver
+from .pic_driver import PicDriver, SimplePicDriver
 from .warpx_picmi import WarpXPicmiDriver
 from .lower_hybrid_drift import LowerHybridDrift
 from .m0_instability import MZeroInstability
@@ -51,4 +51,5 @@ if HallMHD is not None:
 if neutral_density_source is not None:
     __all__.extend(["neutral_density_source", "wall_ablation_source"])
 __all__.append("PicDriver")
+__all__.append("SimplePicDriver")
 __all__.append("WarpXPicmiDriver")
