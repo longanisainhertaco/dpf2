@@ -9,8 +9,10 @@ underlying schedulers.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import subprocess
-from typing import Any, Dict, Iterable
+import tempfile
+from typing import Any, Dict, Iterable, Mapping
 
 
 @dataclass
@@ -40,6 +42,41 @@ class JobManager:
                     flags = [flags]
                 cmd.extend(list(flags) + [value])
 
+    def _wrap_staging(
+        self,
+        job_script: str,
+        stage_in: Mapping[str, str] | None,
+        stage_out: Mapping[str, str] | None,
+    ) -> str:
+        """Create a wrapper script that performs data staging.
+
+        Parameters
+        ----------
+        job_script:
+            Path to the actual job script.
+        stage_in, stage_out:
+            Optional mappings of ``source -> destination`` that should be
+            copied before/after executing ``job_script``.
+        """
+
+        if not stage_in and not stage_out:
+            return job_script
+
+        lines = ["#!/bin/bash"]
+        if stage_in:
+            for src, dst in stage_in.items():
+                lines.append(f"cp -r {src} {dst}")
+        lines.append(job_script)
+        if stage_out:
+            for src, dst in stage_out.items():
+                lines.append(f"cp -r {src} {dst}")
+
+        fd, path = tempfile.mkstemp(suffix=".sh")
+        with os.fdopen(fd, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
+        os.chmod(path, 0o755)
+        return path
+
     def submit(self, job_script: str, **kwargs: Any) -> Any:
         """Submit ``job_script`` to the configured scheduler.
 
@@ -56,19 +93,37 @@ class JobManager:
             Scheduler specific return object.
         """
 
+        stage_in: Mapping[str, str] | None = kwargs.pop("stage_in", None)
+        stage_out: Mapping[str, str] | None = kwargs.pop("stage_out", None)
+        job_script = self._wrap_staging(job_script, stage_in, stage_out)
+
         if self.scheduler == "slurm":
+            gpus = kwargs.pop("gpus", None)
+            gpu_type = kwargs.pop("gpu_type", None)
+            deps = kwargs.pop("dependencies", None)
+            dep_type = kwargs.pop("dependency_type", "afterok")
+
             cmd = ["sbatch"]
             self._extend_cmd(
                 cmd,
                 kwargs,
                 {
                     "nodes": "-N",
-                    "gpus": "--gpus",
-                    "dependency": "--dependency",
                     "output": "-o",
                     "error": "-e",
                 },
             )
+            if gpu_type is not None:
+                count = gpus if gpus is not None else 1
+                cmd.extend(["--gres", f"gpu:{gpu_type}:{count}"])
+            elif gpus is not None:
+                cmd.extend(["--gpus", str(gpus)])
+            if deps is not None:
+                if isinstance(deps, (list, tuple)):
+                    dep_str = f"{dep_type}:{':'.join(str(d) for d in deps)}"
+                else:
+                    dep_str = str(deps)
+                cmd.extend(["--dependency", dep_str])
             cmd.append(job_script)
             return subprocess.run(cmd, capture_output=True, text=True, check=False)
         if self.scheduler == "awsbatch":
@@ -77,6 +132,10 @@ class JobManager:
             except Exception as exc:  # pragma: no cover - optional dependency
                 raise RuntimeError("boto3 is required for AWS Batch submissions") from exc
             batch = boto3.client("batch")
+            gpus = kwargs.pop("gpus", None)
+            gpu_type = kwargs.pop("gpu_type", None)
+            deps = kwargs.pop("dependencies", None)
+
             params: Dict[str, Any] = {
                 "jobName": kwargs.get("job_name", "dpf2-job"),
                 "jobQueue": kwargs["job_queue"],
@@ -84,8 +143,20 @@ class JobManager:
             }
             if "parameters" in kwargs:
                 params["parameters"] = kwargs["parameters"]
+            if deps is not None:
+                dep_list = deps if isinstance(deps, (list, tuple)) else [deps]
+                params["dependsOn"] = [{"jobId": str(d)} for d in dep_list]
+            if gpus is not None or gpu_type is not None:
+                rr = {"value": str(gpus if gpus is not None else 1), "type": "GPU"}
+                params.setdefault("containerOverrides", {})["resourceRequirements"] = [rr]
             return batch.submit_job(**params)
         if self.scheduler == "mpi":
+            gpus = kwargs.pop("gpus", None)
+            gpu_type = kwargs.pop("gpu_type", None)  # currently unused
+            deps = kwargs.pop("dependencies", None)
+            if deps is not None:
+                raise ValueError("Dependencies are not supported for MPI scheduler")
+
             cmd = ["mpirun"]
             self._extend_cmd(
                 cmd,
@@ -94,7 +165,6 @@ class JobManager:
                     "nprocs": "-n",
                 },
             )
-            # Domain decomposition parameters, passed as --decomp-x 2 etc.
             decomp: Dict[str, Any] | None = kwargs.get("decomp")
             if decomp:
                 for axis, cnt in decomp.items():
@@ -102,7 +172,12 @@ class JobManager:
             if "restart" in kwargs:
                 cmd.extend(["--restart", str(kwargs["restart"])])
             cmd.append(job_script)
-            return subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+            env = os.environ.copy()
+            if gpus is not None:
+                env["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in range(int(gpus)))
+
+            return subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
         raise ValueError(f"Unsupported scheduler: {self.scheduler}")
 
     # ------------------------------------------------------------------
