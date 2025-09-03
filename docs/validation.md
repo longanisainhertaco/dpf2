@@ -25,6 +25,10 @@ To update or add a benchmark, edit or create the JSON files in
 `tests/benchmarks` and ensure the expected outputs match the new results. Commit
 these baseline files together with any code changes.
 
+## Uncertainty Analysis
+
+Monte-Carlo ensembles quantify shot-to-shot variability by perturbing key inputs such as bank voltage and gas composition. For each dataset in `ReferenceMaterial`, hundreds of realizations are drawn with the prescribed jitter to compute the mean and one-sigma spread of peak current and neutron yield. The validation suite re-simulates these ensembles and checks that measured values fall inside a ±2σ envelope, corresponding to roughly a 95% confidence bound on the diagnostics.
+
 ## Uncertainty Propagation
 
 The validation workflow now supports Monte-Carlo exploration of experimental

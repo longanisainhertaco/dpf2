@@ -1,0 +1,14 @@
+{
+  "fill_gas": "helium",
+  "bank_voltage_kv": 25.0,
+  "scale": 0.04,
+  "jitter_pct": 3.0,
+  "seed": 4321,
+  "samples": 100,
+  "current_mean": 1004.6722071794644,
+  "current_std": 27.523872632014502,
+  "yield_mean": 1.0101238074435201,
+  "yield_std": 0.05522699734734524,
+  "expected_current": 1030.0,
+  "expected_yield": 1.05
+}

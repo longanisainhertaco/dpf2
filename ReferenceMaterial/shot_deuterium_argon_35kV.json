@@ -1,0 +1,14 @@
+{
+  "fill_gas": "deuterium-argon mixture",
+  "bank_voltage_kv": 35.0,
+  "scale": 0.04,
+  "jitter_pct": 2.5,
+  "seed": 3141,
+  "samples": 100,
+  "current_mean": 1398.0362071603763,
+  "current_std": 32.31680447085255,
+  "yield_mean": 1.9555496123825782,
+  "yield_std": 0.09030531819013984,
+  "expected_current": 1420.0,
+  "expected_yield": 1.98
+}
