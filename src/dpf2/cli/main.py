@@ -25,6 +25,12 @@ from dpf2.diagnostics.synthetic_signals import (
 )
 from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
+from dpf2.optimization.param_sweep import (
+    run_parametric_sweep,
+    plot_sweep_results,
+    compute_sweep_metrics,
+    plot_metric_overlay,
+)
 from .errors import format_error
 
 
@@ -629,6 +635,28 @@ def plot_run(run_dir: str, output: str) -> None:
     plt.tight_layout()
     plt.savefig(output)
     click.echo(f"Plot written to {output}")
+
+
+@main.command("param-sweep")
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
+@click.option("--parameter", type=str, required=True)
+@click.option("--values", type=float, multiple=True, required=True, help="Values to sweep")
+@click.option("--output", type=click.Path(file_okay=False), default="sweep_output")
+def param_sweep_cmd(
+    config: str, parameter: str, values: tuple[float, ...], output: str
+) -> None:
+    """Run a parameter sweep and plot current, yield and efficiency overlays."""
+
+    try:
+        cfg = DPFConfig.from_file(config)
+        results = run_parametric_sweep(cfg, parameter, values, output_dir=output)
+        plot_sweep_results(parameter, results, Path(output) / "sweep_plot.png")
+        metrics = compute_sweep_metrics(cfg, results)
+        plot_metric_overlay(parameter, metrics, Path(output) / "sweep_metrics.png")
+    except Exception as e:
+        raise click.ClickException(format_error("SWEEP", str(e)))
+
+    click.echo(f"Sweep complete. Results written to {output}")
 
 
 @main.command()

@@ -12,7 +12,12 @@ from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
 from ..device_profiles import DeviceProfiles
 from ..exceptions import ConfigurationError, SimulationRuntimeError
-from ..optimization.param_sweep import plot_sweep_results, run_parametric_sweep
+from ..optimization.param_sweep import (
+    plot_sweep_results,
+    run_parametric_sweep,
+    compute_sweep_metrics,
+    plot_metric_overlay,
+)
 
 # HTML templates rendered with simple ``render_template_string`` calls.  The
 # templates expose a subset of configuration parameters and allow users to run
@@ -37,6 +42,7 @@ INDEX_HTML = """
   Output directory: <input name=output value="{{ output }}"><br>
   <button name=action value=run>Run</button>
   <button name=action value=sweep>Run Sweep</button>
+  <button name=action value=sweep_metrics>Sweep Metrics</button>
   <button name=action value=export>Export Config</button>
 </form>
 <p><a href="{{ url_for('diagnostics', output=output) }}">View diagnostics</a></p>
@@ -47,6 +53,7 @@ DIAG_HTML = """
 <title>Diagnostics</title>
 <h1>Diagnostics</h1>
 {% if plot %}<img src="{{ plot }}" alt="sweep plot"><br>{% endif %}
+{% if metrics_plot %}<img src="{{ metrics_plot }}" alt="metrics plot"><br>{% endif %}
 <ul>
 {% for f in files %}<li>{{ f }}</li>{% endfor %}
 </ul>
@@ -105,6 +112,15 @@ def create_app() -> Flask:
                         results = run_parametric_sweep(cfg, param, vals, output_dir=output)
                         plot_path = Path(output) / "sweep_plot.png"
                         plot_sweep_results(param, results, plot_path)
+                elif action == "sweep_metrics":
+                    param = request.form.get("sweep_param")
+                    values = request.form.get("sweep_values", "")
+                    if param and values:
+                        vals = list(_parse_sweep_values(values))
+                        results = run_parametric_sweep(cfg, param, vals, output_dir=output)
+                        plot_sweep_results(param, results, Path(output) / "sweep_plot.png")
+                        metrics = compute_sweep_metrics(cfg, results)
+                        plot_metric_overlay(param, metrics, Path(output) / "sweep_metrics.png")
                 else:
                     sim = DPFSimulation(cfg)
                     sim.run(output_dir=output)
@@ -125,7 +141,11 @@ def create_app() -> Flask:
         plot_path = Path(output) / "sweep_plot.png"
         if plot_path.exists():
             plot = "data:image/png;base64," + base64.b64encode(plot_path.read_bytes()).decode("ascii")
-        return render_template_string(DIAG_HTML, files=files, plot=plot)
+        metrics_plot = None
+        metrics_path = Path(output) / "sweep_metrics.png"
+        if metrics_path.exists():
+            metrics_plot = "data:image/png;base64," + base64.b64encode(metrics_path.read_bytes()).decode("ascii")
+        return render_template_string(DIAG_HTML, files=files, plot=plot, metrics_plot=metrics_plot)
 
     return app
 
