@@ -24,6 +24,8 @@ if not hasattr(BaseModel, "model_dump_json"):
     BaseModel.model_dump_json = BaseModel.json
 if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
+if not hasattr(BaseModel, "parse_obj"):
+    BaseModel.parse_obj = classmethod(lambda cls, d: cls(**d))
 
 # --- Submodels ---
 
@@ -180,7 +182,7 @@ class ElectrodeGeometry(BaseModel):
     cathode_type: str
     cathode_bar_count: int
     cathode_gap_degrees: float
-    anode_shape: str
+    anode_shape: Literal["cylinder", "tapered", "hollow", "reentrant"]
     knife_edge_enabled: bool = False
     emitter_field_enhancement: Optional[float] = None
     mesh_file: Optional[Path] = None
@@ -197,6 +199,18 @@ class ElectrodeGeometry(BaseModel):
             cathode_gap_degrees=36.0,
             anode_shape="cylinder"
         )
+
+    @classmethod
+    def tapered(cls, taper_angle: float = 5.0, **kwargs) -> "ElectrodeGeometry":
+        return cls(anode_shape="tapered", taper_angle=taper_angle, **kwargs)
+
+    @classmethod
+    def hollow(cls, inner_radius: float = 0.5, **kwargs) -> "ElectrodeGeometry":
+        return cls(anode_shape="hollow", inner_radius=inner_radius, **kwargs)
+
+    @classmethod
+    def reentrant(cls, reentrant_depth: float = 1.0, **kwargs) -> "ElectrodeGeometry":
+        return cls(anode_shape="reentrant", reentrant_depth=reentrant_depth, **kwargs)
 
 class AmrexSettings(BaseModel):
     amr_levels: int
@@ -389,6 +403,38 @@ class DPFConfig(BaseModel):
             self.to_json(path)
         elif format == "yaml":
             self.to_yaml(path)
+        else:
+            raise ValueError("format must be 'json' or 'yaml'")
+
+    @classmethod
+    def load_config_set(cls, path: Union[str, Path]) -> List["DPFConfig"]:
+        p = Path(path)
+        if not p.exists():
+            raise FileNotFoundError(path)
+        if p.suffix in {".yaml", ".yml"}:
+            try:
+                import yaml
+            except Exception as e:
+                raise ImportError("PyYAML is required for YAML files") from e
+            data = yaml.safe_load(p.read_text())
+        else:
+            data = json.loads(p.read_text())
+        if not isinstance(data, list):
+            raise ValueError("Configuration set must be a list")
+        return [cls.model_validate(d) for d in data]
+
+    @staticmethod
+    def save_config_set(configs: List["DPFConfig"], path: Union[str, Path], format: Literal["json", "yaml"] = "json") -> None:
+        p = Path(path)
+        data = [cfg.model_dump() for cfg in configs]
+        if format == "json":
+            p.write_text(json.dumps(data, indent=2))
+        elif format == "yaml":
+            try:
+                import yaml
+            except Exception as e:
+                raise ImportError("PyYAML required") from e
+            p.write_text(yaml.safe_dump(data))
         else:
             raise ValueError("format must be 'json' or 'yaml'")
 
