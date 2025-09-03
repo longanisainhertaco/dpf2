@@ -39,5 +39,5 @@ def test_circuit_em_coupling_back_reaction():
     em = FDTDSolver([1.0])
     dt = 1e-9
     res = solve_distributed_circuit([seg], [], V0=1.0, t_end=dt, dt=dt, em_solver=em)
-    feedback = em.coupling_interface().back_reaction
-    assert np.isclose(res.current[-1], feedback)
+    feedback = em.coupling_interface()
+    assert np.isclose(res.current[-1], feedback.back_reaction)

@@ -20,7 +20,8 @@ def test_circuit_coupling_back_reaction():
     solver = RadiationMHDSolver()
     dt = 1e-9
     res = solve_distributed_circuit([seg], [], V0=1.0, t_end=dt, dt=dt, em_solver=solver)
-    br = solver.coupling_interface().back_reaction
+    iface = solver.coupling_interface()
+    br = iface.back_reaction
     expected = dt * 1.0 / (seg.L_per_m * seg.length) + br
     assert np.isclose(res.current[-1], expected, rtol=1e-3)
     assert br != 0.0

@@ -116,14 +116,7 @@ class RadiationMHDSolver(PlasmaSolverBase):
         size = 1
         for s in getattr(state.energy, "shape", []):
             size *= s
-
-        def _sum_array(arr):
-            data = getattr(arr, "data", arr)
-            if isinstance(data, list):
-                return sum(_sum_array(v) for v in data)
-            return float(data)
-
-        total_before = _sum_array(state.energy)
+        total_before = float(xp.sum(state.energy))
 
         # Two-temperature energy evolution (placeholder coupling).
         if self.two_temperature and state.electron_temp is not None:
@@ -146,7 +139,7 @@ class RadiationMHDSolver(PlasmaSolverBase):
             if self.two_temperature and state.electron_temp is not None:
                 state.electron_temp = state.electron_temp - loss_density
 
-        total_after = _sum_array(state.energy)
+        total_after = float(xp.sum(state.energy))
         delta = total_after - total_before  # negative when energy is lost
 
         # Convert energy change to an effective back‑reaction voltage.
@@ -164,7 +157,7 @@ class RadiationMHDSolver(PlasmaSolverBase):
     def coupling_interface(self) -> CouplingState:  # pragma: no cover - trivial
         """Return circuit coupling terms."""
 
-        return CouplingState(back_reaction=self.circuit_feedback.back_reaction)
+        return self.circuit_feedback
 
 
 __all__ = ["AMRGrid", "RadiationMHDState", "RadiationMHDSolver"]
