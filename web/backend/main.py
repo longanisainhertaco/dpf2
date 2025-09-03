@@ -62,6 +62,11 @@ class RunRequest(BaseModel):
     config: Dict[str, Any]
 
 
+class UpdateRequest(BaseModel):
+    voltage: float
+    pressure: float
+
+
 async def broadcast_progress(run_id: str, progress: float) -> None:
     for ws in list(progress_clients.get(run_id, set())):
         await ws.send_json({"run_id": run_id, "progress": progress})
@@ -86,6 +91,20 @@ async def run_simulation(req: RunRequest, user=Depends(get_current_user)):
 
     asyncio.create_task(_mock_progress())
     return {"run_id": run_id}
+
+
+@app.post("/update/{run_id}")
+async def update_simulation(run_id: str, req: UpdateRequest, user=Depends(get_current_user)):
+    """Receive live parameter updates for a running simulation."""
+    logger.info(
+        "action=update user=%s run_id=%s voltage=%s pressure=%s",
+        user["username"],
+        run_id,
+        req.voltage,
+        req.pressure,
+    )
+    await broadcast_diagnostics(run_id, {"voltage": req.voltage, "pressure": req.pressure})
+    return {"status": "updated"}
 
 
 def dispatch_to_hpc(cfg: DPFConfig, username: str) -> str:
