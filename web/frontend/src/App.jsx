@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import ProjectManager from './ProjectManager.jsx';
 
 export default function App() {
   const [token, setToken] = useState('');
   const [config, setConfig] = useState('{}');
   const [runId, setRunId] = useState('');
+  const [projects, setProjects] = useState([]);
 
   const login = async (e) => {
     e.preventDefault();
@@ -18,6 +20,7 @@ export default function App() {
     const cfg = JSON.parse(config);
     const { data } = await axios.post('/run', { config: cfg }, { headers: { Authorization: `Bearer ${token}` } });
     setRunId(data.run_id);
+    setProjects((p) => [...p, { id: data.run_id, config: cfg }]);
   };
 
   return (
@@ -31,12 +34,15 @@ export default function App() {
         </form>
       )}
       {token && (
-        <form onSubmit={submitConfig}>
-          <h3>Submit Config</h3>
-          <textarea rows={10} cols={50} value={config} onChange={(e) => setConfig(e.target.value)} />
-          <br />
-          <button type="submit">Run</button>
-        </form>
+        <>
+          <form onSubmit={submitConfig}>
+            <h3>Submit Config</h3>
+            <textarea rows={10} cols={50} value={config} onChange={(e) => setConfig(e.target.value)} />
+            <br />
+            <button type="submit">Run</button>
+          </form>
+          <ProjectManager projects={projects} />
+        </>
       )}
       {runId && <p>Submitted run: {runId}</p>}
     </div>

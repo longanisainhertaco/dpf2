@@ -44,6 +44,15 @@ def test_roundtrip_yaml(tmp_path):
     assert cfg2.model_dump() == cfg.model_dump()
 
 
+def test_config_set_roundtrip(tmp_path):
+    cfg1 = DPFConfig.with_defaults()
+    cfg2 = DPFConfig.with_defaults().override(simulation_control={'time_end':2.0})
+    path = tmp_path / 'set.json'
+    DPFConfig.save_config_set([cfg1, cfg2], path)
+    loaded = DPFConfig.load_config_set(path)
+    assert [c.model_dump() for c in loaded] == [cfg1.model_dump(), cfg2.model_dump()]
+
+
 def test_validation_failure():
     cfg = DPFConfig.with_defaults()
     data = cfg.model_dump()
