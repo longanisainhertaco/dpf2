@@ -233,6 +233,17 @@ def solve_distributed_circuit(
         phase_I = cmath.phase(I_src)
         total_I = xp.array([xp.sin(w * ti + phase_I) for ti in t]) * amp_I
 
+        # Couple to optional EM solver using the generated time series
+        if em_solver is not None:
+            em_state: Any | None = None
+            for idx in range(n_steps):
+                I_src_t = float(to_cpu(total_I[idx]))
+                V_in_t = float(to_cpu(vin[idx]))
+                em_state = em_solver.step(em_state, dt, I_src_t, V_in_t)
+                fb = em_solver.coupling_interface()
+                total_I[idx] += fb.back_reaction
+                vin[idx] += fb.voltage
+
         # Reflection coefficients for backward compatibility
         if Z_load is None:
             ZL = segments[-1].characteristic_impedance(frequency)
