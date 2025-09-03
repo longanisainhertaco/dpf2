@@ -1,7 +1,21 @@
 """MUSCL-Hancock scheme for MHD."""
 from __future__ import annotations
 
-import numpy as np
+from ..gpu_utils import xp
+
+try:  # pragma: no cover - optional GPU backend
+    import cupy as cp  # type: ignore
+    _minmod_kernel = cp.ElementwiseKernel(
+        "float64 a, float64 b",
+        "float64 out",
+        "out = (a*b > 0) ? ((fabs(a) < fabs(b)) ? a : b) : 0.0;",
+        "minmod_kernel",
+    )
+except Exception:  # pragma: no cover - fallback when cupy unavailable
+    cp = None  # type: ignore
+    _minmod_kernel = None
+
+np = xp
 
 
 class MUSCLHancock:
@@ -23,6 +37,8 @@ class MUSCLHancock:
     # reconstruction utilities
     # ------------------------------------------------------------------
     def _minmod(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        if _minmod_kernel is not None:
+            return _minmod_kernel(a, b)  # type: ignore[no-untyped-call]
         return np.where(np.sign(a) == np.sign(b), np.sign(a) * np.minimum(np.abs(a), np.abs(b)), 0.0)
 
     def _slope(self, U: np.ndarray) -> np.ndarray:

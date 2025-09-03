@@ -24,6 +24,18 @@ from .gpu_utils import xp, solve_linear, to_cpu
 import cmath
 import numpy as np
 
+try:  # pragma: no cover - cupy optional
+    import cupy as cp  # type: ignore
+    _currents_kernel = cp.ElementwiseKernel(
+        "float64 prev, float64 vi, float64 vj, float64 R, float64 L, float64 dt",
+        "float64 out",
+        "out = prev + ((vi - vj - R * prev) / L) * dt;",
+        "rlc_update_currents",
+    )
+except Exception:  # pragma: no cover - fallback when cupy unavailable
+    cp = None  # type: ignore
+    _currents_kernel = None
+
 try:  # pragma: no cover - MPI is optional
     from mpi4py import MPI  # type: ignore
 except Exception:  # pragma: no cover - graceful fallback when mpi4py missing
@@ -403,20 +415,43 @@ def solve_distributed_circuit(
             v_full[node_index[n]] = v_unknown[unk_index[n]] if n_unknown else 0.0
 
         # Update branch currents with solved voltages
-        for idx_b, br in enumerate(branches):
-            i = node_index[br.from_node]
-            j = node_index[br.to_node]
-            if br.delay_steps > 0 and k - br.delay_steps >= 0:
-                vi = node_voltages[k - br.delay_steps, i]
-                vj = node_voltages[k - br.delay_steps, j]
-            elif br.delay_steps > 0:
-                vi = node_voltages[0, i]
-                vj = node_voltages[0, j]
-            else:
-                vi = v_full[i]
-                vj = v_full[j]
-            dIdt = (vi - vj - br.R * currents[k - 1, idx_b]) / br.L
-            currents[k, idx_b] = currents[k - 1, idx_b] + dIdt * dt
+        if _currents_kernel is not None and n_branches:
+            vi_arr = xp.zeros(n_branches)
+            vj_arr = xp.zeros(n_branches)
+            R_arr = xp.array([br.R for br in branches])
+            L_arr = xp.array([br.L for br in branches])
+            for idx_b, br in enumerate(branches):
+                i = node_index[br.from_node]
+                j = node_index[br.to_node]
+                if br.delay_steps > 0 and k - br.delay_steps >= 0:
+                    vi = node_voltages[k - br.delay_steps, i]
+                    vj = node_voltages[k - br.delay_steps, j]
+                elif br.delay_steps > 0:
+                    vi = node_voltages[0, i]
+                    vj = node_voltages[0, j]
+                else:
+                    vi = v_full[i]
+                    vj = v_full[j]
+                vi_arr[idx_b] = vi
+                vj_arr[idx_b] = vj
+            currents[k] = _currents_kernel(
+                currents[k - 1], vi_arr, vj_arr, R_arr, L_arr, dt
+            )
+        else:
+            for idx_b, br in enumerate(branches):
+                i = node_index[br.from_node]
+                j = node_index[br.to_node]
+                if br.delay_steps > 0 and k - br.delay_steps >= 0:
+                    vi = node_voltages[k - br.delay_steps, i]
+                    vj = node_voltages[k - br.delay_steps, j]
+                elif br.delay_steps > 0:
+                    vi = node_voltages[0, i]
+                    vj = node_voltages[0, j]
+                else:
+                    vi = v_full[i]
+                    vj = v_full[j]
+                dIdt = (vi - vj - br.R * currents[k - 1, idx_b]) / br.L
+                currents[k, idx_b] = currents[k - 1, idx_b] + dIdt * dt
 
         node_voltages[k] = v_full
 
