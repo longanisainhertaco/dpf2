@@ -185,6 +185,9 @@ class ElectrodeGeometry(BaseModel):
     emitter_field_enhancement: Optional[float] = None
     mesh_file: Optional[Path] = None
     material_tagging_enabled: bool = False
+    reentrant_depth: Optional[float] = None
+    taper_angle: Optional[float] = None
+    inner_radius: Optional[float] = None
 
     @classmethod
     def with_defaults(cls):

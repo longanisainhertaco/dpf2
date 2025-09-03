@@ -1,0 +1,4 @@
+NODE 0 0 0
+NODE 0 0 1
+NODE 0 1 1
+TRI 1 2 3
