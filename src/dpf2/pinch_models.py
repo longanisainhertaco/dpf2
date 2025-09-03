@@ -132,9 +132,9 @@ class MHDPinchModel(PinchModelBase):
         self.init_pressure = init_pressure
         self.current_norm = current_norm
         nx, ny, nz = grid_shape
-        x = np.arange(nx) - nx / 2
-        y = np.arange(ny) - ny / 2
-        z = np.arange(nz) - nz / 2
+        x = (np.arange(nx) - nx / 2) * 1e-3
+        y = (np.arange(ny) - ny / 2) * 1e-3
+        z = (np.arange(nz) - nz / 2) * 1e-3
         X, Y, _ = np.meshgrid(x, y, z, indexing="ij")
         self.r2 = X**2 + Y**2
         self.volume = float(nx * ny * nz)
@@ -226,9 +226,9 @@ class HybridPinchModel(PinchModelBase):
         self.current_norm = current_norm
         self.switch_radius = switch_radius
         nx, ny, nz = grid_shape
-        x = np.arange(nx) - nx / 2
-        y = np.arange(ny) - ny / 2
-        z = np.arange(nz) - nz / 2
+        x = (np.arange(nx) - nx / 2) * 1e-3
+        y = (np.arange(ny) - ny / 2) * 1e-3
+        z = (np.arange(nz) - nz / 2) * 1e-3
         X, Y, _ = np.meshgrid(x, y, z, indexing="ij")
         self.r2 = X**2 + Y**2
         self.volume = float(nx * ny * nz)
@@ -264,13 +264,10 @@ class HybridPinchModel(PinchModelBase):
         pressure: list[float] = []
         energy_hist: list[float] = []
 
-        rad, temp, pres, Etot = diagnostics(state)
-        use_pic = rad <= self.switch_radius
-        if use_pic:
-            rad_pic, e_pic = self.pic_driver.step(I[0], 0.0)
-            rad = rad_pic
-        else:
-            e_pic = 0.0
+        rad_fluid, temp, pres, Etot = diagnostics(state)
+        rad_pic, e_pic = self.pic_driver.step(I[0], 0.0)
+        use_pic = rad_fluid <= self.switch_radius
+        rad = rad_pic if use_pic else rad_fluid
         radius.append(rad)
         temperature.append(temp)
         pressure.append(pres)
@@ -281,19 +278,14 @@ class HybridPinchModel(PinchModelBase):
             dt = t[k + 1] - t[k]
             state = solver.step(state, dt, current=I[k])
             rad_fluid, temp, pres, Etot = diagnostics(state)
-            if use_pic or rad_fluid <= self.switch_radius:
-                rad_pic, e_pic = self.pic_driver.step(I[k], dt if use_pic else 0.0)
-                rad = rad_pic
-                use_pic = True
+            rad_pic, e_pic = self.pic_driver.step(I[k], dt)
+            if use_pic:
                 if rad_fluid > self.switch_radius:
                     use_pic = False
             else:
-                rad = rad_fluid
-                e_pic = 0.0
                 if rad_fluid <= self.switch_radius:
-                    rad_pic, e_pic = self.pic_driver.step(I[k], 0.0)
-                    rad = rad_pic
                     use_pic = True
+            rad = rad_pic if use_pic else rad_fluid
             radius.append(rad)
             temperature.append(temp)
             pressure.append(pres)
