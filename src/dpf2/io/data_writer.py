@@ -56,8 +56,9 @@ class DataWriter:
         fname = self.output_dir / f"data_{time:.6e}.h5"
         with h5py.File(fname, "w") as f:
             f.create_dataset("time", data=time)
+            det_grp = f.require_group("detectors")
             for key, value in data.items():
-                f.create_dataset(key, data=value)
+                det_grp.create_dataset(key, data=value)
             f.create_dataset("metadata", data=json.dumps(self.metadata))
         return fname
 

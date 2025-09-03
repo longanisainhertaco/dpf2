@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from enum import Enum
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal
+import random
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal, Sequence, Callable
 
 from pydantic import BaseModel, ConfigDict, Field, root_validator
 
@@ -24,6 +25,29 @@ from .synthetic_signals import (
     bdot_signal,
 )
 from .streaming import NeutronYieldStreamer, XRayEmissionStreamer, RealTimeComparator
+from .interferometry import interferometer_phase_shift
+from .pinhole_imaging import pinhole_image
+
+
+def apply_noise(
+    signal: Sequence[float], noise_fn: Callable[[], float] | None = None
+) -> List[float]:
+    """Apply a noise model to a signal sequence."""
+
+    rng = random.Random()
+    if noise_fn is None:
+        noise_fn = lambda: rng.gauss(0.0, 1.0)
+    return [float(v) + float(noise_fn()) for v in signal]
+
+
+def apply_detector_response(
+    signal: Sequence[float], response_fn: Callable[[float], float] | None = None
+) -> List[float]:
+    """Apply detector response mapping to a signal sequence."""
+
+    if response_fn is None:
+        return [float(v) for v in signal]
+    return [float(response_fn(v)) for v in signal]
 
 __all__ = [
     "compute_neutron_yield",
@@ -41,6 +65,13 @@ __all__ = [
     "NeutronYieldStreamer",
     "XRayEmissionStreamer",
     "RealTimeComparator",
+    "apply_noise",
+    "apply_detector_response",
+    "interferometer_phase_shift",
+    "pinhole_image",
+    "Diagnostics",
+    "DetectorArrayGenerator",
+    "OutputField",
 ]
 
 # Compatibility helpers -------------------------------------------------------
@@ -49,22 +80,26 @@ def model_validator(*, mode: str = "after"):
     def decorator(func):
         if mode == "after":
             def wrapper(cls, values):
-                inst = cls.construct(**values)
+                inst = cls(**values)
                 result = func(cls, inst)
                 return result.__dict__ if isinstance(result, cls) else values
 
-            return root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(wrapper)
+            return classmethod(
+                root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(wrapper)
+            )
         else:
             def wrapper(cls, values):
                 out = func(values)
                 return out if out is not None else values
 
-            return root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(wrapper)
+            return classmethod(
+                root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(wrapper)
+            )
 
     return decorator
 
 if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls(**d))
 if not hasattr(BaseModel, "model_dump"):
     BaseModel.model_dump = BaseModel.dict
 if not hasattr(BaseModel, "model_dump_json"):
@@ -332,16 +367,9 @@ class Diagnostics(ConfigSectionBase):
         context = kwargs.get("context") or {}
         obj = super().model_validate(data)
         setattr(obj, "_context", context)
-        # Re-run validation with context aware rules
-        obj = cls.check_flags(obj)
+        validated = cls.check_flags(obj.__dict__)
+        obj = cls(**validated)
+        setattr(obj, "_context", context)
         return obj
 
 
-__all__ = [
-    "Diagnostics",
-    "DetectorArrayGenerator",
-    "OutputField",
-    "compute_neutron_yield",
-    "compute_xray_spectrum",
-    "compute_scope_trace",
-]
