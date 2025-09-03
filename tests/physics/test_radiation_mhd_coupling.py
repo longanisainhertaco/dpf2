@@ -31,5 +31,6 @@ def test_frequency_domain_coupling_zero_back_reaction():
     ref = solve_distributed_circuit([seg], [], V0=1.0, t_end=t_end, dt=dt, frequency=freq)
     assert np.allclose(res.current, ref.current)
     assert np.allclose(res.voltage, ref.voltage)
-    assert solver.coupling_interface().back_reaction == 0.0
+    iface = solver.coupling_interface()
+    assert iface.back_reaction == 0.0
 

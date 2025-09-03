@@ -164,7 +164,7 @@ class RadiationMHDSolver(PlasmaSolverBase):
     def coupling_interface(self) -> CouplingState:  # pragma: no cover - trivial
         """Return circuit coupling terms."""
 
-        return CouplingState(back_reaction=self.circuit_feedback.back_reaction)
+        return self.circuit_feedback
 
 
 __all__ = ["AMRGrid", "RadiationMHDState", "RadiationMHDSolver"]
