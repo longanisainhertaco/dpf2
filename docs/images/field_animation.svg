@@ -1,0 +1,6 @@
+<svg width="200" height="100" xmlns="http://www.w3.org/2000/svg">
+  <text x="10" y="20" font-size="14" fill="black">Plasma pinch concept</text>
+  <circle cx="20" cy="60" r="10" fill="royalblue">
+    <animate attributeName="cx" from="20" to="180" dur="2s" repeatCount="indefinite" />
+  </circle>
+</svg>

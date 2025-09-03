@@ -2,6 +2,13 @@ site_name: DPF2 Documentation
 nav:
   - Home: index.md
   - User Guide: user_guide.md
+  - Student Introduction: student_intro.md
+  - Tutorials:
+      - Quickstart: tutorials/quickstart.md
+      - Basic Experiment: tutorials/basic_experiment.md
+      - Advanced Workflow: tutorials/advanced_workflow.md
+      - Optimization & Diagnostics: tutorials/optimization_diagnostics.md
+  - Scientist Theory: scientist_theory.md
   - API Reference: api_reference.md
   - Benchmarks: benchmarks.md
   - Reports:
