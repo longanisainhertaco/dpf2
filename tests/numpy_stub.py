@@ -255,6 +255,10 @@ def arange(n: int) -> Array:
     return Array(list(range(n)))
 
 
+def isscalar(x) -> bool:
+    return not isinstance(x, (Array, list, tuple))
+
+
 def sin(vals):
     arr = array(vals)
     if isinstance(arr.data, list):
@@ -363,6 +367,7 @@ np = types.SimpleNamespace(
     vstack=vstack,
     linspace=linspace,
     arange=arange,
+    isscalar=isscalar,
     sin=sin,
     exp=exp,
     abs=abs_,
@@ -381,6 +386,7 @@ np = types.SimpleNamespace(
     Array=Array,
     inf=float("inf"),
     pi=math.pi,
+    bool_=bool,
 )
 
 sys.modules.setdefault("numpy", np)
