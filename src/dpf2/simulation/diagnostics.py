@@ -8,8 +8,16 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
         "h5py is required; install dpf2[warpx]"
     ) from exc
-from scipy.constants import c, m_n, m_e, mu_0, e, epsilon_0, k as k_B
-from scipy.interpolate import interp1d
+
+try:  # optional SciPy dependency
+    from scipy.constants import c, m_n, m_e, mu_0, e, epsilon_0, k as k_B
+    from scipy.interpolate import interp1d
+except Exception:  # pragma: no cover - fallback when SciPy missing
+    c = m_n = m_e = mu_0 = e = epsilon_0 = k_B = 1
+
+    def interp1d(*args, **kwargs):  # type: ignore
+        return None
+
 try:
     from pyevtk.hl import imageToVTK
 except Exception as exc:  # pragma: no cover - optional dependency
@@ -24,6 +32,30 @@ from .utils import FieldManager, SimulationState
 r_e = e ** 2 / (4 * np.pi * epsilon_0 * m_e * c ** 2)
 
 logger = logging.getLogger(__name__)
+
+# -----------------------------------------------------------------------------
+# Noise helpers
+
+def gaussian_noise(std: float):
+    """Return a callable generating Gaussian noise with given ``std``.
+
+    The returned function accepts a ``shape`` tuple and produces a NumPy array
+    of that shape filled with random samples.
+    """
+
+    def _noise(shape):
+        return np.random.normal(0.0, std, size=shape)
+
+    return _noise
+
+
+def poisson_noise(lam: float):
+    """Return a callable generating Poisson noise with expectation ``lam``."""
+
+    def _noise(shape):
+        return np.random.poisson(lam, size=shape)
+
+    return _noise
 
 # --- Diagnostic Base Class ---
 class Diagnostic(DiagnosticsBase):
@@ -44,9 +76,10 @@ class Diagnostic(DiagnosticsBase):
     ``super().to_hdf5`` first.
     """
 
-    def __init__(self, name, field_manager: FieldManager):
+    def __init__(self, name, field_manager: FieldManager, *, noise_model=None):
         self.name = name
         self.field_manager = field_manager
+        self.noise_model = noise_model
         # Store individual records as dictionaries ``{"time": t, ...}``
         self.data: list[dict] = []
 
@@ -79,6 +112,11 @@ class Diagnostic(DiagnosticsBase):
                 payload = callback()
             if payload is None:
                 return
+            if self.noise_model is not None:
+                payload = {
+                    k: np.asarray(v) + self.noise_model(np.shape(v))
+                    for k, v in payload.items()
+                }
             # Attach simulation time and wall-clock timestamp for provenance
             record = {
                 "time": float(t),
@@ -100,6 +138,10 @@ class Diagnostic(DiagnosticsBase):
         # Minimal openPMD-like identifiers
         grp.attrs.setdefault("openPMD", "1.1.0")
         grp.attrs.setdefault("openPMDextension", 0)
+        if self.noise_model is not None:
+            grp.attrs.setdefault(
+                "noise_model", getattr(self.noise_model, "__name__", "custom")
+            )
 
         try:
             if self.data:
@@ -121,10 +163,19 @@ class Diagnostic(DiagnosticsBase):
 
 # --- Interferometry ---
 class Interferometry(Diagnostic):
-    def __init__(self, name, p0, p1, field_manager: FieldManager):
-        super().__init__(name, field_manager)
+    def __init__(
+        self,
+        name,
+        p0,
+        p1,
+        field_manager: FieldManager,
+        detector_response=None,
+        noise_model=None,
+    ):
+        super().__init__(name, field_manager, noise_model=noise_model)
         self.p0 = np.array(p0)
         self.p1 = np.array(p1)
+        self.detector_response = detector_response or (lambda x: x)
 
     def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
         def _compute():
@@ -141,17 +192,31 @@ class Interferometry(Diagnostic):
                 dens.append(rho[i, j, k])
             line_integral = np.trapz(dens, dx=dx)
             phase_shift = line_integral * 2.25e-18  # Example constant
+            phase_shift = self.detector_response(phase_shift)
             return {"phase_shift": phase_shift}
 
         super().record(t, circuit, fluid, pic=pic, radiation=radiation, state=state, callback=_compute)
 
     def to_hdf5(self, hdf5_group):
-        return super().to_hdf5(hdf5_group)
+        grp = super().to_hdf5(hdf5_group)
+        if self.detector_response is not None:
+            grp.attrs.setdefault(
+                "detector_response", getattr(self.detector_response, "__name__", "custom")
+            )
+        return grp
 
 # --- X-ray Detector ---
 class XrayDetector(Diagnostic):
-    def __init__(self, name, position, field_manager: FieldManager, energy_bins=None, detector_response=None):
-        super().__init__(name, field_manager)
+    def __init__(
+        self,
+        name,
+        position,
+        field_manager: FieldManager,
+        energy_bins=None,
+        detector_response=None,
+        noise_model=None,
+    ):
+        super().__init__(name, field_manager, noise_model=noise_model)
         self.position = np.array(position)
         self.energy_bins = energy_bins or [0, np.inf]
         self.detector_response = detector_response or (lambda E: 1.0)  # Default: constant efficiency
@@ -182,15 +247,29 @@ class XrayDetector(Diagnostic):
     def to_hdf5(self, hdf5_group):
         grp = super().to_hdf5(hdf5_group)
         grp.create_dataset('energy_bins', data=self.energy_bins)
+        if self.detector_response is not None:
+            grp.attrs.setdefault(
+                'detector_response', getattr(self.detector_response, '__name__', 'custom')
+            )
         return grp
 
 # --- Neutron Detector ---
 class NeutronDetector(Diagnostic):
-    def __init__(self, name, position, time_bins, field_manager: FieldManager, reaction='DD'):
-        super().__init__(name, field_manager)
+    def __init__(
+        self,
+        name,
+        position,
+        time_bins,
+        field_manager: FieldManager,
+        reaction='DD',
+        detector_response=None,
+        noise_model=None,
+    ):
+        super().__init__(name, field_manager, noise_model=noise_model)
         self.position = np.array(position)
         self.time_bins = time_bins
         self.reaction = reaction
+        self.detector_response = detector_response or (lambda arr: arr)
 
     def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
         def _compute():
@@ -204,6 +283,7 @@ class NeutronDetector(Diagnostic):
                     dist = np.linalg.norm(ev_pos - self.position)
                     tof.append(ev['time'] + dist / v)
                 hist, _ = np.histogram(tof, bins=self.time_bins)
+                hist = self.detector_response(hist)
                 return {"histogram": hist}
             return None
 
@@ -213,6 +293,10 @@ class NeutronDetector(Diagnostic):
         grp = super().to_hdf5(hdf5_group)
         grp.create_dataset('time_bins', data=self.time_bins)
         grp.attrs['reaction'] = self.reaction
+        if self.detector_response is not None:
+            grp.attrs.setdefault(
+                'detector_response', getattr(self.detector_response, '__name__', 'custom')
+            )
         return grp
 
 # --- Mode Analysis ---
