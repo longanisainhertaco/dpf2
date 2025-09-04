@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+import logging
 
 from pathlib import Path
 from typing import Dict, Sequence, Callable
@@ -43,6 +44,9 @@ from .pinch_models import (
 )
 
 from .physics.energy import EnergyTracker
+
+
+logger = logging.getLogger(__name__)
 
 
 __all__ = ["SimulationEngine", "SimulationResults", "EnsembleResults"]
@@ -478,4 +482,71 @@ class SimulationEngine:
             particles_per_cell=self.particles_per_cell,
 
         )
+
+    # ------------------------------------------------------------------
+    def sweep_ppc_grid(
+        self,
+        ppc_values: Sequence[int],
+        grid_sizes: Sequence[int],
+        *,
+        method: str = "analytical",
+        pinch_model: str = "analytic",
+    ) -> Dict[str, object]:
+        """Sweep particles-per-cell and grid resolution computing yield variance.
+
+        Parameters
+        ----------
+        ppc_values:
+            Iterable of particles per cell counts.
+        grid_sizes:
+            Iterable of grid resolutions (``nx = ny = nz``).
+        method, pinch_model:
+            Forwarded to :meth:`run` for each simulation.
+
+        Returns
+        -------
+        dict
+            Dictionary with ``yields`` and overall ``variance``.
+        """
+
+        yields: list[float] = []
+        for ppc in ppc_values:
+            for n in grid_sizes:
+                cfg = self.config.model_copy(deep=True)
+                if hasattr(cfg, "physics") and hasattr(cfg.physics, "particles_per_cell"):
+                    cfg.physics.particles_per_cell = ppc
+                if hasattr(cfg, "grid_resolution"):
+                    cfg.grid_resolution.nx = n
+                    cfg.grid_resolution.ny = n
+                    cfg.grid_resolution.nz = n
+
+                engine = SimulationEngine(
+                    cfg,
+                    comm=self.comm,
+                    num_threads=1,
+                    use_gpu=self.use_gpu,
+                )
+                res = engine.run(method=method, pinch_model=pinch_model)
+                yields.append(res.neutron_yield)
+                logger.info(
+                    "ppc=%s grid=%s yield=%g", ppc, n, res.neutron_yield
+                )
+
+        variance = float(np.var(yields)) if yields else 0.0
+        out_dir = Path("synthetic_diagnostics/quality")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with open(out_dir / "ppc_grid_sweep.json", "w", encoding="utf-8") as fh:
+            json.dump(
+                {
+                    "ppc": list(ppc_values),
+                    "grid": list(grid_sizes),
+                    "yields": yields,
+                    "variance": variance,
+                },
+                fh,
+                indent=2,
+            )
+
+        logger.info("Yield variance across sweep: %g", variance)
+        return {"yields": yields, "variance": variance}
 
