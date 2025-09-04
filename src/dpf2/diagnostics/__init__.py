@@ -56,6 +56,7 @@ from .neutron_spectra import (
     angular_spectrum,
     anisotropy_metric,
 )
+from .performance_metrics import compute_performance_metrics
 
 
 def apply_noise(
@@ -90,6 +91,7 @@ __all__ = [
     "tof_iv_cross_correlation",
     "angular_yield_map",
     "save_angular_yield_map_hdf5",
+    "compute_performance_metrics",
     "compute_xray_spectrum",
     "compute_scope_trace",
     "current_waveform",
