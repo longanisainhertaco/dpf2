@@ -7,6 +7,7 @@ from .radiation import RadiationTransport
 from .pic_driver import PicDriver, PhysicalPICDriver, WarpXPICDriver
 from .lower_hybrid_drift import LowerHybridDrift
 from .m0_instability import MZeroInstability
+from .flashover import FlashoverModel, FlashoverParameters
 
 
 # Import optional modules individually so that a failure in one does not
@@ -42,6 +43,8 @@ __all__ = [
     "LowerHybridDrift",
     "MZeroInstability",
     "GVFront",
+    "FlashoverModel",
+    "FlashoverParameters",
 ]
 
 
