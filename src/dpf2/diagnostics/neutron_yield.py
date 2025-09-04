@@ -351,6 +351,32 @@ def tof_iv_cross_correlation(
     }
 
 
+def ez_beam_correlation(
+    ez: Sequence[float],
+    ion_beam: Sequence[float],
+    electron_beam: Sequence[float],
+) -> Dict[str, float]:
+    """Return zero-lag correlation between ``E_z`` and beam signals."""
+
+    if not (len(ez) == len(ion_beam) == len(electron_beam)):
+        raise ValueError("signals must have the same length")
+
+    def _corr(a: Sequence[float], b: Sequence[float]) -> float:
+        mean_a = sum(a) / len(a)
+        mean_b = sum(b) / len(b)
+        num = sum((x - mean_a) * (y - mean_b) for x, y in zip(a, b))
+        den = math.sqrt(
+            sum((x - mean_a) ** 2 for x in a)
+            * sum((y - mean_b) ** 2 for y in b)
+        )
+        return num / den if den != 0 else 0.0
+
+    return {
+        "ion": _corr(ez, ion_beam),
+        "electron": _corr(ez, electron_beam),
+    }
+
+
 def angular_yield_map(
     ion_edf: IonBeamEDF,
     cross_section: Callable[[float], float],
@@ -399,6 +425,7 @@ __all__ = [
     "simulate_tof_detectors",
     "save_tof_hdf5",
     "tof_iv_cross_correlation",
+    "ez_beam_correlation",
     "angular_yield_map",
     "save_angular_yield_map_hdf5",
 ]

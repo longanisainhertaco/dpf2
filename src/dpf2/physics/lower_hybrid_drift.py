@@ -43,6 +43,7 @@ class LowerHybridDrift:
     energy: Any | None = None  # Stored wave energy
     last_k: Any | None = None  # Wave number of last evolution
     last_phase_velocity: Any | None = None  # Cached phase velocity
+    last_power: Any | None = None  # Cached wave power
 
     def frequency(self) -> float:
         omega_ci = e * self.B / self.m_i
@@ -63,6 +64,14 @@ class LowerHybridDrift:
         self.amplitude = evolved
         self.last_k = ks
         self.wave_energy()  # update stored energy
+        try:
+            self.phase_velocity(ks)
+        except Exception:  # pragma: no cover - numpy stub limitations
+            self.last_phase_velocity = None
+        try:
+            self.last_power = self.power()
+        except Exception:  # pragma: no cover - numpy stub limitations
+            self.last_power = None
         return evolved
 
     # ------------------------------------------------------------------
@@ -82,7 +91,10 @@ class LowerHybridDrift:
         if k is None:
             k = self.last_k if self.last_k is not None else 0.0
         ks = _to_array(k)
-        with np.errstate(divide="ignore", invalid="ignore"):
+        try:  # pragma: no cover - optional errstate
+            with np.errstate(divide="ignore", invalid="ignore"):
+                vel = self.frequency() / ks
+        except Exception:  # pragma: no cover - numpy stub lacks errstate
             vel = self.frequency() / ks
         self.last_phase_velocity = vel
         return vel
@@ -91,7 +103,9 @@ class LowerHybridDrift:
         """Return a simple estimate of wave power ``energy * ω``."""
 
         energy = self.wave_energy()
-        return energy * self.frequency()
+        p = energy * self.frequency()
+        self.last_power = p
+        return p
 
 
 

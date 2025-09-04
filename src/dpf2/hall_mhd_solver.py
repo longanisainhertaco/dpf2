@@ -351,6 +351,8 @@ class HallMHDSolver(PlasmaSolverBase):
     impedance_growth: list[float] = field(default_factory=list)
     last_voltage_spike: float = field(init=False, default=0.0)
     last_lh_power: float = field(init=False, default=0.0)
+    last_eta_anom_mean: float = field(init=False, default=0.0)
+    last_eta_total_mean: float = field(init=False, default=0.0)
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
@@ -459,6 +461,10 @@ class HallMHDSolver(PlasmaSolverBase):
             self.voltage_spikes.append(spike)
         self.last_voltage_spike = spike
         self.last_E_anom = E
+        try:
+            self.last_eta_anom_mean = float(np.mean(eta))
+        except Exception:
+            self.last_eta_anom_mean = 0.0
         return eta
 
     # ------------------------------------------------------------------
@@ -721,6 +727,10 @@ class HallMHDSolver(PlasmaSolverBase):
         )
         eta_anom = self.compute_anomalous_resistivity(J)
         eta_total = eta_local + eta_anom
+        try:
+            self.last_eta_total_mean = float(np.mean(eta_total))
+        except Exception:
+            self.last_eta_total_mean = 0.0
         E = -np.cross(v, B) + eta_total[..., None] * J - grad_pe_vec / ne[..., None]
         if self.last_E_anom is not None:
             E += self.last_E_anom
@@ -863,7 +873,7 @@ class HallMHDSolver(PlasmaSolverBase):
             lambda_D = np.sqrt(epsilon_0 * k * T / (ne * e**2))
             ppc = float(np.mean(ne) * cell_volume)
             lh_power = self.last_lh_power
-            impedance = self.impedance_growth[-1] if self.impedance_growth else 0.0
+            impedance = self.last_eta_total_mean
             self.quality.log(
                 self.step_count,
                 dt,
@@ -871,7 +881,9 @@ class HallMHDSolver(PlasmaSolverBase):
                 ppc,
                 cfl,
                 float(np.mean(lambda_D)),
-
+                amr_level=getattr(self, "amr_level", None),
+                lower_hybrid_power=lh_power,
+                plasma_impedance=impedance,
                 divergence_error=getattr(self, "divergence_error", 0.0),
                 energy_drift=getattr(self, "energy_drift", 0.0),
 
