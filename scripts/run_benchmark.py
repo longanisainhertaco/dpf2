@@ -14,7 +14,7 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Mapping
 
 import numpy as np
 
@@ -32,7 +32,12 @@ from dpf2.core.circuit import RLCCircuitSolver
 from dpf2.core.bases import CouplingState
 
 
-def run_benchmark(case: str, benchmark_dir: str = "benchmarks", output: str = "Validation") -> Dict[str, float]:
+def run_benchmark(
+    case: str,
+    benchmark_dir: str = "benchmarks",
+    output: str = "Validation",
+    datasets: Mapping[str, Mapping[str, object]] | None = None,
+) -> Dict[str, float]:
     """Execute ``case`` and overlay results against tolerance bands.
 
     Parameters
@@ -161,6 +166,10 @@ def run_benchmark(case: str, benchmark_dir: str = "benchmarks", output: str = "V
             manifest.attrs["config_hash"] = cfg_hash
             manifest.attrs["inputs"] = str(inputs_path)
             manifest.attrs["passed"] = passed
+            if datasets:
+                from dpf2.io.manifest import capture_dataset_metadata, write_hdf5_dataset_manifest
+                meta = capture_dataset_metadata(datasets)
+                write_hdf5_dataset_manifest(f, meta)
 
     return metrics
 
