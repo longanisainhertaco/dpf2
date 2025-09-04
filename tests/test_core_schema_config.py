@@ -1,7 +1,8 @@
 import json
+import json
 import pytest
 
-from dpf2.core_schema import DPFConfig, GeometryType, ModeType
+from dpf2.core_schema import DPFConfig, GeometryType, ModeType, MaterialOpacity
 from dpf2.simulation_settings import SimulationSettings
 from dpf2.grid_resolution import GridResolution
 
@@ -66,3 +67,22 @@ def test_invalid_geometry():
 def test_required_fields():
     cfg = DPFConfig.with_defaults()
     assert "created_at" in cfg.required_fields()
+
+
+def test_material_opacity_serialization_round_trip():
+    cfg = DPFConfig.with_defaults()
+    rad = cfg.radiation.model_copy(
+        update={
+            "group_count": 2,
+            "group_opacities": [0.1, 0.2],
+            "material_opacities": [
+                MaterialOpacity(material_id="mat1", group_opacities=[1.0, 2.0])
+            ],
+        }
+    )
+    cfg = cfg.model_copy(update={"radiation": rad})
+
+    dumped = cfg.model_dump()
+    loaded = DPFConfig.model_validate(dumped)
+    assert loaded.radiation.material_opacities[0].material_id == "mat1"
+    assert loaded.radiation.material_opacities[0].group_opacities == [1.0, 2.0]
