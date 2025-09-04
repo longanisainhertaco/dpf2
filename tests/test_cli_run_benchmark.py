@@ -11,6 +11,7 @@ a = pydantic_stub
 sys.modules["pydantic"] = a
 sys.modules["pydantic.dataclasses"] = a.dataclasses
 sys.modules["h5py"] = h5py_stub
+import h5py
 
 
 class _DummyAxes:
@@ -27,6 +28,12 @@ class _DummyAxes:
         return None
 
     def set_xlabel(self, *args, **kwargs):
+        return None
+
+    def axis(self, *args, **kwargs):
+        return None
+
+    def text(self, *args, **kwargs):
         return None
 
 
@@ -63,8 +70,9 @@ def test_run_benchmark_cmd(tmp_path):
     result = runner.invoke(
         main,
         [
-            "run-benchmark",
-            "unu_pff",
+            "benchmark",
+            "run",
+            "UNU",
             "--benchmark-dir",
             str(Path("benchmarks")),
             "--output",
@@ -72,7 +80,11 @@ def test_run_benchmark_cmd(tmp_path):
         ],
     )
     assert result.exit_code == 0
-    case_dir = tmp_path / "unu_pff"
+    case_dir = tmp_path / "UNU"
     assert (case_dir / "overlay.png").exists()
     assert (case_dir / "metrics.json").exists()
-    assert "PASS" in result.output
+    h5_path = case_dir / "results.h5"
+    assert h5_path.exists()
+    with h5py.File(h5_path, "r") as f:
+        assert "manifest" in f
+    assert "PASSED" in result.output

@@ -1,26 +1,23 @@
 # Run Benchmark
 
-The `run-benchmark` command executes a single frozen benchmark
+The `benchmark run` command executes a single frozen benchmark
 configuration and compares the results against reference outputs stored
 under `benchmarks/<case>`.
 
 Each benchmark directory contains two files:
 
-- `inputs.json` – simulation configuration passed to `DPFSimulation`.
-- `expected.json` – reference time histories and tolerance bands for
-  current, voltage and neutron yield.
+- `deck.json` – simulation configuration passed to `DPFSimulation`.
+- `reference.csv` – reference time histories for key signals.
 
 Running the command produces a pass/fail dashboard and an overlay plot for
 the three diagnostics. By default results are written to
 `Validation/<case>/` where both the plot (`overlay.png`) and a
-`metrics.json` summary of errors are stored:
+`metrics.json` summary of errors plus an HDF5 manifest are stored:
 
 ```bash
-$ dpf2 run-benchmark unu_pff
+$ dpf2 benchmark run UNU
 ```
 
-The generated plot includes grey tolerance bands around the reference
-traces with the actual simulation output overlaid.  A table lists whether
-current, voltage and neutron yield fall within their respective bands, and
-the metrics file records both the maximum and RMS deviation for each
-signal.
+The generated plot overlays the reference trace and simulation results.
+`metrics.json` captures RMS error statistics while `results.h5` records
+the code hash and configuration digest alongside the raw waveform.
