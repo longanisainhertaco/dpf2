@@ -11,12 +11,18 @@ class DummyPIC(PicDriver):
         self.energy = 0.0
         self._idx = 0
 
-    def step(self, current: float, dt: float):
+    def step(self, state, current: float, dt: float):
         self.calls.append((current, dt))
         self.energy += dt
         radius = self.radii[self._idx]
         self._idx += 1
-        return radius, self.energy
+        return radius, self.energy, current
+
+    def exchange_fields(self):
+        return (), ()
+
+    def exchange_particles(self):
+        return (), ()
 
 
 class DummySolver:

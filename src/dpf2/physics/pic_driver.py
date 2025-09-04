@@ -1,22 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Tuple
+from typing import TYPE_CHECKING, Protocol, Tuple
+
+import numpy as np
+
+if TYPE_CHECKING:  # pragma: no cover - for typing only
+    from ..hall_mhd_solver import MHDState
 
 
 class PicDriver(Protocol):
     """Minimal interface for an external PIC driver.
 
-    The driver advances kinetic particles and returns diagnostics needed by
-    the fluid-hybrid pinch model.  Only the methods required by the tests are
-    specified here which keeps the dependency surface extremely small.
+    The driver advances kinetic particles and exchanges data with the
+    fluid-hybrid pinch model.  Only the very small subset of functionality
+    exercised in the unit tests is defined here which keeps the dependency
+    surface extremely small.
     """
 
-    def step(self, current: float, dt: float) -> Tuple[float, float]:
+    def step(self, state: "MHDState", current: float, dt: float) -> Tuple[float, float, float]:
         """Advance the PIC model.
 
         Parameters
         ----------
+        state:
+            Full MHD state at the beginning of the time step.
         current:
             Circuit current in amperes.
         dt:
@@ -25,10 +33,22 @@ class PicDriver(Protocol):
         Returns
         -------
         tuple of float
-            A pair ``(radius, energy)`` giving the characteristic plasma
-            radius [m] and the particle energy [J] after the step.
+            A triple ``(radius, energy, current)`` giving the characteristic
+            plasma radius [m], the particle energy [J] and the effective
+            current [A] to be applied to the fluid region after the step.
         """
         ...
+
+    def exchange_fields(
+        self,
+    ) -> Tuple[
+        Tuple[np.ndarray, np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, np.ndarray],
+    ]:
+        """Return electric and magnetic field components."""
+
+    def exchange_particles(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Return particle positions and velocities."""
 
 
 @dataclass
@@ -47,10 +67,25 @@ class SimplePicDriver:
     contraction: float = 1e-8
     energy_coeff: float = 1e-6
 
-    def step(self, current: float, dt: float) -> Tuple[float, float]:
+    def step(self, state: "MHDState", current: float, dt: float) -> Tuple[float, float, float]:
         self.radius = max(1e-3, self.radius - current * dt * self.contraction)
         self.energy += current * current * dt * self.energy_coeff
-        return self.radius, self.energy
+        return self.radius, self.energy, current
+
+    def exchange_fields(
+        self,
+    ) -> Tuple[
+        Tuple[np.ndarray, np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, np.ndarray],
+    ]:
+        return (np.empty(0), np.empty(0), np.empty(0)), (
+            np.empty(0),
+            np.empty(0),
+            np.empty(0),
+        )
+
+    def exchange_particles(self) -> Tuple[np.ndarray, np.ndarray]:
+        return np.empty((0, 3)), np.empty((0, 3))
 
 
 # ---------------------------------------------------------------------------
@@ -89,11 +124,14 @@ try:  # pragma: no cover - exercised when WarpX dependency is present
             return pos, vel
 
         # ``step`` from ``WarpXPicmiDriver`` already exchanges fields; we only
-        # need to ensure particles are exchanged each time it is invoked.
-        def step(self, current: float, dt: float) -> Tuple[float, float]:
+        # need to ensure particles are exchanged each time it is invoked and
+        # return the effective current for the fluid solver.
+        def step(
+            self, state: "MHDState", current: float, dt: float
+        ) -> Tuple[float, float, float]:
             radius, energy = super().step(current, dt)
             self.exchange_particles()
-            return radius, energy
+            return radius, energy, current
 
 except Exception:  # pragma: no cover - fallback when WarpX is unavailable
     class WarpXPICDriver(PicDriver):  # type: ignore[misc]

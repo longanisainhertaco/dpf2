@@ -265,9 +265,9 @@ class HybridPinchModel(PinchModelBase):
         energy_hist: list[float] = []
 
         rad_fluid, temp, pres, Etot = diagnostics(state)
-        rad_pic, e_pic = self.pic_driver.step(I[0], 0.0)
-        getattr(self.pic_driver, "exchange_fields", lambda: None)()
-        getattr(self.pic_driver, "exchange_particles", lambda: None)()
+        rad_pic, e_pic, j_pic = self.pic_driver.step(state, I[0], 0.0)
+        getattr(self.pic_driver, "exchange_fields", lambda: (None, None))()
+        getattr(self.pic_driver, "exchange_particles", lambda: (None, None))()
         use_pic = rad_fluid <= self.switch_radius
         rad = rad_pic if use_pic else rad_fluid
         radius.append(rad)
@@ -278,11 +278,11 @@ class HybridPinchModel(PinchModelBase):
         neutron_yield = 0.0
         for k in range(len(t) - 1):
             dt = t[k + 1] - t[k]
-            state = solver.step(state, dt, current=I[k])
+            rad_pic, e_pic, j_pic = self.pic_driver.step(state, I[k], dt)
+            getattr(self.pic_driver, "exchange_fields", lambda: (None, None))()
+            getattr(self.pic_driver, "exchange_particles", lambda: (None, None))()
+            state = solver.step(state, dt, current=j_pic)
             rad_fluid, temp, pres, Etot = diagnostics(state)
-            rad_pic, e_pic = self.pic_driver.step(I[k], dt)
-            getattr(self.pic_driver, "exchange_fields", lambda: None)()
-            getattr(self.pic_driver, "exchange_particles", lambda: None)()
             if use_pic:
                 if rad_fluid > self.switch_radius:
                     use_pic = False
