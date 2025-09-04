@@ -35,7 +35,7 @@ export default function EfficiencyCurveOverlay({ data = {} }) {
   };
 
   return (
-    <div className="overlay">
+    <div className="overlay" title="Displays a hypothetical efficiency curve">
       <h4>Efficiency Curve</h4>
       <svg ref={svgRef} width="200" height="100">
         {points && <polyline points={points} stroke="green" fill="none" />}
