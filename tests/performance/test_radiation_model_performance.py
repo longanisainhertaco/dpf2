@@ -35,6 +35,7 @@ from dpf2.simulation.radiation_model import RadiationModel, Photon, m_e, c
 def test_level_population_performance():
     rm = RadiationModel.__new__(RadiationModel)
     rm.level_pop = None
+    rm.non_lte_line_transport = True
     Te = np.ones((5, 5, 5))
     ne = np.ones((5, 5, 5))
     start = time.perf_counter()
