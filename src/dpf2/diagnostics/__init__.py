@@ -40,6 +40,7 @@ from .synthetic_signals import (
 from .streaming import NeutronYieldStreamer, XRayEmissionStreamer, RealTimeComparator
 from .interferometry import interferometer_phase_shift
 from .pinhole_imaging import pinhole_image
+from .regime_panel import RegimePanel
 from .plasma import (
     bennett_radius,
     plasma_beta,
@@ -120,6 +121,7 @@ __all__ = [
     "synthetic_tof_spectrum",
     "angular_spectrum",
     "anisotropy_metric",
+    "RegimePanel",
     "Diagnostics",
     "DetectorArrayGenerator",
     "OutputField",
