@@ -31,6 +31,7 @@ def write_manifest(
     config_paths: Sequence[str] | None = None,
     ppc: int | None = None,
     seeds: Mapping[str, int] | None = None,
+    warnings: Sequence[str] | None = None,
 ) -> Path:
     """Write a JSON manifest capturing reproducibility metadata.
 
@@ -50,10 +51,16 @@ def write_manifest(
     out.mkdir(parents=True, exist_ok=True)
 
     if seeds is None:
-        seeds = {
-            "python": random.getstate()[1][0],
-            "numpy": int(np.random.get_state()[1][0]),
-        }
+        seeds = {"python": random.getstate()[1][0]}
+        try:
+            seeds["numpy"] = int(np.random.get_state()[1][0])  # numpy<2.0
+        except Exception:  # pragma: no cover - handle new RNG APIs
+            try:
+                rng = np.random.default_rng()
+                # bit_generator state is large; capture a representative int
+                seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
+            except Exception:
+                seeds["numpy"] = 0
 
     manifest = {
         "code_hash": _code_hash(),
@@ -61,6 +68,8 @@ def write_manifest(
         "particle_per_cell": ppc,
         "config_paths": [str(p) for p in (config_paths or [])],
     }
+    if warnings:
+        manifest["warnings"] = list(warnings)
 
     path = out / MANIFEST_FILENAME
     path.write_text(json.dumps(manifest, indent=2))
