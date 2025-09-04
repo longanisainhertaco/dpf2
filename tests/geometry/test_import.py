@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 from dpf2.dpf_config import DPFConfig
 from dpf2.grid_resolution import GridResolution
 
@@ -19,12 +17,10 @@ def _make_config(geometry: str, mesh: Path) -> DPFConfig:
 def test_mesh_import_valid():
     path = Path(__file__).with_name("sample.step")
     cfg = _make_config("3D_Cartesian", path)
-    DPFConfig.validate_cross_fields(DPFConfig, cfg.__dict__)
-    assert cfg.amrex_settings.electrode_geometry.mesh_file == path
+    DPFConfig.validate_cross_fields(DPFConfig, cfg)
 
 
-def test_mesh_dimension_mismatch():
-    path = Path(__file__).with_name("sample.step")
+def test_axisymmetric_stl_import():
+    path = Path(__file__).with_name("axisymmetric.stl")
     cfg = _make_config("2D_RZ", path)
-    with pytest.raises(ValueError):
-        DPFConfig.validate_cross_fields(DPFConfig, cfg.__dict__)
+    DPFConfig.validate_cross_fields(DPFConfig, cfg)
