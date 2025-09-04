@@ -830,5 +830,108 @@ def wizard(output: str) -> None:
     click.echo(f"Configuration saved to {output}")
 
 
+@main.command("run-compare")
+@click.option(
+    "--benchmark-dir",
+    type=click.Path(exists=True, file_okay=False),
+    default="Reference/Benchmarks",
+    show_default=True,
+    help="Directory containing benchmark projects",
+)
+@click.option(
+    "--output",
+    type=click.Path(file_okay=False),
+    default="Reference/Benchmarks/results",
+    show_default=True,
+    help="Where to write comparison dashboards",
+)
+def run_compare(benchmark_dir: str, output: str) -> None:
+    """Run frozen benchmarks and compare results.
+
+    Each benchmark directory must provide ``inputs.json`` with a
+    :class:`DPFConfig` and ``expected.json`` with reference time histories
+    for current, voltage and neutron yield along with tolerance bands.  The
+    command runs the simulation, compares against the reference data and
+    writes a pass/fail dashboard with tolerance-band overlays for the three
+    diagnostics.
+    """
+
+    # Local imports to keep CLI lightweight when numpy/matplotlib are absent
+    import json
+    from pathlib import Path
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    bench_root = Path(benchmark_dir)
+    out_root = Path(output)
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    results: list[tuple[str, bool, bool, bool]] = []
+
+    for project in sorted(p for p in bench_root.iterdir() if p.is_dir()):
+        input_path = project / "inputs.json"
+        expected_path = project / "expected.json"
+        if not input_path.exists() or not expected_path.exists():
+            continue
+
+        cfg = DPFConfig.from_file(str(input_path))
+        sim = DPFSimulation(cfg)
+        time, current, voltage = sim.run(end_time=cfg.end_time)
+        neutron = [0.0 for _ in time]
+
+        expected = json.loads(expected_path.read_text())
+        tol = expected.get("tolerance", {})
+
+        def _check(key: str, actual: list[float]) -> bool:
+            exp = np.array(expected.get(key, []), dtype=float)
+            act = np.array(actual, dtype=float)
+            return np.all(np.abs(act - exp) <= tol.get(key, 0.0))
+
+        pass_current = _check("current", current)
+        pass_voltage = _check("voltage", voltage)
+        pass_neut = _check("neutron_yield", neutron)
+
+        results.append((project.name, pass_current, pass_voltage, pass_neut))
+
+        # Plot overlays
+        t = np.array(time)
+        fig, axes = plt.subplots(3, 1, figsize=(6, 8))
+        labels = ["current", "voltage", "neutron_yield"]
+        units = ["A", "V", "yield"]
+        actual = [current, voltage, neutron]
+        for ax, key, unit, data in zip(axes, labels, units, actual):
+            exp = np.array(expected.get(key, [0.0] * len(time)))
+            band = tol.get(key, 0.0)
+            ax.plot(t, data, label="actual")
+            ax.fill_between(
+                t,
+                exp - band,
+                exp + band,
+                color="gray",
+                alpha=0.3,
+                label="expected±tol",
+            )
+            ax.set_ylabel(f"{key} ({unit})")
+            ax.legend()
+        axes[-1].set_xlabel("time (s)")
+        fig.tight_layout()
+        fig.savefig(out_root / f"{project.name}.png")
+        plt.close(fig)
+
+    # Print dashboard summary
+    header = "{:<20} {:<7} {:<7} {:<7}".format(
+        "Benchmark", "Current", "Voltage", "Neutron"
+    )
+    click.echo(header)
+    for name, c, v, n in results:
+        row = "{:<20} {:<7} {:<7} {:<7}".format(
+            name,
+            "PASS" if c else "FAIL",
+            "PASS" if v else "FAIL",
+            "PASS" if n else "FAIL",
+        )
+        click.echo(row)
+
+
 if __name__ == "__main__":
     main()
