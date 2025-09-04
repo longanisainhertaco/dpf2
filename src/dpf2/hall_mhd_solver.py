@@ -42,6 +42,7 @@ from .diagnostics.quality_dashboard import QualityDashboard
 from .diagnostics.modes import azimuthal_mode_spectrum
 from .physics.anomalous_resistivity import SpectralResistivity
 from .physics.lower_hybrid_drift import LowerHybridDrift
+from .physics.lhdi_resistivity import LHDIResistivity
 
 logger = logging.getLogger(__name__)
 
@@ -353,8 +354,11 @@ class HallMHDSolver(PlasmaSolverBase):
     impedance_growth: list[float] = field(default_factory=list)
     last_voltage_spike: float = field(init=False, default=0.0)
     last_lh_power: float = field(init=False, default=0.0)
+    last_lh_spectrum: Any | None = field(init=False, default=None)
     last_eta_anom_mean: float = field(init=False, default=0.0)
     last_eta_total_mean: float = field(init=False, default=0.0)
+    last_Ez_surge: float = field(init=False, default=0.0)
+    last_spitzer_eta: float = field(init=False, default=0.0)
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
@@ -412,6 +416,16 @@ class HallMHDSolver(PlasmaSolverBase):
 
         self.lower_hybrid_drift = SpectralResistivity(lhd, scale=scale, floor=floor)
 
+    def enable_lhdi_resistivity(
+        self,
+        lhd: LowerHybridDrift,
+        scale: float = 1.0,
+        floor: float = 0.0,
+    ) -> None:
+        """Enable power/phase based LHDI anomalous resistivity."""
+
+        self.lower_hybrid_drift = LHDIResistivity(lhd, scale=scale, floor=floor)
+
     def compute_anomalous_resistivity(self, J: np.ndarray) -> np.ndarray:
         """Evaluate anomalous resistivity models and record voltage spikes.
 
@@ -422,6 +436,13 @@ class HallMHDSolver(PlasmaSolverBase):
         :meth:`step` while the combined resistivity is returned.
         """
 
+        if (
+            self.anomalous_resistivity is None
+            and self.lower_hybrid_drift is None
+            and self.m0_instability is None
+        ):
+            raise RuntimeError("No anomalous resistivity mechanism configured")
+
         eta = np.zeros(J.shape[:-1])
         E = np.zeros_like(J)
         s_eta = np.zeros(J.shape[:-1])
@@ -431,6 +452,12 @@ class HallMHDSolver(PlasmaSolverBase):
             mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
         else:  # pragma: no cover - very small stub fallback
             mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
+
+        try:
+            J_mag = np.linalg.norm(J, axis=-1)
+            self.last_lh_spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
+        except Exception:  # pragma: no cover - tiny numpy stub
+            self.last_lh_spectrum = []
 
         def _process(result: np.ndarray | tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
             if isinstance(result, tuple):
@@ -487,11 +514,24 @@ class HallMHDSolver(PlasmaSolverBase):
         if spike != 0.0:
             self.voltage_spikes.append(spike)
         self.last_voltage_spike = spike
+        try:
+            self.last_Ez_surge = float(np.max(np.abs(s_E[..., 2])))
+        except Exception:
+            self.last_Ez_surge = 0.0
         self.last_E_anom = E
         try:
             self.last_eta_anom_mean = float(np.mean(eta))
         except Exception:
             self.last_eta_anom_mean = 0.0
+        try:
+            self.last_eta_total_mean = float(np.mean(eta))
+        except Exception:
+            self.last_eta_total_mean = 0.0
+
+        self.last_spitzer_eta = float(spitzer_resistivity(1e18, 1e5, 1.0))
+        if self.last_eta_total_mean < self.last_spitzer_eta:
+            raise RuntimeError("Impedance below Spitzer threshold")
+
         return eta
 
     # ------------------------------------------------------------------

@@ -6,6 +6,7 @@ from .eos import TabulatedEOS, load_tabulated_eos, load_standard_eos
 from .radiation import RadiationTransport
 from .pic_driver import PicDriver, PhysicalPICDriver, WarpXPICDriver
 from .lower_hybrid_drift import LowerHybridDrift
+from .lhdi_resistivity import LHDIResistivity
 from .m0_instability import MZeroInstability
 
 
@@ -40,6 +41,7 @@ __all__ = [
     "load_standard_eos",
     "RadiationTransport",
     "LowerHybridDrift",
+    "LHDIResistivity",
     "MZeroInstability",
     "GVFront",
 ]

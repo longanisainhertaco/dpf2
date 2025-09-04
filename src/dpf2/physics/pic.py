@@ -15,6 +15,7 @@ from typing import Any, List
 import numpy as np
 
 from ..core.bases import PlasmaSolverBase, CouplingState
+from .lhdi_resistivity import LHDIResistivity
 
 
 EPS0 = 1.0  # Permittivity used for the lightweight solvers
@@ -49,6 +50,10 @@ class SimplePIC(PlasmaSolverBase):
     divergence_error: float = field(init=False, default=0.0)
     energy_drift: float = field(init=False, default=0.0)
     _prev_energy: float = field(init=False, default=0.0)
+    lhdi: LHDIResistivity | None = None
+    last_lh_power: float = 0.0
+    last_Ez_surge: float = 0.0
+    lhdi_spectrum: Any | None = None
 
     def __post_init__(self) -> None:
         if self.field_solver != "circuit":
@@ -107,6 +112,14 @@ class SimplePIC(PlasmaSolverBase):
             self.circuit_feedback = CouplingState(
                 current=current, voltage=voltage, back_reaction=plasma_current
             )
+            self.last_Ez_surge = abs(E)
+            if self.lhdi is not None:
+                try:
+                    self.last_lh_power = float(np.max(self.lhdi.lhd.power()))
+                    self.lhdi_spectrum = np.abs(np.fft.rfft([E]))
+                except Exception:
+                    self.last_lh_power = 0.0
+                    self.lhdi_spectrum = []
             return state
 
         # Spectral/finite-difference solver
@@ -127,6 +140,14 @@ class SimplePIC(PlasmaSolverBase):
         self.circuit_feedback = CouplingState(
             current=current, voltage=voltage, back_reaction=plasma_current
         )
+        self.last_Ez_surge = float(np.max(np.abs(self.E))) if self.E.size else 0.0
+        if self.lhdi is not None:
+            try:
+                self.last_lh_power = float(np.max(self.lhdi.lhd.power()))
+                self.lhdi_spectrum = np.abs(np.fft.rfft(self.E)) if self.E.size else []
+            except Exception:
+                self.last_lh_power = 0.0
+                self.lhdi_spectrum = []
 
         # Diagnostics ------------------------------------------------------
         if self.E.size:
