@@ -1,8 +1,14 @@
 import sys
 from pathlib import Path
 
-# Provide a minimal ``numpy`` implementation for environments where the
+# Preload real pydantic if available before adding the local ``src`` path
+# which contains lightweight stubs used for optional dependencies.
+try:  # pragma: no cover - prefer real pydantic when installed
+    import pydantic  # noqa: F401
+except Exception:  # pragma: no cover - fall back to stub later if missing
+    pass
 
+# Provide a minimal ``numpy`` implementation for environments where the
 # dependency is unavailable.  If the real ``numpy`` package is installed the
 # stub is skipped and the genuine implementation is used.
 try:  # pragma: no cover - prefer real numpy
