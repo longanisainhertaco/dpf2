@@ -55,4 +55,30 @@ def plot_vector_field_overlay(
     return path
 
 
-__all__ = ["plot_current_voltage", "plot_vector_field_overlay"]
+def plot_plasma_inductance_comparison(
+    t: Sequence[float],
+    field_lp: Sequence[float],
+    circuit_lp: Sequence[float],
+    path: str | Path,
+) -> Path:
+    """Plot field-derived and circuit-derived plasma inductance."""
+
+    fig, ax = plt.subplots()
+    ax.plot(t, field_lp, label="field-derived")
+    ax.plot(t, circuit_lp, label="circuit-derived", linestyle="--")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Lp (H)")
+    ax.legend()
+    fig.tight_layout()
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+__all__ = [
+    "plot_current_voltage",
+    "plot_vector_field_overlay",
+    "plot_plasma_inductance_comparison",
+]

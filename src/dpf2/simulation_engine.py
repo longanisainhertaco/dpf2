@@ -72,6 +72,8 @@ class SimulationResults:
     dt: float | None = None
     cell_size: float | None = None
     particles_per_cell: float | None = None
+    Lp_field: np.ndarray | None = None
+    Lp_circuit: np.ndarray | None = None
 
     def to_dict(self) -> Dict[str, object]:
         data = {
@@ -92,6 +94,10 @@ class SimulationResults:
             data["cell_size"] = self.cell_size
         if self.particles_per_cell is not None:
             data["particles_per_cell"] = self.particles_per_cell
+        if self.Lp_field is not None:
+            data["Lp_field"] = self.Lp_field.tolist()
+        if self.Lp_circuit is not None:
+            data["Lp_circuit"] = self.Lp_circuit.tolist()
         return data
 
 
@@ -266,6 +272,7 @@ class SimulationEngine:
         neutron_cb: Callable[[float, float], None] | None = None,
         xray_cb: Callable[[float, float], None] | None = None,
         progress_cb: Callable[[int, float, float, float], None] | None = None,
+        hdf5_path: str | None = None,
     ) -> SimulationResults:
         """Run the simulation and return aggregated results.
 
@@ -278,6 +285,9 @@ class SimulationEngine:
         neutron_cb, xray_cb:
             Callbacks receiving ``(time, value)`` for streaming neutron
             yield and X-ray emission respectively.
+        hdf5_path:
+            Optional path to an HDF5 file storing ``Lp_field`` and
+            ``Lp_circuit`` time series along with run metadata.
         """
         sc = self.config.simulation_control
         dt = sc.min_dt or 1e-9
@@ -354,6 +364,9 @@ class SimulationEngine:
         if xray_cb is not None:
             diag_list.append(XRayEmissionStreamer(xray_cb))
 
+        field_lp: list[float] = [0.0]
+        circuit_lp: list[float] = [0.0]
+
         while circuit.time[-1] < t_end:
             if plasma_solver is not None:
                 plasma_state = plasma_solver.step(
@@ -393,6 +406,21 @@ class SimulationEngine:
             else:
                 updated = circuit.step(coupling, 0.0, dt, energy_tracker=tracker)
 
+            # Log plasma inductance from solver and inferred from circuit
+            field_lp.append(state.Lp)
+            dIdt = (updated.current - current) / dt if dt != 0 else 0.0
+            if dIdt != 0.0:
+                num = (
+                    circuit.circuit.V0
+                    - circuit.circuit.R * current
+                    - voltage
+                    - state.emf
+                )
+                inferred = num / dIdt - circuit.circuit.L
+            else:
+                inferred = circuit_lp[-1]
+            circuit_lp.append(float(inferred))
+
             if self.comm is not None and (self.comm.size > 1):  # pragma: no cover - MPI
                 updated = self.comm.bcast(updated, root=0)
 
@@ -423,6 +451,8 @@ class SimulationEngine:
         t = self._to_numpy(t_xp)
         current_arr = self._to_numpy(current_xp)
         voltage_arr = self._to_numpy(voltage_xp)
+        field_lp_arr = np.asarray(field_lp)
+        circuit_lp_arr = np.asarray(circuit_lp)
 
         if pinch_model == "analytic":
             plasma: PinchModelBase = AnalyticPinchModel()
@@ -467,6 +497,25 @@ class SimulationEngine:
                     f"Energy non-conservation {rel_err:.2%} exceeds tolerance {energy_tol:.2%}"
                 )
 
+        if hdf5_path is not None:
+            try:
+                import h5py  # type: ignore
+            except Exception as exc:  # pragma: no cover - optional dependency
+                raise RuntimeError("h5py is required for HDF5 output") from exc
+            import json
+            from .io.data_writer import DataWriter
+
+            meta = {
+                "config": self.config.model_dump(),
+                "config_hash": DataWriter._hash_config(self.config.model_dump()),
+                "git_commit": DataWriter._git_commit(),
+            }
+            with h5py.File(hdf5_path, "w") as h5:
+                h5.create_dataset("time", data=t)
+                h5.create_dataset("Lp_field", data=field_lp_arr)
+                h5.create_dataset("Lp_circuit", data=circuit_lp_arr)
+                h5.create_dataset("metadata", data=json.dumps(meta))
+
         return SimulationResults(
             time=pres.time,
             current=current_arr,
@@ -480,7 +529,8 @@ class SimulationEngine:
             dt=self.dt,
             cell_size=self.cell_size,
             particles_per_cell=self.particles_per_cell,
-
+            Lp_field=field_lp_arr,
+            Lp_circuit=circuit_lp_arr,
         )
 
     # ------------------------------------------------------------------
