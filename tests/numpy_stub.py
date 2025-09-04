@@ -395,6 +395,17 @@ def clip(vals, lo, hi):
     return Array(min(max(arr.data, lo), hi))
 
 
+def sign(vals):
+    arr = array(vals)
+    if isinstance(arr.data, list):
+        return Array([sign(v) for v in arr.data])
+    if arr.data > 0:
+        return Array(1.0)
+    if arr.data < 0:
+        return Array(-1.0)
+    return Array(0.0)
+
+
 def gradient(vals, dx, edge_order=2):
     arr = array(vals).data
     n = len(arr)
@@ -407,6 +418,15 @@ def gradient(vals, dx, edge_order=2):
         else:
             grad.append((arr[i + 1] - arr[i - 1]) / (2 * dx))
     return Array(grad)
+
+
+def roll(arr, shift, axis=0):
+    data = array(arr).data
+    if axis > 0:
+        return Array([roll(sub, shift, axis - 1).data for sub in data])
+    n = len(data)
+    s = shift % n
+    return Array(data[-s:] + data[:-s])
 
 
 def isclose(a, b, rtol=1.0e-8, atol=1.0e-8):
@@ -460,8 +480,10 @@ np = types.SimpleNamespace(
     mean=mean,
     cross=cross,
     clip=clip,
+    sign=sign,
     sqrt=sqrt,
     gradient=gradient,
+    roll=roll,
     isclose=isclose,
     allclose=allclose,
     array_equal=array_equal,
