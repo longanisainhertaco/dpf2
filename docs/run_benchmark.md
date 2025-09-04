@@ -22,4 +22,5 @@ $ dpf2 run-benchmark unu_pff
 The generated plot includes grey tolerance bands around the reference
 traces with the actual simulation output overlaid.  A table lists whether
 current, voltage and neutron yield fall within their respective bands, and
-the metrics file records the maximum deviation for each signal.
+the metrics file records both the maximum and RMS deviation for each
+signal.
