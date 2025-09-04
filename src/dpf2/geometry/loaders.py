@@ -14,12 +14,14 @@ def _parse_step_like(lines: List[str]) -> Dict[str, Any]:
     """Parse a tiny subset of STEP/IGES style geometry.
 
     The parser understands lines beginning with ``NODE`` to define points and
-    ``TRI`` to define triangular faces.  Indices in ``TRI`` statements are
-    one-based to mimic common CAD conventions.
+    ``TRI`` to define triangular faces.  ``TRI`` statements may include an
+    optional fourth field specifying a material tag for the element.  Indices in
+    ``TRI`` statements are one-based to mimic common CAD conventions.
     """
 
     nodes: List[List[float]] = []
     elements: List[List[int]] = []
+    materials: List[Any] = []
     for ln in lines:
         parts = ln.split()
         if not parts:
@@ -27,9 +29,18 @@ def _parse_step_like(lines: List[str]) -> Dict[str, Any]:
         tag, *rest = parts
         if tag.upper() == "NODE" and len(rest) == 3:
             nodes.append([float(v) for v in rest])
-        elif tag.upper() == "TRI" and len(rest) == 3:
-            elements.append([int(v) for v in rest])
-    return {"nodes": nodes, "elements": elements}
+        elif tag.upper() == "TRI" and len(rest) in {3, 4}:
+            elements.append([int(v) for v in rest[:3]])
+            if len(rest) == 4:
+                mat = rest[3]
+                try:
+                    materials.append(int(mat))
+                except ValueError:
+                    materials.append(mat)
+    out: Dict[str, Any] = {"nodes": nodes, "elements": elements}
+    if materials:
+        out["materials"] = materials
+    return out
 
 
 def load_cad_geometry(path: Path) -> Dict[str, Any]:
@@ -37,11 +48,12 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
 
     The loader understands a few simple formats used in tests:
 
-    * ``.json`` files containing ``nodes`` and ``elements`` lists.
+    * ``.json`` files containing ``nodes`` and ``elements`` lists (and optional
+      ``materials``).
     * ``.step``/``.stp`` and ``.iges``/``.igs`` files.  If :mod:`meshio` is
-      available it is used to parse these files.  Otherwise a tiny custom text
-      format is supported where each line is either ``NODE x y z`` or
-      ``TRI i j k``.
+      available it is used to parse these files.  Cell based material tags are
+      extracted when present.  Otherwise a tiny custom text format is supported
+      where each line is either ``NODE x y z`` or ``TRI i j k [mat]``.
     """
 
     p = Path(path)
@@ -53,12 +65,27 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
             try:  # pragma: no cover - exercised when meshio is available
                 m = meshio.read(p)
                 elements: List[List[int]] = []
-                for block in m.cells:
+                materials: List[Any] = []
+                for idx, block in enumerate(m.cells):
                     if block.type in {"triangle", "quad"}:
-                        elements.extend(block.data.tolist())
+                        data = block.data.tolist()
+                        elements.extend(data)
+                        # try to pull material tags from cell data
+                        tag = None
+                        if m.cell_data:
+                            for key in ("material", "gmsh:physical", "cell_tags"):
+                                vals = m.cell_data.get(key)
+                                if vals and len(vals) > idx:
+                                    tag = vals[idx]
+                                    break
+                        if tag is not None:
+                            materials.extend(tag.tolist() if hasattr(tag, "tolist") else list(tag))
                 if not elements and m.cells:
                     elements = m.cells[0].data.tolist()
-                return {"nodes": m.points.tolist(), "elements": elements}
+                result: Dict[str, Any] = {"nodes": m.points.tolist(), "elements": elements}
+                if materials:
+                    result["materials"] = materials
+                return result
             except Exception:
                 pass
         # fallback simple text representation
