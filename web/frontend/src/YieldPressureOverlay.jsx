@@ -1,8 +1,9 @@
 import React, { useMemo, useRef } from 'react';
 
-export default function YieldPressureOverlay({ data = {} }) {
+export default function YieldPressureOverlay({ datasets = [] }) {
   const svgRef = useRef(null);
-  const points = useMemo(() => {
+
+  const computePoints = (data) => {
     const entries = Object.entries(data);
     if (entries.length === 0) return '';
     const width = 200;
@@ -20,7 +21,7 @@ export default function YieldPressureOverlay({ data = {} }) {
         return `${x},${y}`;
       })
       .join(' ');
-  }, [data]);
+  };
 
   const download = () => {
     const svg = svgRef.current;
@@ -35,10 +36,13 @@ export default function YieldPressureOverlay({ data = {} }) {
   };
 
   return (
-    <div className="overlay">
+    <div className="overlay" title="Shows how yield varies with pressure">
       <h4>Yield/Pressure Curve</h4>
       <svg ref={svgRef} width="200" height="100">
-        {points && <polyline points={points} stroke="blue" fill="none" />}
+        {datasets.map(({ label, data, color = 'blue' }) => {
+          const pts = computePoints(data);
+          return <polyline key={label} points={pts} stroke={color} fill="none" />;
+        })}
       </svg>
       <button type="button" onClick={download}>
         Download

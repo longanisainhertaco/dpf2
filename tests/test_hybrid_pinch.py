@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from dpf2.pinch_models import MHDPinchModel, HybridPinchModel
 
@@ -8,13 +9,19 @@ class DummyPIC:
         self.radius = radius0
         self.energy = 0.0
 
-    def step(self, current: float, dt: float) -> tuple[float, float]:
+    def step(self, state, current: float, dt: float) -> tuple[float, float, float]:
         # Simple contraction model independent of current for testing
         self.radius *= 1.0 - 0.1 * dt
-        return self.radius, self.energy
+        return self.radius, self.energy, current
 
 
-def test_mhd_pinch_energy_conservation_and_radius():
+class DummySolver:
+    def step(self, state, dt, current=0.0):
+        return state
+
+
+def test_mhd_pinch_energy_conservation_and_radius(monkeypatch):
+    monkeypatch.setattr("dpf2.pinch_models.HallMHDSolver", DummySolver)
     model = MHDPinchModel()
     t = np.linspace(0.0, 1e-7, 3)
     I = np.zeros_like(t)
@@ -28,8 +35,9 @@ def test_mhd_pinch_energy_conservation_and_radius():
     assert np.isclose(res2.radius[-1], res2.radius[0])
 
 
-def test_hybrid_pinch_energy_conservation_and_radius():
+def test_hybrid_pinch_energy_conservation_and_radius(monkeypatch):
     pic = DummyPIC()
+    monkeypatch.setattr("dpf2.pinch_models.HallMHDSolver", DummySolver)
     model = HybridPinchModel(pic_driver=pic)
     t = np.linspace(0.0, 1e-7, 3)
     I = np.zeros_like(t)

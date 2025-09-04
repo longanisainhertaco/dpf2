@@ -5,8 +5,9 @@ import base64
 import os
 from pathlib import Path
 from typing import Iterable
+import uuid
 
-from flask import Flask, redirect, render_template_string, request, url_for
+from flask import Flask, redirect, render_template_string, request, url_for, jsonify
 
 from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
@@ -88,6 +89,9 @@ def _parse_sweep_values(vals: str) -> Iterable[float]:
 
 def create_app() -> Flask:
     app = Flask(__name__)
+    projects: dict[str, dict] = {}
+    sweep_results: dict[str, dict] = {}
+    upload_dir = Path("uploads")
 
     @app.route("/", methods=["GET", "POST"])
     def index():
@@ -146,6 +150,30 @@ def create_app() -> Flask:
         if metrics_path.exists():
             metrics_plot = "data:image/png;base64," + base64.b64encode(metrics_path.read_bytes()).decode("ascii")
         return render_template_string(DIAG_HTML, files=files, plot=plot, metrics_plot=metrics_plot)
+
+    @app.route("/projects", methods=["GET", "POST"])
+    def projects_ep():
+        if request.method == "POST":
+            proj_id = request.form.get("id") or f"proj-{uuid.uuid4().hex[:8]}"
+            preset = request.form.get("preset")
+            file = request.files.get("cad")
+            cfg = {"id": proj_id, "preset": preset}
+            if file:
+                upload_dir.mkdir(parents=True, exist_ok=True)
+                path = upload_dir / f"{proj_id}_{file.filename}"
+                file.save(path)
+                cfg["cad"] = str(path)
+            projects[proj_id] = cfg
+            return jsonify(cfg)
+        return jsonify(list(projects.values()))
+
+    @app.route("/sweep/<proj_id>", methods=["GET", "POST"])
+    def sweep_ep(proj_id: str):
+        if request.method == "POST":
+            data = request.get_json() or {}
+            sweep_results.setdefault(proj_id, {}).update(data)
+            return {"status": "ok"}
+        return sweep_results.get(proj_id, {})
 
     return app
 

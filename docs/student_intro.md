@@ -29,5 +29,11 @@ browser or a Jupyter notebook.
    pinch animation update in real time.
 4. Download the run history to compare with classroom calculations.
 
+The screenshots below highlight the sandbox controls and a sample pinch
+visualization:
+
+![Sandbox controls](images/sandbox_controls.png)
+![Sandbox results](images/sandbox_results.png)
+
 After exploring the sandbox, continue learning by running the
 [tutorials](tutorials/quickstart.md) or reading the [user guide](user_guide.md).
