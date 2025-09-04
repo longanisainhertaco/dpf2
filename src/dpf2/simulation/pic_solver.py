@@ -23,6 +23,7 @@ from typing import List, Dict, Tuple, Optional, Callable
 from pathlib import Path
 from ..core.bases import CouplingState
 from ..diagnostics import synthetic_signals
+from ..diagnostics.quality_dashboard import QualityDashboard
 from .config_schema import PICConfig
 from .models import PhysicsModule
 from .utils import FieldManager, SimulationState
@@ -100,7 +101,7 @@ class PICSolver(PhysicsModule):
     # Miscellaneous constants
     ionization_energy = 13.6     # eV, used for Bethe-Bloch stopping
 
-    def __init__(self, config: PICConfig, field_manager: FieldManager):
+    def __init__(self, config: PICConfig, field_manager: FieldManager, quality: QualityDashboard | None = None):
         """
         Initializes the PICSolver with configuration parameters.
 
@@ -156,6 +157,8 @@ class PICSolver(PhysicsModule):
         self.history: List[CouplingState] = []
         self.m0_instability_model: Optional[MZeroInstability] = None
         self.anomalous_resistivity_model: Optional[AnomalousResistivity] = None
+        self.quality = quality
+        self.step_count = 0
         logger.info('PIC solver initialized')
 
     def add_species(self, name, charge, mass, positions, velocities):
@@ -521,6 +524,39 @@ class PICSolver(PhysicsModule):
             emf = axial_E * length
             self.coupling_state = CouplingState(emf=emf, current=current, voltage=voltage, back_reaction=emf)
             self.history.append(self.coupling_state)
+            if self.quality:
+                self.step_count += 1
+                cell_size = min(self.dx, self.dy, self.dz)
+                cell_volume = self.dx * self.dy * self.dz
+                total_particles = sum(spc['pos'].shape[0] for spc in self.species.values())
+                ppc = total_particles / (self.nx * self.ny * self.nz)
+                max_v = 0.0
+                for spc in self.species.values():
+                    speeds = np.linalg.norm(spc['vel'], axis=1)
+                    if speeds.size:
+                        max_v = max(max_v, float(np.max(speeds)))
+                cfl = max_v * self.dt / cell_size if cell_size > 0 else 0.0
+                ne = 0.0
+                Te = 0.0
+                for spc in self.species.values():
+                    if spc['q'] < 0 and spc['pos'].size:
+                        ne = spc['pos'].shape[0] / (self.nx * self.ny * self.nz * cell_volume)
+                        ke = 0.5 * spc['m'] * np.mean(np.sum(spc['vel']**2, axis=1))
+                        Te = (2.0 / 3.0) * ke / PICSolver.k_B
+                        break
+                e = 1.602176634e-19
+                lambda_D = (
+                    np.sqrt(PICSolver.epsilon0 * PICSolver.k_B * Te / (ne * e**2))
+                    if ne > 0 else float("inf")
+                )
+                self.quality.log(
+                    self.step_count,
+                    self.dt,
+                    cell_size,
+                    ppc,
+                    cfl,
+                    lambda_D,
+                )
         except Exception as e:
             logger.error(f"Error during PIC step: {e}")
 
