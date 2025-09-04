@@ -22,32 +22,31 @@ try:  # pragma: no cover - prefer real pydantic if available
 except Exception:  # fallback minimal stub
 
     class BaseModel:
-    """Minimal stand-in for :class:`pydantic.BaseModel`.
+        """Minimal stand-in for :class:`pydantic.BaseModel`.
 
-    The implementation only stores provided keyword arguments as attributes and
-    performs no validation.  It is sufficient for tests that need to import
-    modules with an optional ``pydantic`` dependency without installing the real
-    package.
-    """
+        The implementation only stores provided keyword arguments as attributes and
+        performs no validation.  It is sufficient for tests that need to import
+        modules with an optional ``pydantic`` dependency without installing the real
+        package.
+        """
 
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
 
+        # Mimic minimal pydantic API used in the code base
+        def dict(self, **kwargs):  # pragma: no cover - trivial
+            return self.__dict__.copy()
 
-    # Mimic minimal pydantic API used in the code base
-    def dict(self, **kwargs):  # pragma: no cover - trivial
-        return self.__dict__.copy()
+        def json(self, **kwargs):  # pragma: no cover - simple serialization
+            return str(self.dict())
 
-    def json(self, **kwargs):  # pragma: no cover - simple serialization
-        return str(self.dict())
+        def copy(self, **kwargs):  # pragma: no cover - shallow copy
+            return type(self)(**self.dict())
 
-    def copy(self, **kwargs):  # pragma: no cover - shallow copy
-        return type(self)(**self.dict())
-
-    @classmethod
-    def parse_obj(cls, data):  # pragma: no cover - simple constructor
-        return cls(**data)
+        @classmethod
+        def parse_obj(cls, data):  # pragma: no cover - simple constructor
+            return cls(**data)
 
 
 

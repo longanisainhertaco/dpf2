@@ -9,6 +9,7 @@ sys.modules["h5py"] = h5py_stub
 
 
 class _DummyAxes:
+    transAxes = object()
     def plot(self, *args, **kwargs):
         return None
 
@@ -22,6 +23,9 @@ class _DummyAxes:
         return None
 
     def set_xlabel(self, *args, **kwargs):
+        return None
+
+    def text(self, *args, **kwargs):
         return None
 
 
