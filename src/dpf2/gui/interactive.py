@@ -100,6 +100,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
             html.Button("Sweep Voltage", id="sweep_voltage"),
             html.Button("Sweep Pressure", id="sweep_pressure"),
             html.Button("Overlay Runs", id="overlay_runs"),
+            html.Button("Pareto Search", id="pareto"),
             html.Button("Export Metrics", id="export"),
             html.Button("Export Overlay", id="export_overlay"),
             dcc.Graph(id="metrics_plot"),
@@ -135,6 +136,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
         Input("sweep_voltage", "n_clicks"),
         Input("sweep_pressure", "n_clicks"),
         Input("overlay_runs", "n_clicks"),
+        Input("pareto", "n_clicks"),
         Input("export", "n_clicks"),
         Input("export_overlay", "n_clicks"),
         State("preset", "value"),
@@ -149,6 +151,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
         v_clicks: int,
         p_clicks: int,
         o_clicks: int,
+        pa_clicks: int,
         e_clicks: int,
         eo_clicks: int,
         preset: str | None,
@@ -194,7 +197,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
                 fig.add_trace(
                     go.Scatter(
                         x=vals,
-                        y=[metrics[v]["pinch_time"] for v in vals],
+                        y=[metrics[v].get("pinch_time", 0.0) for v in vals],
                         mode="lines+markers",
                         name=f"{label} pinch",
                     ),
@@ -219,6 +222,24 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
             fig.update_yaxes(title_text="Efficiency", row=1, col=3)
             return fig
 
+        if button_id == "pareto":
+            cfg = _make_config(preset, pressure, voltage, anode, cathode, length)
+            bounds = {
+                "charging_voltage": (voltage * 0.8, voltage * 1.2),
+                "initial_pressure": (pressure * 0.5, pressure * 1.5),
+            }
+            pareto = pm.pareto_search(cfg, bounds, n_samples=20)
+            fig = go.Figure(
+                go.Scatter(
+                    x=[p["spot_size"] for p in pareto],
+                    y=[p["yield"] for p in pareto],
+                    mode="markers",
+                )
+            )
+            fig.update_xaxes(title_text="Spot Size")
+            fig.update_yaxes(title_text="Yield")
+            return fig
+
         cfg = _make_config(preset, pressure, voltage, anode, cathode, length)
 
         if button_id == "sweep_voltage":
@@ -226,40 +247,19 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
             metrics = pm.run_sweep(
                 f"voltage_{len(pm.metrics)}", cfg, "charging_voltage", values
             )
-            vals = sorted(metrics.keys())
         else:
             values = [pressure * f for f in [0.5, 1.0, 1.5]]
             metrics = pm.run_sweep(
                 f"pressure_{len(pm.metrics)}", cfg, "initial_pressure", values
             )
-            vals = sorted(metrics.keys())
 
-        fig = make_subplots(rows=1, cols=3, subplot_titles=("Yield", "Pinch Time", "Efficiency"))
-        fig.add_trace(
-            go.Scatter(x=vals, y=[metrics[v]["yield"] for v in vals], mode="lines+markers"),
-            row=1,
-            col=1,
+        s_vals = [metrics[v].get("S", 0.0) for v in sorted(metrics)]
+        y_vals = [metrics[v]["yield"] for v in sorted(metrics)]
+        fig = go.Figure(
+            go.Scatter(x=s_vals, y=y_vals, mode="lines+markers")
         )
-        fig.add_trace(
-            go.Scatter(
-                x=vals, y=[metrics[v]["pinch_time"] for v in vals], mode="lines+markers"
-            ),
-            row=1,
-            col=2,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=vals, y=[metrics[v]["efficiency"] for v in vals], mode="lines+markers"
-            ),
-            row=1,
-            col=3,
-        )
-        fig.update_xaxes(title_text="parameter", row=1, col=1)
-        fig.update_xaxes(title_text="parameter", row=1, col=2)
-        fig.update_xaxes(title_text="parameter", row=1, col=3)
-        fig.update_yaxes(title_text="Yield", row=1, col=1)
-        fig.update_yaxes(title_text="Pinch Time", row=1, col=2)
-        fig.update_yaxes(title_text="Efficiency", row=1, col=3)
+        fig.update_xaxes(title_text="S")
+        fig.update_yaxes(title_text="Yield")
         return fig
 
     app.run_server(host=host, port=port)
