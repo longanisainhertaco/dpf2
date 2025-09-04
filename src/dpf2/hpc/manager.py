@@ -146,6 +146,9 @@ class JobManager:
             env = os.environ.copy()
             if gpu_affinity is not None:
                 env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in gpu_affinity)
+            if restart is not None:
+                # Allow job scripts to locate the checkpoint for staging
+                env["DPF_RESTART"] = str(restart)
             return subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
         if self.scheduler == "awsbatch":
             try:
@@ -236,6 +239,8 @@ class JobManager:
                 env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in gpu_affinity)
             elif gpus is not None and host_gpus is None:
                 env["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in range(int(gpus)))
+            if restart is not None:
+                env["DPF_RESTART"] = str(restart)
 
             cmd.extend(script_cmd)
             return subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
