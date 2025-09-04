@@ -385,96 +385,69 @@ def compute_pinch_error_metrics(
 
 
 # ---------------------------------------------------------------------------
-# Embedded experimental datasets
+# Experimental validation helpers
 
-PF1000_DATA: Dict[str, Tuple[np.ndarray, np.ndarray]] = {
-    "current": (
-        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
-        np.array([0.0, 200.0, 400.0, 200.0, 0.0, 0.0]),
-    ),
-    "voltage": (
-        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
-        np.array([20.0, 15.0, 10.0, 5.0, 0.0, 0.0]),
-    ),
-    "neutron_yield": (
-        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
-        np.array([0.0, 0.0, 1.0e11, 0.0, 0.0, 0.0]),
-    ),
-}
-
-MJOLNIR_DATA: Dict[str, Tuple[np.ndarray, np.ndarray]] = {
-    "current": (
-        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
-        np.array([0.0, 100.0, 200.0, 100.0, 0.0, 0.0]),
-    ),
-    "voltage": (
-        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
-        np.array([16.0, 12.0, 8.0, 4.0, 0.0, 0.0]),
-    ),
-    "neutron_yield": (
-        np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
-        np.array([0.0, 0.0, 5.0e9, 0.0, 0.0, 0.0]),
-    ),
-}
-
-_EXPERIMENTAL_DATA = {
-    "PF1000": PF1000_DATA,
-    "MJOLNIR": MJOLNIR_DATA,
-}
+# Root directory for packaged validation datasets ---------------------------
+VALIDATION_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "validation"
 
 
-def get_experiment_dataset(device: str) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
-    """Return embedded benchmark waveforms for an experimental device."""
+def load_validation_dataset(device: str) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+    """Load waveform and yield data for ``device`` from packaged CSV files."""
 
-    key = device.upper()
-    if key not in _EXPERIMENTAL_DATA:
-        raise KeyError(f"unknown device '{device}'")
-    return _EXPERIMENTAL_DATA[key]
+    dataset_dir = VALIDATION_DATA_DIR / device.upper()
+    if not dataset_dir.exists():
+        raise FileNotFoundError(f"unknown device '{device}'")
+    traces: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+    for name in ["current", "voltage", "neutron_yield"]:
+        traces[name] = _load_profile_csv(dataset_dir / f"{name}.csv")
+    return traces
 
 
-def compare_to_experiment(
+def resample_profile(
+    profile: Tuple[np.ndarray, np.ndarray],
+    new_t: np.ndarray,
+    *,
+    method: str = "interpolate",
+) -> np.ndarray:
+    """Resample ``profile`` onto ``new_t`` using ``method``."""
+
+    t, v = profile
+    if method == "interpolate":
+        return np.interp(new_t, t, v)
+    if method == "zero_order":
+        idx = np.searchsorted(t, new_t, side="right") - 1
+        idx = np.clip(idx, 0, len(v) - 1)
+        return v[idx]
+    if method == "downsample":
+        factor = max(1, len(t) // len(new_t))
+        return v[::factor][: len(new_t)]
+    raise ValueError(f"unknown resample method '{method}'")
+
+
+def score_simulation(
     sim_outputs: Dict[str, Tuple[np.ndarray, np.ndarray]],
     device: str,
     tolerances: Dict[str, float],
+    *,
+    resample_method: str = "interpolate",
+    pass_threshold: float = 0.85,
 ) -> Dict[str, Any]:
-    """Compare simulation outputs against experimental waveforms.
+    """Compute per-observable and aggregate validation scores."""
 
-    Parameters
-    ----------
-    sim_outputs:
-        Mapping containing ``current``, ``voltage`` and ``neutron_yield`` entries as
-        ``(time, value)`` tuples.
-    device:
-        Name of the experimental device (``PF1000`` or ``MJOLNIR``).
-    tolerances:
-        Error bounds for waveform RMSE metrics (``current_rmse``, ``voltage_rmse``,
-        ``neutron_yield_rmse``) and the scaling law check ``yield_scaling_pct``.
-    """
-
-    ref = get_experiment_dataset(device)
-
-    metrics = {
-        f"{name}_rmse": _rmse(sim_outputs[name], ref[name])
-        for name in ["current", "voltage", "neutron_yield"]
-    }
-
-    # Scaling law: Yn ∝ I_peak^2 using constant derived from reference
-    ref_I_peak = float(np.max(ref["current"][1]))
-    ref_Y_peak = float(np.max(ref["neutron_yield"][1]))
-    k = ref_Y_peak / ref_I_peak**2 if ref_I_peak else 0.0
-
-    sim_I_peak = float(np.max(sim_outputs["current"][1]))
-    sim_Y_peak = float(np.max(sim_outputs["neutron_yield"][1]))
-    expected_y = k * sim_I_peak**2
-    metrics["yield_scaling_pct"] = (
-        abs(sim_Y_peak - expected_y) / expected_y * 100.0 if expected_y else float("inf")
-    )
-
-    metrics["passed"] = all(
-        metrics.get(k, 0.0) <= tolerances.get(k, float("inf")) for k in metrics
-    )
-
-    return metrics
+    ref = load_validation_dataset(device)
+    scores: Dict[str, float] = {}
+    for name, ref_profile in ref.items():
+        if name not in sim_outputs:
+            continue
+        ref_t, ref_v = ref_profile
+        sim_t, sim_v = sim_outputs[name]
+        sim_rs = resample_profile((sim_t, sim_v), ref_t, method=resample_method)
+        rmse = float(np.sqrt(np.mean((sim_rs - ref_v) ** 2)))
+        norm = np.max(np.abs(ref_v)) or 1.0
+        tol = tolerances.get(name, 1.0)
+        scores[name] = max(0.0, 1.0 - rmse / (norm * tol))
+    overall = sum(scores.values()) / len(scores) if scores else 0.0
+    return {"scores": scores, "overall": overall, "passed": overall >= pass_threshold}
 
 
 __all__ = [
@@ -485,8 +458,9 @@ __all__ = [
     "compute_error_metrics",
     "load_pinch_dataset",
     "compute_pinch_error_metrics",
-    "PF1000_DATA",
-    "MJOLNIR_DATA",
-    "get_experiment_dataset",
-    "compare_to_experiment",
+    "load_validation_dataset",
+    "resample_profile",
+    "score_simulation",
 ]
+
+
