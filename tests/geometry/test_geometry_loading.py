@@ -45,3 +45,19 @@ def test_axisymmetric_profile_from_file():
     prof = AxisymmetricProfile.from_file(path)
     assert prof.r[-1] == 1.0
     assert prof.z[-1] == 2.0
+
+
+def test_load_tapered_cad():
+    path = Path(__file__).with_name("tapered.step")
+    data = load_cad_geometry(path)
+    assert data["materials"] == ["copper", "vacuum"]
+    assert data["features"]["metal"] == [1]
+    assert data["features"]["gap"] == [2]
+
+
+def test_load_hollow_cad():
+    path = Path(__file__).with_name("hollow.step")
+    data = load_cad_geometry(path)
+    assert data["materials"] == ["steel", "air"]
+    assert data["features"]["outer"] == [1, 2]
+    assert data["features"]["inner"] == [2]

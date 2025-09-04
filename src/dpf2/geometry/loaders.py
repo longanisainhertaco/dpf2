@@ -12,35 +12,49 @@ except Exception:  # pragma: no cover - meshio may not be installed
 
 
 def _parse_step_like(lines: List[str]) -> Dict[str, Any]:
-    """Parse a tiny subset of STEP/IGES style geometry.
+    """Parse a small subset of STEP/IGES style geometry.
 
-    The parser understands lines beginning with ``NODE`` to define points and
-    ``TRI`` to define triangular faces.  ``TRI`` statements may include an
-    optional fourth field specifying a material tag for the element.  Indices in
-    ``TRI`` statements are one-based to mimic common CAD conventions.
+    In addition to ``NODE`` and ``TRI`` statements, ``MAT``/``MATERIAL`` lines
+    may define a mapping from numeric identifiers to material names and
+    ``FEATURE`` lines can associate element indices with named groups.  ``TRI``
+    statements may include an optional fourth field specifying a material tag for
+    the element.  Indices in ``TRI`` and ``FEATURE`` statements are one-based to
+    mimic common CAD conventions.
     """
 
     nodes: List[List[float]] = []
     elements: List[List[int]] = []
     materials: List[Any] = []
+    features: Dict[str, List[int]] = {}
+    mat_map: Dict[str, Any] = {}
     for ln in lines:
         parts = ln.split()
         if not parts:
             continue
         tag, *rest = parts
-        if tag.upper() == "NODE" and len(rest) == 3:
+        up = tag.upper()
+        if up == "NODE" and len(rest) == 3:
             nodes.append([float(v) for v in rest])
-        elif tag.upper() == "TRI" and len(rest) in {3, 4}:
+        elif up == "TRI" and len(rest) in {3, 4}:
             elements.append([int(v) for v in rest[:3]])
             if len(rest) == 4:
                 mat = rest[3]
+                mat = mat_map.get(mat, mat)
                 try:
                     materials.append(int(mat))
                 except ValueError:
                     materials.append(mat)
+        elif up in {"MAT", "MATERIAL"} and len(rest) >= 2:
+            key = rest[0]
+            mat_map[key] = rest[1] if len(rest) == 2 else " ".join(rest[1:])
+        elif up == "FEATURE" and len(rest) >= 2:
+            name, idxs = rest[0], rest[1:]
+            features[name] = [int(v) for v in idxs]
     out: Dict[str, Any] = {"nodes": nodes, "elements": elements}
     if materials:
         out["materials"] = materials
+    if features:
+        out["features"] = features
     return out
 
 
@@ -87,6 +101,16 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
                 result: Dict[str, Any] = {"nodes": m.points.tolist(), "elements": elements}
                 if materials:
                     result["materials"] = materials
+                if getattr(m, "cell_sets", None):
+                    feats: Dict[str, List[int]] = {}
+                    for name, sets in m.cell_sets.items():
+                        idxs: List[int] = []
+                        for block in sets:
+                            idxs.extend(block.tolist())
+                        if idxs:
+                            feats[name] = idxs
+                    if feats:
+                        result["features"] = feats
                 return result
             except Exception:
                 pass

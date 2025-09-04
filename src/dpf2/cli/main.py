@@ -193,6 +193,26 @@ def build_config_wizard() -> DPFConfig:
         show_default=True,
     )
 
+    geometry_params: dict[str, Any] = {"type": preset, "length": electrode_length}
+    if preset == "tapered":
+        r_top = click.prompt(
+            "Top radius [m]",
+            type=click.FloatRange(1e-3, 1.0),
+            default=anode_radius,
+            show_default=True,
+        )
+        geometry_params.update({"r_base": cathode_radius, "r_top": r_top})
+    elif preset == "hollow":
+        r_inner = click.prompt(
+            "Inner bore radius [m]",
+            type=click.FloatRange(0.0, cathode_radius),
+            default=cathode_radius / 2,
+            show_default=True,
+        )
+        geometry_params.update({"r_outer": cathode_radius, "r_inner": r_inner})
+    else:
+        geometry_params.update({"r_outer": anode_radius, "r_inner": cathode_radius})
+
     # --- Fill gas ----------------------------------------------------
     click.echo("\nPlasma fill parameters:")
     gas_type = click.prompt(
@@ -277,6 +297,7 @@ def build_config_wizard() -> DPFConfig:
         }
     )
     cfg_dict.update(advanced_cfg)
+    cfg_dict["geometry"] = geometry_params
     return DPFConfig(**cfg_dict)
 
 

@@ -1,0 +1,11 @@
+MAT 1 copper
+MAT 2 vacuum
+NODE 0 0 0
+NODE 1 0 0
+NODE 0 1 0
+NODE 0 0 1
+TRI 1 2 3 1
+TRI 1 3 4 2
+FEATURE metal 1
+FEATURE gap 2
+
