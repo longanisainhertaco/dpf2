@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 /**
  * Renders sheath evolution and J×B vectors using WebGL.
@@ -9,6 +9,9 @@ export default function SheathBeamOverlay({ voltage, pressure }) {
   const canvasRef = useRef(null);
   const voltageRef = useRef(voltage);
   const pressureRef = useRef(pressure);
+  const [phase, setPhase] = useState(0);
+  const phaseRef = useRef(0);
+  const phaseNames = ['Breakdown', 'Rundown', 'Pinch', 'Afterglow'];
 
   useEffect(() => {
     voltageRef.current = voltage;
@@ -17,6 +20,16 @@ export default function SheathBeamOverlay({ voltage, pressure }) {
   useEffect(() => {
     pressureRef.current = pressure;
   }, [pressure]);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // Cycle through synthetic phases to demonstrate annotations
+  useEffect(() => {
+    const timer = setInterval(() => setPhase((p) => (p + 1) % 4), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -99,6 +112,39 @@ export default function SheathBeamOverlay({ voltage, pressure }) {
       }
       drawShape(arrows, gl.LINES, [1, 0.5, 0, 1]);
 
+      // Vector field overlay depending on phase
+      const field = [];
+      const grid = 5;
+      const spacing = 2 / (grid - 1); // normalized device coords
+      for (let i = 0; i < grid; i++) {
+        for (let j = 0; j < grid; j++) {
+          const x = -1 + i * spacing;
+          const y = -1 + j * spacing;
+          let u = 0;
+          let v = 0;
+          switch (phaseRef.current) {
+            case 0:
+              u = x;
+              v = y;
+              break; // Breakdown: radial outward
+            case 1:
+              u = -y;
+              v = x;
+              break; // Rundown: azimuthal
+            case 2:
+              u = -x;
+              v = -y;
+              break; // Pinch: radial inward
+            default:
+              u = 0;
+              v = 0;
+          }
+          const len = 0.1;
+          field.push(x, y, x + u * len, y + v * len);
+        }
+      }
+      drawShape(field, gl.LINES, [0, 1, 0, 1]);
+
       requestAnimationFrame(render);
     };
     render();
@@ -108,10 +154,13 @@ export default function SheathBeamOverlay({ voltage, pressure }) {
     <div className="overlay" title="Shows sheath edge and J×B drift using WebGL">
       <h4>Sheath &amp; J×B</h4>
       <canvas ref={canvasRef} width="200" height="200" title="Live WebGL canvas" />
+      <div>Phase: {phaseNames[phase]}</div>
       <details>
         <summary>What is this?</summary>
         The cyan disc approximates the sheath boundary and orange lines depict
         J×B drift. Radius follows voltage; arrow length scales with pressure.
+        Green arrows overlay a synthetic vector field that changes with the
+        annotated phase.
       </details>
     </div>
   );
