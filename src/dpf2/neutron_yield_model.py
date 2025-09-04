@@ -19,7 +19,7 @@ from typing import (
 import math
 import numpy as np
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 from .utils.pydantic_compat import model_validator as _model_validator
 
 
@@ -27,17 +27,6 @@ from .utils.pydantic_compat import model_validator as _model_validator
 
 
 from .core_schema import ConfigSectionBase, to_camel_case
-
-
-def from_camel_case(string: str) -> str:
-    out = []
-    for ch in string:
-        if ch.isupper():
-            out.append("_")
-            out.append(ch.lower())
-        else:
-            out.append(ch)
-    return "".join(out)
 
 from .units_settings import UnitsSettings
 
@@ -87,8 +76,12 @@ class NeutronYieldModel(ConfigSectionBase):
     # Thermonuclear fusion configuration
     reactivity_source: Literal["look-up", "analytic", "FLYCHK"] = "look-up"
     maxwellian_assumed: bool = True
-    average_ion_temperature_keV: Optional[float] = None
-    average_ion_density_cm3: Optional[float] = None
+    average_ion_temperature_keV: Optional[float] = Field(
+        None, alias="averageIonTemperatureKeV"
+    )
+    average_ion_density_cm3: Optional[float] = Field(
+        None, alias="averageIonDensityCm3"
+    )
     dd_branching_ratio: Optional[float] = Field(0.5, ge=0.0, le=1.0)
     reactivity_table_path: Optional[Path] = None
     reactivity_table_units: Optional[Dict[str, str]] = {"Ti": "keV", "reactivity": "cm^3/s"}
@@ -96,7 +89,9 @@ class NeutronYieldModel(ConfigSectionBase):
     # ------------------------------------------------------------------
     # Spectrum output and detector modeling
     neutron_spectrum_output_enabled: bool = True
-    spectrum_energy_bins_MeV: Optional[List[float]] = None
+    spectrum_energy_bins_MeV: Optional[List[float]] = Field(
+        None, alias="spectrumEnergyBinsMeV"
+    )
     anisotropic_spectrum: bool = False
     spectrum_output_format: Optional[Literal["csv", "OpenPMD", "plot", "hdf5"]] = "csv"
     apply_detector_response_function: bool = False
@@ -174,19 +169,7 @@ class NeutronYieldModel(ConfigSectionBase):
         return hashlib.sha256(serialized.encode()).hexdigest()
 
     # ------------------------------------------------------------------
-    @classmethod
-    def model_validate(cls, data: Dict[str, Any]) -> "NeutronYieldModel":
-        alias_map = {to_camel_case(n): n for n in cls.__annotations__}
-        for n in list(alias_map):
-            if n.endswith("Mev"):
-                alias_map[n[:-3] + "MeV"] = alias_map[n]
-        cleaned = {
-            alias_map.get(k, from_camel_case(k)): v for k, v in data.items()
-        }
-        inst = cls(**cleaned)
-        return cls.check_rules(inst)
-
-    @classmethod
+    @_model_validator(mode="after")
     def check_rules(cls, values: "NeutronYieldModel") -> "NeutronYieldModel":
         if (
             values.thermonuclear_model_enabled
