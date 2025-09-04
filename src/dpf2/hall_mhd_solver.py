@@ -32,6 +32,7 @@ from .eos import EOSBase, IdealGasEOS
 from .boundary_conditions import KineticSheath
 from .physics.energy import EnergyTracker
 from .diagnostics.quality_dashboard import QualityDashboard
+from .diagnostics.modes import azimuthal_mode_spectrum
 
 logger = logging.getLogger(__name__)
 
@@ -332,6 +333,9 @@ class HallMHDSolver(PlasmaSolverBase):
     anomalous_resistivity: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
     lower_hybrid_drift: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
     m0_instability: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
+    instability_thresholds: Dict[str, float] | None = None
+    sausage_onset: bool = field(init=False, default=False)
+    kink_onset: bool = field(init=False, default=False)
     voltage_spikes: list[float] = field(default_factory=list)
     impedance_growth: list[float] = field(default_factory=list)
     last_voltage_spike: float = field(init=False, default=0.0)
@@ -398,6 +402,9 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.m0_instability is not None:
             _accumulate(self.m0_instability(J), axial=True)
 
+        if self.instability_thresholds:
+            self._check_instability_onset(J)
+
         if hasattr(np, "abs"):
             mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
         else:  # pragma: no cover - very small stub fallback
@@ -413,6 +420,32 @@ class HallMHDSolver(PlasmaSolverBase):
         self.last_voltage_spike = spike
         self.last_E_anom = E
         return eta
+
+    # ------------------------------------------------------------------
+    def _check_instability_onset(self, J: np.ndarray) -> None:
+        """Check azimuthal mode amplitudes against configured thresholds."""
+
+        if not self.instability_thresholds:
+            return
+        try:
+            J_mag = np.linalg.norm(J, axis=-1)
+        except Exception:  # pragma: no cover - very small stub fallback
+            return
+        spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
+        if (
+            not self.sausage_onset
+            and "sausage" in self.instability_thresholds
+            and len(spectrum) > 0
+            and spectrum[0] >= self.instability_thresholds["sausage"]
+        ):
+            self.sausage_onset = True
+        if (
+            not self.kink_onset
+            and "kink" in self.instability_thresholds
+            and len(spectrum) > 1
+            and spectrum[1] >= self.instability_thresholds["kink"]
+        ):
+            self.kink_onset = True
 
     def amr_refinement(self, state: MHDState) -> None:
         """Invoke the refinement callback if provided."""
