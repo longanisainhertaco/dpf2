@@ -43,6 +43,12 @@ from .plasma import (
     compute_eedf,
     save_eedf_hdf5,
 )
+from .neutron_spectra import (
+    DetectorLayout,
+    synthetic_tof_spectrum,
+    angular_spectrum,
+    anisotropy_metric,
+)
 
 
 def apply_noise(
@@ -98,6 +104,10 @@ __all__ = [
     "save_density_temperature_map_hdf5",
     "compute_eedf",
     "save_eedf_hdf5",
+    "DetectorLayout",
+    "synthetic_tof_spectrum",
+    "angular_spectrum",
+    "anisotropy_metric",
     "Diagnostics",
     "DetectorArrayGenerator",
     "OutputField",
