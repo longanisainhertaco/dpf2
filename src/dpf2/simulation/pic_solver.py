@@ -22,8 +22,10 @@ from numba import njit, prange
 from typing import List, Dict, Tuple, Optional, Callable
 from pathlib import Path
 from ..core.bases import CouplingState
-from ..diagnostics import synthetic_signals
+from ..diagnostics import synthetic_signals, IonBeamEDF, compute_beam_target_yield
 from ..diagnostics.quality_dashboard import QualityDashboard
+from ..fusion import bosch_hale_dd
+from ..physics import EnergyTracker
 from .config_schema import PICConfig
 from .models import PhysicsModule
 from .utils import FieldManager, SimulationState
@@ -198,6 +200,9 @@ class PICSolver(PhysicsModule):
         ) if config.use_warpx else None
         self.coupling_state = CouplingState()
         self.history: List[CouplingState] = []
+        self.axial_E_history: List[float] = []
+        self.beam_energy_history: List[float] = []
+        self.beam_yield_history: List[float] = []
         self.m0_instability_model: Optional[MZeroInstability] = None
         self.anomalous_resistivity_model: Optional[AnomalousResistivity] = None
         self.lhdi_model: Optional[LHDIResistivity] = None
@@ -552,22 +557,41 @@ class PICSolver(PhysicsModule):
     #-------------------------------------------------------------------------------------
     # Main step
     #-------------------------------------------------------------------------------------
-    def step(self, current: float = 0.0, voltage: float = 0.0):
+    def step(self, current: float = 0.0, voltage: float = 0.0, energy_tracker: EnergyTracker | None = None):
         """Advances the PIC simulation by one time step."""
         try:
             self.deposit_charge()
             self.deposit_current()
             self.solve_fields()
             E = self.field_manager.get_E()
+            B = self.field_manager.get_B()
             if voltage:
                 E[2] += voltage / (self.nz * self.dz)
                 self.field_manager.update_E(E)
-            B = self.field_manager.get_B()
+            axial_E = float(np.mean(E[2]))
+            self.axial_E_history.append(axial_E)
             for name, spc in self.species.items():  # Loop over species
                 self.boris_push_numba(spc['pos'], spc['vel'], spc['q'], spc['m'], self.dt,
                                       E, B, self.origin, (self.dx, self.dy, self.dz),
                                       self.bc_codes, (self.nx, self.ny, self.nz))
             self.apply_collisions()
+            beam_energy_keV = 0.0
+            for spc in self.species.values():
+                if spc['q'] > 0 and spc['vel'].size:
+                    vz = spc['vel'][:, 2]
+                    eng = 0.5 * spc['m'] * vz ** 2
+                    pos = eng[eng > 0]
+                    if pos.size:
+                        beam_energy_keV = float(np.mean(pos) / 1.602176634e-16)
+                    break
+            self.beam_energy_history.append(beam_energy_keV)
+            class _MonoBeam(IonBeamEDF):
+                def __init__(self, e_keV: float):
+                    self.e_keV = e_keV
+                def energy_distribution(self, angle_deg: float):
+                    return [0.0, self.e_keV], [0.0, 1.0]
+            yields, _ = compute_beam_target_yield(_MonoBeam(beam_energy_keV), bosch_hale_dd, [0.0], 1.0, [0.0, 1.0])
+            self.beam_yield_history.append(float(yields[0]) if yields else 0.0)
             if self.enable_quantum and self.quantum_model:
                 self.quantum_model()
             if self.enable_radiation and self.radiation_model:
@@ -578,11 +602,18 @@ class PICSolver(PhysicsModule):
             if self.mesh_adapter:
                 self.mesh_adapter()
             self.stream_to_unity()
-            axial_E = float(np.mean(E[2]))
             length = self.nz * self.dz
             emf = axial_E * length
             self.coupling_state = CouplingState(emf=emf, current=current, voltage=voltage, back_reaction=emf)
             self.history.append(self.coupling_state)
+            if energy_tracker is not None:
+                cell_volume = self.dx * self.dy * self.dz
+                ke = 0.0
+                for spc in self.species.values():
+                    ke += 0.5 * spc['m'] * np.sum(np.linalg.norm(spc['vel'], axis=1) ** 2)
+                fe = 0.5 * PICSolver.epsilon0 * np.sum(E ** 2) * cell_volume
+                fm = 0.5 / PICSolver.mu0 * np.sum(B ** 2) * cell_volume
+                energy_tracker.add(capacitor=fe, magnetic=fm, kinetic=ke)
             if self.quality:
                 self.step_count += 1
                 cell_size = min(self.dx, self.dy, self.dz)
@@ -768,6 +799,16 @@ class PICSolver(PhysicsModule):
             except Exception:
                 results[dev] = float('inf')
         return results
+
+    def validate_mjolnir_beam_target(self, data_dir: Optional[Path] = None) -> float:
+        """Return absolute error between simulated and reference beam-target yield."""
+        base = Path(data_dir) if data_dir else Path('data/validation') / 'MJOLNIR'
+        data = np.loadtxt(base / 'neutron_yield.csv', delimiter=',', skiprows=1)
+        ref = float(np.max(data[:, 1]))
+        if not self.beam_yield_history:
+            return float('inf')
+        sim = float(np.max(self.beam_yield_history))
+        return float(abs(sim - ref))
 
     #-------------------------------------------------------------------------------------
     # UQ & V&V
