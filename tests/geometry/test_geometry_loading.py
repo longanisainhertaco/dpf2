@@ -8,12 +8,14 @@ def test_load_step_geometry():
     data = load_cad_geometry(path)
     assert len(data["nodes"]) == 3
     assert data["elements"][0] == [1, 2, 3]
+    assert data["materials"][0] == "steel"
 
 
 def test_load_iges_geometry():
     path = Path(__file__).with_name("sample.igs")
     data = load_cad_geometry(path)
     assert len(data["elements"]) == 1
+    assert data["materials"][0] == 7
 
 
 def test_load_axisymmetric_mesh():

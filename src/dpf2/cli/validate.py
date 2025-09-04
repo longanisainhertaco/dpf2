@@ -24,7 +24,7 @@ import numpy as np
 
 from ..dpf_config import DPFConfig
 from ..simulation_engine import SimulationEngine, SimulationResults
-from ..validation_suite import ValidationSuite
+from ..validation_suite import ValidationSuite, score_simulation
 from ..scaling_laws import compare_to_scaling
 
 
@@ -76,42 +76,6 @@ def _simulation_observables(res: SimulationResults) -> Dict[str, Tuple[np.ndarra
         "V(t)": (res.time * 1e6, res.voltage / 1e3),
         "Yn": (np.array([0.0]), np.array([res.neutron_yield])),
     }
-
-
-def _score_observable(
-    sim: Tuple[np.ndarray, np.ndarray],
-    exp: Tuple[np.ndarray, np.ndarray],
-    tolerance: float,
-) -> float:
-    """Compute a simple normalized RMSE score for a single observable."""
-    exp_t, exp_v = exp
-    sim_t, sim_v = sim
-    sim_interp = np.interp(exp_t, sim_t, sim_v)
-    rmse = float(np.sqrt(np.mean((sim_interp - exp_v) ** 2)))
-    norm = np.max(np.abs(exp_v)) or 1.0
-    return max(0.0, 1.0 - rmse / (norm * tolerance))
-
-
-def _compute_scores(
-    res: SimulationResults,
-    vsuite: ValidationSuite,
-    exp: Dict[str, Tuple[np.ndarray, np.ndarray]],
-) -> Tuple[Dict[str, float], float, bool]:
-    """Calculate per-observable and aggregate scores."""
-    sim = _simulation_observables(res)
-    scores: Dict[str, float] = {}
-    for obs in vsuite.validation_targets:
-        if obs not in exp or obs not in sim:
-            continue
-        tol = vsuite.observable_tolerances.get(obs, 1.0)
-        scores[obs] = _score_observable(sim[obs], exp[obs], tol)
-    weights = vsuite.observable_weighting or {k: 1.0 for k in scores}
-    total = sum(weights.values()) or 1.0
-    overall = (
-        sum(scores.get(k, 0.0) * weights.get(k, 0.0) for k in scores) / total
-    )
-    passed = overall >= vsuite.score_pass_threshold
-    return scores, overall, passed
 
 
 def _plot_overlays(
@@ -166,21 +130,44 @@ def run_validation(config: Path, dataset: str, *, outdir: Path = Path("validatio
 
     vsuite = _build_validation_suite(dataset)
     exp = _load_experimental(vsuite)
-    scores, overall, passed = _compute_scores(results, vsuite, exp)
+    sim = _simulation_observables(results)
+    tol_map = {
+        "current": vsuite.observable_tolerances.get("I(t)", 1.0),
+        "voltage": vsuite.observable_tolerances.get("V(t)", 1.0),
+        "neutron_yield": vsuite.observable_tolerances.get("Yn", 1.0),
+    }
+    weight_map = None
+    if vsuite.observable_weighting:
+        weight_map = {
+            "current": vsuite.observable_weighting.get("I(t)", 0.0),
+            "voltage": vsuite.observable_weighting.get("V(t)", 0.0),
+            "neutron_yield": vsuite.observable_weighting.get("Yn", 0.0),
+        }
+    report = score_simulation(
+        sim,
+        dataset,
+        tol_map,
+        resample_method=vsuite.resample_method or "interpolate",
+        weights=weight_map,
+        pass_threshold=vsuite.score_pass_threshold,
+    )
     _plot_overlays(results, exp, outdir)
+
+    outdir.mkdir(parents=True, exist_ok=True)
+    with (outdir / "validation_report.json").open("w") as fh:
+        json.dump(report, fh, indent=2)
 
     metrics = compare_to_scaling(results, vsuite.dataset_directory)
     if metrics:
-        outdir.mkdir(parents=True, exist_ok=True)
         with (outdir / "scaling_report.json").open("w") as fh:
             json.dump(metrics, fh, indent=2)
 
-    for name, score in scores.items():
+    for name, score in report["scores"].items():
         print(f"{name}: {score:.3f}")
-        
-    print(f"Overall score: {overall:.3f}")
-    print("Validation passed" if passed else "Validation failed")
-    return passed
+
+    print(f"Overall score: {report['overall']:.3f}")
+    print("Validation passed" if report["passed"] else "Validation failed")
+    return report["passed"]
 
 
 def main(argv: Iterable[str] | None = None) -> None:

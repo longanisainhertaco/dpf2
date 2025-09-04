@@ -1,4 +1,7 @@
+"""Tests for the :mod:`dpf2.hpc` job manager."""
+
 from pathlib import Path
+
 from dpf2.hpc import JobManager
 
 
@@ -7,12 +10,15 @@ def test_slurm_submit_options(tmp_path, monkeypatch):
     script.write_text("#!/bin/bash\n")
     jm = JobManager("slurm")
 
-    called = {}
+    called: dict[str, object] = {}
 
-    def fake_run(cmd, capture_output, text, check, env):
+    def fake_run(cmd, capture_output, text, check, env):  # type: ignore[override]
         called["cmd"] = cmd
         called["env"] = env
-        class R: pass
+
+        class R:
+            pass
+
         return R()
 
     monkeypatch.setattr("subprocess.run", fake_run)
@@ -38,6 +44,7 @@ def test_slurm_submit_options(tmp_path, monkeypatch):
     idx = cmd.index(str(script))
     assert cmd[idx + 1 : idx + 5] == ["--foo", "bar", "--restart", "chkpt.dat"]
     assert env["CUDA_VISIBLE_DEVICES"] == "0,1"
+    assert env["DPF_RESTART"] == "chkpt.dat"
 
 
 def test_mpi_node_topology_and_restart(tmp_path, monkeypatch):
@@ -45,12 +52,15 @@ def test_mpi_node_topology_and_restart(tmp_path, monkeypatch):
     script.write_text("#!/bin/bash\n")
     jm = JobManager("mpi")
 
-    called = {}
+    called: dict[str, object] = {}
 
-    def fake_run(cmd, capture_output, text, check, env):
+    def fake_run(cmd, capture_output, text, check, env):  # type: ignore[override]
         called["cmd"] = cmd
         called["env"] = env
-        class R: pass
+
+        class R:
+            pass
+
         return R()
 
     monkeypatch.setattr("subprocess.run", fake_run)
@@ -74,3 +84,5 @@ def test_mpi_node_topology_and_restart(tmp_path, monkeypatch):
     idx = cmd.index(str(script))
     assert cmd[idx + 1 : idx + 3] == ["--restart", "chk.dat"]
     assert env["CUDA_VISIBLE_DEVICES"] == "0,1"
+    assert env["DPF_RESTART"] == "chk.dat"
+

@@ -3,7 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal
+from bisect import bisect_right
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal, Callable, Sequence, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator as _model_validator
@@ -25,6 +26,13 @@ def from_camel_case(string: str) -> str:
             out.append(ch)
     return "".join(out)
 from .units_settings import UnitsSettings
+
+
+class IonBeamEDF(Protocol):
+    """Protocol providing ion energy distributions by angle."""
+
+    def energy_distribution(self, angle_deg: float) -> Tuple[Sequence[float], Sequence[float]]:
+        ...
 
 
 class NeutronYieldModel(ConfigSectionBase):
@@ -210,4 +218,98 @@ class NeutronYieldModel(ConfigSectionBase):
         return values
 
 
-__all__ = ["NeutronYieldModel"]
+class TabulatedIonEDF(IonBeamEDF):
+    """Simple in-memory implementation of :class:`IonBeamEDF`.
+
+    The distribution is stored as a mapping from detector angle in degrees to a
+    tuple ``(energies, flux)`` where both entries are sequences of equal length
+    containing the ion energy grid and the corresponding differential flux
+    values.
+    """
+
+    def __init__(self, data: Dict[float, Tuple[Sequence[float], Sequence[float]]]):
+        self._data: Dict[float, Tuple[List[float], List[float]]] = {
+            float(a): ([float(e) for e in en], [float(f) for f in fl])
+            for a, (en, fl) in data.items()
+        }
+
+    def energy_distribution(self, angle_deg: float) -> Tuple[Sequence[float], Sequence[float]]:
+        return self._data.get(float(angle_deg), ([], []))
+
+    @classmethod
+    def from_json(cls, path: str | Path) -> "TabulatedIonEDF":
+        """Create an instance from a JSON file.
+
+        The JSON structure is expected to have ``angles``, ``energies`` and
+        ``distributions`` fields where ``distributions[i]`` corresponds to the
+        differential flux at ``angles[i]`` over the shared ``energies`` grid.
+        """
+
+        obj = json.loads(Path(path).read_text())
+        angles = obj.get("angles", [])
+        energies = obj.get("energies", [])
+        dists = obj.get("distributions", [])
+        if len(angles) != len(dists):
+            raise ValueError("angles and distributions length mismatch")
+        data = {
+            float(ang): (energies, dists[i])
+            for i, ang in enumerate(angles)
+        }
+        return cls(data)
+
+
+def compute_directional_spectrum(
+    ion_edf: IonBeamEDF,
+    cross_section: Callable[[float], float],
+    angles: Sequence[float],
+    energy_bins: Sequence[float],
+) -> List[List[float]]:
+    """Compute energy spectra ``dN/dE`` for multiple detector angles.
+
+    Parameters
+    ----------
+    ion_edf:
+        Provider of ion energy distributions.
+    cross_section:
+        Callable returning the reaction cross section for a given energy.
+    angles:
+        Sequence of detector angles in degrees.
+    energy_bins:
+        Monotonic sequence of energy bin edges in joules.
+
+    Returns
+    -------
+    list of list of float
+        Spectral yield for each angle and energy bin.
+    """
+
+    if any(energy_bins[i] >= energy_bins[i + 1] for i in range(len(energy_bins) - 1)):
+        raise ValueError("energy_bins must be monotonically increasing")
+
+    spectra: List[List[float]] = []
+    for ang in angles:
+        energies, dist = ion_edf.energy_distribution(float(ang))
+        e = [float(v) for v in energies]
+        f = [float(v) for v in dist]
+        if len(e) != len(f):
+            raise ValueError("energies and distribution must have the same length")
+        hist = [0.0 for _ in range(len(energy_bins) - 1)]
+        for i in range(len(e) - 1):
+            e1, e2 = e[i], e[i + 1]
+            f1, f2 = f[i], f[i + 1]
+            s1, s2 = cross_section(e1), cross_section(e2)
+            dE = e2 - e1
+            contrib = 0.5 * (f1 * s1 + f2 * s2) * dE
+            e_mid = (e1 + e2) / 2.0
+            idx = bisect_right(energy_bins, e_mid) - 1
+            if 0 <= idx < len(hist):
+                hist[idx] += contrib
+        spectra.append(hist)
+    return spectra
+
+
+__all__ = [
+    "NeutronYieldModel",
+    "TabulatedIonEDF",
+    "compute_directional_spectrum",
+]

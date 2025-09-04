@@ -25,4 +25,6 @@ def test_run_validation_creates_report(tmp_path):
     outdir = tmp_path / "out"
     ok = run_validation(cfg_path, "PF1000", outdir=outdir)
     assert (outdir / "scaling_report.json").exists()
+    report = (outdir / "validation_report.json").read_text()
+    assert "rmse" in report and "l2" in report
     assert isinstance(ok, bool)

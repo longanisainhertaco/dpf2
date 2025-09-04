@@ -107,10 +107,10 @@ def build_config_wizard() -> DPFConfig:
 
     click.echo("DPF2 configuration wizard\n")
     defaults = DPFConfig()
-    click.echo("Geometry presets: mather, filippov or custom.")
+    click.echo("Geometry presets: mather, filippov, tapered, hollow, re-entrant or custom.")
     preset = click.prompt(
         "Select geometry preset",
-        type=click.Choice(["mather", "filippov", "custom"]),
+        type=click.Choice(["mather", "filippov", "tapered", "hollow", "re-entrant", "custom"]),
         default="mather",
         show_choices=True,
     )
@@ -121,6 +121,18 @@ def build_config_wizard() -> DPFConfig:
     elif preset == "mather":
         defaults = dataclasses.replace(
             defaults, cathode_radius=0.02, anode_radius=0.04, electrode_length=0.1
+        )
+    elif preset == "tapered":
+        defaults = dataclasses.replace(
+            defaults, cathode_radius=0.02, anode_radius=0.04, electrode_length=0.1
+        )
+    elif preset == "hollow":
+        defaults = dataclasses.replace(
+            defaults, cathode_radius=0.025, anode_radius=0.05, electrode_length=0.12
+        )
+    elif preset == "re-entrant":
+        defaults = dataclasses.replace(
+            defaults, cathode_radius=0.02, anode_radius=0.045, electrode_length=0.1
         )
 
     # --- Device size -------------------------------------------------

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from bisect import bisect_right
-from typing import Callable, Protocol, Sequence, Tuple
+from typing import Callable, Protocol, Sequence, Tuple, Dict, List
 
 import h5py_stub as h5py  # type: ignore
 import math
+from ..neutron_yield_model import compute_directional_spectrum
 
 
 def compute_neutron_yield(reaction_rate: Sequence[float], dt: float) -> float:
@@ -46,6 +47,8 @@ def compute_beam_target_yield(
     distance: float,
     time_bins: Sequence[float],
     m_n: float = 1.674e-27,
+    response_fn: Callable[[float], float] | None = None,
+    noise_fn: Callable[[float], float] | None = None,
 ) -> tuple[list[float], list[list[float]]]:
     """Integrate EDF×σ(E) and compute TOF histograms for each angle.
 
@@ -63,6 +66,10 @@ def compute_beam_target_yield(
         Monotonic sequence of time bin edges in seconds.
     m_n:
         Neutron mass used for flight time calculation in kg.
+    response_fn, noise_fn:
+        Optional callables applied to the integrated yield and TOF histogram.
+        ``response_fn`` is evaluated first and ``noise_fn`` should return a
+        noise contribution for the response-corrected value.
 
     Returns
     -------
@@ -100,7 +107,23 @@ def compute_beam_target_yield(
             idx = bisect_right(time_bins, t) - 1
             if 0 <= idx < len(hist):
                 hist[idx] += contrib
-        yields.append(integ)
+        if response_fn or noise_fn:
+            hist_processed: list[float] = []
+            for val in hist:
+                if response_fn:
+                    val = response_fn(val)
+                if noise_fn:
+                    val += noise_fn(val)
+                hist_processed.append(val)
+            hist = hist_processed
+            yield_val = integ
+            if response_fn:
+                yield_val = response_fn(yield_val)
+            if noise_fn:
+                yield_val += noise_fn(yield_val)
+        else:
+            yield_val = integ
+        yields.append(yield_val)
         tofs.append(hist)
     return yields, tofs
 
@@ -115,6 +138,31 @@ def compute_thermonuclear_yield(
         raise ValueError("reactivity and ion_density must be same length")
     rate = [r * n ** 2 for r, n in zip(reactivity, ion_density)]
     return compute_neutron_yield(rate, dt)
+
+
+def simulate_tof_detectors(
+    ion_edf: IonBeamEDF,
+    cross_section: Callable[[float], float],
+    angles: Sequence[float],
+    distance: float,
+    time_bins: Sequence[float],
+    detector_names: Sequence[str] | None = None,
+    response_fn: Callable[[float], float] | None = None,
+    noise_fn: Callable[[float], float] | None = None,
+) -> Dict[str, List[float]]:
+    """Generate synthetic neutron time-of-flight detector histograms."""
+
+    _, tofs = compute_beam_target_yield(
+        ion_edf, cross_section, angles, distance, time_bins
+    )
+    dets: Dict[str, List[float]] = {}
+    for i, hist in enumerate(tofs):
+        processed = [response_fn(v) if response_fn else v for v in hist]
+        if noise_fn:
+            processed = [v + noise_fn(v) for v in processed]
+        name = detector_names[i] if detector_names else f"detector_{i}"
+        dets[name] = [float(v) for v in processed]
+    return dets
 
 
 def save_anisotropic_spectrum_hdf5(
@@ -183,10 +231,83 @@ def save_anisotropic_spectrum_hdf5(
             ds.attrs["unitSI"] = 1.0
 
 
+def save_tof_hdf5(
+    path: str | Path,
+    time_bins: Sequence[float],
+    detectors: Dict[str, Sequence[float]],
+    openpmd: bool = False,
+) -> None:
+    """Export synthetic time-of-flight detector data to an HDF5 file."""
+
+    with h5py.File(path, "w") as fh:
+        base = fh
+        if openpmd:
+            fh.attrs.update(
+                {
+                    "openPMD": "1.1.0",
+                    "basePath": "/data/%T/",
+                    "iterationEncoding": "groupBased",
+                    "iterationFormat": "%T",
+                    "software": "dpf2",
+                }
+            )
+            base = fh.require_group("data/0")
+        t_ds = base.create_dataset("time_s", data=[float(t) for t in time_bins])
+        t_ds.data = list(t_ds.data)
+        t_ds.attrs["unitSI"] = 1.0
+        grp = base.require_group("detectors")
+        for name, hist in detectors.items():
+            ds = grp.create_dataset(name, data=[float(v) for v in hist])
+            ds.data = list(ds.data)
+            ds.attrs["unitSI"] = 1.0
+
+
+def angular_yield_map(
+    ion_edf: IonBeamEDF,
+    cross_section: Callable[[float], float],
+    angles: Sequence[float],
+    energy_bins: Sequence[float],
+) -> List[List[float]]:
+    """Wrapper around :func:`compute_directional_spectrum` for diagnostics."""
+
+    return compute_directional_spectrum(ion_edf, cross_section, angles, energy_bins)
+
+
+def save_angular_yield_map_hdf5(
+    path: str | Path,
+    energy_bins: Sequence[float],
+    angles: Sequence[float],
+    spectrum: Sequence[Sequence[float]],
+    detector_names: Sequence[str] | None = None,
+    response_fn: Callable[[float], float] | None = None,
+    noise_fn: Callable[[float], float] | None = None,
+    openpmd: bool = False,
+) -> None:
+    """Export angular yield map to HDF5 using standard spectrum layout."""
+    energies = [
+        (energy_bins[i] + energy_bins[i + 1]) / 2.0
+        for i in range(len(energy_bins) - 1)
+    ]
+    save_anisotropic_spectrum_hdf5(
+        path,
+        energies,
+        angles,
+        spectrum,
+        detector_names=detector_names,
+        response_fn=response_fn,
+        noise_fn=noise_fn,
+        openpmd=openpmd,
+    )
+
+
 __all__ = [
     "IonBeamEDF",
     "compute_neutron_yield",
     "compute_beam_target_yield",
     "compute_thermonuclear_yield",
     "save_anisotropic_spectrum_hdf5",
+    "simulate_tof_detectors",
+    "save_tof_hdf5",
+    "angular_yield_map",
+    "save_angular_yield_map_hdf5",
 ]

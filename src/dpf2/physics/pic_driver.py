@@ -7,37 +7,14 @@ import numpy as np
 
 if TYPE_CHECKING:  # pragma: no cover - for typing only
     from ..hall_mhd_solver import MHDState
+    from .pic import SimplePIC
 
 
 class PicDriver(Protocol):
-    """Minimal interface for an external PIC driver.
-
-    The driver advances kinetic particles and exchanges data with the
-    fluid-hybrid pinch model.  Only the very small subset of functionality
-    exercised in the unit tests is defined here which keeps the dependency
-    surface extremely small.
-    """
+    """Minimal interface for an external PIC driver."""
 
     def step(self, state: "MHDState", current: float, dt: float) -> Tuple[float, float, float]:
-        """Advance the PIC model.
-
-        Parameters
-        ----------
-        state:
-            Full MHD state at the beginning of the time step.
-        current:
-            Circuit current in amperes.
-        dt:
-            Time step in seconds.
-
-        Returns
-        -------
-        tuple of float
-            A triple ``(radius, energy, current)`` giving the characteristic
-            plasma radius [m], the particle energy [J] and the effective
-            current [A] to be applied to the fluid region after the step.
-        """
-        ...
+        """Advance the PIC model."""
 
     def exchange_fields(
         self,
@@ -52,25 +29,37 @@ class PicDriver(Protocol):
 
 
 @dataclass
-class SimplePicDriver:
-    """Very small stand‑in PIC driver used in tests and examples.
+class PhysicalPICDriver:
+    """Lightweight physical PIC backend used in tests.
 
-    The model evolves a single characteristic radius which shrinks in
-    proportion to the supplied circuit current.  The kinetic energy is
-    increased by ``current**2`` scaled by ``energy_coeff``.  Both the
-    contraction and energy coefficients are chosen simply to give numbers of
-    order unity for the unit tests and have no physical significance.
+    The driver wraps :class:`dpf2.physics.pic.SimplePIC` to provide a minimal
+    particle-in-cell coupling.  Fields and particle distributions are exchanged
+    with the fluid model so that unit tests can verify kinetic–fluid
+    interaction on three-dimensional grids.
     """
 
-    radius: float = 1e-2
-    energy: float = 0.0
-    contraction: float = 1e-8
-    energy_coeff: float = 1e-6
+    pic: "SimplePIC"
+    field_coeff: float = 1.0
+    B_coeff: float = 1.0
+    last_E: np.ndarray | None = None
+    last_B: np.ndarray | None = None
+
+    def __post_init__(self) -> None:
+        self.last_E = np.zeros((1, 1, 1, 3))
+        self.last_B = np.zeros((1, 1, 1, 3))
 
     def step(self, state: "MHDState", current: float, dt: float) -> Tuple[float, float, float]:
-        self.radius = max(1e-3, self.radius - current * dt * self.contraction)
-        self.energy += current * current * dt * self.energy_coeff
-        return self.radius, self.energy, current
+        voltage = current * self.field_coeff
+        self.pic.step(state, dt, current, voltage)
+        pos = np.asarray(self.pic.positions)
+        vel = np.asarray(self.pic.velocities)
+        radius = float(np.sqrt(np.mean(pos**2))) if pos.size else 0.0
+        energy = float(0.5 * self.pic.mass * np.sum(vel**2))
+        Ez = voltage / self.pic.length if self.pic.length else 0.0
+        By = self.B_coeff * current / (2 * np.pi * max(radius, 1e-6))
+        self.last_E[0, 0, 0] = [0.0, 0.0, Ez]
+        self.last_B[0, 0, 0] = [0.0, By, 0.0]
+        return radius, energy, current
 
     def exchange_fields(
         self,
@@ -78,14 +67,17 @@ class SimplePicDriver:
         Tuple[np.ndarray, np.ndarray, np.ndarray],
         Tuple[np.ndarray, np.ndarray, np.ndarray],
     ]:
-        return (np.empty(0), np.empty(0), np.empty(0)), (
-            np.empty(0),
-            np.empty(0),
-            np.empty(0),
-        )
+        E = (self.last_E[..., 0], self.last_E[..., 1], self.last_E[..., 2])
+        B = (self.last_B[..., 0], self.last_B[..., 1], self.last_B[..., 2])
+        return E, B
 
     def exchange_particles(self) -> Tuple[np.ndarray, np.ndarray]:
-        return np.empty((0, 3)), np.empty((0, 3))
+        positions = np.zeros((len(self.pic.positions), 3))
+        velocities = np.zeros((len(self.pic.velocities), 3))
+        if positions.size:
+            positions[:, 2] = np.asarray(self.pic.positions)
+            velocities[:, 2] = np.asarray(self.pic.velocities)
+        return positions, velocities
 
 
 # ---------------------------------------------------------------------------
@@ -96,14 +88,7 @@ try:  # pragma: no cover - exercised when WarpX dependency is present
 
     @dataclass
     class WarpXPICDriver(_WarpXPicmiDriver):  # type: ignore[misc]
-        """PIC driver that delegates to the WarpX PICMI interface.
-
-        This thin wrapper re-exposes :class:`WarpXPicmiDriver` under a more
-        convenient name and adds a simple particle exchange method used by the
-        hybrid pinch model.  The heavy lifting is provided by the
-        :mod:`dpf2.physics.warpx_picmi` module which in turn relies on the
-        `pywarpx` package.
-        """
+        """PIC driver that delegates to the WarpX PICMI interface."""
 
         def exchange_particles(self) -> Tuple[_np.ndarray, _np.ndarray]:
             """Return particle positions and velocities from WarpX."""
@@ -123,9 +108,6 @@ try:  # pragma: no cover - exercised when WarpX dependency is present
             vel = _np.array(container.get_velocities())
             return pos, vel
 
-        # ``step`` from ``WarpXPicmiDriver`` already exchanges fields; we only
-        # need to ensure particles are exchanged each time it is invoked and
-        # return the effective current for the fluid solver.
         def step(
             self, state: "MHDState", current: float, dt: float
         ) -> Tuple[float, float, float]:
@@ -141,4 +123,4 @@ except Exception:  # pragma: no cover - fallback when WarpX is unavailable
             raise RuntimeError("WarpX PICMI interface is not available")
 
 
-__all__ = ["PicDriver", "SimplePicDriver", "WarpXPICDriver"]
+__all__ = ["PicDriver", "PhysicalPICDriver", "WarpXPICDriver"]

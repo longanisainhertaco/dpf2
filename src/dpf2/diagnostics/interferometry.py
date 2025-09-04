@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Callable, Sequence
 
 
 def interferometer_phase_shift(
     electron_density: Sequence[float],
     path_lengths: Sequence[float],
     wavelength: float,
+    response_fn: Callable[[float], float] | None = None,
+    noise_fn: Callable[[float], float] | None = None,
 ) -> float:
     """Compute optical phase shift from line-integrated electron density.
 
@@ -18,6 +20,10 @@ def interferometer_phase_shift(
         Path length segments corresponding to each density sample in meters.
     wavelength:
         Probe wavelength in meters.
+    response_fn, noise_fn:
+        Optional callables applied to the computed phase shift. ``response_fn``
+        is evaluated first and ``noise_fn`` should return a noise contribution
+        which is added to the response-corrected value.
 
     Returns
     -------
@@ -32,7 +38,12 @@ def interferometer_phase_shift(
     line_integral = 0.0
     for ne, dl in zip(electron_density, path_lengths):
         line_integral += float(ne) * float(dl)
-    return -r_e * wavelength * line_integral
+    phase = -r_e * wavelength * line_integral
+    if response_fn:
+        phase = response_fn(phase)
+    if noise_fn:
+        phase += noise_fn(phase)
+    return phase
 
 
 __all__ = ["interferometer_phase_shift"]

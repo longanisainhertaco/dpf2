@@ -15,6 +15,10 @@ from .neutron_yield import (
     compute_beam_target_yield,
     compute_thermonuclear_yield,
     save_anisotropic_spectrum_hdf5,
+    simulate_tof_detectors,
+    save_tof_hdf5,
+    angular_yield_map,
+    save_angular_yield_map_hdf5,
 )
 from .xray_spectra import compute_xray_spectrum
 from .scope_trace import compute_scope_trace
@@ -67,6 +71,10 @@ __all__ = [
     "compute_beam_target_yield",
     "compute_thermonuclear_yield",
     "save_anisotropic_spectrum_hdf5",
+    "simulate_tof_detectors",
+    "save_tof_hdf5",
+    "angular_yield_map",
+    "save_angular_yield_map_hdf5",
     "compute_xray_spectrum",
     "compute_scope_trace",
     "current_waveform",
