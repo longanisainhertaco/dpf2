@@ -17,6 +17,7 @@ from typing import (
     Protocol,
 )
 import math
+import numpy as np
 
 from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator as _model_validator
@@ -325,6 +326,63 @@ def compute_directional_spectrum(
     return spectra
 
 
+def load_endf_b_viii(path: str | Path) -> Callable[[float], float]:
+    """Create a cross-section interpolator from an ENDF/B-VIII table.
+
+    The file is expected to contain two whitespace separated columns of energy
+    in MeV and cross section in barns.  The returned callable performs a linear
+    interpolation of the tabulated values and yields ``0.0`` outside the
+    provided energy range.
+    """
+
+    data = np.loadtxt(path)
+    energies = data[:, 0]
+    sigma = data[:, 1]
+
+    def _sigma(E: float) -> float:
+        return float(np.interp(E, energies, sigma, left=0.0, right=0.0))
+
+    return _sigma
+
+
+def compute_angular_spectra(
+    beam_edf: IonBeamEDF,
+    thermal_edf: IonBeamEDF,
+    endf_path: str | Path,
+    angles: Sequence[float],
+    energy_bins: Sequence[float],
+) -> Dict[str, Any]:
+    """Compute beam-target and thermonuclear spectra using ENDF/B-VIII data.
+
+    Parameters
+    ----------
+    beam_edf, thermal_edf:
+        Ion energy distribution providers for the beam-target and thermal ion
+        populations respectively.
+    endf_path:
+        Path to an ENDF/B-VIII formatted cross-section table.
+    angles, energy_bins:
+        Detector angles and energy bin edges for the spectral histogram.
+
+    Returns
+    -------
+    dict
+        Dictionary containing per-angle spectra for the beam-target component
+        and an isotropic thermonuclear spectrum.
+    """
+
+    xs = load_endf_b_viii(endf_path)
+    beam_spec = compute_directional_spectrum(beam_edf, xs, angles, energy_bins)
+    th_spec_single = compute_directional_spectrum(thermal_edf, xs, [0.0], energy_bins)[0]
+    th_spec = [list(th_spec_single) for _ in angles]
+    return {
+        "angles": list(angles),
+        "energy_bins": list(energy_bins),
+        "beam_target": beam_spec,
+        "thermonuclear": th_spec,
+    }
+
+
 def partition_yield(
     thermonuclear_rate: Sequence[float],
     beam_target_rate: Sequence[float],
@@ -380,4 +438,6 @@ __all__ = [
     "TabulatedIonEDF",
     "compute_directional_spectrum",
     "partition_yield",
+    "load_endf_b_viii",
+    "compute_angular_spectra",
 ]
