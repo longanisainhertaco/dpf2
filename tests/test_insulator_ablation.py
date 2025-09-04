@@ -7,8 +7,17 @@ def test_device_profile_has_insulator_sleeve():
     cfg = DeviceProfiles.with_defaults()
     sleeve = cfg.devices["PF1000"].insulator_sleeve
     assert sleeve is not None
-    assert sleeve.inner_radius_cm == pytest.approx(cfg.devices["PF1000"].anode_radius_cm)
-    assert sleeve.length_cm == pytest.approx(cfg.devices["PF1000"].insulator_length_cm)
+    assert sleeve.inner_radius_cm == pytest.approx(
+        cfg.devices["PF1000"].anode_radius_cm
+    )
+    assert sleeve.length_cm == pytest.approx(
+        cfg.devices["PF1000"].insulator_length_cm
+    )
+    assert sleeve.material is not None
+    assert (
+        sleeve.material.material_id
+        == cfg.devices["PF1000"].insulator_material.material_id
+    )
 
 
 def test_ablation_mass_energy_source():

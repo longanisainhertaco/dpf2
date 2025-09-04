@@ -13,6 +13,7 @@ import argparse
 import numpy as np
 import random
 from datetime import datetime
+from typing import Dict
 
 try:  # Prefer package-local imports
     from .config_schema import SimulationConfig, FieldManagerConfig, PICConfig, AMRConfig
@@ -38,6 +39,11 @@ from .utils import FieldManager, SimulationState
 from ..diagnostics import Diagnostics
 from .pic_solver import PICSolver
 from ..core.bases import CouplingState
+from ..materials import (
+    MaterialLibrary,
+    ComponentMaterialState,
+    MaterialDamageModel,
+)
 try:
     from ..exceptions import SimulationRuntimeError
 except Exception:  # pragma: no cover - fallback for standalone usage
@@ -62,6 +68,7 @@ class DPFSimulation:
         self.current_time = 0.0
         self.dt = self.config.dt_init
         self.amr_config = getattr(self.config, "amr", _AMR())
+        self.material_model: MaterialDamageModel | None = None
 
         # Initialize modules
         self.registry = ModuleRegistry()
@@ -169,6 +176,20 @@ class DPFSimulation:
                     field_manager=self.field_manager,
                 )
 
+            if self.config.materials.components:
+                component_states: Dict[str, ComponentMaterialState] = {}
+                for comp, mat_name in self.config.materials.components.items():
+                    mat = MaterialLibrary.get(mat_name)
+                    init = self.config.materials.initial_state.get(comp, {})
+                    component_states[comp] = ComponentMaterialState(
+                        material=mat,
+                        erosion=float(init.get("erosion", 0.0)),
+                        film_thickness=float(init.get("film_thickness", 0.0)),
+                    )
+                self.material_model = MaterialDamageModel(
+                    component_states, plasma_model=self.modules.get("collision")
+                )
+
         except Exception as e:
             raise InitializationError(f"Failed to initialize modules: {e}")
 
@@ -197,6 +218,10 @@ class DPFSimulation:
                     self.solver.step(self.dt)
                     if self.pic_solver:
                         self.pic_solver.step()
+
+                # --- material damage model ---
+                if self.material_model:
+                    self.material_model.apply(self.solver, self.dt)
 
                 # --- collision and radiation modules ---
                 for name in ("collision", "radiation"):

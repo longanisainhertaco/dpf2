@@ -10,6 +10,7 @@ from ..utils.pydantic_compat import model_validator
 
 # Local diagnostic computation utilities
 from .neutron_yield import (
+    IonBeamEDF,
     compute_neutron_yield,
     compute_beam_target_yield,
     compute_thermonuclear_yield,
@@ -29,6 +30,11 @@ from .streaming import NeutronYieldStreamer, XRayEmissionStreamer, RealTimeCompa
 from .interferometry import interferometer_phase_shift
 from .pinhole_imaging import pinhole_image
 from .plasma import (
+    bennett_radius,
+    plasma_beta,
+    alfven_mach_number,
+    magnetic_reynolds_number,
+    lundquist_number,
     save_density_temperature_map_hdf5,
     compute_eedf,
     save_eedf_hdf5,
@@ -56,6 +62,7 @@ def apply_detector_response(
     return [float(response_fn(v)) for v in signal]
 
 __all__ = [
+    "IonBeamEDF",
     "compute_neutron_yield",
     "compute_beam_target_yield",
     "compute_thermonuclear_yield",
@@ -75,6 +82,11 @@ __all__ = [
     "apply_detector_response",
     "interferometer_phase_shift",
     "pinhole_image",
+    "bennett_radius",
+    "plasma_beta",
+    "alfven_mach_number",
+    "magnetic_reynolds_number",
+    "lundquist_number",
     "save_density_temperature_map_hdf5",
     "compute_eedf",
     "save_eedf_hdf5",
