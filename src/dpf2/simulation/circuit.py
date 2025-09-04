@@ -279,6 +279,7 @@ class CircuitModel:
         rlc_sections: Optional[list[Dict[str, float]]] = None,
         blumlein_sections: Optional[list[Dict[str, float]]] = None,
         crowbar_resistance: Optional[float] = None,
+        crowbar_stages: Optional[list[Dict[str, float]]] = None,
     ):
         """
         Initializes the CircuitModel.
@@ -314,7 +315,14 @@ class CircuitModel:
             switch_arc_resistance: Coefficient for arc resistance added after closure [Ω/A].
             rlc_sections: Optional list of additional driver sections, each a dict with keys 'R', 'L', and 'C'.
             blumlein_sections: Optional list of Blumlein transmission line sections (treated like RLC sections).
-            crowbar_resistance: Optional resistance of a crowbar stage that engages when voltage reverses [Ω].
+            crowbar_resistance: Optional resistance of a single crowbar stage that
+                engages when voltage reverses [Ω].  Deprecated in favour of
+                ``crowbar_stages``.
+            crowbar_stages: Optional list of crowbar stages.  Each stage is a
+                dict with keys ``"resistance"`` (Ω) and ``"trigger"`` (voltage
+                threshold in V).  When the circuit voltage falls below
+                ``trigger`` the stage engages and its resistance is added to the
+                total.
         """
         if not all(isinstance(x, (int, float)) and x >= 0 for x in [C, L0, R0, anode_radius, cathode_radius, V0, ESR, ESL, parasitic_inductance, stray_capacitance, transmission_line_impedance, transmission_line_length, transmission_line_velocity_factor, switch_initial_resistance, switch_final_resistance, switch_transition_voltage, switch_transition_current, switch_transition_time, switch_voltage_slew_rate, switch_current_slew_rate]):
             raise ValueError("Capacitance, inductance, resistance, radii, and initial voltage must be non-negative numbers.")
@@ -353,6 +361,16 @@ class CircuitModel:
         self.section_C = sum(sec.get('C', 0.0) for sec in self.sections)
         if self.section_C:
             self.C += self.section_C
+
+        # Crowbar stages -------------------------------------------------
+        stages = crowbar_stages or []
+        if crowbar_resistance is not None:
+            # Backwards compatibility: treat single value as a stage that
+            # triggers on voltage reversal.
+            stages.append({"resistance": crowbar_resistance, "trigger": 0.0})
+        self.crowbar_stages: list[Dict[str, float]] = stages
+        self._crowbar_engaged: list[bool] = [False] * len(self.crowbar_stages)
+        # Retain attribute for backwards compatibility
         self.crowbar_resistance = crowbar_resistance
 
         # Initial state: Q = C*V0; I = 0
@@ -388,12 +406,14 @@ class CircuitModel:
 
         self._Lp = 0.0
         self._Rp = 0.0
+        self.plasma_inductance_history: list[float] = []
         logger.info("CircuitModel initialized.")
 
     def update_plasma_coupling(self, state: SimulationState) -> None:
         """Update cached plasma inductance and resistance."""
         self._Lp = self.plasma_inductance(state)
         self._Rp = self.plasma_resistance(state)
+        self.plasma_inductance_history.append(self._Lp)
 
     def plasma_inductance(self, state: SimulationState) -> float:
         r"""Compute the inductance of the plasma column.
@@ -432,15 +452,8 @@ class CircuitModel:
         return L_plasma
 
     def plasma_resistance(self, state: SimulationState) -> float:
-        """
-        Calculates the plasma resistance, considering current density distribution.
+        """Calculates the plasma resistance, considering current density distribution."""
 
-        Args:
-            state: The current state of the simulation.
-
-        Returns:
-            Plasma resistance [Ω].
-        """
         try:
             Te = state.electron_temperature  # Access electron temperature from SimulationState
             ne = state.density / 1.67e-27  # Assuming proton mass
@@ -453,16 +466,30 @@ class CircuitModel:
 
             # Assume a Gaussian current density profile
             sigma = 0.5 * (self.b - self.a)  # Example width
-            J0 = self.I / (np.pi * sigma**2) # Estimate peak current density
+            J0 = self.I / (np.pi * sigma**2)  # Estimate peak current density
 
             # Integrate the resistivity over the current distribution
             R_plasma = η * z / (2 * np.pi * sigma**2) * (1 - erf((self.b - self.a) / sigma))
             return R_plasma
-
         except AttributeError:
             raise AttributeError("SimulationState object must have 'electron_temperature', 'density', and 'sheath_position' attributes.")
         except ValueError as e:
             raise ValueError(f"Invalid plasma parameters: {e}")
+
+    # ------------------------------------------------------------------
+    def _crowbar_resistance(self) -> float:
+        """Return cumulative resistance of engaged crowbar stages."""
+        total = 0.0
+        if not self.crowbar_stages:
+            return total
+        voltage = self.get_voltage()
+        for i, stage in enumerate(self.crowbar_stages):
+            trigger = stage.get("trigger", 0.0)
+            if not self._crowbar_engaged[i] and voltage <= trigger:
+                self._crowbar_engaged[i] = True
+            if self._crowbar_engaged[i]:
+                total += stage.get("resistance", 0.0)
+        return total
 
     def step(
         self,
@@ -481,11 +508,13 @@ class CircuitModel:
         emf = coupling.emf
         M = coupling.mutual_inductance
 
+        # Record dynamic plasma inductance provided by the plasma solver
+        self.plasma_inductance_history.append(Lp)
+
         R_tot = self.R0 + self.ESR + self.section_R
         L_tot = self.L0 + self.ESL + self.Ls + Lp + self.section_L
 
-        if self.crowbar_resistance is not None and self.get_voltage() <= 0.0:
-            R_tot += self.crowbar_resistance
+        R_tot += self._crowbar_resistance()
 
         if emf != 0.0:
             numerator = -R_tot * current - voltage - emf - back_emf
@@ -494,7 +523,7 @@ class CircuitModel:
 
         dIdt = numerator / L_tot if L_tot != 0.0 else 0.0
         dVdt = -current / self.C
-        back_reaction = M * dIdt if M != 0.0 else coupling.back_reaction
+        back_reaction = back_emf + (M * dIdt if M != 0.0 else 0.0)
 
         new_current = current + dIdt * dt
         new_voltage = voltage + dVdt * dt
@@ -548,9 +577,8 @@ class CircuitModel:
         R_tot = R0 + Rp + ESR + section_R
         L_tot = L0 + Lp + ESL + Ls + section_L
 
-        # Optional crowbar stage engages when voltage reverses
-        if self.crowbar_resistance is not None and self.get_voltage() <= 0.0:
-            R_tot += self.crowbar_resistance
+        # Optional crowbar stages engage when voltage crosses thresholds
+        R_tot += self._crowbar_resistance()
 
         # Apply switch model (if any)
         if self.switch_model:
@@ -613,13 +641,11 @@ class CircuitModel:
             self.update_plasma_coupling(state)
             Lp = self._Lp
             Rp = self._Rp
-
             # Total parameters
             R_tot = R0 + Rp + ESR + section_R
             L_tot = L0 + Lp + ESL + Ls + section_L
 
-            if self.crowbar_resistance is not None and self.get_voltage() <= 0.0:
-                R_tot += self.crowbar_resistance
+            R_tot += self._crowbar_resistance()
 
             # Apply switch model (if any)
             if self.switch_model:
@@ -673,13 +699,13 @@ class CircuitModel:
             # Compute time-varying L_plasma & R_plasma at current state
             Lp = self.plasma_inductance(state)
             Rp = self.plasma_resistance(state)
+            self.plasma_inductance_history.append(Lp)
 
             # Total parameters
             R_tot = R0 + Rp + ESR + self.section_R
             L_tot = L0 + Lp + ESL + Ls + self.section_L
 
-            if self.crowbar_resistance is not None and self.get_voltage() <= 0.0:
-                R_tot += self.crowbar_resistance
+            R_tot += self._crowbar_resistance()
 
             # Apply switch model (if any)
             if self.switch_model:
