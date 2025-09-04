@@ -1,10 +1,12 @@
 import numpy as np
+import pytest
 
 from dpf2.physics import HallMHD
 from dpf2.core.circuit import RLCCircuitSolver
 from dpf2.mesh import Mesh3D
 from dpf2.hall_mhd_solver import HallMHDSolver, MHDState
 from dpf2.physics.hall_mhd import nrl_braginskii
+from dpf2.diagnostics.quality_dashboard import QualityDashboard
 
 
 def _shock_setup():
@@ -106,3 +108,29 @@ def test_activation_gates_and_closure():
     nu, kappa = nrl_braginskii(np.array([1.0]), np.array([1.0]), np.array([1.0]))
     assert nu.shape == (1,)
     assert kappa.shape == (1,)
+
+
+def test_quality_diagnostics(tmp_path):
+    B = np.zeros((2, 1, 3)) + np.array([5.0, 0.0, 0.0])
+    state = MHDState(
+        rho=np.ones((2, 1)) * 1e-6,
+        mom=np.zeros((2, 1, 3)),
+        energy=np.ones((2, 1)) * 20.0,
+        B=B,
+        eta=np.ones((2, 1)) * 1e-3,
+    )
+    q = QualityDashboard(output_dir=tmp_path)
+    solver = HallMHDSolver(
+        hall_threshold=0.1,
+        ei_threshold=0.01,
+        scale_length=1e-3,
+        quality=q,
+    )
+    solver.step(state, 0.0)
+    entry = q.history[-1]
+    assert entry["hall_active"] is True
+    assert entry["electron_inertia_active"] is True
+    assert entry["hall_threshold"] == pytest.approx(0.1)
+    assert entry["ei_threshold"] == pytest.approx(0.01)
+    assert entry["wce_tau_e"] == pytest.approx(solver.last_wce_tau_e)
+    assert entry["di_over_L"] == pytest.approx(solver.last_di_over_L)

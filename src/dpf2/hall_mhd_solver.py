@@ -868,9 +868,10 @@ class HallMHDSolver(PlasmaSolverBase):
             self.last_voltage_spike / (abs(self.current) + 1e-30)
         )
 
+        v_final = mom / rho[..., None]
+        B2_final = np.sum(B ** 2, axis=-1)
+
         if energy_tracker is not None:
-            v_final = mom / rho[..., None]
-            B2_final = np.sum(B ** 2, axis=-1)
             kinetic_final = 0.5 * rho * np.sum(v_final**2, axis=-1)
             magnetic_final = 0.5 * B2_final
             thermal_final = energy - kinetic_final - magnetic_final
@@ -919,6 +920,12 @@ class HallMHDSolver(PlasmaSolverBase):
                 plasma_impedance=impedance,
                 divergence_error=getattr(self, "divergence_error", 0.0),
                 energy_drift=getattr(self, "energy_drift", 0.0),
+                hall_active=self.hall_active,
+                electron_inertia_active=self.electron_inertia_active,
+                wce_tau_e=self.last_wce_tau_e,
+                di_over_L=self.last_di_over_L,
+                hall_threshold=self.hall_threshold,
+                ei_threshold=self.ei_threshold,
 
             )
 

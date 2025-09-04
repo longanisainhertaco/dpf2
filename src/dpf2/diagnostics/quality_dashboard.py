@@ -43,6 +43,12 @@ class QualityDashboard:
         plasma_impedance: float | None = None,
         divergence_error: float = 0.0,
         energy_drift: float = 0.0,
+        hall_active: bool | None = None,
+        electron_inertia_active: bool | None = None,
+        wce_tau_e: float | None = None,
+        di_over_L: float | None = None,
+        hall_threshold: float | None = None,
+        ei_threshold: float | None = None,
 
     ) -> None:
         """Record a step's metrics and emit warnings if thresholds violated."""
@@ -63,6 +69,18 @@ class QualityDashboard:
             entry["lower_hybrid_power"] = lower_hybrid_power
         if plasma_impedance is not None:
             entry["plasma_impedance"] = plasma_impedance
+        if hall_active is not None:
+            entry["hall_active"] = hall_active
+        if electron_inertia_active is not None:
+            entry["electron_inertia_active"] = electron_inertia_active
+        if wce_tau_e is not None:
+            entry["wce_tau_e"] = wce_tau_e
+        if di_over_L is not None:
+            entry["di_over_L"] = di_over_L
+        if hall_threshold is not None:
+            entry["hall_threshold"] = hall_threshold
+        if ei_threshold is not None:
+            entry["ei_threshold"] = ei_threshold
 
         dt_violation = self.max_dt is not None and dt > self.max_dt
         lambda_violation = lambda_D < cell_size
