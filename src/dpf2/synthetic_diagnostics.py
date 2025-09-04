@@ -213,6 +213,98 @@ def autocorrelated_tof_iv_report(
     return path
 
 
+def anisotropy_report(
+    history: Sequence[CouplingState],
+    dt: float,
+    distance_m: float,
+    energies_mev: Sequence[float],
+    beam_energy_keV: float = 100.0,
+    n_beam: float = 1e18,
+    n_target: float = 1e20,
+    output_dir: Path | str = Path("diagnostics/anisotropy"),
+) -> Dict[str, Path]:
+    """Compute yield ratios and correlate ToF counts with ``I*V`` spikes.
+
+    The function aggregates forward, radial and backward yield components
+    using :func:`directional_yields`, normalizes them to ratios and performs
+    a cross-correlation between the synthetic time-of-flight trace and the
+    instantaneous electrical power ``I*V``.  Summary CSV files and (where
+    possible) plots are written to ``output_dir``.
+    """
+
+    totals = directional_yields(beam_energy_keV, n_beam, n_target)
+    total_sum = sum(totals.values()) or 1.0
+    ratios = {k: v / total_sum for k, v in totals.items()}
+
+    times, counts = synthetic_tof_trace(history, dt, distance_m, energies_mev)
+    power = [abs(s.current * s.voltage) for s in history]
+    padded_power = power + [0.0] * (len(counts) - len(power))
+    mean_counts = sum(counts) / len(counts) if counts else 0.0
+    mean_power = sum(padded_power) / len(padded_power) if padded_power else 0.0
+    n = len(counts)
+    corr: List[float] = []
+    lags: List[float] = []
+    for lag in range(-n + 1, n):
+        val = 0.0
+        for i in range(n):
+            j = i - lag
+            if 0 <= j < n:
+                val += (counts[i] - mean_counts) * (padded_power[j] - mean_power)
+        corr.append(val)
+        lags.append(lag * dt)
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    ratio_csv = out_dir / "yield_ratios.csv"
+    with ratio_csv.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["component", "ratio"])
+        for comp, val in ratios.items():
+            writer.writerow([comp, val])
+
+    corr_csv = out_dir / "tof_iv_correlation.csv"
+    with corr_csv.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["lag_s", "correlation"])
+        for lag, val in zip(lags, corr):
+            writer.writerow([lag, val])
+
+    ratio_plot: Optional[Path] = None
+    corr_plot: Optional[Path] = None
+    try:  # pragma: no cover - matplotlib optional
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+        ax.bar(list(ratios.keys()), list(ratios.values()))
+        ax.set_ylabel("Yield ratio")
+        fig.savefig(out_dir / "yield_ratios.png")
+        plt.close(fig)
+        ratio_plot = out_dir / "yield_ratios.png"
+
+        fig, ax = plt.subplots()
+        ax.plot(lags, corr)
+        ax.set_xlabel("Lag (s)")
+        ax.set_ylabel("Correlation")
+        fig.savefig(out_dir / "tof_iv_correlation.png")
+        plt.close(fig)
+        corr_plot = out_dir / "tof_iv_correlation.png"
+    except Exception:
+        pass
+
+    result: Dict[str, Path] = {
+        "ratio_csv": ratio_csv,
+        "correlation_csv": corr_csv,
+    }
+    if ratio_plot is not None:
+        result["ratio_plot"] = ratio_plot
+    if corr_plot is not None:
+        result["correlation_plot"] = corr_plot
+    return result
+
+
 
 def _cr39_image(history: Sequence[CouplingState], size: int = 64) -> List[List[float]]:
     """Return a simple Gaussian spot image scaled by peak current."""
@@ -606,4 +698,5 @@ __all__ = [
     "synthetic_tof_trace",
     "export_directional_yields",
     "autocorrelated_tof_iv_report",
+    "anisotropy_report",
 ]
