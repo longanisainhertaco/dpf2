@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, root_validator
 
 # Local diagnostic computation utilities
 from .neutron_yield import (
+    IonBeamEDF,
     compute_neutron_yield,
     compute_beam_target_yield,
     compute_thermonuclear_yield,
@@ -55,6 +56,7 @@ def apply_detector_response(
     return [float(response_fn(v)) for v in signal]
 
 __all__ = [
+    "IonBeamEDF",
     "compute_neutron_yield",
     "compute_beam_target_yield",
     "compute_thermonuclear_yield",
