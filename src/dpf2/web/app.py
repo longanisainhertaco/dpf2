@@ -38,7 +38,7 @@ INDEX_HTML = """
   Anode radius (m): <input name=anode_radius value="{{ cfg.anode_radius }}"><br>
   Cathode radius (m): <input name=cathode_radius value="{{ cfg.cathode_radius }}"><br>
   Electrode length (m): <input name=electrode_length value="{{ cfg.electrode_length }}"><br>
-  Geometry preset:
+  Device preset:
   <select name=preset>
     <option value=""></option>
     {% for name in presets %}<option value="{{ name }}">{{ name }}</option>{% endfor %}

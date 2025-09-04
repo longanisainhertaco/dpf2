@@ -44,6 +44,8 @@ from dpf2.optimization.param_sweep import (
 )
 from dpf2.gui.project_manager import ProjectManager
 
+from dpf2.device_profiles import DeviceProfiles
+
 from dpf2.scaling_laws import sweep_yield_scaling
 from dpf2.uq.sampling import latin_hypercube, sobol_sample
 from dpf2.uq.analysis import sobol_indices, uncertainty_band
@@ -333,6 +335,11 @@ def main(ctx: click.Context, notebook: bool, lab_mode: bool) -> None:
     is_flag=True,
     help="Save key waveforms and diagnostics at completion",
 )
+@click.option(
+    "--device",
+    type=click.Choice(sorted(DeviceProfiles.with_defaults().devices.keys())),
+    help="Preset device geometry",
+)
 @click.option("--wizard", is_flag=True, help="Interactive mode to build configuration")
 @click.option(
     "--shots",
@@ -352,6 +359,7 @@ def simulate(
     live_plot: bool,
     synthetic: str | None,
     diagnostics: bool,
+    device: str | None,
     wizard: bool,
     shots: int,
 ) -> None:
@@ -365,9 +373,29 @@ def simulate(
         else:
             cfg = DPFConfig.from_file(config) if config else DPFConfig()
 
-            default_voltage = getattr(cfg, "charging_voltage", 15000.0)
-            default_length = getattr(cfg, "electrode_length", 0.10)
+        if device:
+            presets = DeviceProfiles.with_defaults().devices
+            if device not in presets:
+                raise click.ClickException(f"Unknown device preset: {device}")
+            dev = presets[device]
+            cfg.anode_radius = dev.anode_radius_cm * 0.01
+            cfg.cathode_radius = dev.cathode_radius_cm * 0.01
+            cfg.electrode_length = dev.anode_length_cm * 0.01
+            bank = dev.capacitor_bank
+            cfg.capacitance = bank.get("C", cfg.capacitance)
+            cfg.inductance = bank.get("L", cfg.inductance)
+            cfg.resistance = bank.get("R", cfg.resistance)
+            cfg.gas_type = dev.working_gas
+            C = bank.get("C")
+            if C:
+                cfg.charging_voltage = (2.0 * dev.energy_kJ * 1000.0 / C) ** 0.5
+            elif dev.breakdown_voltage_kV:
+                cfg.charging_voltage = dev.breakdown_voltage_kV * 1000.0
 
+        default_voltage = getattr(cfg, "charging_voltage", 15000.0)
+        default_length = getattr(cfg, "electrode_length", 0.10)
+
+        if not wizard:
             # Prompt and validate voltage
             if voltage is None:
                 if click.get_text_stream("stdin").isatty():
@@ -382,7 +410,7 @@ def simulate(
                     voltage = default_voltage
             else:
                 voltage = _validate_range(
-                    "voltage", voltage, 1000.0, 100000.0, "Check the units (volts)."
+                    "voltage", voltage, 1000.0, 100000.0, "Check the units (volts).",
                 )
 
             # Prompt and validate segment length

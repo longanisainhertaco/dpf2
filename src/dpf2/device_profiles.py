@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import warnings
+from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Union, Literal
 
 
@@ -120,38 +121,22 @@ class DeviceProfiles(ConfigSectionBase):
     # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> "DeviceProfiles":
-        data = {
-            "defaultDeviceId": "PF1000",
-            "devices": {
-                "PF1000": {
-                    "deviceLabel": "PF1000",
-                    "deviceDescription": "High-energy MJ-scale DPF at IFJ Krakow",
-                    "energyKJ": 500.0,
-                    "workingGas": "D",
-                    "capacitorBank": {"C": 30e-6, "L": 15e-9, "R": 0.015},
-                    "anodeRadiusCm": 2.5,
-                    "cathodeRadiusCm": 6.0,
-                    "anodeLengthCm": 16.0,
-                    "insulatorLengthCm": 5.0,
-                    "insulatorMaterial": {"materialId": "alumina"},
-                    "insulatorSleeve": {
-                        "innerRadiusCm": 2.5,
-                        "thicknessCm": 0.5,
-                        "lengthCm": 5.0,
-                        "material": {"materialId": "alumina"},
-                    },
-                    "breakdownVoltageKV": 25.0,
-                    "fuelMixture": {"D": 0.9, "Ar": 0.1},
-                    "regimeCategory": "MJ_scale",
-                    "referenceShotIds": ["2053", "2071", "2089"],
-                    "primaryObservables": ["I(t)", "Yn", "SXR"],
-                    "diagnosticCapabilities": {
-                        "TOF": {"channels": 4, "resolutionNs": 1.0},
-                        "SXR": {"filters": ["Al", "Ti"]},
-                    },
-                }
-            },
-        }
+        base = Path(__file__).resolve().parents[2] / "device_profiles"
+        devices: Dict[str, Dict[str, Any]] = {}
+        if base.exists():
+            for path in base.glob("*.json"):
+                try:
+                    info = json.loads(path.read_text())
+                except Exception:
+                    continue
+                label = info.get("deviceLabel")
+                if label:
+                    devices[label] = info
+        data: Dict[str, Any] = {"devices": devices}
+        if "PF1000" in devices:
+            data["defaultDeviceId"] = "PF1000"
+        elif devices:
+            data["defaultDeviceId"] = next(iter(devices))
         return cls.model_validate(data)
 
     def resolve_defaults(self) -> "DeviceProfiles":

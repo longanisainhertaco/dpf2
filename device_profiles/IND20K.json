@@ -1,0 +1,14 @@
+{
+  "deviceLabel": "IND20K",
+  "deviceDescription": "20 kJ industrial-scale DPF",
+  "energyKJ": 20.0,
+  "workingGas": "D",
+  "capacitorBank": {"C": 200e-6, "L": 20e-9, "R": 0.012},
+  "anodeRadiusCm": 1.5,
+  "cathodeRadiusCm": 4.5,
+  "anodeLengthCm": 20.0,
+  "insulatorLengthCm": 6.0,
+  "insulatorMaterial": {"materialId": "alumina"},
+  "breakdownVoltageKV": 20.0,
+  "regimeCategory": "medium_energy"
+}

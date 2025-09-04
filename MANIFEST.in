@@ -1,3 +1,4 @@
 exclude h5py_stub.py
 exclude pydantic_stub.py
 recursive-include examples *.py *.json *.ipynb
+recursive-include device_profiles *.json
