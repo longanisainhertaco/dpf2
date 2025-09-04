@@ -919,6 +919,92 @@ def wizard(output: str) -> None:
     click.echo(f"Configuration saved to {output}")
 
 
+@main.command("run-benchmark")
+@click.argument("case")
+@click.option(
+    "--benchmark-dir",
+    type=click.Path(file_okay=False),
+    default="Reference/Benchmarks",
+    show_default=True,
+    help="Directory containing benchmark projects",
+)
+@click.option(
+    "--output",
+    type=click.Path(file_okay=False),
+    default="Reference/Benchmarks/results",
+    show_default=True,
+    help="Where to write comparison dashboards",
+)
+def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
+    """Run a single frozen benchmark and report tolerance grades."""
+
+    # Local imports to keep CLI lightweight when numpy/matplotlib are absent
+    import json
+    from pathlib import Path
+    import matplotlib.pyplot as plt
+
+    project = Path(benchmark_dir) / case
+    input_path = project / "inputs.json"
+    expected_path = project / "expected.json"
+    if not input_path.exists() or not expected_path.exists():
+        raise click.ClickException(f"Benchmark '{case}' not found")
+
+    cfg = DPFConfig.from_file(str(input_path))
+    sim = DPFSimulation(cfg)
+    time, current, voltage = sim.run(end_time=cfg.end_time)
+    neutron = [0.0 for _ in time]
+
+    expected = json.loads(expected_path.read_text())
+    tol = expected.get("tolerance", {})
+
+    def _grade(key: str, actual: list[float]) -> tuple[bool, list[float]]:
+        exp = [float(x) for x in expected.get(key, [])]
+        band = float(tol.get(key, 0.0))
+        passed = all(abs(a - e) <= band for a, e in zip(actual, exp))
+        return passed, exp
+
+    pass_current, exp_current = _grade("current", current)
+    pass_voltage, exp_voltage = _grade("voltage", voltage)
+    pass_neut, exp_neut = _grade("neutron_yield", neutron)
+
+    t = list(time)
+    fig, axes = plt.subplots(3, 1, figsize=(6, 8))
+    labels = ["current", "voltage", "neutron_yield"]
+    units = ["A", "V", "yield"]
+    actual = [current, voltage, neutron]
+    expected_series = [exp_current, exp_voltage, exp_neut]
+    for ax, key, unit, data, exp in zip(axes, labels, units, actual, expected_series):
+        band = float(tol.get(key, 0.0))
+        low = [e - band for e in exp]
+        high = [e + band for e in exp]
+        ax.plot(t, data, label="actual")
+        ax.fill_between(
+            t,
+            low,
+            high,
+            color="gray",
+            alpha=0.3,
+            label="expected±tol",
+        )
+        ax.set_ylabel(f"{key} ({unit})")
+        ax.legend()
+    axes[-1].set_xlabel("time (s)")
+    fig.tight_layout()
+    out_root = Path(output)
+    out_root.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_root / f"{case}.png")
+    plt.close(fig)
+
+    header = "{:<7} {:<7} {:<7}".format("Current", "Voltage", "Neutron")
+    click.echo(header)
+    row = "{:<7} {:<7} {:<7}".format(
+        "PASS" if pass_current else "FAIL",
+        "PASS" if pass_voltage else "FAIL",
+        "PASS" if pass_neut else "FAIL",
+    )
+    click.echo(row)
+
+
 @main.command("run-compare")
 @click.option(
     "--benchmark-dir",

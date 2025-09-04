@@ -18,6 +18,7 @@ nav:
   - API Reference: api_reference.md
   - Benchmarks: benchmarks.md
   - Run & Compare: run_compare.md
+  - Run Benchmark: run_benchmark.md
   - Reports:
       - Milestone Demos: reports/milestone_demos.md
 

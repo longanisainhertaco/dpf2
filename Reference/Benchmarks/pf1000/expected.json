@@ -1,0 +1,11 @@
+{
+  "time": [0.0, 1.5e-6],
+  "current": [0.0, 0.0],
+  "voltage": [25000.0, 25000.0],
+  "neutron_yield": [0.0, 0.0],
+  "tolerance": {
+    "current": 1e-6,
+    "voltage": 1e-6,
+    "neutron_yield": 1e-6
+  }
+}
