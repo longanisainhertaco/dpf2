@@ -34,54 +34,11 @@ from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Literal
 
 try:  # pragma: no cover - runtime dependency handling
-    from pydantic import ConfigDict, Field, root_validator
-    from pydantic import BaseModel
+    from pydantic import ConfigDict, Field, BaseModel
 except Exception:  # pragma: no cover - fallback to lightweight stubs
-    from pydantic_stub import BaseModel, ConfigDict, Field, root_validator
+    from pydantic_stub import BaseModel, ConfigDict, Field  # type: ignore
+from .utils.pydantic_compat import model_validator
 
-def model_validator(*, mode: str = "after"):
-    def decorator(func):
-        if mode == "after":
-            def wrapper(cls, values):
-                inst = cls.construct(**values)
-                result = func(cls, inst)
-                return result.__dict__ if isinstance(result, cls) else values
-
-            return root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(wrapper)
-        else:
-            def wrapper(cls, values):
-                out = func(values)
-                return out if out is not None else values
-
-            return root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(wrapper)
-
-    return decorator
-
-if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
-if not hasattr(BaseModel, "model_dump"):
-    if hasattr(BaseModel, "dict"):
-        BaseModel.model_dump = BaseModel.dict
-    else:  # pragma: no cover - stub behaviour
-        BaseModel.model_dump = lambda self, *_, **__: self.__dict__
-if not hasattr(BaseModel, "model_dump_json"):
-    if hasattr(BaseModel, "json"):
-        BaseModel.model_dump_json = BaseModel.json
-    else:  # pragma: no cover - stub behaviour
-        import json as _json
-
-        BaseModel.model_dump_json = lambda self, *_, **__: _json.dumps(self.__dict__)
-if True:  # replace ``model_copy`` with a lightweight implementation
-    def _copy(self, update=None, **__):
-        new = self.__class__()
-        for k, v in self.__dict__.items():
-            setattr(new, k, v)
-        if update:
-            for k, v in update.items():
-                setattr(new, k, v)
-        return new
-
-    BaseModel.model_copy = _copy
 
 from .core_schema import (
     ConfigSectionBase,

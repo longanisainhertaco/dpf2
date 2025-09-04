@@ -5,7 +5,8 @@ from enum import Enum
 import random
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal, Sequence, Callable
 
-from pydantic import BaseModel, ConfigDict, Field, root_validator
+from pydantic import BaseModel, ConfigDict, Field
+from ..utils.pydantic_compat import model_validator
 
 # Local diagnostic computation utilities
 from .neutron_yield import (
@@ -82,38 +83,7 @@ __all__ = [
     "OutputField",
 ]
 
-# Compatibility helpers -------------------------------------------------------
 
-def model_validator(*, mode: str = "after"):
-    def decorator(func):
-        if mode == "after":
-            def wrapper(cls, values):
-                inst = cls(**values)
-                result = func(cls, inst)
-                return result.__dict__ if isinstance(result, cls) else values
-
-            return classmethod(
-                root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(wrapper)
-            )
-        else:
-            def wrapper(cls, values):
-                out = func(values)
-                return out if out is not None else values
-
-            return classmethod(
-                root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(wrapper)
-            )
-
-    return decorator
-
-if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls(**d))
-if not hasattr(BaseModel, "model_dump"):
-    BaseModel.model_dump = BaseModel.dict
-if not hasattr(BaseModel, "model_dump_json"):
-    BaseModel.model_dump_json = BaseModel.json
-if not hasattr(BaseModel, "model_copy"):
-    BaseModel.model_copy = BaseModel.copy
 
 # Local imports ---------------------------------------------------------------
 from ..core_schema import (

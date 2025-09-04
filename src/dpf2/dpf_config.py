@@ -3,29 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Literal, Union
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, validator
+from .utils.pydantic_compat import model_validator
 from .metadata import Metadata
 from .experimental_variability import ExperimentalVariabilityModel
 from .grid_resolution import GridResolution
 
-def model_validator(*, mode: str = "after"):
-    """Compatibility helper mirroring pydantic.v2 model_validator."""
-
-    def decorator(func):
-        return root_validator(pre=(mode == "before"), skip_on_failure=True)(func)
-
-    return decorator
-
-if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d: cls.parse_obj(d))
-if not hasattr(BaseModel, "model_dump"):
-    BaseModel.model_dump = BaseModel.dict
-if not hasattr(BaseModel, "model_dump_json"):
-    BaseModel.model_dump_json = BaseModel.json
-if not hasattr(BaseModel, "model_copy"):
-    BaseModel.model_copy = BaseModel.copy
-if not hasattr(BaseModel, "parse_obj"):
-    BaseModel.parse_obj = classmethod(lambda cls, d: cls(**d))
 
 # --- Submodels ---
 
