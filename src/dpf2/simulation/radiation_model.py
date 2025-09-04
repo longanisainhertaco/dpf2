@@ -82,7 +82,10 @@ class Photon:
         self.dir /= np.linalg.norm(self.dir)
         self.energy = float(energy)
         self.group = int(group)
-        self.polarization = polarization if polarization is not None else np.array([1.0, 0.0, 0.0])  # Default: linear polarization along x-axis
+        # ``polarization`` may be ``None`` when polarization tracking is disabled.
+        self.polarization = (
+            np.array(polarization) if polarization is not None else None
+        )
 
     def scatter(self):
         """Perform a simplified isotropic Compton scattering event.
@@ -116,15 +119,16 @@ class Photon:
         self.dir = mu * n + sin_theta * (np.cos(phi) * u + np.sin(phi) * v)
         self.dir /= np.linalg.norm(self.dir)
 
-        # Rotate polarization into the new frame.  This is a very lightweight
-        # treatment that simply aligns the polarization with the scattering
-        # plane while keeping it perpendicular to ``self.dir``.
-        p = np.cos(phi) * u + np.sin(phi) * v
-        p -= np.dot(p, self.dir) * self.dir
-        norm = np.linalg.norm(p)
-        if norm > 0:
-            p /= norm
-            self.polarization = p
+        # Rotate polarization into the new frame only if polarization tracking
+        # is enabled.  This lightweight treatment aligns the polarization with
+        # the scattering plane while keeping it perpendicular to ``self.dir``.
+        if self.polarization is not None:
+            p = np.cos(phi) * u + np.sin(phi) * v
+            p -= np.dot(p, self.dir) * self.dir
+            norm = np.linalg.norm(p)
+            if norm > 0:
+                p /= norm
+                self.polarization = p
 
 # --------------------------------------
 # Klein-Nishina Compton cross section
@@ -179,6 +183,12 @@ class RadiationModel(PhysicsModule):
         self.group_opacities = np.array(config.group_opacities)
         self.gaunt_factor = config.gaunt_factor
         self.num_photons_per_cell = config.num_photons_per_cell
+        # Feature toggles
+        self.track_polarization = getattr(config, "track_polarization", True)
+        self.pair_production_enabled = getattr(config, "enable_pair_production", True)
+        self.non_lte_line_transport = getattr(
+            config, "non_lte_line_transport", True
+        )
 
         # AMReX MultiFabs for radiation energy E and flux F
         self.E_mf = amrex.MultiFab(self.geom.boxArray(), self.geom.DistributionMap(), self.ncomp, 1)
@@ -269,6 +279,11 @@ class RadiationModel(PhysicsModule):
         ndarray
             Updated excited-state population fraction.
         """
+        if not getattr(self, "non_lte_line_transport", True):
+            if self.level_pop is None:
+                self.level_pop = np.ones_like(Te)
+            return self.level_pop
+
         if self.level_pop is None:
             self.level_pop = np.zeros_like(Te)
         # Extremely crude collisional rates
@@ -512,7 +527,8 @@ class RadiationModel(PhysicsModule):
                         pos = np.array([i + 0.5, j + 0.5, k + 0.5]) * self.geom.CellSize()
                         for _ in range(npack):
                             dir = np.random.normal(size=3)
-                            self.photons.append(Photon(pos, dir, self.group_energies[g], g))
+                            pol = np.array([1.0, 0.0, 0.0]) if self.track_polarization else None
+                            self.photons.append(Photon(pos, dir, self.group_energies[g], g, polarization=pol))
         except Exception as e:
             logger.error(f"Error emitting photons: {e}")
 
@@ -535,7 +551,7 @@ class RadiationModel(PhysicsModule):
                     continue  
 
                 # Pair production (photon removed if event occurs)
-                if self._pair_production(p, dt):
+                if self.pair_production_enabled and self._pair_production(p, dt):
                     ie[tuple(idx)] += p.energy
                     continue
 

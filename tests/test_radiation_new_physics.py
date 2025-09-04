@@ -55,6 +55,7 @@ def test_pair_production_counts_pairs():
 def test_non_lte_population_time_dependence():
     rm = RadiationModel.__new__(RadiationModel)
     rm.level_pop = None
+    rm.non_lte_line_transport = True
     Te = np.ones((1, 1, 1))
     ne = np.ones((1, 1, 1))
     pop1 = rm._update_level_population(Te, ne, dt=1.0)

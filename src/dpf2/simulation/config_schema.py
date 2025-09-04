@@ -75,6 +75,15 @@ class RadiationConfig(BaseModel):
     photon_absortion_enabled: bool = Field(False, description="Enable photon absortion")
     photon_emission_enabled: bool = Field(False, description="Enable photon emission")
     photon_transport_enabled: bool = Field(False, description="Enable photon transport")
+    track_polarization: bool = Field(
+        True, description="Track photon polarization in Monte Carlo transport"
+    )
+    enable_pair_production: bool = Field(
+        True, description="Enable electron–positron pair production"
+    )
+    non_lte_line_transport: bool = Field(
+        True, description="Enable non-LTE line transport with time-dependent level populations"
+    )
     # Add other parameters as needed
 
     @validator("material_opacities", pre=True)
