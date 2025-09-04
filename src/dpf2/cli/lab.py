@@ -1,7 +1,10 @@
 """Utilities for lab-mode reproducibility manifests."""
 from __future__ import annotations
 import json
+import os
+import platform
 import subprocess
+import sys
 import random
 from pathlib import Path
 from typing import Sequence, Mapping
@@ -14,8 +17,8 @@ except Exception:  # pragma: no cover - h5py may be absent
     h5py = None  # type: ignore[assignment]
 
 
-MANIFEST_FILENAME = "manifest.json"
-MANIFEST_H5_FILENAME = "manifest.h5"
+RUN_MANIFEST_FILENAME = "run_manifest.json"
+RUN_MANIFEST_H5_FILENAME = "run_manifest.h5"
 
 
 def _code_hash() -> str:
@@ -28,6 +31,15 @@ def _code_hash() -> str:
         )
     except Exception:
         return "unknown"
+
+
+def _environment() -> dict[str, object]:
+    """Capture basic execution environment details."""
+    return {
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
+        "env": dict(os.environ),
+    }
 
 
 def write_manifest(
@@ -76,6 +88,7 @@ def write_manifest(
         "random_seeds": dict(seeds),
         "particle_per_cell": ppc,
         "config_paths": [str(p) for p in (config_paths or [])],
+        "environment": _environment(),
     }
     if config is not None:
         # ``config`` may contain non-serialisable objects; best effort to cast
@@ -87,11 +100,11 @@ def write_manifest(
     if warnings:
         manifest["warnings"] = list(warnings)
 
-    path = out / MANIFEST_FILENAME
+    path = out / RUN_MANIFEST_FILENAME
     path.write_text(json.dumps(manifest, indent=2))
 
     if h5py is not None:  # pragma: no cover - only when h5py available
-        h5_path = out / MANIFEST_H5_FILENAME
+        h5_path = out / RUN_MANIFEST_H5_FILENAME
         with h5py.File(h5_path, "w") as h5:
             for key, value in manifest.items():
                 if isinstance(value, (dict, list)):
@@ -103,4 +116,8 @@ def write_manifest(
 
     return path
 
-__all__ = ["write_manifest", "MANIFEST_FILENAME", "MANIFEST_H5_FILENAME"]
+__all__ = [
+    "write_manifest",
+    "RUN_MANIFEST_FILENAME",
+    "RUN_MANIFEST_H5_FILENAME",
+]

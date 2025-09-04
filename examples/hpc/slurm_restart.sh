@@ -18,7 +18,7 @@ cp "$checkpoint" "$tmp/"
 cd "$tmp"
 
 # Restart the simulation from the checkpoint using the CLI and record a manifest
-# in ``restart_run/manifest.json`` and ``restart_run/manifest.h5``
+# in ``restart_run/run_manifest.json`` and ``restart_run/run_manifest.h5``
 chk_file=$(basename "$checkpoint")
 echo "Restarting from $chk_file"
 srun dpf2 simulate --config config.json --output restart_run --lab-mode

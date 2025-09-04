@@ -86,3 +86,39 @@ def test_mpi_node_topology_and_restart(tmp_path, monkeypatch):
     assert env["CUDA_VISIBLE_DEVICES"] == "0,1"
     assert env["DPF_RESTART"] == "chk.dat"
 
+
+def test_stage_manifest_and_restart(tmp_path, monkeypatch):
+    script = tmp_path / "job.sh"
+    script.write_text("#!/bin/bash\n")
+    jm = JobManager("slurm")
+
+    called: dict[str, object] = {}
+
+    def fake_wrap(self, job_script, stage_in, stage_out):  # type: ignore[override]
+        called["stage_in"] = stage_in
+        called["stage_out"] = stage_out
+        return job_script
+
+    def fake_run(cmd, capture_output, text, check, env):  # type: ignore[override]
+        called["cmd"] = cmd
+        called["env"] = env
+
+        class R:
+            pass
+
+        return R()
+
+    monkeypatch.setattr(JobManager, "_wrap_staging", fake_wrap)
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    manifest = "run/run_manifest.json"
+    jm.submit(str(script), manifest=manifest, restart=manifest)
+
+    assert called["stage_out"][manifest] == manifest
+    assert called["stage_in"][manifest] == manifest
+    cmd = called["cmd"]
+    idx = cmd.index(str(script))
+    assert cmd[idx + 1 : idx + 3] == ["--restart", manifest]
+    env = called["env"]
+    assert env["DPF_RESTART"] == manifest
+

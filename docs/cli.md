@@ -16,8 +16,8 @@ specified output directory.
 
 Most commands accept the ``--lab-mode`` flag to capture a manifest for
 reproducibility. The manifest records the current code hash, RNG seeds,
-particle-per-cell setting and any configuration file paths. Both
-``manifest.json`` and an accompanying ``manifest.h5`` (with the same
+particle-per-cell setting, environment details and any configuration file paths. Both
+``run_manifest.json`` and an accompanying ``run_manifest.h5`` (with the same
 metadata stored as HDF5 attributes) are written inside the command's
 output directory.
 

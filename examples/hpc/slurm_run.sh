@@ -12,7 +12,7 @@ cp $SLURM_SUBMIT_DIR/examples/config.json "$tmp/"
 cd "$tmp"
 
 # Execute the simulation using the CLI with lab-mode manifest. This creates
-# ``run/manifest.json`` and ``run/manifest.h5`` capturing reproducibility
+# ``run/run_manifest.json`` and ``run/run_manifest.h5`` capturing reproducibility
 # metadata. GPU affinity can be controlled by setting ``CUDA_VISIBLE_DEVICES``
 # prior to submission (e.g. via the JobManager).
 srun dpf2 simulate --config config.json --output run --lab-mode
