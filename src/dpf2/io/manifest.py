@@ -40,11 +40,17 @@ def capture_dataset_metadata(
             raise ValueError(
                 "dataset metadata requires 'path', 'doi' and 'version'"
             )
-        h = _hash_file(Path(path))
+        p = Path(path)
+        h = _hash_file(p)
         logger.info(
             "dataset %s: hash=%s doi=%s version=%s", name, h, doi, version
         )
-        result[name] = {"hash": h, "doi": str(doi), "version": str(version)}
+        result[name] = {
+            "path": str(p),
+            "hash": h,
+            "doi": str(doi),
+            "version": str(version),
+        }
     return result
 
 

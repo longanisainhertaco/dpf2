@@ -27,6 +27,7 @@ def test_manifest_records_dataset_doi(tmp_path):
     assert meta["doi"] == "10.1234/example"
     assert meta["version"] == "1.0"
     assert len(meta["hash"]) == 64
+    assert Path(meta["path"]) == data_file
 
 
 def test_manifest_dataset_requires_doi_and_version(tmp_path):
