@@ -1,5 +1,5 @@
 {
   "gating": {"start": 0.0, "end": 10.0},
   "dead_time": 0.25,
-  "dispersion": [1.0]
+  "transfer_function": [1.0]
 }
