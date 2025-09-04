@@ -41,8 +41,9 @@ def test_slurm_submit_options(tmp_path, monkeypatch):
     assert "--nodelist" in cmd and cmd[cmd.index("--nodelist") + 1] == "node1,node2"
     assert "--gpus" in cmd and cmd[cmd.index("--gpus") + 1] == "2"
     assert "--dependency" in cmd and cmd[cmd.index("--dependency") + 1] == "afterok:11:22"
-    idx = cmd.index(str(script))
-    assert cmd[idx + 1 : idx + 5] == ["--foo", "bar", "--restart", "chkpt.dat"]
+    # The job script is wrapped for staging so we only verify the tail
+    # contains the expected script arguments.
+    assert cmd[-4:] == ["--foo", "bar", "--restart", "chkpt.dat"]
     assert env["CUDA_VISIBLE_DEVICES"] == "0,1"
     assert env["DPF_RESTART"] == "chkpt.dat"
 
@@ -81,8 +82,8 @@ def test_mpi_node_topology_and_restart(tmp_path, monkeypatch):
     assert "1 hostA 1" in gpu_map
     assert "2 hostB 0" in gpu_map
 
-    idx = cmd.index(str(script))
-    assert cmd[idx + 1 : idx + 3] == ["--restart", "chk.dat"]
+    # Wrapper script obscures the actual job path; ensure args are forwarded.
+    assert cmd[-2:] == ["--restart", "chk.dat"]
     assert env["CUDA_VISIBLE_DEVICES"] == "0,1"
     assert env["DPF_RESTART"] == "chk.dat"
 
@@ -121,4 +122,27 @@ def test_stage_manifest_and_restart(tmp_path, monkeypatch):
     assert cmd[idx + 1 : idx + 3] == ["--restart", manifest]
     env = called["env"]
     assert env["DPF_RESTART"] == manifest
+
+
+def test_default_manifest_staged(tmp_path, monkeypatch):
+    """Ensure ``run_manifest.json`` is copied even without explicit argument."""
+
+    script = tmp_path / "job.sh"
+    script.write_text("#!/bin/bash\n")
+    jm = JobManager("slurm")
+
+    called: dict[str, object] = {}
+
+    def fake_wrap(self, job_script, stage_in, stage_out):  # type: ignore[override]
+        called["stage_out"] = stage_out
+        return job_script
+
+    def fake_run(cmd, capture_output, text, check, env):  # type: ignore[override]
+        return type("R", (), {})()
+
+    monkeypatch.setattr(JobManager, "_wrap_staging", fake_wrap)
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    jm.submit(str(script))
+    assert called["stage_out"]["run_manifest.json"] == "run_manifest.json"
 

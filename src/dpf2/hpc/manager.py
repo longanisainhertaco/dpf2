@@ -74,7 +74,9 @@ class JobManager:
         if stage_in:
             for src, dst in stage_in.items():
                 lines.append(f"cp -r {src} {dst}")
-        lines.append(job_script)
+        # Forward any arguments passed to the wrapper script to the actual job
+        # script so features like ``--restart`` continue to function.
+        lines.append(f"{job_script} \"$@\"")
         if stage_out:
             for src, dst in stage_out.items():
                 lines.append(f"cp -r {src} {dst}")
@@ -94,7 +96,8 @@ class JobManager:
             Path to a submission script or executable.
         manifest:
             Optional path to a ``run_manifest.json`` that should be staged with
-            other outputs.
+            other outputs. If omitted, ``"run_manifest.json"`` is used and will
+            always be copied alongside job results.
         **kwargs:
             Additional scheduler specific keyword arguments. ``restart`` may
             reference a manifest path to resume a previous run.
@@ -108,12 +111,20 @@ class JobManager:
         stage_in: Mapping[str, str] | None = kwargs.pop("stage_in", None)
         stage_out: Mapping[str, str] | None = kwargs.pop("stage_out", None)
         restart = kwargs.get("restart")
-        if manifest is not None:
-            stage_out = dict(stage_out or {})
-            stage_out[manifest] = manifest
+
+        # Always copy the run manifest with other outputs so metadata is
+        # preserved. When ``manifest`` is not supplied we fall back to the
+        # conventional ``run_manifest.json`` name.
+        manifest_path = manifest or "run_manifest.json"
+        stage_out = dict(stage_out or {})
+        stage_out[manifest_path] = manifest_path
+
+        # ``--restart`` may reference a previously generated manifest. Stage it
+        # in so the job can resume using the recorded metadata.
         if restart is not None and str(restart).endswith(".json"):
             stage_in = dict(stage_in or {})
             stage_in[str(restart)] = str(restart)
+
         job_script = self._wrap_staging(job_script, stage_in, stage_out)
 
         # Script level arguments and restart handling
