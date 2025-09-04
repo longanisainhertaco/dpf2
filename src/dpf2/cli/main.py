@@ -11,6 +11,8 @@ import tempfile
 import textwrap
 
 import click
+import numpy as np
+import statistics
 
 from dpf2.core.config import DPFConfig
 from dpf2.core.simulation import DPFSimulation
@@ -33,6 +35,7 @@ from dpf2.optimization.param_sweep import (
 )
 
 from dpf2.scaling_laws import sweep_yield_scaling
+from dpf2.uq.sampling import latin_hypercube, sobol_sample
 
 from .errors import format_error
 
@@ -682,6 +685,61 @@ def param_sweep_cmd(
         raise click.ClickException(format_error("SWEEP", str(e)))
 
     click.echo(f"Sweep complete. Results written to {output}")
+
+
+@main.command("uq-sweep")
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
+@click.option(
+    "--parameters",
+    type=str,
+    required=True,
+    help="JSON mapping of parameter bounds, e.g. '{\"capacitance\":[1e-6,5e-6]}'",
+)
+@click.option(
+    "--method", type=click.Choice(["lhs", "sobol"]), default="lhs", show_default=True
+)
+@click.option("--samples", type=int, default=4, show_default=True)
+@click.option("--output", type=click.Path(dir_okay=False), default="uq_results.json")
+def uq_sweep_cmd(
+    config: str, parameters: str, method: str, samples: int, output: str
+) -> None:
+    """Run a multi-parameter sweep using UQ sampling schemes."""
+
+    try:
+        cfg = DPFConfig.from_file(config)
+        bounds = json.loads(parameters)
+        sampler = latin_hypercube if method == "lhs" else sobol_sample
+        sample = sampler(bounds, samples)
+        results: list[dict[str, Any]] = []
+        names = list(bounds)
+        for row in sample:
+            params = {n: float(v) for n, v in zip(names, row)}
+            cfg_i = dataclasses.replace(cfg, **params)
+            sim = DPFSimulation(cfg_i)
+            _, currents, _ = sim.run()
+            results.append({"params": params, "peak_current": max(currents)})
+        Path(output).write_text(json.dumps(results, indent=2))
+    except Exception as e:
+        raise click.ClickException(format_error("UQ", str(e)))
+
+    click.echo(f"UQ sweep complete. Results written to {output}")
+
+
+@main.command("uq-stats")
+@click.option("--input", type=click.Path(exists=True, dir_okay=False), required=True)
+def uq_stats_cmd(input: str) -> None:
+    """Compute statistics from a UQ sweep results file."""
+
+    try:
+        data = json.loads(Path(input).read_text())
+        currents = [r["peak_current"] for r in data]
+        stats = {
+            "mean_peak_current": statistics.mean(currents),
+            "std_peak_current": statistics.pstdev(currents),
+        }
+        click.echo(json.dumps(stats))
+    except Exception as e:
+        raise click.ClickException(format_error("UQ", str(e)))
 
 
 @main.command("scaling")
