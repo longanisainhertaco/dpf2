@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 import numpy as np
+import random
 
 __all__ = ["TriggeredSwitch", "CrowbarStage"]
 
@@ -84,7 +85,10 @@ class TriggeredSwitch:
                 self.trigger_times.append(self.trigger_time)
         # Apply optional Gaussian jitter
         if self.jitter_std > 0.0 and self.trigger_times:
-            jitter = np.random.normal(0.0, self.jitter_std, len(self.trigger_times))
+            try:
+                jitter = np.random.normal(0.0, self.jitter_std, len(self.trigger_times))  # type: ignore[arg-type]
+            except Exception:
+                jitter = [random.gauss(0.0, self.jitter_std) for _ in self.trigger_times]
             self.trigger_times = [t + j for t, j in zip(self.trigger_times, jitter)]
         self.trigger_times = sorted(self.trigger_times)
 
