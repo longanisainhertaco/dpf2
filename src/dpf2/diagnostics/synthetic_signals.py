@@ -83,8 +83,10 @@ def _load_calibration_hdf5(
     path: str | Path, dataset: str
 ) -> tuple[np.ndarray, np.ndarray]:
     """Load ``(time, response)`` arrays from an HDF5 calibration file."""
-
-    with h5py.File(path, "r") as fh:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(p)
+    with h5py.File(p, "r") as fh:
         grp = fh[dataset]
         times = np.array(grp["time"], dtype=float)
         resp = np.array(grp["response"], dtype=float)

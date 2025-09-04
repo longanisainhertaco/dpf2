@@ -455,6 +455,10 @@ class SyntheticDiagnostics(ConfigSectionBase):
     # Global paths
     detector_definitions_path: Optional[Path] = Field(None, alias="detectorDefinitionsPath")
     instrument_response_directory: Optional[Path] = Field(None, alias="instrumentResponseDirectory")
+    rogowski_calibration_path: Optional[Path] = Field(None, alias="rogowskiCalibrationPath")
+    bdot_calibration_path: Optional[Path] = Field(None, alias="bdotCalibrationPath")
+    sxr_diode_calibration_path: Optional[Path] = Field(None, alias="sxrDiodeCalibrationPath")
+    neutron_tof_calibration_path: Optional[Path] = Field(None, alias="neutronTofCalibrationPath")
 
     # Noise and filter modeling
     apply_electrical_filter: bool = Field(False, alias="applyElectricalFilter")
@@ -631,9 +635,13 @@ def run_diagnostic_calculations(
     if cfg.synthetic_coupled_voltage_waveform_enabled:
         outputs["coupled_voltage"] = coupled_voltage_waveform(hist)
     if cfg.synthetic_rogowski_signal_enabled:
-        outputs["rogowski"] = rogowski_signal(hist, dt)
+        outputs["rogowski"] = rogowski_signal(
+            hist, dt, calibration_file=cfg.rogowski_calibration_path
+        )
     if cfg.synthetic_bdot_signal_enabled:
-        outputs["bdot"] = bdot_signal(hist, bdot_radius, dt)
+        outputs["bdot"] = bdot_signal(
+            hist, bdot_radius, dt, calibration_file=cfg.bdot_calibration_path
+        )
 
     if cfg.synthetic_cr39_image_enabled:
         outputs["cr39_image"] = _cr39_image(hist)

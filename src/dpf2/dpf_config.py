@@ -286,6 +286,10 @@ class Diagnostics(BaseModel):
     enable_DT_yield_modeling: bool = False
     sxr_detector_models: List[Dict[str, Any]] = Field(default_factory=list)
     neutron_tof_detectors: List[Dict[str, Any]] = Field(default_factory=list)
+    rogowski_calibration_path: Optional[Path] = None
+    bdot_calibration_path: Optional[Path] = None
+    sxr_diode_calibration_path: Optional[Path] = None
+    neutron_tof_calibration_path: Optional[Path] = None
     wall_probe_array_config: Optional[Dict[str, Any]] = None
     fields_to_output: List[str] = Field(default_factory=list)
     particle_species_to_track: List[str] = Field(default_factory=list)

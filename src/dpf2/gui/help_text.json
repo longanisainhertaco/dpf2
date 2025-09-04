@@ -6,5 +6,9 @@
   "cathode_radius": "Inner radius of the cathode electrode in centimeters.",
   "electrode_length": "Length of the electrodes in centimeters.",
   "charging_voltage": "Capacitor bank voltage applied to the electrodes in volts.",
-  "initial_pressure": "Initial fill gas pressure in torr."
+  "initial_pressure": "Initial fill gas pressure in torr.",
+  "rogowski_calibration_path": "HDF5 impulse response for Rogowski coil diagnostics.",
+  "bdot_calibration_path": "HDF5 impulse response for B-dot probe diagnostics.",
+  "sxr_diode_calibration_path": "HDF5 response curve for soft X-ray diode diagnostics.",
+  "neutron_tof_calibration_path": "HDF5 response curve for neutron time-of-flight detectors."
 }

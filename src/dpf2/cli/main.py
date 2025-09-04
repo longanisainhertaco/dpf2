@@ -28,6 +28,8 @@ from dpf2.diagnostics.synthetic_signals import (
     coupled_voltage_waveform,
     rogowski_signal,
     bdot_signal,
+    sxr_diode_signal,
+    neutron_tof_signal,
 )
 from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
@@ -1133,6 +1135,28 @@ def make_surrogate(data: str, outdir: str) -> None:
 @click.option("--voltage", is_flag=True, help="Output voltage waveform")
 @click.option("--rogowski", is_flag=True, help="Output Rogowski signal")
 @click.option("--bdot", is_flag=True, help="Output B-dot signal")
+@click.option(
+    "--rogowski-calibration",
+    type=click.Path(exists=True, dir_okay=False),
+    help="HDF5 calibration file for Rogowski coil response",
+)
+@click.option(
+    "--bdot-calibration",
+    type=click.Path(exists=True, dir_okay=False),
+    help="HDF5 calibration file for B-dot probe response",
+)
+@click.option("--sxr", is_flag=True, help="Output SXR diode signal")
+@click.option(
+    "--sxr-calibration",
+    type=click.Path(exists=True, dir_okay=False),
+    help="HDF5 calibration file for SXR diode response",
+)
+@click.option("--tof", is_flag=True, help="Output neutron ToF signal")
+@click.option(
+    "--tof-calibration",
+    type=click.Path(exists=True, dir_okay=False),
+    help="HDF5 calibration file for neutron ToF response",
+)
 @click.option("--dt", type=float, default=1e-9, help="Time step for derivatives [s]")
 @click.option(
     "--radius", type=float, default=0.01, help="Probe radius for B-dot signal [m]"
@@ -1144,6 +1168,12 @@ def diagnostics(
     voltage: bool,
     rogowski: bool,
     bdot: bool,
+    rogowski_calibration: str | None,
+    bdot_calibration: str | None,
+    sxr: bool,
+    sxr_calibration: str | None,
+    tof: bool,
+    tof_calibration: str | None,
     dt: float,
     radius: float,
 ) -> None:
@@ -1162,18 +1192,34 @@ def diagnostics(
             if cfg.synthetic_voltage_waveform_enabled:
                 outputs["voltage"] = voltage_waveform(states)
             if cfg.synthetic_rogowski_signal_enabled:
-                outputs["rogowski"] = rogowski_signal(states, dt)
+                outputs["rogowski"] = rogowski_signal(
+                    states, dt, calibration_file=cfg.rogowski_calibration_path
+                )
             if cfg.synthetic_bdot_signal_enabled:
-                outputs["bdot"] = bdot_signal(states, radius, dt)
+                outputs["bdot"] = bdot_signal(
+                    states, radius, dt, calibration_file=cfg.bdot_calibration_path
+                )
 
         if current:
             outputs["current"] = current_waveform(states)
         if voltage:
             outputs["voltage"] = voltage_waveform(states)
         if rogowski:
-            outputs["rogowski"] = rogowski_signal(states, dt)
+            outputs["rogowski"] = rogowski_signal(
+                states, dt, calibration_file=rogowski_calibration
+            )
         if bdot:
-            outputs["bdot"] = bdot_signal(states, radius, dt)
+            outputs["bdot"] = bdot_signal(
+                states, radius, dt, calibration_file=bdot_calibration
+            )
+        if sxr:
+            outputs["sxr"] = sxr_diode_signal(
+                current_waveform(states), dt, calibration_file=sxr_calibration
+            )
+        if tof:
+            outputs["tof"] = neutron_tof_signal(
+                [2.45], [1.0], 1.0, [0.0, dt], calibration_file=tof_calibration
+            )
 
         click.echo(json.dumps(outputs))
     except Exception as e:
