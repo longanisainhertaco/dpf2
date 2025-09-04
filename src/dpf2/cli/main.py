@@ -523,7 +523,7 @@ def simulate(
 
             progress_cb = _update
 
-        run_kwargs = {"output_dir": output, "verbose": verbose}
+        run_kwargs = {"output_dir": output, "verbose": verbose, "seeds": seeds}
         if progress_cb is not None:
             run_kwargs["progress_cb"] = progress_cb
         times, currents, voltages = sim.run(**run_kwargs)
@@ -614,7 +614,7 @@ def simulate(
                         )
                     except Exception:
                         shot_seeds["numpy"] = 0
-                shot_sim.run(output_dir=str(shot_dir))
+                shot_sim.run(output_dir=str(shot_dir), seeds=shot_seeds)
                 ppc = getattr(
                     getattr(shot_cfg, "warpx_settings", None),
                     "max_particles_per_cell",

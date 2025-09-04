@@ -11,7 +11,8 @@ import h5py  # type: ignore
 def test_hdf5_contains_metadata(tmp_path):
     cfg = DPFConfig()
     sim = DPFSimulation(cfg)
-    sim.run(end_time=0.0, output_dir=tmp_path)
+    seeds = {"python": 1, "numpy": 2}
+    sim.run(end_time=0.0, output_dir=tmp_path, seeds=seeds)
     with h5py.File(tmp_path / "data_0.000000e+00.h5", "r") as f:
         meta_raw = f["metadata"][()]
         if hasattr(meta_raw, "data"):
@@ -23,3 +24,6 @@ def test_hdf5_contains_metadata(tmp_path):
         json.dumps(dataclasses.asdict(cfg), sort_keys=True).encode()
     ).hexdigest()
     assert meta["config_hash"] == expected
+    assert meta["config"] == dataclasses.asdict(cfg)
+    assert meta["seeds"] == seeds
+    assert "git_commit" in meta
