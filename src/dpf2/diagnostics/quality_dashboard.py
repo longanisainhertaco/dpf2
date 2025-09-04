@@ -45,7 +45,16 @@ class QualityDashboard:
         energy_drift: float = 0.0,
 
     ) -> None:
-        """Record a step's metrics and emit warnings if thresholds violated."""
+        """Record a step's metrics and emit warnings if thresholds violated.
+
+        Parameters
+        ----------
+        amr_level:
+            Current refinement level, if adaptive mesh refinement is enabled.
+            When provided the level is stored and visualised in the stability
+            plot, allowing users to correlate mesh changes with other quality
+            metrics.
+        """
         entry = {
             "step": step,
             "dt": dt,

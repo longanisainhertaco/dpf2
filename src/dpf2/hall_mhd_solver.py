@@ -523,7 +523,9 @@ class HallMHDSolver(PlasmaSolverBase):
     def amr_refinement(self, state: MHDState) -> None:
         """Invoke the refinement callback if provided."""
         if self.refine is not None:
-            self.refine(state)
+            stats = self.refine(state)
+            if stats:
+                logger.info("AMR callback stats: %s", stats)
 
     def _exchange_array(self, arr: np.ndarray) -> None:
         """Exchange ghost cells of ``arr`` with neighbouring MPI ranks."""

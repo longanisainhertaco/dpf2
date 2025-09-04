@@ -437,8 +437,10 @@ class SimulationEngine:
                 for diag in diag_list:
                     diag.record(updated, circuit.time[-1])
 
-            if self._mesh is not None:
-                self._mesh.refine()
+            if self._mesh is not None and plasma_state is not None:
+                stats = self._mesh.refine(plasma_state)
+                if stats:
+                    logger.info("AMR mesh stats: %s", stats)
 
             current, voltage = updated.current, updated.voltage
             step += 1
