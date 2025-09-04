@@ -7,7 +7,7 @@ from typing import Sequence, List, Dict, Any
 import json
 
 # Re-export core synthesis utilities from :mod:`neutron_spectra`
-from .neutron_spectra import (
+from ..neutron_spectra import (
     Detector,
     DetectorLayout,
     synthetic_tof_spectrum,
