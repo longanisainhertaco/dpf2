@@ -97,6 +97,28 @@ def run_sampling(
     return result
 
 
+def launch_sampling(
+    model: Callable[[np.ndarray], float | Sequence[float]],
+    bounds: Bounds,
+    n_samples: int = 100,
+    *,
+    method: str = "lhs",
+    alpha: float = 0.95,
+    seed: int | None = None,
+    ax: Any | None = None,
+) -> Dict[str, Any]:
+    """Convenience wrapper for :func:`run_sampling` used by dashboards.
+
+    The function simply forwards all arguments to :func:`run_sampling` but
+    exposes a more GUI-friendly name so frontends can trigger Latin hypercube
+    or Sobol sampling without dealing with implementation details.
+    """
+
+    return run_sampling(
+        model, bounds, n_samples, method=method, alpha=alpha, seed=seed, ax=ax
+    )
+
+
 def calibrate_from_file(
     model: Callable[[np.ndarray], np.ndarray],
     bounds: Bounds,
@@ -137,6 +159,49 @@ def calibrate_from_file(
             fig.tight_layout()
 
     return post
+
+
+def plot_posterior_distributions(
+    posterior: Mapping[str, Sequence[float]],
+    ax: Any | None = None,
+) -> Any:
+    """Plot marginal posterior distributions for calibrated parameters.
+
+    Parameters
+    ----------
+    posterior:
+        Mapping of parameter names to posterior samples, typically the output
+        of :func:`calibrate_from_file`.
+    ax:
+        Optional :class:`matplotlib.axes.Axes` to draw on.  When ``None`` a new
+        figure is created when :mod:`matplotlib` is available.  Multiple
+        parameters result in a row of subplots.
+
+    Returns
+    -------
+    Any
+        The axis or list of axes used for plotting, or ``None`` when plotting
+        is unavailable.
+    """
+
+    if plt is None:  # pragma: no cover - plotting not available
+        return None
+
+    names = list(posterior)
+    samples = [posterior[n] for n in names]
+    n = len(names)
+    if ax is None:
+        fig, axes = plt.subplots(1, n, figsize=(4 * n, 3))
+        if n == 1:
+            axes = [axes]
+    else:
+        axes = [ax]
+    for axis, name, vals in zip(axes, names, samples):
+        axis.hist(vals, bins=30, density=True)
+        axis.set_title(name)
+    if ax is None:
+        fig.tight_layout()
+    return axes if ax is None else axes[0]
 
 
 def plot_kpi_with_domain(
@@ -182,6 +247,8 @@ def plot_kpi_with_domain(
 __all__ = [
     "launch",
     "run_sampling",
+    "launch_sampling",
     "calibrate_from_file",
+    "plot_posterior_distributions",
     "plot_kpi_with_domain",
 ]
