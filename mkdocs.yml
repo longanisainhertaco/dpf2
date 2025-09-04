@@ -9,6 +9,7 @@ nav:
       - Advanced Workflow: tutorials/advanced_workflow.md  # persona: engineer
       - Optimization: tutorials/optimization.md  # persona: engineer
       - Diagnostics: tutorials/diagnostics.md  # persona: engineer
+      - Uncertainty Quantification: tutorials/uq.md  # persona: engineer
   - Scientist Theory: scientist_theory.md  # persona: scientist
   - Examples:  # persona: engineer, scientist
       - Run Simulation: ../examples/run_simulation.py

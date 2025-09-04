@@ -1,10 +1,10 @@
 """Bayesian calibration routines for model parameter inference."""
+
 from __future__ import annotations
 
 from typing import Callable, Dict, Tuple
 
 import numpy as np
-import random
 import math
 
 Bounds = Dict[str, Tuple[float, float]]
@@ -16,13 +16,14 @@ def bayesian_calibration(
     data: np.ndarray,
     n_samples: int = 1000,
     proposal_scale: float = 0.1,
+    sigma: float = 1.0,
     seed: int | None = None,
 ) -> Dict[str, np.ndarray]:
     """Infer model parameters from experimental ``data`` using MCMC.
 
     This implements a simple Metropolis-Hastings sampler with uniform
-    priors over ``bounds`` and a Gaussian likelihood assuming unit
-    variance.
+    priors over ``bounds`` and a Gaussian likelihood with standard
+    deviation ``sigma``.
 
     Parameters
     ----------
@@ -38,6 +39,8 @@ def bayesian_calibration(
     proposal_scale:
         Standard deviation of the Gaussian proposal distribution as a
         fraction of the parameter range.
+    sigma:
+        Standard deviation of the observational noise.
     seed:
         Optional random seed for reproducibility.
 
@@ -48,7 +51,7 @@ def bayesian_calibration(
         samples.
     """
 
-    rng = random.Random(seed)
+    rng = np.random.default_rng(seed)
     names = list(bounds)
     lower = np.array([bounds[n][0] for n in names])
     upper = np.array([bounds[n][1] for n in names])
@@ -56,7 +59,7 @@ def bayesian_calibration(
 
     def log_like(params: np.ndarray) -> float:
         pred = np.asarray(model(params))
-        resid = data - pred
+        resid = (data - pred) / sigma
         return -0.5 * np.dot(resid, resid)
 
     samples = np.zeros((n_samples, len(names)))
@@ -64,8 +67,8 @@ def bayesian_calibration(
     widths = proposal_scale * (upper - lower)
 
     for i in range(n_samples):
-        proposal = np.array([c + rng.gauss(0.0, w) for c, w in zip(current, widths)])
-        if all(lower[j] <= proposal[j] <= upper[j] for j in range(len(names))):
+        proposal = rng.normal(current, widths)
+        if np.all((proposal >= lower) & (proposal <= upper)):
             logp = log_like(proposal)
             if math.log(rng.random()) < (logp - current_logp):
                 current = proposal
