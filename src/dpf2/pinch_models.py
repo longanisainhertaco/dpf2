@@ -22,6 +22,12 @@ from .eos import RealGasEOS
 from .fusion import bosch_hale_dd
 from .hall_mhd_solver import HallMHDSolver, MHDState
 from .physics import PicDriver
+from .diagnostics import (
+    plasma_beta,
+    alfven_mach_number,
+    magnetic_reynolds_number,
+    lundquist_number,
+)
 
 __all__ = [
     "PinchModelBase",
@@ -42,6 +48,10 @@ class PinchResult:
     neutron_yield: float
     axial_position: np.ndarray | None = None
     energy: np.ndarray | None = None
+    beta: np.ndarray | None = None
+    alfven_mach: np.ndarray | None = None
+    magnetic_reynolds: np.ndarray | None = None
+    lundquist: np.ndarray | None = None
 
 
 class PinchModelBase:
@@ -66,7 +76,25 @@ class AnalyticPinchModel(PinchModelBase):
         temperature = 1e3 * (I / 1e4) ** 2
         yield_integrand = (temperature / 1e3) ** 3 * I ** 2
         neutron_yield = float(np.trapz(yield_integrand, t) * 1e-20)
-        return PinchResult(t, radius, temperature, pressure, neutron_yield)
+        B = 4e-7 * np.pi * I / (2 * np.pi * radius)
+        n = pressure / np.maximum(temperature, 1e-12) / 1.380649e-23
+        beta = np.array([plasma_beta(ni, Ti, Bi) for ni, Ti, Bi in zip(n, temperature, B)])
+        vr = np.gradient(radius, t, edge_order=2)
+        alfven = np.array([alfven_mach_number(v, Bi, ni) for v, Bi, ni in zip(vr, B, n)])
+        sigma = 1e5
+        rm = np.array([magnetic_reynolds_number(abs(v), r, sigma) for v, r in zip(vr, radius)])
+        s = np.array([lundquist_number(Bi, ni, r, sigma) for Bi, ni, r in zip(B, n, radius)])
+        return PinchResult(
+            t,
+            radius,
+            temperature,
+            pressure,
+            neutron_yield,
+            beta=beta,
+            alfven_mach=alfven,
+            magnetic_reynolds=rm,
+            lundquist=s,
+        )
 
 
 class SemiAnalyticPinchModel(PinchModelBase):
@@ -114,7 +142,25 @@ class SemiAnalyticPinchModel(PinchModelBase):
         reactivity = bosch_hale_dd(temperature / 1e3)
         rate = 0.25 * n_i ** 2 * reactivity * volume
         neutron_yield = float(np.trapz(rate, t))
-        return PinchResult(t, r, temperature, pressure, neutron_yield, axial_position=z)
+        B = 4e-7 * np.pi * I / (2 * np.pi * r)
+        beta = np.array([plasma_beta(ni, Ti, Bi) for ni, Ti, Bi in zip(n_i, temperature, B)])
+        vr = sol.y[1]
+        alfven = np.array([alfven_mach_number(v, Bi, ni) for v, Bi, ni in zip(vr, B, n_i)])
+        sigma = 1e5
+        rm = np.array([magnetic_reynolds_number(abs(v), rad, sigma) for v, rad in zip(vr, r)])
+        s = np.array([lundquist_number(Bi, ni, rad, sigma) for Bi, ni, rad in zip(B, n_i, r)])
+        return PinchResult(
+            t,
+            r,
+            temperature,
+            pressure,
+            neutron_yield,
+            axial_position=z,
+            beta=beta,
+            alfven_mach=alfven,
+            magnetic_reynolds=rm,
+            lundquist=s,
+        )
 
 
 class MHDPinchModel(PinchModelBase):
@@ -155,36 +201,59 @@ class MHDPinchModel(PinchModelBase):
         energy = internal + 0.5 * np.sum(B**2, axis=-1)
         state = MHDState(rho=rho, mom=mom, energy=energy, B=B)
 
-        def diagnostics(s: MHDState) -> tuple[float, float, float, float]:
+        def diagnostics(s: MHDState) -> tuple[float, float, float, float, float, float, float, float]:
             v = s.mom / s.rho[..., None]
-            kinetic = 0.5 * s.rho * np.sum(v**2, axis=-1)
-            magnetic = 0.5 * np.sum(s.B**2, axis=-1)
+            vmag = np.sqrt(np.sum(v**2, axis=-1))
+            kinetic = 0.5 * s.rho * vmag**2
+            Bmag = np.sqrt(np.sum(s.B**2, axis=-1))
+            magnetic = 0.5 * Bmag**2
             internal = s.energy - kinetic - magnetic
             p = (gamma - 1.0) * internal
             T = p / s.rho
             rad = np.sqrt(np.sum(s.rho * self.r2) / np.sum(s.rho))
-            return rad, float(np.mean(T)), float(np.mean(p)), float(np.sum(s.energy))
+            n = s.rho / (3.344e-27)
+            n_mean = float(np.mean(n))
+            B_mean = float(np.mean(Bmag))
+            beta = plasma_beta(n_mean, float(np.mean(T)), B_mean)
+            v_mean = float(np.mean(vmag))
+            alfven = alfven_mach_number(v_mean, B_mean, n_mean)
+            sigma = 1e5
+            rm = magnetic_reynolds_number(v_mean, rad, sigma)
+            s_num = lundquist_number(B_mean, n_mean, rad, sigma)
+            return rad, float(np.mean(T)), float(np.mean(p)), float(np.sum(s.energy)), beta, alfven, rm, s_num
 
         radius = []
         temperature = []
         pressure = []
         energy_hist = []
+        beta_hist = []
+        alfven_hist = []
+        rm_hist = []
+        s_hist = []
 
-        rad, temp, pres, Etot = diagnostics(state)
+        rad, temp, pres, Etot, b, a, rm, s_num = diagnostics(state)
         radius.append(rad)
         temperature.append(temp)
         pressure.append(pres)
         energy_hist.append(Etot)
+        beta_hist.append(b)
+        alfven_hist.append(a)
+        rm_hist.append(rm)
+        s_hist.append(s_num)
 
         neutron_yield = 0.0
         for k in range(len(t) - 1):
             dt = t[k + 1] - t[k]
             state = solver.step(state, dt)
-            rad, temp, pres, Etot = diagnostics(state)
+            rad, temp, pres, Etot, b, a, rm, s_num = diagnostics(state)
             radius.append(rad)
             temperature.append(temp)
             pressure.append(pres)
             energy_hist.append(Etot)
+            beta_hist.append(b)
+            alfven_hist.append(a)
+            rm_hist.append(rm)
+            s_hist.append(s_num)
             n_i = np.mean(state.rho) / (3.344e-27)
             reactivity = bosch_hale_dd(max(temp, 0.0) / 1e3)
             mag = np.mean(np.sum(state.B**2, axis=-1))
@@ -198,6 +267,10 @@ class MHDPinchModel(PinchModelBase):
             pressure=np.asarray(pressure),
             neutron_yield=float(neutron_yield),
             energy=np.asarray(energy_hist),
+            beta=np.asarray(beta_hist),
+            alfven_mach=np.asarray(alfven_hist),
+            magnetic_reynolds=np.asarray(rm_hist),
+            lundquist=np.asarray(s_hist),
         )
 
 
@@ -249,22 +322,37 @@ class HybridPinchModel(PinchModelBase):
         energy = internal + 0.5 * np.sum(B**2, axis=-1)
         state = MHDState(rho=rho, mom=mom, energy=energy, B=B)
 
-        def diagnostics(s: MHDState) -> tuple[float, float, float, float]:
+        def diagnostics(s: MHDState) -> tuple[float, float, float, float, float, float, float, float]:
             v = s.mom / s.rho[..., None]
-            kinetic = 0.5 * s.rho * np.sum(v**2, axis=-1)
-            magnetic = 0.5 * np.sum(s.B**2, axis=-1)
+            vmag = np.sqrt(np.sum(v**2, axis=-1))
+            kinetic = 0.5 * s.rho * vmag**2
+            Bmag = np.sqrt(np.sum(s.B**2, axis=-1))
+            magnetic = 0.5 * Bmag**2
             internal = s.energy - kinetic - magnetic
             p = (gamma - 1.0) * internal
             T = p / s.rho
             rad = np.sqrt(np.sum(s.rho * self.r2) / np.sum(s.rho))
-            return rad, float(np.mean(T)), float(np.mean(p)), float(np.sum(s.energy))
+            n = s.rho / (3.344e-27)
+            n_mean = float(np.mean(n))
+            B_mean = float(np.mean(Bmag))
+            beta = plasma_beta(n_mean, float(np.mean(T)), B_mean)
+            v_mean = float(np.mean(vmag))
+            alfven = alfven_mach_number(v_mean, B_mean, n_mean)
+            sigma = 1e5
+            rm = magnetic_reynolds_number(v_mean, rad, sigma)
+            s_num = lundquist_number(B_mean, n_mean, rad, sigma)
+            return rad, float(np.mean(T)), float(np.mean(p)), float(np.sum(s.energy)), beta, alfven, rm, s_num
 
         radius: list[float] = []
         temperature: list[float] = []
         pressure: list[float] = []
         energy_hist: list[float] = []
+        beta_hist: list[float] = []
+        alfven_hist: list[float] = []
+        rm_hist: list[float] = []
+        s_hist: list[float] = []
 
-        rad_fluid, temp, pres, Etot = diagnostics(state)
+        rad_fluid, temp, pres, Etot, b, a, rm, s_num = diagnostics(state)
         rad_pic, e_pic, j_pic = self.pic_driver.step(state, I[0], 0.0)
         getattr(self.pic_driver, "exchange_fields", lambda: (None, None))()
         getattr(self.pic_driver, "exchange_particles", lambda: (None, None))()
@@ -274,6 +362,10 @@ class HybridPinchModel(PinchModelBase):
         temperature.append(temp)
         pressure.append(pres)
         energy_hist.append(Etot + e_pic)
+        beta_hist.append(b)
+        alfven_hist.append(a)
+        rm_hist.append(rm)
+        s_hist.append(s_num)
 
         neutron_yield = 0.0
         for k in range(len(t) - 1):
@@ -282,7 +374,7 @@ class HybridPinchModel(PinchModelBase):
             getattr(self.pic_driver, "exchange_fields", lambda: (None, None))()
             getattr(self.pic_driver, "exchange_particles", lambda: (None, None))()
             state = solver.step(state, dt, current=j_pic)
-            rad_fluid, temp, pres, Etot = diagnostics(state)
+            rad_fluid, temp, pres, Etot, b, a, rm, s_num = diagnostics(state)
             if use_pic:
                 if rad_fluid > self.switch_radius:
                     use_pic = False
@@ -294,6 +386,10 @@ class HybridPinchModel(PinchModelBase):
             temperature.append(temp)
             pressure.append(pres)
             energy_hist.append(Etot + e_pic)
+            beta_hist.append(b)
+            alfven_hist.append(a)
+            rm_hist.append(rm)
+            s_hist.append(s_num)
             n_i = np.mean(state.rho) / (3.344e-27)
             reactivity = bosch_hale_dd(max(temp, 0.0) / 1e3)
             rate = 0.25 * n_i**2 * reactivity * self.volume
@@ -306,5 +402,9 @@ class HybridPinchModel(PinchModelBase):
             pressure=np.asarray(pressure),
             neutron_yield=float(neutron_yield),
             energy=np.asarray(energy_hist),
+            beta=np.asarray(beta_hist),
+            alfven_mach=np.asarray(alfven_hist),
+            magnetic_reynolds=np.asarray(rm_hist),
+            lundquist=np.asarray(s_hist),
         )
 
