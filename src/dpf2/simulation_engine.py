@@ -240,7 +240,7 @@ class SimulationEngine:
             return
 
         try:
-            base_shape = (getattr(solver, 'nx', 0), getattr(solver, 'ny', 0), getattr(solver, 'nz', 0))
+            base_shape = (getattr(solver, "nx", 0), getattr(solver, "ny", 0), getattr(solver, "nz", 0))
             if not all(base_shape):
                 return
             resolutions = [base_shape, tuple(2 * s for s in base_shape)]
@@ -249,14 +249,14 @@ class SimulationEngine:
                 return
             cells = [int(np.prod(r)) for r in resolutions[: len(energies)]]
             plt.figure()
-            plt.loglog(cells, energies, marker='o')
-            plt.xlabel('Total cells')
-            plt.ylabel('Total energy')
-            plt.title('PIC convergence study')
-            plt.savefig('pic_convergence.png')
+            plt.loglog(cells, energies, marker="o")
+            plt.xlabel("Total cells")
+            plt.ylabel("Total energy")
+            plt.title("PIC convergence study")
+            plt.savefig("pic_convergence.png")
             plt.close()
-        except Exception:
-            pass
+        except (ValueError, RuntimeError):
+            logger.exception("Failed to generate PIC convergence plot")
 
     # ------------------------------------------------------------------
     def run(
@@ -333,8 +333,8 @@ class SimulationEngine:
                         min_debye_cells=1.0,
                         min_particles_per_cell=10,
                     )
-                except Exception:
-                    pass
+                except (ValueError, RuntimeError):
+                    logger.exception("Plasma threshold evaluation failed")
 
                 # Attempt to generate a convergence plot for PIC runs
                 self._generate_convergence_plot(plasma_solver)
