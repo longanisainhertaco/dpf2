@@ -389,8 +389,8 @@ def partition_yield(
     dt: float,
     thermonuclear_sigma: Sequence[float] | None = None,
     beam_target_sigma: Sequence[float] | None = None,
-) -> Dict[str, Tuple[float, float]]:
-    """Integrate rate histories and return yields with uncertainties.
+ ) -> Dict[str, Tuple[float, float]]:
+    """Integrate rate histories and return channel yields with uncertainties.
 
     Parameters
     ----------
@@ -400,8 +400,9 @@ def partition_yield(
         Time step width in seconds.
     thermonuclear_sigma, beam_target_sigma:
         Optional per-sample uncertainties for the provided rates.  When given,
-        the uncertainties are propagated in quadrature and combined with a
-        simple Poisson estimate (``sqrt(N)``) of the counting statistics.
+        the uncertainties for each channel are propagated in quadrature and
+        combined with a simple Poisson estimate (``sqrt(N)``) of the counting
+        statistics for that channel.
     """
 
     if dt <= 0:
