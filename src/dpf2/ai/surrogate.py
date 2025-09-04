@@ -6,8 +6,11 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+import json
 import numpy as np
 import pickle
+
+from ..exceptions import OutOfDomainError
 
 
 class SurrogateModel(ABC):
@@ -23,11 +26,65 @@ class SurrogateModel(ABC):
 
     def __init__(self, model_path: str | Path) -> None:
         self.model_path = Path(model_path)
+        metadata_path = self.model_path.with_name("metadata.json")
+        self._feature_mean: list[float] | None = None
+        self._inv_cov: list[list[float]] | None = None
+        self._mahalanobis_threshold: float | None = None
+        if metadata_path.exists():
+            with metadata_path.open() as fh:
+                metadata = json.load(fh)
+            mean = metadata.get("feature_mean")
+            cov_inv = metadata.get("feature_cov_inv")
+            cov = metadata.get("feature_cov")
+            threshold = metadata.get("mahalanobis_threshold")
+            if mean is not None and threshold is not None:
+                self._feature_mean = list(mean)
+                inv = None
+                if cov_inv is not None:
+                    inv = [list(row) for row in cov_inv]
+                elif cov is not None:
+                    try:
+                        import numpy as _np  # type: ignore
+                        inv = _np.linalg.inv(_np.asarray(cov)).tolist()
+                    except Exception:
+                        inv = None
+                if inv is not None:
+                    self._inv_cov = inv
+                    self._mahalanobis_threshold = float(threshold)
+                else:
+                    self._feature_mean = None
 
     @abstractmethod
-    def predict(self, inputs: np.ndarray) -> np.ndarray:
-        """Return model prediction for ``inputs``."""
+    def _predict(self, inputs: np.ndarray) -> np.ndarray:
         raise NotImplementedError
+
+    def predict(self, inputs: np.ndarray) -> np.ndarray:
+        """Return model prediction for ``inputs`` with domain validation."""
+        inputs_iter = [inputs] if getattr(inputs, "ndim", 1) == 1 else inputs
+        self._check_domain(inputs_iter)
+        return self._predict(inputs)
+
+    def _mahalanobis_distance(self, x: Any) -> float:
+        if self._feature_mean is None or self._inv_cov is None:
+            return 0.0
+        vec = x.data if hasattr(x, "data") else x
+        diff = [v - m for v, m in zip(vec, self._feature_mean)]
+        tmp = [sum(row[j] * diff[j] for j in range(len(diff))) for row in self._inv_cov]
+        return float(sum(diff[i] * tmp[i] for i in range(len(diff))))
+
+    def _check_domain(self, inputs: Any) -> None:
+        if (
+            self._feature_mean is None
+            or self._inv_cov is None
+            or self._mahalanobis_threshold is None
+        ):
+            return
+        distances = [self._mahalanobis_distance(x) for x in inputs]
+        if any(d > self._mahalanobis_threshold for d in distances):
+            raise OutOfDomainError(
+                f"Mahalanobis distance {max(distances):.3f} exceeds "
+                f"threshold {self._mahalanobis_threshold:.3f}"
+            )
 
     # ------------------------------------------------------------------
     # Optional lifecycle helpers
@@ -93,7 +150,7 @@ class TorchSurrogateModel(SurrogateModel):
         self.model.to(self.device)
         self.model.eval()
 
-    def predict(self, inputs: np.ndarray) -> np.ndarray:
+    def _predict(self, inputs: np.ndarray) -> np.ndarray:
         tensor = self._torch.as_tensor(inputs, device=self.device)
         with self._torch.no_grad():
             out = self.model(tensor).cpu().numpy()
@@ -153,7 +210,7 @@ class ONNXSurrogateModel(SurrogateModel):
             raise ImportError("onnxruntime is required for ONNXSurrogateModel") from exc
         self.session = ort.InferenceSession(str(self.model_path))
 
-    def predict(self, inputs: np.ndarray) -> np.ndarray:
+    def _predict(self, inputs: np.ndarray) -> np.ndarray:
         input_name = self.session.get_inputs()[0].name
         outputs = self.session.run(None, {input_name: inputs})
         return outputs[0]
@@ -175,4 +232,9 @@ class ONNXSurrogateModel(SurrogateModel):
         return cls(path)
 
 
-__all__ = ["SurrogateModel", "TorchSurrogateModel", "ONNXSurrogateModel"]
+__all__ = [
+    "SurrogateModel",
+    "TorchSurrogateModel",
+    "ONNXSurrogateModel",
+    "OutOfDomainError",
+]

@@ -1,8 +1,14 @@
+import json
 import numpy as np
 import pytest
 from typing import Any
 
-from dpf2.ai import SurrogateModel, TorchSurrogateModel, ONNXSurrogateModel
+from dpf2.ai import (
+    OutOfDomainError,
+    SurrogateModel,
+    TorchSurrogateModel,
+    ONNXSurrogateModel,
+)
 
 
 class SimpleSurrogate(SurrogateModel):
@@ -10,7 +16,7 @@ class SimpleSurrogate(SurrogateModel):
         super().__init__(model_path)
         self.scale = scale
 
-    def predict(self, inputs: Any) -> Any:
+    def _predict(self, inputs: Any) -> Any:
         return inputs * self.scale
 
 
@@ -34,6 +40,23 @@ def test_training_optional(tmp_path):
     metrics = model.train()
     assert metrics == {}
     assert model.scale == 5.0
+
+
+def test_out_of_domain(tmp_path):
+    model_path = tmp_path / "model.pkl"
+    meta = {
+        "feature_mean": [0.0, 0.0],
+        "feature_cov": [[1.0, 0.0], [0.0, 1.0]],
+        "feature_cov_inv": [[1.0, 0.0], [0.0, 1.0]],
+        "mahalanobis_threshold": 1.0,
+    }
+    (tmp_path / "metadata.json").write_text(json.dumps(meta))
+    model = SimpleSurrogate(model_path, scale=1.0)
+    inside = np.array([[0.5, 0.5]])
+    outside = np.array([[2.0, 2.0]])
+    np.testing.assert_allclose(model.predict(inside), inside)
+    with pytest.raises(OutOfDomainError):
+        model.predict(outside)
 
 
 def test_torch_surrogate_import_error(tmp_path):
