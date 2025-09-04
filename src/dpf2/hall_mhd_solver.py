@@ -335,6 +335,7 @@ class HallMHDSolver(PlasmaSolverBase):
     voltage_spikes: list[float] = field(default_factory=list)
     impedance_growth: list[float] = field(default_factory=list)
     last_voltage_spike: float = field(init=False, default=0.0)
+    last_lh_power: float = field(init=False, default=0.0)
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
@@ -375,13 +376,21 @@ class HallMHDSolver(PlasmaSolverBase):
 
         eta = np.zeros(J.shape[:-1])
         E = np.zeros_like(J)
+        s_eta = np.zeros(J.shape[:-1])
+        s_E = np.zeros_like(J)
 
-        def _accumulate(result: np.ndarray | tuple[np.ndarray, np.ndarray], *, axial: bool = False) -> None:
-            nonlocal eta, E
+        if hasattr(np, "abs"):
+            mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
+        else:  # pragma: no cover - very small stub fallback
+            mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
+
+        def _process(result: np.ndarray | tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
             if isinstance(result, tuple):
-                e_eta, e_E = result
-            else:
-                e_eta, e_E = result, np.zeros(J.shape[:-1])
+                return result
+            return result, np.zeros(J.shape[:-1])
+
+        def _accumulate(e_eta: np.ndarray, e_E: np.ndarray, *, axial: bool = False) -> None:
+            nonlocal eta, E
             eta += e_eta
             if e_E.ndim == E.ndim - 1:
                 if axial:
@@ -392,20 +401,39 @@ class HallMHDSolver(PlasmaSolverBase):
                 E += e_E
 
         if self.anomalous_resistivity is not None:
-            _accumulate(self.anomalous_resistivity(J))
-        if self.lower_hybrid_drift is not None:
-            _accumulate(self.lower_hybrid_drift(J), axial=True)
-        if self.m0_instability is not None:
-            _accumulate(self.m0_instability(J), axial=True)
+            e_eta, e_E = _process(self.anomalous_resistivity(J))
+            _accumulate(e_eta, e_E)
 
-        if hasattr(np, "abs"):
-            mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
-        else:  # pragma: no cover - very small stub fallback
-            mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
+        if self.lower_hybrid_drift is not None:
+            res = self.lower_hybrid_drift(J)
+            e_eta, e_E = _process(res)
+            _accumulate(e_eta, e_E, axial=True)
+            s_eta += e_eta
+            if e_E.ndim == E.ndim - 1:
+                s_E[..., 2] += e_E
+            else:
+                s_E += e_E
+            if hasattr(self.lower_hybrid_drift, "power"):
+                try:
+                    self.last_lh_power = float(np.max(self.lower_hybrid_drift.power()))
+                except Exception:  # pragma: no cover - power optional
+                    self.last_lh_power = 0.0
+        else:
+            self.last_lh_power = 0.0
+
+        if self.m0_instability is not None:
+            res = self.m0_instability(J)
+            e_eta, e_E = _process(res)
+            _accumulate(e_eta, e_E, axial=True)
+            s_eta += e_eta
+            if e_E.ndim == E.ndim - 1:
+                s_E[..., 2] += e_E
+            else:
+                s_E += e_E
         spike = float(
             max(
-                np.max(eta * mag),
-                np.max(np.abs(E[..., 2]))
+                np.max(s_eta * mag),
+                np.max(np.abs(s_E[..., 2]))
             )
         )
         if spike != 0.0:
@@ -767,6 +795,8 @@ class HallMHDSolver(PlasmaSolverBase):
                 k = 1.380649e-23
             lambda_D = np.sqrt(epsilon_0 * k * T / (ne * e**2))
             ppc = float(np.mean(ne) * cell_volume)
+            lh_power = self.last_lh_power
+            impedance = self.impedance_growth[-1] if self.impedance_growth else 0.0
             self.quality.log(
                 self.step_count,
                 dt,
@@ -774,6 +804,8 @@ class HallMHDSolver(PlasmaSolverBase):
                 ppc,
                 cfl,
                 float(np.mean(lambda_D)),
+                lower_hybrid_power=lh_power,
+                plasma_impedance=impedance,
             )
 
         return new_state

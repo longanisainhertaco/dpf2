@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-import math
 import numpy as np
 
 try:  # pragma: no cover - allow running without SciPy
@@ -41,6 +40,9 @@ class LowerHybridDrift:
     n_i: float  # Ion number density [m^-3]
     amplitude: Any | None = None  # Latest perturbation amplitude
     m_i: float = m_p  # Ion mass [kg]
+    energy: Any | None = None  # Stored wave energy
+    last_k: Any | None = None  # Wave number of last evolution
+    last_phase_velocity: Any | None = None  # Cached phase velocity
 
     def frequency(self) -> float:
         omega_ci = e * self.B / self.m_i
@@ -55,16 +57,54 @@ class LowerHybridDrift:
 
     def evolve(self, amplitude: Any, k: Any, dt: float):
         amp = _to_array(amplitude)
-        rate = _to_array(self.growth_rate(k))
+        ks = _to_array(k)
+        rate = _to_array(self.growth_rate(ks))
         evolved = amp * np.exp(np.clip(rate * dt, -50.0, 50.0))
         self.amplitude = evolved
+        self.last_k = ks
+        self.wave_energy()  # update stored energy
         return evolved
+
+    # ------------------------------------------------------------------
+    def wave_energy(self) -> np.ndarray:
+        """Return the current wave energy ``~ amplitude^2 / 2``."""
+
+        if self.amplitude is None:
+            self.energy = 0.0
+        else:
+            amp = _to_array(self.amplitude)
+            self.energy = 0.5 * amp * amp
+        return _to_array(self.energy)
+
+    def phase_velocity(self, k: Any | None = None) -> np.ndarray:
+        """Return the phase velocity ``ω/k`` for wavenumber ``k``."""
+
+        if k is None:
+            k = self.last_k if self.last_k is not None else 0.0
+        ks = _to_array(k)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            vel = self.frequency() / ks
+        self.last_phase_velocity = vel
+        return vel
+
+    def power(self) -> np.ndarray:
+        """Return a simple estimate of wave power ``energy * ω``."""
+
+        energy = self.wave_energy()
+        return energy * self.frequency()
 
 
 
     def anomalous_resistivity(self, J: np.ndarray):
         base = np.zeros(J.shape[:-1])
-        eta = base if self.amplitude is None else np.broadcast_to(self.amplitude, base.shape)
+        if self.amplitude is None:
+            eta = base
+        else:
+            try:  # pragma: no cover - real NumPy path
+                eta = np.broadcast_to(self.amplitude, base.shape)
+            except Exception:  # pragma: no cover - minimal stub fallback
+                amp = _to_array(self.amplitude)
+                eta = base + amp
         return eta, np.zeros_like(J)
 
 __all__ = ["LowerHybridDrift"]

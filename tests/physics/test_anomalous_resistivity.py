@@ -1,33 +1,33 @@
-from pathlib import Path
 import numpy as np
 import pytest
+
 from dpf2.hall_mhd_solver import HallMHDSolver
-from dpf2.validation_suite import load_pinch_dataset
+from dpf2.physics.lower_hybrid_drift import LowerHybridDrift
 
 
-@pytest.mark.parametrize("device", ["PF1000", "LLNL_MJOLNIR"])
-def test_voltage_spike_matches_dataset(device):
-    if not hasattr(np, "loadtxt"):
-        import csv
+def test_impedance_spike_from_lhdi_not_fixed():
+    def fixed(J):
+        return np.full(J.shape[:-1], 0.05)
 
-        def _loadtxt(path, delimiter=",", skiprows=1):
-            with open(path) as f:
-                reader = csv.reader(f)
-                rows = [row for row in reader][skiprows:]
-                return np.array([[float(r[0]), float(r[1])] for r in rows])
-
-        np.loadtxt = _loadtxt  # type: ignore[attr-defined]
-
-    bench = load_pinch_dataset(Path(f"data/benchmarks/{device}"))
-    _, voltage = bench["voltage"]
-    expected = float(np.max(voltage))
-
-    def model(J):
-        return np.full(J.shape[:-1], expected / 3)
-
-    solver = HallMHDSolver(anomalous_resistivity=model)
+    lhd = LowerHybridDrift(B=1.0, n_i=1e19, amplitude=0.2)
+    solver = HallMHDSolver(
+        anomalous_resistivity=fixed, lower_hybrid_drift=lhd.anomalous_resistivity
+    )
     J = np.ones((1, 3))
     eta = solver.compute_anomalous_resistivity(J)
-    assert np.isclose(eta[0], expected / 3)
-    assert np.isclose(solver.voltage_spikes[-1], expected)
-    assert np.isclose(expected, np.max(voltage))
+    assert solver.last_voltage_spike == pytest.approx(0.6)
+    assert eta[0] == pytest.approx(0.25)
+
+    solver.impedance_growth.append(solver.last_voltage_spike / 1.0)
+    assert solver.impedance_growth[-1] == pytest.approx(0.6)
+
+
+def test_fixed_resistivity_does_not_trigger_spike():
+    def fixed(J):
+        return np.full(J.shape[:-1], 0.05)
+
+    solver = HallMHDSolver(anomalous_resistivity=fixed)
+    J = np.ones((1, 3))
+    solver.compute_anomalous_resistivity(J)
+    assert solver.last_voltage_spike == 0.0
+
