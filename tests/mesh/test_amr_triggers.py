@@ -23,7 +23,7 @@ def test_ion_inertial_length_trigger():
 def test_pressure_gradient_trigger():
     p = np.array([[1.0, 1.0], [2.0, 4.0]])
     mask = pressure_gradient_refinement(p, 1.0)
-    assert np.any(mask)
+    assert any(any(row) for row in getattr(mask, "data", mask))
 
 
 def test_current_density_trigger():
