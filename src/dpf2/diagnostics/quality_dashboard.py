@@ -20,6 +20,10 @@ class QualityDashboard:
     max_dt: float | None = None
     abort_on_violation: bool = False
     history: list[dict[str, float]] = field(default_factory=list)
+    max_l1_error: float | None = None
+    max_divB_norm: float | None = None
+    max_energy_drift: float | None = None
+    numerics_history: list[dict[str, float]] = field(default_factory=list)
 
     min_S: float | None = None
     max_beta: float | None = None
