@@ -891,6 +891,31 @@ class HallMHDSolver(PlasmaSolverBase):
 
         return new_state
 
+    # ------------------------------------------------------------------
+    def coupling_interface(self) -> CouplingState:
+        """Expose plasma inductance and back‑EMF to circuit solvers."""
+
+        if self.circuit_feedback is not None:
+            return self.circuit_feedback
+        return CouplingState(Lp=self.inductance, emf=self.back_emf, current=self.current)
+
+    def plasma_inductance(self, state: MHDState | None = None) -> float:
+        """Return current plasma inductance estimate.
+
+        Parameters
+        ----------
+        state:
+            Optional plasma state.  When provided the inductance is recomputed
+            from ``state``; otherwise the last stored value is returned.
+        """
+
+        if state is None:
+            return self.inductance
+        try:
+            return float(self.compute_plasma_inductance(state, self.current))
+        except Exception:
+            return self.inductance
+
     def compute_plasma_inductance(self, state: MHDState, current: float, cell_volume: float = 1.0) -> float:
         """Estimate plasma inductance from magnetic energy.
 

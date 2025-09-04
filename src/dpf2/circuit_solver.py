@@ -257,6 +257,8 @@ def _run_distributed_network(
         C_nodes[j] = segments[j - 1].totals()[2]
 
     delay = cfg.switch_delay * 1e-9
+    if getattr(cfg, "trigger_jitter_stddev", 0.0):
+        delay += float(np.random.normal(0.0, cfg.trigger_jitter_stddev * 1e-9))
     V0 = cfg.V0 * 1e3
     t_total = list(np.linspace(0.0, t_end * 1e-6, num_points))
 
@@ -333,10 +335,19 @@ def run_circuit_simulation(
         switches: list[CrowbarStage | TriggeredSwitch] = []
 
         # Existing transmission line segments defined via configuration
-        if getattr(cfg, "segments", None):
+        if getattr(cfg, "segments", None) or getattr(cfg, "switches", None):
             segs, sws = cfg.build_distributed_model()
             segments.extend(segs)
             switches.extend(sws)
+        if switches and getattr(cfg, "trigger_jitter_stddev", 0.0):
+            jitter = cfg.trigger_jitter_stddev * 1e-9
+            for sw in switches:
+                if getattr(sw, "trigger_times", None):
+                    sw.trigger_times = [
+                        tt + float(np.random.normal(0.0, jitter)) for tt in sw.trigger_times
+                    ]
+                    sw.trigger_times.sort()
+                    sw._next_trigger = 0
 
         # Optional multi‑section lumped elements
         secs = getattr(cfg, "rlc_sections", None)
@@ -369,7 +380,10 @@ def run_circuit_simulation(
             for stage in cbs:
                 res = stage.get("resistance", 0.0)
                 trig = stage.get("trigger", 0.0)
-                switches.append(CrowbarStage(src_node, last_node, res, trig))
+                jitter = stage.get("jitter", getattr(cfg, "trigger_jitter_stddev", 0.0))
+                switches.append(
+                    CrowbarStage(src_node, last_node, res, trig, jitter_std=jitter * 1e-9)
+                )
 
         dt = t_end * 1e-6 / (num_points - 1)
         sol = solve_distributed_circuit(
@@ -409,6 +423,11 @@ def run_circuit_simulation(
             plasma_state = plasma_solver.step(plasma_state, dt, current, voltage)
             fb = plasma_solver.coupling_interface()
             Lp = getattr(fb, "Lp", 0.0)
+            if hasattr(plasma_solver, "plasma_inductance"):
+                try:
+                    Lp = float(plasma_solver.plasma_inductance(plasma_state))
+                except Exception:
+                    pass
             emf = getattr(fb, "emf", 0.0)
             back_emf = getattr(fb, "back_reaction", 0.0)
             dLpdt = (Lp - prev_Lp) / dt if dt > 0 else 0.0
