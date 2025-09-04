@@ -170,3 +170,33 @@ def test_export_image_and_map(tmp_path):
     with h5py.File(tmp_path / "img.h5", "r") as fh:
         assert fh["img"].shape == (2, 2)
 
+
+def test_new_diagnostics(tmp_path):
+    history = [
+        CouplingState(current=1.0, voltage=2.0),
+        CouplingState(current=2.0, voltage=4.0),
+    ]
+    cfg = SyntheticDiagnostics.with_defaults().model_copy(
+        update={
+            "synthetic_cr39_image_enabled": True,
+            "synthetic_rcf_image_enabled": True,
+            "synthetic_faraday_iedf_enabled": True,
+            "synthetic_faraday_eedf_enabled": True,
+            "diagnostic_output_type": {"cr39_image": "image", "rcf_image": "image"},
+            "output_format": "csv",
+        }
+    )
+    data = run_diagnostic_calculations(history, cfg, dt=1.0)
+    assert "cr39_image" in data and len(data["cr39_image"]) > 0
+    assert "rcf_image" in data and len(data["rcf_image"]) > 0
+    assert "faraday_iedf" in data and len(data["faraday_iedf"]) == 50
+    assert "faraday_eedf" in data and len(data["faraday_eedf"]) == 50
+    export_diagnostic_data(data, cfg, tmp_path)
+    assert (tmp_path / "cr39_image.csv").exists()
+    assert (tmp_path / "faraday_iedf.csv").exists()
+
+    cfg_h5 = cfg.model_copy(update={"output_format": "hdf5"})
+    export_diagnostic_data(data, cfg_h5, tmp_path)
+    with h5py.File(tmp_path / "rcf_image.h5", "r") as fh:
+        assert fh["rcf_image"].shape[0] == len(data["rcf_image"])
+

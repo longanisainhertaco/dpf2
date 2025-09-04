@@ -72,6 +72,51 @@ def generate_tof_spectrum(
     return centers, counts
 
 
+def _cr39_image(history: Sequence[CouplingState], size: int = 64) -> List[List[float]]:
+    """Return a simple Gaussian spot image scaled by peak current."""
+
+    amp = max((abs(s.current) for s in history), default=0.0)
+    x = np.linspace(-1.0, 1.0, size)
+    y = np.linspace(-1.0, 1.0, size)
+    xv, yv = np.meshgrid(x, y)
+    sigma = 0.3
+    img = amp * np.exp(-(xv ** 2 + yv ** 2) / (2.0 * sigma ** 2))
+    return img.tolist()
+
+
+def _rcf_image(history: Sequence[CouplingState], size: int = 64) -> List[List[float]]:
+    """Return a ring-shaped image scaled by peak voltage."""
+
+    amp = max((abs(s.voltage) for s in history), default=0.0)
+    x = np.linspace(-1.0, 1.0, size)
+    y = np.linspace(-1.0, 1.0, size)
+    xv, yv = np.meshgrid(x, y)
+    r = np.sqrt(xv ** 2 + yv ** 2)
+    sigma = 0.1
+    img = amp * np.exp(-((r - 0.5) ** 2) / (2.0 * sigma ** 2))
+    return img.tolist()
+
+
+def _faraday_iedf(history: Sequence[CouplingState], bins: int = 50) -> List[float]:
+    """Generate a synthetic ion energy distribution function."""
+
+    max_energy = max((abs(s.voltage) for s in history), default=1.0)
+    energies = np.linspace(0.0, max_energy, bins)
+    temp = max_energy / 5.0 if max_energy > 0 else 1.0
+    dist = energies * np.exp(-energies / temp)
+    return dist.tolist()
+
+
+def _faraday_eedf(history: Sequence[CouplingState], bins: int = 50) -> List[float]:
+    """Generate a synthetic electron energy distribution function."""
+
+    max_energy = max((abs(s.voltage) for s in history), default=1.0)
+    energies = np.linspace(0.0, max_energy, bins)
+    temp = max_energy / 7.0 if max_energy > 0 else 1.0
+    dist = np.sqrt(energies) * np.exp(-energies / temp)
+    return dist.tolist()
+
+
 class SyntheticInstrument(BaseModel):
     """Per-instrument overrides for synthetic diagnostics."""
 
@@ -133,6 +178,10 @@ class SyntheticDiagnostics(ConfigSectionBase):
     synthetic_xray_pinhole_enabled: bool = Field(True, alias="syntheticXrayPinholeEnabled")
     synthetic_thomson_parabola_enabled: bool = Field(False, alias="syntheticThomsonParabolaEnabled")
     synthetic_optical_interferogram_enabled: bool = Field(False, alias="syntheticOpticalInterferogramEnabled")
+    synthetic_cr39_image_enabled: bool = Field(False, alias="syntheticCr39ImageEnabled")
+    synthetic_rcf_image_enabled: bool = Field(False, alias="syntheticRcfImageEnabled")
+    synthetic_faraday_iedf_enabled: bool = Field(False, alias="syntheticFaradayIedfEnabled")
+    synthetic_faraday_eedf_enabled: bool = Field(False, alias="syntheticFaradayEedfEnabled")
 
     # Diagnostic classification and labeling
     detector_ids: Optional[List[str]] = Field(None, alias="detectorIds")
@@ -208,6 +257,10 @@ class SyntheticDiagnostics(ConfigSectionBase):
             (self.synthetic_bdot_signal_enabled, "B-dot"),
             (self.synthetic_neutron_tof_enabled, "TOF"),
             (self.synthetic_xray_pinhole_enabled, "X-ray"),
+            (self.synthetic_cr39_image_enabled, "CR39"),
+            (self.synthetic_rcf_image_enabled, "RCF"),
+            (self.synthetic_faraday_iedf_enabled, "IEDF"),
+            (self.synthetic_faraday_eedf_enabled, "EEDF"),
         ]
         active = [name for flag, name in diag_flags if flag]
         filt = "None"
@@ -240,6 +293,10 @@ class SyntheticDiagnostics(ConfigSectionBase):
             "bdot_signal": self.synthetic_bdot_signal_enabled,
             "neutron_tof": self.synthetic_neutron_tof_enabled,
             "xray_pinhole": self.synthetic_xray_pinhole_enabled,
+            "cr39_image": self.synthetic_cr39_image_enabled,
+            "rcf_image": self.synthetic_rcf_image_enabled,
+            "faraday_iedf": self.synthetic_faraday_iedf_enabled,
+            "faraday_eedf": self.synthetic_faraday_eedf_enabled,
         }
         return [name for name, flag in mapping.items() if flag]
 
@@ -318,6 +375,14 @@ def run_diagnostic_calculations(
         outputs["rogowski"] = rogowski_signal(hist, dt)
     if cfg.synthetic_bdot_signal_enabled:
         outputs["bdot"] = bdot_signal(hist, bdot_radius, dt)
+    if cfg.synthetic_cr39_image_enabled:
+        outputs["cr39_image"] = _cr39_image(hist)
+    if cfg.synthetic_rcf_image_enabled:
+        outputs["rcf_image"] = _rcf_image(hist)
+    if cfg.synthetic_faraday_iedf_enabled:
+        outputs["faraday_iedf"] = _faraday_iedf(hist)
+    if cfg.synthetic_faraday_eedf_enabled:
+        outputs["faraday_eedf"] = _faraday_eedf(hist)
     return outputs
 
 
