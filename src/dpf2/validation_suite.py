@@ -430,9 +430,31 @@ def score_simulation(
     tolerances: Dict[str, float],
     *,
     resample_method: str = "interpolate",
+    weights: Optional[Dict[str, float]] = None,
     pass_threshold: float = 0.85,
 ) -> Dict[str, Any]:
-    """Compute per-observable and aggregate validation scores."""
+    """Compute per-observable and aggregate validation scores.
+
+    Parameters
+    ----------
+    sim_outputs:
+        Mapping of observable name to ``(time, value)`` tuples representing the
+        simulation result.
+    device:
+        Identifier of the experimental dataset to compare against.  The dataset
+        must be present under :mod:`data/validation`.
+    tolerances:
+        Relative error tolerance for each observable.  Values are interpreted as
+        fractions of the peak reference magnitude.
+    resample_method:
+        Method passed to :func:`resample_profile` for aligning simulation time
+        grids with the reference data.
+    weights:
+        Optional weighting for each observable when computing the aggregate
+        score.  If omitted, all observables contribute equally.
+    pass_threshold:
+        Minimum aggregate score required for a "passed" result.
+    """
 
     ref = load_validation_dataset(device)
     scores: Dict[str, float] = {}
@@ -446,7 +468,18 @@ def score_simulation(
         norm = np.max(np.abs(ref_v)) or 1.0
         tol = tolerances.get(name, 1.0)
         scores[name] = max(0.0, 1.0 - rmse / (norm * tol))
-    overall = sum(scores.values()) / len(scores) if scores else 0.0
+
+    if not scores:
+        overall = 0.0
+    else:
+        if weights:
+            total_w = sum(weights.get(k, 0.0) for k in scores)
+            total_w = total_w or 1.0
+            overall = (
+                sum(scores[k] * weights.get(k, 0.0) for k in scores) / total_w
+            )
+        else:
+            overall = sum(scores.values()) / len(scores)
     return {"scores": scores, "overall": overall, "passed": overall >= pass_threshold}
 
 
