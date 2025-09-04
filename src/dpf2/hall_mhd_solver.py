@@ -680,9 +680,8 @@ class HallMHDSolver(PlasmaSolverBase):
 
         # Expose plasma inductance and induced EMF for circuit coupling
         L_new = self.compute_plasma_inductance(new_state, current)
-        dL = (L_new - self.inductance) / max(dt, 1.0e-30)
-        emf = -dL * current
         self.inductance = L_new
+        emf = 0.0
         self.back_emf = emf
         self.circuit_feedback = CouplingState(
             Lp=L_new, emf=emf, current=current, voltage=voltage
