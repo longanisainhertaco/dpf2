@@ -7,10 +7,19 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pickle
 
 
 class SurrogateModel(ABC):
-    """Base class for ML surrogate models."""
+    """Base class for ML surrogate models.
+
+    The class provides a minimal lifecycle consisting of ``train`` -> ``save``
+    -> ``load``.  Sub-classes can override the underscored hook methods
+    (``_train``, ``_save`` and ``_load``) to customise behaviour for a specific
+    framework.  The public methods offer a working default implementation based
+    on Python ``pickle`` serialization so that even trivial models can round
+    trip through the lifecycle without additional code.
+    """
 
     def __init__(self, model_path: str | Path) -> None:
         self.model_path = Path(model_path)
@@ -26,11 +35,14 @@ class SurrogateModel(ABC):
         """Train the surrogate model.
 
         Parameters and return values are model-specific. Sub-classes may
-        override this method to provide training capabilities. The default
-        implementation raises :class:`NotImplementedError`.
+        override :meth:`_train` to provide training capabilities.  The default
+        implementation simply returns an empty metrics dictionary.
         """
 
-        raise NotImplementedError("Training not implemented for this model")
+        return self._train(*args, **kwargs)
+
+    def _train(self, *args: Any, **kwargs: Any) -> dict[str, float]:
+        return {}
 
     def save(self, path: str | Path | None = None) -> Path:
         """Persist the model to ``path``.
@@ -42,16 +54,28 @@ class SurrogateModel(ABC):
             back to ``self.model_path`` when ``path`` is ``None``.
         """
 
-        raise NotImplementedError("Save not implemented for this model")
+        dest = Path(path or self.model_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        self._save(dest)
+        return dest
+
+    def _save(self, path: Path) -> None:
+        with path.open("wb") as fh:
+            pickle.dump(self, fh)
 
     @classmethod
     def load(cls, model_path: str | Path, *args: Any, **kwargs: Any) -> "SurrogateModel":
-        """Load a serialized model from ``model_path``.
+        """Load a serialized model from ``model_path``."""
 
-        Sub-classes should override this to return an initialized instance.
-        """
+        return cls._load(Path(model_path), *args, **kwargs)
 
-        raise NotImplementedError("Load not implemented for this model")
+    @classmethod
+    def _load(cls, path: Path, *args: Any, **kwargs: Any) -> "SurrogateModel":
+        with path.open("rb") as fh:
+            obj = pickle.load(fh)
+        if not isinstance(obj, cls):
+            raise TypeError(f"Serialized object is {type(obj)!r}, expected {cls!r}")
+        return obj
 
 
 class TorchSurrogateModel(SurrogateModel):
@@ -85,19 +109,20 @@ class TorchSurrogateModel(SurrogateModel):
     ) -> dict[str, float]:
         """Train the underlying ``torch.nn.Module``.
 
-        Parameters
-        ----------
-        dataloader:
-            Iterable yielding ``(inputs, targets)`` tensors.
-        epochs:
-            Number of passes through the dataset.
-        lr:
-            Learning rate for the Adam optimizer.
-        metadata:
-            Optional :class:`~dpf2.metadata.Metadata` instance updated with
-            ``ml_metadata`` and ``ml_result``.
+        This method delegates to :meth:`_train` which performs the actual
+        optimisation.  Sub-classes may override :meth:`_train` to customise the
+        process.
         """
 
+        return super().train(dataloader, epochs=epochs, lr=lr, metadata=metadata)
+
+    def _train(
+        self,
+        dataloader: Any,
+        epochs: int = 10,
+        lr: float = 1e-3,
+        metadata: Any | None = None,
+    ) -> dict[str, float]:
         try:
             from .training import train_torch_model
         except Exception as exc:  # pragma: no cover - optional
@@ -108,15 +133,13 @@ class TorchSurrogateModel(SurrogateModel):
         )
         return metrics
 
-    def save(self, path: str | Path | None = None) -> Path:
-        dest = Path(path or self.model_path)
+    def _save(self, path: Path) -> None:
         scripted = self._torch.jit.script(self.model)
-        scripted.save(str(dest))
-        return dest
+        scripted.save(str(path))
 
     @classmethod
-    def load(cls, model_path: str | Path, device: str = "cpu") -> "TorchSurrogateModel":
-        return cls(model_path, device=device)
+    def _load(cls, path: Path, device: str = "cpu") -> "TorchSurrogateModel":
+        return cls(path, device=device)
 
 
 class ONNXSurrogateModel(SurrogateModel):
@@ -136,22 +159,20 @@ class ONNXSurrogateModel(SurrogateModel):
         return outputs[0]
 
     # ------------------------------------------------------------------
-    def train(self, *args: Any, **kwargs: Any) -> dict[str, float]:  # pragma: no cover - thin wrapper
+    def _train(self, *args: Any, **kwargs: Any) -> dict[str, float]:  # pragma: no cover - thin wrapper
         """ONNX models are inference-only and cannot be trained."""
 
         raise NotImplementedError("ONNX models do not support in-place training")
 
-    def save(self, path: str | Path | None = None) -> Path:
-        dest = Path(path or self.model_path)
-        if dest != self.model_path:
+    def _save(self, path: Path) -> None:
+        if path != self.model_path:
             import shutil
 
-            shutil.copy(self.model_path, dest)
-        return dest
+            shutil.copy(self.model_path, path)
 
     @classmethod
-    def load(cls, model_path: str | Path) -> "ONNXSurrogateModel":
-        return cls(model_path)
+    def _load(cls, path: Path) -> "ONNXSurrogateModel":
+        return cls(path)
 
 
 __all__ = ["SurrogateModel", "TorchSurrogateModel", "ONNXSurrogateModel"]

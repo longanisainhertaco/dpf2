@@ -123,4 +123,12 @@ Telemetry streaming through ADIOS2 is available only in certain backends and lac
 
 ## AI Surrogate Models (Experimental)
 
-The package defines a flexible `SurrogateModel` interface allowing inference with PyTorch or ONNX models, but no pretrained models are included. These classes require the user to install `torch` or `onnxruntime` separately. Surrogates can be plugged into simulations to replace expensive physics modules. See [`src/dpf2/ai/surrogate.py`](src/dpf2/ai/surrogate.py) and [`tests/test_ai_surrogate.py`](tests/test_ai_surrogate.py) for the current interface and coverage.
+The package defines a flexible `SurrogateModel` interface allowing inference with PyTorch or ONNX models, but no pretrained models are included. These classes require the user to install `torch` or `onnxruntime` separately. Surrogates can be plugged into simulations to replace expensive physics modules.
+
+Surrogate models follow a simple lifecycle:
+
+1. Optionally **train** the model using :meth:`train`.
+2. **Save** it to disk via :meth:`save`.
+3. **Load** it elsewhere with :meth:`SurrogateModel.load` and call :meth:`predict`.
+
+The base class implements these steps using Python's pickle serialization and exposes `_train`, `_save`, and `_load` hooks for framework-specific overrides. See [`src/dpf2/ai/surrogate.py`](src/dpf2/ai/surrogate.py) and [`tests/test_ai_surrogate.py`](tests/test_ai_surrogate.py) for the current interface and coverage.
