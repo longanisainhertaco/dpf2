@@ -31,7 +31,9 @@ from dpf2.optimization.param_sweep import (
     compute_sweep_metrics,
     plot_metric_overlay,
 )
+
 from dpf2.scaling_laws import sweep_yield_scaling
+
 from .errors import format_error
 
 
@@ -446,6 +448,16 @@ def simulate(
         if progress_cb is not None:
             run_kwargs["progress_cb"] = progress_cb
         times, currents, voltages = sim.run(**run_kwargs)
+
+        # Compute and plot axial rundown similarity parameter S
+        try:
+            S = shock_parameter(currents, cfg.anode_radius, cfg.initial_pressure)
+            shock_path = plot_shock_parameter(times, S, Path(output) / "shock_trend.png")
+            if verbose:
+                click.echo(f"Shock parameter plot written to {shock_path}")
+        except Exception:
+            if verbose:
+                click.echo("Shock parameter plot failed")
 
         if pbar is not None:
             pbar.close()

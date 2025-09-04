@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -32,6 +32,9 @@ class HallMHD(ResistiveMHD):
     current: float = 0.0
     back_emf: float = 0.0
     beam_velocity: float = 0.0
+
+    # optional radiation loss model; when ``None`` no radiative cooling is applied
+    radiation_model: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray] | None = None
 
     # plasma inductance state (Henries)
     inductance: float = 0.0
@@ -250,6 +253,17 @@ class HallMHD(ResistiveMHD):
         for i in range(n):
             src = self.source_terms(U_new[i])
             src[8] = 0.0  # divergence cleaning for ``psi`` handled explicitly
+            if self.radiation_model is not None:
+                rho = U_new[i, 0]
+                mom = U_new[i, 1:4]
+                B = U_new[i, 5:8]
+                v2 = float(np.dot(mom, mom)) / (rho * rho)
+                B2 = float(np.dot(B, B))
+                p = (U_new[i, 4] - 0.5 * rho * v2 - 0.5 * B2) * (self.gamma - 1.0)
+                n = rho
+                Te = p / (n + 1.0e-30)
+                rad = float(self.radiation_model(n, n, Te))
+                src[4] -= rad
             U_new[i] += dt * src
 
         self.divergence_cleaning(U_new, mesh, dt)

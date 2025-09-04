@@ -9,6 +9,7 @@ import numpy as np
 
 from ..core_schema import RadiationModel, RadiationTransportModel
 from .multigroup import MultiGroupDiffusion
+from .power import bremsstrahlung_power, line_radiation_power
 
 __all__ = [
     "RadiationBase",
@@ -16,6 +17,8 @@ __all__ = [
     "MonteCarloRadiation",
     "create_radiation",
     "MultiGroupDiffusion",
+    "bremsstrahlung_power",
+    "line_radiation_power",
 ]
 
 
