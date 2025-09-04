@@ -1,9 +1,33 @@
 # Benchmarks
 
-The `benchmarks/` directory contains small regression problems with known
-analytic solutions.  They are intended both as examples of the simulation
-infrastructure and as safeguards against code regression.  Each benchmark
-compares model output to a reference solution from the literature.
+DPF2 ships with both frozen regression benchmarks and small analytic
+examples that exercise individual physics models.  These benchmarks act as
+guard rails against code regression and provide usage examples for the
+simulation infrastructure.
+
+## Frozen regression suite
+
+Predefined projects live under `Reference/Benchmarks/`.  Each project
+contains two files:
+
+- `inputs.json` – configuration passed to the simulator
+- `expected.json` – reference time histories with tolerance bands
+
+Run a single case and produce a pass/fail dashboard plus a PNG overlay using:
+
+```bash
+dpf2 run-benchmark unu_pff --benchmark-dir Reference/Benchmarks --output results
+```
+
+To execute the entire suite at once:
+
+```bash
+dpf2 run-compare --benchmark-dir Reference/Benchmarks --output results
+```
+
+Both commands write plots showing the simulation output overlaid on grey
+tolerance bands and print a summary of whether current, voltage and neutron
+yield fall within their respective thresholds.
 
 ## Analytic plasma expansion
 
