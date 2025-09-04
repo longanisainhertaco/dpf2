@@ -48,7 +48,7 @@ class WarpXSettings(ConfigSectionBase):
         validate_default=True,
     )
 
-    field_solver: Literal["Yee", "PSATD", "PSTD", "FDTD"] = Field(
+    field_solver: Literal["Yee", "PSATD", "PSTD", "FDTD", "LDS"] = Field(
         "Yee", alias="fieldSolver"
     )
     interpolation_order: int = Field(2, ge=1, le=5, alias="interpolationOrder")
@@ -102,6 +102,21 @@ class WarpXSettings(ConfigSectionBase):
         None, alias="currentSmoothingKernel"
     )
 
+    spectral_filtering: bool = Field(
+        False,
+        alias="spectralFiltering",
+        json_schema_extra={
+            "description": "Enable spectral filtering to reduce numerical Cherenkov instability.",
+        },
+    )
+    randomized_particle_loading: bool = Field(
+        False,
+        alias="randomizedParticleLoading",
+        json_schema_extra={
+            "description": "Randomize initial particle positions to mitigate numerical Cherenkov instability.",
+        },
+    )
+
     max_particles_per_cell: Optional[int] = Field(
         None, ge=1, alias="maxParticlesPerCell"
     )
@@ -128,6 +143,8 @@ class WarpXSettings(ConfigSectionBase):
             "current_correction": True,
             "current_smoothing_enabled": False,
             "current_smoothing_kernel": None,
+            "spectral_filtering": False,
+            "randomized_particle_loading": False,
             "max_particles_per_cell": None,
         }
         return cls.model_validate(data, context={"geometry": geometry})
@@ -158,8 +175,10 @@ class WarpXSettings(ConfigSectionBase):
             f"shape={self.particle_shape}, push={self.particle_push_algorithm}"
         )
         if self.time_step_type == "adaptive" and self.adaptive_time_step_config:
+            cfg = self.adaptive_time_step_config
+            cfl = cfg["cfl"] if isinstance(cfg, dict) else cfg.cfl
             adapt = (
-                f"Adaptive timestep: CFL={self.adaptive_time_step_config.cfl}, "
+                f"Adaptive timestep: CFL={cfl}, "
                 f"Ionization: {self.ionization_model}, Collisions: {self.collision_model}"
             )
         else:
@@ -167,9 +186,10 @@ class WarpXSettings(ConfigSectionBase):
                 f"Constant timestep, Ionization: {self.ionization_model}, Collisions: {self.collision_model}"
             )
         species_names = ", ".join(self.species_config.keys()) or "none"
-        emission = (
-            self.emission_profile_path.name if self.emission_profile_path else "none"
-        )
+        if isinstance(self.emission_profile_path, Path):
+            emission = self.emission_profile_path.name
+        else:
+            emission = self.emission_profile_path or "none"
         species_line = (
             f"Species: {species_names}, PPC = {self.max_particles_per_cell or 'n/a'}, "
             f"Emission profile = {emission}"
@@ -180,7 +200,15 @@ class WarpXSettings(ConfigSectionBase):
             else "none"
         )
         current_line = f"Current smoothing: kernel={kernel}"
-        return "\n".join([solver, adapt, species_line, current_line])
+        extra = []
+        if self.spectral_filtering:
+            extra.append("spectral filter")
+        if self.randomized_particle_loading:
+            extra.append("randomized loading")
+        extra_line = (
+            f"Mitigation: {', '.join(extra)}" if extra else "Mitigation: none"
+        )
+        return "\n".join([solver, adapt, species_line, current_line, extra_line])
 
     def hash_warpx_config(self) -> str:
         data = self.model_dump(exclude={"warpx_config_hash"}, by_alias=True, exclude_none=True)
@@ -222,7 +250,32 @@ class WarpXSettings(ConfigSectionBase):
     @classmethod
     def model_validate(cls, data: Any, **kwargs) -> "WarpXSettings":
         context = kwargs.get("context") or {}
-        obj = super().model_validate(data)
+        raw = dict(data)
+        def _to_snake(name: str) -> str:
+            buf = []
+            for ch in name:
+                if ch.isupper():
+                    buf.append("_")
+                    buf.append(ch.lower())
+                else:
+                    buf.append(ch)
+            return "".join(buf).lstrip("_")
+        canonical: Dict[str, Any] = {}
+        for key, val in raw.items():
+            canonical[_to_snake(key)] = val
+        species_cfg = raw.get("speciesConfig", {})
+        for name, entry in species_cfg.items():
+            if "mass" not in entry or "charge" not in entry:
+                raise ValueError(f"species {name} requires mass and charge")
+        bnd = raw.get("boundaryConditions", {})
+        required_faces = {"xLow", "xHigh", "yLow", "yHigh", "zLow", "zHigh"}
+        for spec, mapping in bnd.items():
+            unknown = set(mapping) - required_faces
+            if unknown:
+                warnings.warn(f"unrecognized boundary keys for {spec}: {sorted(unknown)}")
+        if raw.get("timeStepType") == "adaptive" and "adaptiveTimeStepConfig" not in raw:
+            raise ValueError("adaptive_time_step_config required when time_step_type is 'adaptive'")
+        obj = super().model_validate(canonical, **kwargs)
         object.__setattr__(obj, "_context", context)
         obj = cls.check_rules(obj)
         object.__setattr__(obj, "_context", context)

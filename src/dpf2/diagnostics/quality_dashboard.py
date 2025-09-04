@@ -204,15 +204,16 @@ class QualityDashboard:
 
         steps = [h["step"] for h in self.history]
         dts = [h["dt"] for h in self.history]
-        lambdas = [h["lambda_D"] for h in self.history]
         cells = [h["cell_size"] for h in self.history]
+        ppcs = [h["ppc"] for h in self.history]
         levels = [h.get("amr_level") for h in self.history]
 
         has_levels = any(l is not None for l in levels)
         if has_levels:
-            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+            fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, sharex=True)
         else:
-            fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+
         ax1.plot(steps, dts, label="Δt")
         if self.max_dt is not None:
             ax1.axhspan(0, self.max_dt, color="lightgreen", alpha=0.3)
@@ -220,37 +221,21 @@ class QualityDashboard:
         ax1.set_ylabel("Δt")
         ax1.legend()
 
-        ax2.plot(steps, lambdas, label="λ_D")
-        ax2.plot(steps, cells, label="cell size", linestyle="--")
-        arr_steps = np.array(steps)
-        arr_cells = np.array(cells)
-        arr_lambda = np.array(lambdas)
-        ax2.fill_between(
-            arr_steps,
-            arr_cells,
-            arr_lambda,
-            where=arr_lambda >= arr_cells,
-            color="lightgreen",
-            alpha=0.3,
-        )
-        ax2.fill_between(
-            arr_steps,
-            arr_lambda,
-            arr_cells,
-            where=arr_lambda < arr_cells,
-            color="red",
-            alpha=0.3,
-        )
-        ax2.set_ylabel("λ_D")
+        ax2.plot(steps, cells, label="Δx")
+        ax2.set_ylabel("Δx")
+        ax2.legend()
+
+        ax3.plot(steps, ppcs, label="ppc")
+        ax3.set_ylabel("ppc")
+
         if has_levels:
-            ax2.legend()
-            ax3.step(steps, [l if l is not None else 0 for l in levels], where="post", label="AMR level")
-            ax3.set_ylabel("level")
+            ax4.step(steps, [l if l is not None else 0 for l in levels], where="post", label="AMR level")
+            ax4.set_ylabel("level")
+            ax4.set_xlabel("step")
+            ax4.legend()
+        else:
             ax3.set_xlabel("step")
             ax3.legend()
-        else:
-            ax2.set_xlabel("step")
-            ax2.legend()
 
         fig.tight_layout()
         fig.savefig(self.output_dir / "stability.png")
@@ -287,3 +272,40 @@ class QualityDashboard:
         fig.tight_layout()
         fig.savefig(self.output_dir / "regime.png")
         plt.close(fig)
+
+    # ------------------------------------------------------------------
+    def convergence_sweep(self) -> None:
+        """Generate a simple convergence summary of recorded metrics."""
+        if not self.history:
+            logger.info("No history available for convergence sweep")
+            return
+        dts = np.array([h["dt"] for h in self.history])
+        dxs = np.array([h["cell_size"] for h in self.history])
+        ppcs = np.array([h["ppc"] for h in self.history])
+        sweep = {
+            "dt_min": float(dts.min()),
+            "dt_max": float(dts.max()),
+            "dx_min": float(dxs.min()),
+            "dx_max": float(dxs.max()),
+            "ppc_min": float(ppcs.min()),
+            "ppc_max": float(ppcs.max()),
+        }
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.output_dir / "convergence.json", "w", encoding="utf-8") as fh:
+            json.dump(sweep, fh, indent=2)
+        logger.info("Convergence sweep written to %s", self.output_dir / "convergence.json")
+
+
+def _main() -> None:  # pragma: no cover - CLI helper
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Quality dashboard utilities")
+    parser.add_argument("--sweep", action="store_true", help="run convergence sweep and exit")
+    args = parser.parse_args()
+    dash = QualityDashboard()
+    if args.sweep:
+        dash.convergence_sweep()
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI entry
+    _main()

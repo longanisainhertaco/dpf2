@@ -192,12 +192,21 @@ class PICSolver(PhysicsModule):
         self.quantum_model: Optional[Callable[["PICSolver"], None]] = None
         self.radiation_model: Optional[Callable[["PICSolver"], None]] = None
         self.mesh_adapter: Optional[Callable[[], None]] = self.refine_grid if config.enable_mesh_adaptivity else None
-        self.warpx = WarpXWrapper(
-            config.grid_shape, config.grid_spacing, config.electromag,
-            PICSolver.pml_thickness, PICSolver.pml_sigma_max,
-            PICSolver.maxwell_order, PICSolver.default_shape, self,
-            enable_amr=config.amr
-        ) if config.use_warpx else None
+        self.warpx = (
+            WarpXWrapper(
+                config.grid_shape,
+                config.grid_spacing,
+                config.electromag,
+                PICSolver.pml_thickness,
+                PICSolver.pml_sigma_max,
+                PICSolver.maxwell_order,
+                PICSolver.default_shape,
+                self,
+                enable_amr=config.amr,
+            )
+            if config.use_warpx
+            else None
+        )
         self.coupling_state = CouplingState()
         self.history: List[CouplingState] = []
         self.axial_E_history: List[float] = []
@@ -560,6 +569,28 @@ class PICSolver(PhysicsModule):
     def step(self, current: float = 0.0, voltage: float = 0.0, energy_tracker: EnergyTracker | None = None, refinement_cb: Optional[Callable[[Dict[str, Any]], Dict[str, int]]] = None):
         """Advances the PIC simulation by one time step."""
         try:
+            if self.warpx is not None:
+                rho = self.field_manager.get_rho()
+                J = self.field_manager.get_J()
+                E, B = self.field_manager.get_E(), self.field_manager.get_B()
+                E_new, B_new = self.warpx.step(rho, J, E, B, self.dt)
+                if E_new is not None and B_new is not None:
+                    self.field_manager.update_E(E_new)
+                    self.field_manager.update_B(B_new)
+                if self.quality:
+                    self.step_count += 1
+                    cell_size = min(self.dx, self.dy, self.dz)
+                    ppc = 0.0
+                    try:
+                        npart = sum(
+                            len(self.warpx.warp.get_particle_container(n).get_positions())
+                            for n in self.warpx.species
+                        )
+                        ppc = npart / (self.nx * self.ny * self.nz)
+                    except Exception:
+                        pass
+                    self.quality.log(self.step_count, self.dt, cell_size, ppc, 0.0, 0.0)
+                return
             self.deposit_charge()
             self.deposit_current()
             self.solve_fields()
