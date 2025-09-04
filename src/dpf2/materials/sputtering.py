@@ -41,6 +41,18 @@ class Species:
 # Yield models
 # ----------------------------------------------------------------------------
 
+
+def _threshold_energy(projectile: Species, target: Species, U0_eV: float) -> float:
+    """Return the Sigmund threshold energy ``Eth``.
+
+    The helper is primarily used to keep :func:`sigmund_yield` tidy and is
+    exposed for testability.  ``U0_eV`` corresponds to the effective surface
+    binding energy of the target.
+    """
+
+    mu = projectile.mass_u / target.mass_u
+    return U0_eV * (1.0 + mu) ** 2 / (4.0 * mu)
+
 def sigmund_yield(
     projectile: Species,
     target: Species,
@@ -81,7 +93,7 @@ def sigmund_yield(
     )
 
     # Threshold energy for sputtering [eV]
-    Eth = U0_eV * (1.0 + mu) ** 2 / (4.0 * mu)
+    Eth = _threshold_energy(projectile, target, U0_eV)
     if energy_eV < Eth:
         return 0.0
 

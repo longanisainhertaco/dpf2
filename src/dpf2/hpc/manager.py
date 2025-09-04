@@ -28,7 +28,13 @@ class JobManager:
         config: Mapping[str, Any] | None,
         container_hash: str | None,
     ) -> None:
-        """Write a minimal HDF5 manifest capturing run metadata."""
+        """Write a minimal HDF5 manifest capturing run metadata.
+
+        ``container_hash`` may be ``None`` in which case the runtime
+        environment is inspected for a container image to hash.  The Singularity
+        runtime exposes the ``SINGULARITY_CONTAINER`` variable pointing at the
+        active ``.sif`` image which is used when available.
+        """
 
         try:
             import h5py  # type: ignore
@@ -40,12 +46,29 @@ class JobManager:
             ).strip()
         except Exception:  # pragma: no cover - git may be unavailable
             commit = "unknown"
+
+        config = config or {}
+        if not container_hash:
+            # Singularity exposes the path to the running image via the
+            # ``SINGULARITY_CONTAINER`` variable.  Hash the file to obtain a
+            # reproducible identifier for the runtime environment.
+            img = os.environ.get("SINGULARITY_CONTAINER")
+            if img:
+                try:
+                    container_hash = (
+                        subprocess.check_output(["sha256sum", img], text=True)
+                        .split()[0]
+                        .strip()
+                    )
+                except Exception:  # pragma: no cover - hashing may fail
+                    container_hash = None
+
         with h5py.File(path, "w") as h5:
             manifest = h5.require_group("manifest")
             manifest.attrs["git_commit"] = commit
-            if config is not None:
+            if config:
                 manifest.attrs["config"] = json.dumps(config)
-            if container_hash is not None:
+            if container_hash:
                 manifest.attrs["container_hash"] = container_hash
 
     def _extend_cmd(self, cmd: list[str], opts: Dict[str, Any], flag_map: Dict[str, Iterable[str]]) -> None:
@@ -159,9 +182,14 @@ class JobManager:
 
         manifest_path = manifest or "run_manifest.json"
         manifest_h5_path = manifest_h5 or "run_manifest.h5"
-
-        if config is not None or container_hash is not None:
-            self._write_hdf5_manifest(manifest_h5_path, config, container_hash)
+        # Always write an HDF5 manifest.  ``_write_hdf5_manifest`` will fill in
+        # empty defaults and attempt to derive the container hash from the
+        # runtime environment when not supplied.
+        self._write_hdf5_manifest(
+            manifest_h5_path,
+            config or {},
+            container_hash or None,
+        )
 
         stage_out = dict(stage_out or {})
         stage_out[manifest_path] = manifest_path

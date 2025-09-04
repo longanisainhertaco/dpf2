@@ -19,8 +19,10 @@ information before executing the `dpf2` CLI.
 ## Submitting jobs
 
 Use the :class:`dpf2.hpc.JobManager` helper to launch batch jobs on the
-cluster.  Each submission creates an `run_manifest.h5` file containing the
-code version, run configuration and container hash for reproducibility.
+cluster.  Each submission creates a `run_manifest.h5` file capturing the git
+commit, run configuration and container image hash.  When no hash is supplied
+explicitly, the manager looks for a `SINGULARITY_CONTAINER` environment variable
+and records the SHA256 digest of that image for later auditing.
 
 ```python
 from dpf2.hpc import JobManager
@@ -29,10 +31,11 @@ jm = JobManager("slurm")
 jm.submit(
     "run.sh",
     config={"shot": 1},
-    container_hash="sha256:1234...",
+    # container_hash="sha256:1234...",  # optional
 )
 ```
 
-The manifest is staged with other outputs and may be used to audit or reproduce
+The manifest is staged with other outputs and may be inspected with tools like
+`h5dump run_manifest.h5` or from Python using `h5py` to reproduce and audit
 simulation runs on the cluster.
 

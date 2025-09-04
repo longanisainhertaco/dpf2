@@ -32,3 +32,24 @@ def test_zero_and_infinite_cases():
     )
     assert metrics["wall_plug_efficiency"] == 0.0
     assert math.isinf(metrics["lifetime_hours"])
+
+
+def test_invalid_inputs():
+    with pytest.raises(ValueError):
+        compute_performance_metrics(
+            1.0,
+            rep_rate_hz=-1.0,
+            energy_out_j=1.0,
+            energy_in_j=1.0,
+            electrode_mass_g=1.0,
+            erosion_per_shot_g=1.0,
+        )
+    with pytest.raises(ValueError):
+        compute_performance_metrics(
+            1.0,
+            rep_rate_hz=1.0,
+            energy_out_j=-1.0,
+            energy_in_j=1.0,
+            electrode_mass_g=1.0,
+            erosion_per_shot_g=1.0,
+        )

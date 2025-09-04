@@ -1,12 +1,18 @@
 import React, { useMemo, useRef } from 'react';
 
+// ``datasets`` is an array of objects describing a parameter sweep.  Each
+// dataset has a ``data`` object whose keys are the sweep parameter values and
+// whose values are the metrics computed on the Python side.  This component
+// renders a simple polyline plot of the wall plug efficiency and also exposes
+// a small text summary of the best performing shot.
 export default function EfficiencyCurveOverlay({ datasets = [] }) {
   const svgRef = useRef(null);
 
   const summary = useMemo(() => {
-    if (datasets.length === 0) return null;
-    const first = datasets[0].data || {};
-    const metrics = Object.values(first);
+    // Flatten all metric objects into a single list and pick the one with the
+    // highest wall-plug efficiency.  ``datasets`` can be empty or have missing
+    // ``data`` dictionaries, so we guard for that as well.
+    const metrics = datasets.flatMap((d) => Object.values(d.data || {}));
     if (metrics.length === 0) return null;
     const best = metrics.reduce((a, b) => {
       const aEff = a.wall_plug_efficiency ?? a.efficiency ?? 0;

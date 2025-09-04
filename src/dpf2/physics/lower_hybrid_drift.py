@@ -31,9 +31,11 @@ class LowerHybridDrift:
 
     The model evolves a perturbation amplitude representing the strength of
     lower‑hybrid waves and exposes an ``anomalous_resistivity`` callback
-    compatible with :class:`~dpf2.hall_mhd_solver.HallMHDSolver`.  When the
-    solver requests a resistivity field the stored amplitude is returned along
-    with an optional electric‑field contribution.
+    compatible with :class:`~dpf2.hall_mhd_solver.HallMHDSolver`.  Alongside
+    the raw amplitude, derived quantities such as the wave energy, phase
+    velocity and a simple power estimate are cached for diagnostic use.  When
+    the solver requests a resistivity field the stored amplitude is returned
+    along with an optional electric‑field contribution.
     """
 
     B: float  # Magnetic field strength [T]

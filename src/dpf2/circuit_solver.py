@@ -16,6 +16,7 @@ from typing import Tuple, Any, Callable
 
 import numpy as np
 import math
+import random
 try:  # pragma: no cover - optional dependency
     from scipy.integrate import solve_ivp  # type: ignore
 except Exception:  # pragma: no cover - very small fallback integrator
@@ -65,6 +66,18 @@ from .rlc_solver import solve_distributed_circuit
 
 
 __all__ = ["CircuitSolver", "RLCCircuit", "run_circuit_simulation"]
+
+
+def _gauss(mean: float, std: float) -> float:
+    """Return Gaussian sample using available RNG backends."""
+
+    try:  # Prefer numpy's implementation when available
+        return float(np.random.normal(mean, std))  # type: ignore[arg-type]
+    except Exception:
+        try:  # Fall back to Python's ``random`` module
+            return float(random.gauss(mean, std))
+        except Exception:  # pragma: no cover - ultimate fallback
+            return float(mean)
 
 
 @dataclass
@@ -258,7 +271,7 @@ def _run_distributed_network(
 
     delay = cfg.switch_delay * 1e-9
     if getattr(cfg, "trigger_jitter_stddev", 0.0):
-        delay += float(np.random.normal(0.0, cfg.trigger_jitter_stddev * 1e-9))
+        delay += _gauss(0.0, cfg.trigger_jitter_stddev * 1e-9)
     V0 = cfg.V0 * 1e3
     t_total = list(np.linspace(0.0, t_end * 1e-6, num_points))
 
@@ -346,9 +359,7 @@ def run_circuit_simulation(
                 if getattr(sw, "jitter_std", 0.0) > 0.0:
                     continue
                 if getattr(sw, "trigger_times", None):
-                    sw.trigger_times = [
-                        tt + float(np.random.normal(0.0, jitter)) for tt in sw.trigger_times
-                    ]
+                    sw.trigger_times = [tt + _gauss(0.0, jitter) for tt in sw.trigger_times]
                     sw.trigger_times.sort()
                     sw._next_trigger = 0
 

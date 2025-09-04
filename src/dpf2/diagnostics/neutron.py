@@ -16,6 +16,8 @@ from .neutron_spectra import (
     forward_radial_backward_counts,
     anisotropy_ratios,
     load_detector_layout,
+    time_resolved_spectra,
+    directional_time_resolved_spectra,
 )
 
 
@@ -119,6 +121,8 @@ __all__ = [
     "forward_radial_backward_counts",
     "anisotropy_ratios",
     "load_detector_layout",
+    "time_resolved_spectra",
+    "directional_time_resolved_spectra",
     "load_response",
     "apply_response",
     "anisotropy_report",

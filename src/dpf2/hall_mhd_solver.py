@@ -356,6 +356,7 @@ class HallMHDSolver(PlasmaSolverBase):
     impedance_growth: list[float] = field(default_factory=list)
     last_voltage_spike: float = field(init=False, default=0.0)
     last_lh_power: float = field(init=False, default=0.0)
+    last_lh_phase_velocity: float = field(init=False, default=0.0)
     last_eta_anom_mean: float = field(init=False, default=0.0)
     last_eta_total_mean: float = field(init=False, default=0.0)
     last_pressure: np.ndarray | None = field(init=False, default=None)
@@ -456,7 +457,14 @@ class HallMHDSolver(PlasmaSolverBase):
             _accumulate(e_eta, e_E)
 
         if self.lower_hybrid_drift is not None:
-            res = self.lower_hybrid_drift(J)
+            model = self.lower_hybrid_drift
+            source = getattr(model, "__self__", model)
+            if callable(model):
+                res = model(J)
+            elif hasattr(model, "anomalous_resistivity"):
+                res = model.anomalous_resistivity(J)
+            else:  # pragma: no cover - unexpected type
+                res = model(J)  # type: ignore[misc]
             e_eta, e_E = _process(res)
             _accumulate(e_eta, e_E, axial=True)
             s_eta += e_eta
@@ -464,13 +472,31 @@ class HallMHDSolver(PlasmaSolverBase):
                 s_E[..., 2] += e_E
             else:
                 s_E += e_E
-            if hasattr(self.lower_hybrid_drift, "power"):
+            if hasattr(source, "power"):
                 try:
-                    self.last_lh_power = float(np.max(self.lower_hybrid_drift.power()))
+                    self.last_lh_power = float(np.max(source.power()))
                 except Exception:  # pragma: no cover - power optional
                     self.last_lh_power = 0.0
+            else:
+                self.last_lh_power = 0.0
+            if hasattr(source, "last_phase_velocity"):
+                try:
+                    self.last_lh_phase_velocity = float(
+                        np.max(getattr(source, "last_phase_velocity"))
+                    )
+                except Exception:  # pragma: no cover - optional
+                    self.last_lh_phase_velocity = 0.0
+            elif hasattr(source, "phase_velocity"):
+                try:
+                    pv = source.phase_velocity()
+                    self.last_lh_phase_velocity = float(np.max(pv))
+                except Exception:  # pragma: no cover - optional
+                    self.last_lh_phase_velocity = 0.0
+            else:
+                self.last_lh_phase_velocity = 0.0
         else:
             self.last_lh_power = 0.0
+            self.last_lh_phase_velocity = 0.0
 
 
         if self.instability_thresholds:
@@ -550,7 +576,9 @@ class HallMHDSolver(PlasmaSolverBase):
     def amr_refinement(self, state: MHDState) -> None:
         """Invoke the refinement callback if provided."""
         if self.refine is not None:
-            self.refine(state)
+            stats = self.refine(state)
+            if stats:
+                logger.info("AMR callback stats: %s", stats)
 
     def _exchange_array(self, arr: np.ndarray) -> None:
         """Exchange ghost cells of ``arr`` with neighbouring MPI ranks."""
@@ -895,9 +923,10 @@ class HallMHDSolver(PlasmaSolverBase):
             self.last_voltage_spike / (abs(self.current) + 1e-30)
         )
 
+        v_final = mom / rho[..., None]
+        B2_final = np.sum(B ** 2, axis=-1)
+
         if energy_tracker is not None:
-            v_final = mom / rho[..., None]
-            B2_final = np.sum(B ** 2, axis=-1)
             kinetic_final = 0.5 * rho * np.sum(v_final**2, axis=-1)
             magnetic_final = 0.5 * B2_final
             thermal_final = energy - kinetic_final - magnetic_final
@@ -933,6 +962,7 @@ class HallMHDSolver(PlasmaSolverBase):
             lambda_D = np.sqrt(epsilon_0 * k * T / (ne * e**2))
             ppc = float(np.mean(ne) * cell_volume)
             lh_power = self.last_lh_power
+            lh_phase = self.last_lh_phase_velocity
             impedance = self.last_eta_total_mean
             self.quality.log(
                 self.step_count,
@@ -943,9 +973,16 @@ class HallMHDSolver(PlasmaSolverBase):
                 float(np.mean(lambda_D)),
                 amr_level=getattr(self, "amr_level", None),
                 lower_hybrid_power=lh_power,
+                lower_hybrid_phase_velocity=lh_phase,
                 plasma_impedance=impedance,
                 divergence_error=getattr(self, "divergence_error", 0.0),
                 energy_drift=getattr(self, "energy_drift", 0.0),
+                hall_active=self.hall_active,
+                electron_inertia_active=self.electron_inertia_active,
+                wce_tau_e=self.last_wce_tau_e,
+                di_over_L=self.last_di_over_L,
+                hall_threshold=self.hall_threshold,
+                ei_threshold=self.ei_threshold,
 
             )
 

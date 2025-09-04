@@ -26,4 +26,9 @@ EOF
     .. /app
 
 %runscript
+    # ``JobManager`` generates a ``run_manifest.h5`` capturing the git commit
+    # and a hash of this container image.  Singularity exposes the currently
+    # running image via ``SINGULARITY_CONTAINER`` which is hashed at runtime.
+    # The manifest may later be inspected with tools like ``h5dump`` to audit a
+    # job's execution environment.
     exec /entrypoint.sh "$@"
