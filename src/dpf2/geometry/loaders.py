@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Sequence
 
 try:  # pragma: no cover - optional dependency
     import meshio  # type: ignore
@@ -126,8 +127,50 @@ def load_axisymmetric_mesh(path: Path) -> Dict[str, Any]:
     """
 
     p = Path(path)
-    if p.suffix.lower() == ".json":
+    suffix = p.suffix.lower()
+    if suffix == ".json":
         return json.loads(p.read_text())
+
+    if suffix in {".stl", ".vtk"}:
+        pts: Sequence[Sequence[float]] | None = None
+        if meshio is not None:  # pragma: no cover - exercised when meshio available
+            try:
+                pts = meshio.read(p).points  # type: ignore[assignment]
+            except Exception:
+                pts = None
+        if pts is None:
+            if suffix == ".stl":
+                pts = []
+                for ln in p.read_text().splitlines():
+                    ln = ln.strip()
+                    if ln.lower().startswith("vertex"):
+                        _, x, y, z = ln.split()
+                        pts.append([float(x), float(y), float(z)])
+            elif suffix == ".vtk":
+                pts = []
+                lines = p.read_text().splitlines()
+                read = False
+                for ln in lines:
+                    ln = ln.strip()
+                    if not ln:
+                        continue
+                    if read:
+                        parts = ln.split()
+                        if len(parts) == 3:
+                            try:
+                                pts.append([float(v) for v in parts])
+                                continue
+                            except ValueError:
+                                break
+                        else:
+                            break
+                    if ln.upper().startswith("POINTS"):
+                        read = True
+        if not pts:
+            raise ValueError(f"Unsupported axisymmetric mesh format: {suffix}")
+        r = sorted({math.hypot(pt[0], pt[1]) for pt in pts})
+        z = sorted({pt[2] for pt in pts})
+        return {"r": r, "z": z}
 
     lines = [ln.strip() for ln in p.read_text().splitlines() if ln.strip()]
     nr, nz = map(int, lines[0].split())
