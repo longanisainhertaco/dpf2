@@ -75,6 +75,49 @@ class AnomalousResistivity:
             E[:, mask] -= self.eta * J[:, mask]
         return E
 
+
+class LHDIResistivity:
+    """Lower-hybrid drift instability based resistivity model.
+
+    The model estimates an effective resistivity :math:`\eta` from local
+    density and magnetic-field gradients and applies it to the electric field.
+    """
+
+    def __init__(self, coeff: float = 1.0):
+        self.coeff = coeff
+        self.spikes: List[float] = []
+
+    def compute_eta(
+        self,
+        n: "np.ndarray",
+        B: "np.ndarray",
+        spacing: Tuple[float, float, float],
+    ) -> "np.ndarray":
+        dx, dy, dz = spacing
+        grad_n = np.array(np.gradient(n, dx, dy, dz))
+        Bmag = np.linalg.norm(B, axis=0)
+        grad_B = np.array(np.gradient(Bmag, dx, dy, dz))
+        mag_grad_n = np.linalg.norm(grad_n, axis=0)
+        mag_grad_B = np.linalg.norm(grad_B, axis=0)
+        return self.coeff * mag_grad_n * mag_grad_B
+
+    def apply(
+        self,
+        E: "np.ndarray",
+        J: "np.ndarray",
+        n: "np.ndarray",
+        B: "np.ndarray",
+        spacing: Tuple[float, float, float],
+    ) -> "np.ndarray":
+        eta = self.compute_eta(n, B, spacing)
+        E = E - eta[np.newaxis, ...] * J
+        magJ = np.linalg.norm(J, axis=0)
+        spike = float(np.max(eta * magJ))
+        if spike != 0.0:
+            self.spikes.append(spike)
+            logger.info(f"LHDI spike amplitude: {spike:.3e}")
+        return E
+
 #-----------------------------------------------------------------------------------------
 # PIC Solver Class
 #-----------------------------------------------------------------------------------------
@@ -157,6 +200,8 @@ class PICSolver(PhysicsModule):
         self.history: List[CouplingState] = []
         self.m0_instability_model: Optional[MZeroInstability] = None
         self.anomalous_resistivity_model: Optional[AnomalousResistivity] = None
+        self.lhdi_model: Optional[LHDIResistivity] = None
+        self.voltage_spikes: List[float] = []
         self.quality = quality
         self.step_count = 0
         logger.info('PIC solver initialized')
@@ -180,6 +225,10 @@ class PICSolver(PhysicsModule):
     def set_anomalous_resistivity(self, eta: float, j_crit: float = 1.0):
         """Enable mechanism-based anomalous resistivity."""
         self.anomalous_resistivity_model = AnomalousResistivity(eta, j_crit)
+
+    def set_lhdi_model(self, coeff: float):
+        """Enable lower-hybrid drift instability resistivity."""
+        self.lhdi_model = LHDIResistivity(coeff)
 
     #-------------------------------------------------------------------------------------
     # Boris pusher
@@ -382,6 +431,11 @@ class PICSolver(PhysicsModule):
                 E, B = self.warpx.step(rho, J, E, B, self.dt)
                 if self.anomalous_resistivity_model:
                     E = self.anomalous_resistivity_model.apply(E, J)
+                if self.lhdi_model:
+                    n = np.abs(rho)
+                    E = self.lhdi_model.apply(E, J, n, B, (self.dx, self.dy, self.dz))
+                    if self.lhdi_model.spikes:
+                        self.voltage_spikes.extend(self.lhdi_model.spikes[-1:])
                 if self.m0_instability_model:
                     E[2] = self.m0_instability_model.apply(E[2], self.dt)
             else:
@@ -396,6 +450,11 @@ class PICSolver(PhysicsModule):
                 E += self.dt * (PICSolver.c**2 * curlB - J / PICSolver.epsilon0)
                 if self.anomalous_resistivity_model:
                     E = self.anomalous_resistivity_model.apply(E, J)
+                if self.lhdi_model:
+                    n = np.abs(rho)
+                    E = self.lhdi_model.apply(E, J, n, B, (self.dx, self.dy, self.dz))
+                    if self.lhdi_model.spikes:
+                        self.voltage_spikes.extend(self.lhdi_model.spikes[-1:])
                 if self.m0_instability_model:
                     E[2] = self.m0_instability_model.apply(E[2], self.dt)
                 self._apply_pml()  # Apply PML damping
