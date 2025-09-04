@@ -6,8 +6,8 @@ weight so it can be used in examples and tests without requiring the
 full simulation stack.
 """
 
-from .sheath import animate_sheath
+from .sheath import animate_sheath, animate_discharge_phases
 from .widgets import sheath_widget
 
-__all__ = ["animate_sheath", "sheath_widget"]
+__all__ = ["animate_sheath", "animate_discharge_phases", "sheath_widget"]
 
