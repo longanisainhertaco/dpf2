@@ -1,4 +1,5 @@
 """Command line interface for DPF2."""
+
 import json
 import logging
 import dataclasses
@@ -44,7 +45,9 @@ from .errors import format_error
 from .lab import write_manifest
 
 
-def _prompt_with_range(prompt: str, default: float, minimum: float, maximum: float, tip: str) -> float:
+def _prompt_with_range(
+    prompt: str, default: float, minimum: float, maximum: float, tip: str
+) -> float:
     """Prompt the user for a floating point value within a range.
 
     Displays ``tip`` whenever the entered value falls outside ``minimum`` and
@@ -58,7 +61,9 @@ def _prompt_with_range(prompt: str, default: float, minimum: float, maximum: flo
         click.echo(f"{prompt} must be between {minimum} and {maximum}. {tip}")
 
 
-def _validate_range(name: str, value: float, minimum: float, maximum: float, tip: str) -> float:
+def _validate_range(
+    name: str, value: float, minimum: float, maximum: float, tip: str
+) -> float:
     """Validate that ``value`` lies within the given range.
 
     Raises ``click.BadParameter`` with a contextual tip on failure.
@@ -94,17 +99,27 @@ def _launch_notebook() -> None:
         fh.write(startup)
     env = os.environ.copy()
     env["PYTHONSTARTUP"] = fh.name
-    notebook = Path(__file__).resolve().parents[2] / "examples" / "notebooks" / "quickstart.ipynb"
+    notebook = (
+        Path(__file__).resolve().parents[2]
+        / "examples"
+        / "notebooks"
+        / "quickstart.ipynb"
+    )
     try:
         subprocess.run(["jupyter", "notebook", str(notebook)], env=env, check=True)
     except FileNotFoundError:
         raise click.ClickException(
-            format_error("NOTEBOOK", "Jupyter is not installed", "Install the 'notebook' package.")
+            format_error(
+                "NOTEBOOK",
+                "Jupyter is not installed",
+                "Install the 'notebook' package.",
+            )
         )
     except subprocess.CalledProcessError as e:
         raise click.ClickException(
             format_error("NOTEBOOK", f"Jupyter exited with code {e.returncode}")
         )
+
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +129,14 @@ def build_config_wizard() -> DPFConfig:
 
     click.echo("DPF2 configuration wizard\n")
     defaults = DPFConfig()
-    click.echo("Geometry presets: mather, filippov, tapered, hollow, re-entrant or custom.")
+    click.echo(
+        "Geometry presets: mather, filippov, tapered, hollow, re-entrant or custom."
+    )
     preset = click.prompt(
         "Select geometry preset",
-        type=click.Choice(["mather", "filippov", "tapered", "hollow", "re-entrant", "custom"]),
+        type=click.Choice(
+            ["mather", "filippov", "tapered", "hollow", "re-entrant", "custom"]
+        ),
         default="mather",
         show_choices=True,
     )
@@ -275,8 +294,12 @@ def main(ctx: click.Context, notebook: bool, lab_mode: bool) -> None:
 
 
 @main.command()
-@click.option("-c", "--config", type=click.Path(exists=False), help="Path to config file")
-@click.option("-o", "--output", type=click.Path(), default="output", help="Output directory")
+@click.option(
+    "-c", "--config", type=click.Path(exists=False), help="Path to config file"
+)
+@click.option(
+    "-o", "--output", type=click.Path(), default="output", help="Output directory"
+)
 @click.option("--voltage", type=float, help="Charging voltage [V]")
 @click.option(
     "--segment-length",
@@ -284,7 +307,9 @@ def main(ctx: click.Context, notebook: bool, lab_mode: bool) -> None:
     type=float,
     help="Electrode segment length [m]",
 )
-@click.option("--verbose", is_flag=True, help="Report solver progress and energy diagnostics")
+@click.option(
+    "--verbose", is_flag=True, help="Report solver progress and energy diagnostics"
+)
 @click.option(
     "--live-plot",
     is_flag=True,
@@ -315,7 +340,6 @@ def simulate(
     diagnostics: bool,
     wizard: bool,
 ) -> None:
-
     """Run a DPF simulation."""
     try:
         if verbose:
@@ -454,6 +478,7 @@ def simulate(
 
             progress_cb = _update
         elif plot_backend is not None:
+
             def _update(step: int, time: float) -> None:
                 live_times.append(sim.time)
                 live_currents.append(sim.current)
@@ -485,7 +510,9 @@ def simulate(
         # Compute and plot axial rundown similarity parameter S
         try:
             S = shock_parameter(currents, cfg.anode_radius, cfg.initial_pressure)
-            shock_path = plot_shock_parameter(times, S, Path(output) / "shock_trend.png")
+            shock_path = plot_shock_parameter(
+                times, S, Path(output) / "shock_trend.png"
+            )
             if verbose:
                 click.echo(f"Shock parameter plot written to {shock_path}")
         except Exception:
@@ -541,7 +568,9 @@ def simulate(
             click.echo(f"Diagnostics written to {diag_file}")
 
         if ctx.obj.get("lab_mode"):
-            ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
+            ppc = getattr(
+                getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None
+            )
             cfg_paths = [p for p in [config, synthetic] if p]
             write_manifest(output, config_paths=cfg_paths, ppc=ppc, seeds=seeds)
 
@@ -588,6 +617,7 @@ def simulate(
 def validate(config: str, dataset: str, outdir: str) -> None:
     """Run a validation simulation and compare with experimental data."""
     from .validate import run_validation
+
     try:
         from .validate import run_validation
 
@@ -599,9 +629,7 @@ def validate(config: str, dataset: str, outdir: str) -> None:
 
 
 @main.command("validate-config")
-@click.option(
-    "--config", type=click.Path(exists=True, dir_okay=False), required=True
-)
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
 def validate_config(config: str) -> None:
     """Validate a configuration file."""
     try:
@@ -626,7 +654,9 @@ def plot(input: str, output: str) -> None:
 
     files = sorted(Path(input).glob("data_*.h5"))
     if not files:
-        raise click.ClickException(format_error("PLOT", f"No HDF5 files found in {input}"))
+        raise click.ClickException(
+            format_error("PLOT", f"No HDF5 files found in {input}")
+        )
 
     times, currents, voltages = [], [], []
     for fname in files:
@@ -652,9 +682,7 @@ def plot(input: str, output: str) -> None:
 
 
 @main.command("plot-run")
-@click.option(
-    "--run-dir", type=click.Path(file_okay=False, exists=True), required=True
-)
+@click.option("--run-dir", type=click.Path(file_okay=False, exists=True), required=True)
 @click.option("--output", type=click.Path(), default="plot.png")
 def plot_run(run_dir: str, output: str) -> None:
     """Quickly plot current and voltage from an existing run directory."""
@@ -663,7 +691,9 @@ def plot_run(run_dir: str, output: str) -> None:
 
     files = sorted(Path(run_dir).glob("data_*.h5"))
     if not files:
-        raise click.ClickException(format_error("PLOT", f"No HDF5 files found in {run_dir}"))
+        raise click.ClickException(
+            format_error("PLOT", f"No HDF5 files found in {run_dir}")
+        )
 
     times, currents, voltages = [], [], []
     for fname in files:
@@ -691,11 +721,17 @@ def plot_run(run_dir: str, output: str) -> None:
 @main.command("param-sweep")
 @click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
 @click.option("--parameter", type=str, required=True)
-@click.option("--values", type=float, multiple=True, required=True, help="Values to sweep")
+@click.option(
+    "--values", type=float, multiple=True, required=True, help="Values to sweep"
+)
 @click.option("--output", type=click.Path(file_okay=False), default="sweep_output")
 @click.pass_context
 def param_sweep_cmd(
-    ctx: click.Context, config: str, parameter: str, values: tuple[float, ...], output: str
+    ctx: click.Context,
+    config: str,
+    parameter: str,
+    values: tuple[float, ...],
+    output: str,
 ) -> None:
     """Run a parameter sweep and plot current, yield and efficiency overlays."""
 
@@ -754,6 +790,60 @@ def uq_sweep_cmd(
         raise click.ClickException(format_error("UQ", str(e)))
 
     click.echo(f"UQ sweep complete. Results written to {output}")
+
+
+@main.command("latin-hypercube")
+@click.option(
+    "--parameters",
+    type=str,
+    required=True,
+    help="JSON mapping of parameter bounds, e.g. '{\"capacitance\":[1e-6,5e-6]}'",
+)
+@click.option("--samples", type=int, default=4, show_default=True)
+@click.option("--seed", type=int, default=None)
+@click.option("--output", type=click.Path(dir_okay=False), default="lhs_samples.json")
+def latin_hypercube_cmd(
+    parameters: str, samples: int, seed: int | None, output: str
+) -> None:
+    """Generate Latin hypercube samples for batch sweeps."""
+
+    try:
+        bounds = json.loads(parameters)
+        sample = latin_hypercube(bounds, samples, seed=seed)
+        names = list(bounds)
+        combos = [{n: float(v) for n, v in zip(names, row)} for row in sample]
+        Path(output).write_text(json.dumps(combos, indent=2))
+    except Exception as e:  # pragma: no cover - runtime formatting
+        raise click.ClickException(format_error("UQ", str(e)))
+
+    click.echo(f"Latin hypercube samples written to {output}")
+
+
+@main.command("sobol-sample")
+@click.option(
+    "--parameters",
+    type=str,
+    required=True,
+    help="JSON mapping of parameter bounds, e.g. '{\"capacitance\":[1e-6,5e-6]}'",
+)
+@click.option("--samples", type=int, default=4, show_default=True)
+@click.option("--seed", type=int, default=None)
+@click.option("--output", type=click.Path(dir_okay=False), default="sobol_samples.json")
+def sobol_sample_cmd(
+    parameters: str, samples: int, seed: int | None, output: str
+) -> None:
+    """Generate Sobol sequence samples for batch sweeps."""
+
+    try:
+        bounds = json.loads(parameters)
+        sample = sobol_sample(bounds, samples, seed=seed)
+        names = list(bounds)
+        combos = [{n: float(v) for n, v in zip(names, row)} for row in sample]
+        Path(output).write_text(json.dumps(combos, indent=2))
+    except Exception as e:  # pragma: no cover - runtime formatting
+        raise click.ClickException(format_error("UQ", str(e)))
+
+    click.echo(f"Sobol samples written to {output}")
 
 
 @main.command("uq-stats")

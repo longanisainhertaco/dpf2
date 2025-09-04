@@ -58,3 +58,29 @@ dpf2 schema
 ```
 
 Print a JSON description of the configuration schema and default values.
+
+## latin-hypercube
+
+```
+dpf2 latin-hypercube --parameters '{"capacitance":[1e-6,5e-6]}' --samples 8 --output lhs.json
+```
+
+Generate Latin hypercube samples for the provided parameter bounds.
+The resulting JSON file contains one object per sample.
+
+## sobol-sample
+
+```
+dpf2 sobol-sample --parameters '{"capacitance":[1e-6,5e-6]}' --samples 8 --output sobol.json
+```
+
+Produce Sobol sequence samples for batch sweeps.
+
+## uq-sweep
+
+```
+dpf2 uq-sweep --config config.json --parameters '{"capacitance":[1e-6,5e-6]}' --method lhs --samples 8
+```
+
+Execute a sweep across the sampled configurations and record peak current
+for each case in ``uq_results.json``.
