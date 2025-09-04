@@ -31,7 +31,9 @@ from dpf2.optimization.param_sweep import (
     compute_sweep_metrics,
     plot_metric_overlay,
 )
-from dpf2.physics.axial_rundown import shock_parameter, plot_shock_parameter
+
+from dpf2.scaling_laws import sweep_yield_scaling
+
 from .errors import format_error
 
 
@@ -668,6 +670,32 @@ def param_sweep_cmd(
         raise click.ClickException(format_error("SWEEP", str(e)))
 
     click.echo(f"Sweep complete. Results written to {output}")
+
+
+@main.command("scaling")
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
+@click.option("--parameter", type=str, required=True)
+@click.option("--values", type=float, multiple=True, required=True)
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False),
+    default="scaling_report.json",
+    help="File to write scaling analysis JSON",
+)
+def scaling_cmd(
+    config: str, parameter: str, values: tuple[float, ...], output: str
+) -> None:
+    """Run a sweep and report fitted scaling exponents."""
+
+    try:
+        cfg = DPFConfig.from_file(config)
+        res = sweep_yield_scaling(cfg, parameter, values)
+        Path(output).write_text(json.dumps(res, indent=2))
+        click.echo(
+            f"m_current={res['m_current']:.3f} m_parameter={res['m_parameter']:.3f}"
+        )
+    except Exception as e:
+        raise click.ClickException(format_error("SCALING", str(e)))
 
 
 @main.command()
