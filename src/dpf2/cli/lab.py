@@ -35,10 +35,26 @@ def _code_hash() -> str:
 
 def _environment() -> dict[str, object]:
     """Capture basic execution environment details."""
+    hdf5_version = "unknown"
+    if h5py is not None:
+        try:  # pragma: no cover - h5py may be a stub
+            hdf5_version = h5py.version.hdf5_version
+        except Exception:
+            hdf5_version = "unknown"
+    mpi_version = (
+        os.environ.get("MPI_VERSION")
+        or os.environ.get("MPICH_VERSION")
+        or os.environ.get("OMPI_VERSION")
+        or "unknown"
+    )
     return {
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "env": dict(os.environ),
+        "container_hash": os.environ.get("CONTAINER_HASH", "unknown"),
+        "compiler": os.environ.get("CC", "unknown"),
+        "mpi": mpi_version,
+        "hdf5": hdf5_version,
     }
 
 
