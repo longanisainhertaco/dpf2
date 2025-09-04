@@ -309,6 +309,12 @@ def solve_distributed_circuit(
             self.delay_steps = delay_steps
 
     branches: list[_Branch] = []
+    plasma_L = 0.0
+    if em_solver is not None:
+        try:
+            plasma_L = float(getattr(em_solver.coupling_interface(), "Lp", 0.0))
+        except Exception:
+            plasma_L = 0.0
 
     def _update_branch_lists(t: float) -> float:
         branches.clear()
@@ -334,6 +340,8 @@ def solve_distributed_circuit(
             branches.append(
                 _Branch(sw.from_node, sw.to_node, sw.L_parasitic or 1e-12, sw.resistance(t), 0)
             )
+        if plasma_L != 0.0:
+            branches.append(_Branch(src, ground, plasma_L or 1e-12, 0.0, 0))
         # Use the matrix assembly helper to determine the total capacitance
         _, _, C_mat = assemble_matrices(segments, switches, t)
         size = C_mat.shape[0] if hasattr(C_mat, "shape") else 0
@@ -489,6 +497,7 @@ def solve_distributed_circuit(
             tot += fb.back_reaction
             currents[k, :] += fb.back_reaction
             node_voltages[k, :] += fb.voltage
+            plasma_L = getattr(fb, "Lp", plasma_L)
 
         total_I[k] = tot
 
