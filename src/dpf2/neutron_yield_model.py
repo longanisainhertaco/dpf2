@@ -4,7 +4,19 @@ import hashlib
 import json
 from pathlib import Path
 from bisect import bisect_right
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal, Callable, Sequence, Protocol
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Literal,
+    Callable,
+    Sequence,
+    Protocol,
+)
+import math
 
 from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator as _model_validator
@@ -25,6 +37,7 @@ def from_camel_case(string: str) -> str:
         else:
             out.append(ch)
     return "".join(out)
+
 from .units_settings import UnitsSettings
 
 
@@ -88,6 +101,10 @@ class NeutronYieldModel(ConfigSectionBase):
     apply_detector_response_function: bool = False
     detector_response_file: Optional[Path] = None
     detector_response_normalization: Optional[Literal["none", "area", "peak", "custom"]] = "none"
+    detector_layout: Optional[Dict[str, float]] = None
+    anisotropy_metric: Literal[
+        "max_min_over_mean", "forward_backward_ratio"
+    ] = "max_min_over_mean"
 
     # ------------------------------------------------------------------
     @classmethod
@@ -308,8 +325,30 @@ def compute_directional_spectrum(
     return spectra
 
 
+def partition_yield(
+    thermonuclear_rate: Sequence[float],
+    beam_target_rate: Sequence[float],
+    dt: float,
+) -> Dict[str, Tuple[float, float]]:
+    """Integrate rate histories and return yields with Poisson uncertainties."""
+
+    if dt <= 0:
+        raise ValueError("dt must be positive")
+    if len(thermonuclear_rate) != len(beam_target_rate):
+        raise ValueError("rate histories must have the same length")
+    th = sum(float(v) for v in thermonuclear_rate) * dt
+    bt = sum(float(v) for v in beam_target_rate) * dt
+    total = th + bt
+    return {
+        "thermonuclear": (th, math.sqrt(th) if th > 0 else 0.0),
+        "beam_target": (bt, math.sqrt(bt) if bt > 0 else 0.0),
+        "total": (total, math.sqrt(total) if total > 0 else 0.0),
+    }
+
+
 __all__ = [
     "NeutronYieldModel",
     "TabulatedIonEDF",
     "compute_directional_spectrum",
+    "partition_yield",
 ]

@@ -13,6 +13,7 @@ __all__ = [
     "dd_channel_fractions",
     "dd_beam_target_angular_spectrum",
     "dd_directional_yields",
+    "dd_yield_components",
 ]
 
 
@@ -150,4 +151,45 @@ def dd_directional_yields(
         else:
             radial += v
     return {"forward": forward, "radial": radial, "backward": backward}
+
+
+def dd_yield_components(
+    T_keV: float,
+    n_thermal: float,
+    n_beam: float | None,
+    beam_energy_keV: float | None,
+    volume: float,
+    duration: float,
+) -> dict[str, tuple[float, float]]:
+    """Return D-D neutron yields with simple Poisson uncertainties.
+
+    The underlying reaction rates are provided by :func:`dd_fusion_rates`.  The
+    yields are obtained by multiplying the rates by ``volume`` and ``duration``.
+    Uncertainties are estimated assuming Poisson statistics, i.e. ``sqrt(N)``.
+
+    Parameters
+    ----------
+    T_keV, n_thermal, n_beam, beam_energy_keV
+        Inputs forwarded to :func:`dd_fusion_rates`.
+    volume, duration
+        Plasma volume (m^3) and integration time (s).
+
+    Returns
+    -------
+    dict
+        Mapping of ``"thermonuclear"``, ``"beam_target"`` and ``"total"`` to
+        ``(yield, uncertainty)`` tuples.
+    """
+
+    thermo_rate, beam_rate = dd_fusion_rates(
+        T_keV, n_thermal, n_beam, beam_energy_keV
+    )
+    th_yield = thermo_rate * volume * duration
+    bt_yield = beam_rate * volume * duration
+    total = th_yield + bt_yield
+    return {
+        "thermonuclear": (th_yield, math.sqrt(th_yield) if th_yield > 0 else 0.0),
+        "beam_target": (bt_yield, math.sqrt(bt_yield) if bt_yield > 0 else 0.0),
+        "total": (total, math.sqrt(total) if total > 0 else 0.0),
+    }
 
