@@ -33,11 +33,21 @@ class CollisionConfig(BaseModel):
     charge_exchange_enabled: bool = Field(False, description="Enable charge exchange collisions")
     charge_exchange_cross_section: float = Field(1e-19, gt=0, description="Charge exchange cross-section [m^2]")
 
+class MaterialOpacity(BaseModel):
+    """Per-material opacity definition across radiation groups."""
+
+    material_id: str = Field(..., description="Material identifier")
+    group_opacities: List[float] = Field(
+        ..., description="Opacities for each radiation group"
+    )
+
+
 class RadiationConfig(BaseModel):
     """Configuration for the radiation model."""
+
     num_groups: int = Field(1, description="Number of radiation energy groups")
-    material_opacities: Dict[str, List[float]] = Field(
-        default_factory=dict,
+    material_opacities: List[MaterialOpacity] = Field(
+        default_factory=list,
         description="Material-specific opacities for each group",
     )
     use_line_radiation: bool = Field(False, description="Enable line radiation")
@@ -66,6 +76,15 @@ class RadiationConfig(BaseModel):
     photon_emission_enabled: bool = Field(False, description="Enable photon emission")
     photon_transport_enabled: bool = Field(False, description="Enable photon transport")
     # Add other parameters as needed
+
+    @validator("material_opacities", pre=True)
+    def _convert_material_opacities(cls, v):
+        """Allow legacy dict-based format for material opacities."""
+        if isinstance(v, dict):
+            return [
+                {"material_id": k, "group_opacities": val} for k, val in v.items()
+            ]
+        return v
 
 class PICConfig(BaseModel):
     """Configuration for the Particle-in-Cell (PIC) model."""
