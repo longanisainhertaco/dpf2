@@ -105,11 +105,18 @@ class JobManager:
         stage_out: Mapping[str, str] | None = kwargs.pop("stage_out", None)
         job_script = self._wrap_staging(job_script, stage_in, stage_out)
 
+        # Script level arguments and restart handling
+        script_args: list[str] = list(kwargs.pop("script_args", []))
+        restart = kwargs.pop("restart", None)
+        if restart is not None:
+            script_args.extend(["--restart", str(restart)])
+
         if self.scheduler == "slurm":
             gpus = kwargs.pop("gpus", None)
             gpu_type = kwargs.pop("gpu_type", None)
             deps = kwargs.pop("dependencies", None)
             dep_type = kwargs.pop("dependency_type", "afterok")
+            gpu_affinity = kwargs.pop("gpu_affinity", None)
 
             cmd = ["sbatch"]
             self._extend_cmd(
@@ -117,6 +124,8 @@ class JobManager:
                 kwargs,
                 {
                     "nodes": "-N",
+                    "nodelist": "--nodelist",
+                    "ntasks_per_node": "--ntasks-per-node",
                     "output": "-o",
                     "error": "-e",
                 },
@@ -133,7 +142,11 @@ class JobManager:
                     dep_str = str(deps)
                 cmd.extend(["--dependency", dep_str])
             cmd.append(job_script)
-            return subprocess.run(cmd, capture_output=True, text=True, check=False)
+            cmd.extend(script_args)
+            env = os.environ.copy()
+            if gpu_affinity is not None:
+                env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in gpu_affinity)
+            return subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
         if self.scheduler == "awsbatch":
             try:
                 import boto3  # type: ignore
@@ -143,6 +156,7 @@ class JobManager:
             gpus = kwargs.pop("gpus", None)
             gpu_type = kwargs.pop("gpu_type", None)
             deps = kwargs.pop("dependencies", None)
+            gpu_affinity = kwargs.pop("gpu_affinity", None)
 
             params: Dict[str, Any] = {
                 "jobName": kwargs.get("job_name", "dpf2-job"),
@@ -157,6 +171,14 @@ class JobManager:
             if gpus is not None or gpu_type is not None:
                 rr = {"value": str(gpus if gpus is not None else 1), "type": "GPU"}
                 params.setdefault("containerOverrides", {})["resourceRequirements"] = [rr]
+            if restart is not None or gpu_affinity is not None:
+                env_list = params.setdefault("containerOverrides", {}).setdefault("environment", [])
+                if restart is not None:
+                    env_list.append({"name": "DPF_RESTART", "value": str(restart)})
+                if gpu_affinity is not None:
+                    env_list.append({"name": "CUDA_VISIBLE_DEVICES", "value": ",".join(str(g) for g in gpu_affinity)})
+            if script_args:
+                params.setdefault("containerOverrides", {})["command"] = [job_script] + script_args
             return batch.submit_job(**params)
         if self.scheduler == "mpi":
             gpus = kwargs.pop("gpus", None)
@@ -167,7 +189,14 @@ class JobManager:
 
             hosts = kwargs.pop("hosts", None)
             host_gpus = kwargs.pop("host_gpus", None)
+            node_topology = kwargs.pop("node_topology", None)
             decomp: Dict[str, Any] | None = kwargs.pop("decomp", None)
+            gpu_affinity = kwargs.pop("gpu_affinity", None)
+
+            if node_topology is not None:
+                if host_gpus is not None:
+                    raise ValueError("Specify either node_topology or host_gpus")
+                host_gpus = node_topology
 
             cmd = ["mpirun"]
             self._extend_cmd(
@@ -198,14 +227,14 @@ class JobManager:
                 hostfile = self._write_temp_file("\n".join(hosts) + "\n", suffix=".hosts")
                 cmd.extend(["--hostfile", hostfile])
 
-            script_cmd = [job_script]
+            script_cmd = [job_script] + script_args
             if decomp:
                 for axis, cnt in decomp.items():
                     script_cmd.extend([f"--decomp-{axis}", str(cnt)])
-            if "restart" in kwargs:
-                script_cmd.extend(["--restart", str(kwargs["restart"])])
 
-            if gpus is not None and host_gpus is None:
+            if gpu_affinity is not None:
+                env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in gpu_affinity)
+            elif gpus is not None and host_gpus is None:
                 env["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in range(int(gpus)))
 
             cmd.extend(script_cmd)

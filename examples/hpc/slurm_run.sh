@@ -11,7 +11,8 @@ tmp=${SLURM_TMPDIR:-$(mktemp -d)}
 cp $SLURM_SUBMIT_DIR/examples/config.json "$tmp/"
 cd "$tmp"
 
-# Execute the simulation
+# Execute the simulation. GPU affinity can be controlled by setting
+# ``CUDA_VISIBLE_DEVICES`` prior to submission (e.g. via the JobManager).
 srun python $SLURM_SUBMIT_DIR/examples/run_simulation.py --config config.json --output result.npz
 
 # Collect output data back to the submission directory
