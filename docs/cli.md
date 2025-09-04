@@ -12,6 +12,17 @@ dpf2 simulate -c config.json -o output_dir
 Run a simulation using a configuration file. Results are written to the
 specified output directory.
 
+### Lab mode
+
+Most commands accept the ``--lab-mode`` flag to capture a manifest for
+reproducibility. The manifest records the current code hash, RNG seeds,
+particle-per-cell setting and any configuration file paths. The file is
+written as ``manifest.json`` inside the command's output directory.
+
+```
+dpf2 simulate -c config.json -o output_dir --lab-mode
+```
+
 ## wizard
 
 ```
