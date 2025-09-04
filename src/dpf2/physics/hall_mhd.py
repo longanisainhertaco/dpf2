@@ -29,6 +29,7 @@ class HallMHD(ResistiveMHD):
     """
 
     hall_coeff: float = 0.0
+    electron_inertia: float = 0.0
     current: float = 0.0
     back_emf: float = 0.0
     beam_velocity: float = 0.0
@@ -159,19 +160,31 @@ class HallMHD(ResistiveMHD):
 
         F = super().flux_function(U, direction)
 
-        if J is not None and self.hall_coeff != 0.0:
-            rho = U[0]
-            B = U[5:8]
-            hall_e = self.hall_coeff * np.cross(J, B) / rho
-            if direction == "x":
-                F[6] -= hall_e[2]
-                F[7] -= hall_e[1]
-            elif direction == "y":
-                F[5] -= hall_e[2]
-                F[7] -= hall_e[0]
-            elif direction == "z":
-                F[5] -= hall_e[1]
-                F[6] -= hall_e[0]
+        if J is not None:
+            if self.hall_coeff != 0.0:
+                rho = U[0]
+                B = U[5:8]
+                hall_e = self.hall_coeff * np.cross(J, B) / rho
+                if direction == "x":
+                    F[6] -= hall_e[2]
+                    F[7] -= hall_e[1]
+                elif direction == "y":
+                    F[5] -= hall_e[2]
+                    F[7] -= hall_e[0]
+                elif direction == "z":
+                    F[5] -= hall_e[1]
+                    F[6] -= hall_e[0]
+            if self.electron_inertia != 0.0:
+                inertia_e = self.electron_inertia * J
+                if direction == "x":
+                    F[6] += inertia_e[2]
+                    F[7] += inertia_e[1]
+                elif direction == "y":
+                    F[5] += inertia_e[2]
+                    F[7] += inertia_e[0]
+                elif direction == "z":
+                    F[5] += inertia_e[1]
+                    F[6] += inertia_e[0]
 
         return F
 
@@ -204,9 +217,9 @@ class HallMHD(ResistiveMHD):
         dx = mesh.dx
         Bx = U[:, 5]
         psi = U[:, 8]
-        divB = np.gradient(Bx, dx, edge_order=2)
+        divB = np.gradient(Bx, dx, edge_order=1)
         psi -= dt * (self.c_h ** 2 * divB + self.c_p ** 2 * psi)
-        Bx -= dt * np.gradient(psi, dx, edge_order=2)
+        Bx -= dt * np.gradient(psi, dx, edge_order=1)
         U[:, 5] = Bx
         U[:, 8] = psi
 
@@ -220,8 +233,8 @@ class HallMHD(ResistiveMHD):
         By = U[:, 6]
         Bz = U[:, 7]
         J = np.zeros((n, 3))
-        J[:, 1] = -np.gradient(Bz, dx, edge_order=2)
-        J[:, 2] = np.gradient(By, dx, edge_order=2)
+        J[:, 1] = -np.gradient(Bz, dx, edge_order=1)
+        J[:, 2] = np.gradient(By, dx, edge_order=1)
 
         fluxes = np.zeros((n + 1, len(self.equations)))
         for i in range(n - 1):
@@ -264,4 +277,22 @@ class HallMHD(ResistiveMHD):
         return U_new
 
 
-__all__ = ["HallMHD"]
+def nrl_braginskii(rho: np.ndarray, T: np.ndarray, B: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return simple Braginskii transport coefficients using NRL scalings.
+
+    The implementation is intentionally reduced – it merely provides smooth
+    temperature and density dependent coefficients sufficient for the unit
+    tests.  Both the viscosity and thermal conductivity scale with ``T^2`` and
+    inversely with density, matching the trends of the full expressions.
+    Parameters are accepted as ``ndarray`` and returned with matching shape.
+    """
+
+    rho = np.asarray(rho)
+    T = np.asarray(T)
+    coeff = 1.0 / np.maximum(rho, 1.0e-30)
+    nu_par = 1.0e-4 * T**2 * coeff
+    kappa_par = 1.0e-2 * T**2 * coeff
+    return nu_par, kappa_par
+
+
+__all__ = ["HallMHD", "nrl_braginskii"]

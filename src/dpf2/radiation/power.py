@@ -13,7 +13,13 @@ import numpy as np
 __all__ = ["bremsstrahlung_power", "line_radiation_power"]
 
 
-def bremsstrahlung_power(ne: np.ndarray, ni: np.ndarray, Te: np.ndarray) -> np.ndarray:
+def bremsstrahlung_power(
+    ne: np.ndarray,
+    ni: np.ndarray,
+    Te: np.ndarray,
+    *,
+    Z_eff: float = 1.0,
+) -> np.ndarray:
     """Return volumetric bremsstrahlung power.
 
     Parameters
@@ -24,20 +30,32 @@ def bremsstrahlung_power(ne: np.ndarray, ni: np.ndarray, Te: np.ndarray) -> np.n
         Electron temperature [eV or K].  Only relative scaling is used in the
         tests so the unit choice is immaterial.
 
+    Z_eff:
+        Effective charge state of the plasma.  A value greater than one
+        mimics the enhancement of bremsstrahlung due to high-Z
+        impurities.  The default of ``1.0`` preserves the previous
+        behaviour used in the unit tests.
+
     Returns
     -------
     numpy.ndarray
-        Power density [W/m^3] scaling as ``ne * ni * sqrt(Te)``.
+        Power density [W/m^3] scaling as ``ne * ni * Z_eff * sqrt(Te)``.
     """
 
     ne = np.asarray(ne)
     ni = np.asarray(ni)
     Te = np.asarray(Te)
     coeff = 1.0
-    return coeff * ne * ni * np.sqrt(Te)
+    return coeff * ne * ni * Z_eff * np.sqrt(Te)
 
 
-def line_radiation_power(ne: np.ndarray, Te: np.ndarray, *, coeff: float = 0.0) -> np.ndarray:
+def line_radiation_power(
+    ne: np.ndarray,
+    Te: np.ndarray,
+    *,
+    coeff: float = 0.0,
+    impurity_fraction: float = 1.0,
+) -> np.ndarray:
     """Placeholder line-radiation loss model.
 
     The helper mirrors :func:`bremsstrahlung_power` but uses a configurable
@@ -48,4 +66,4 @@ def line_radiation_power(ne: np.ndarray, Te: np.ndarray, *, coeff: float = 0.0) 
 
     ne = np.asarray(ne)
     Te = np.asarray(Te)
-    return coeff * ne * ne * np.sqrt(Te)
+    return coeff * impurity_fraction * ne * ne * np.sqrt(Te)

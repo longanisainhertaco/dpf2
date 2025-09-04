@@ -3,6 +3,8 @@ import numpy as np
 from dpf2.physics import HallMHD
 from dpf2.core.circuit import RLCCircuitSolver
 from dpf2.mesh import Mesh3D
+from dpf2.hall_mhd_solver import HallMHDSolver, MHDState
+from dpf2.physics.hall_mhd import nrl_braginskii
 
 
 def _shock_setup():
@@ -69,3 +71,38 @@ def test_circuit_exchange():
 
     # coupling updated the circuit current
     assert model.current != current
+
+
+def test_activation_gates_and_closure():
+    state = MHDState(
+        rho=np.ones((2, 1)),
+        mom=np.zeros((2, 1, 3)),
+        energy=np.ones((2, 1)) * 20.0,
+        B=np.zeros((2, 1, 3)) + np.array([5.0, 0.0, 0.0]),
+        eta=np.ones((2, 1)) * 1e-6,
+    )
+    solver = HallMHDSolver(hall_threshold=0.1, ei_threshold=0.2, scale_length=1e12)
+    solver.step(state, 0.0)
+    assert solver.hall_active
+    assert solver.last_wce_tau_e > 0.1
+    assert not solver.electron_inertia_active
+
+    def closure(rho, T, B):
+        return 1.0, 2.0
+
+    low_rho_state = MHDState(
+        rho=np.ones((2, 1)) * 1e-6,
+        mom=np.zeros((2, 1, 3)),
+        energy=np.ones((2, 1)),
+        B=np.zeros((2, 1, 3)),
+        eta=np.ones((2, 1)) * 1e-3,
+    )
+    solver2 = HallMHDSolver(braginskii=closure, scale_length=1e-3, ei_threshold=0.01)
+    solver2.step(low_rho_state, 0.0)
+    assert solver2.electron_inertia_active
+    assert solver2.nu_par == 1.0
+    assert solver2.kappa_par == 2.0
+
+    nu, kappa = nrl_braginskii(np.array([1.0]), np.array([1.0]), np.array([1.0]))
+    assert nu.shape == (1,)
+    assert kappa.shape == (1,)
