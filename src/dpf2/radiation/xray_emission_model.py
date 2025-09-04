@@ -50,6 +50,8 @@ def cr_line_emission(
     T_e_eV: float,
     n_e_cm3: float,
     species: Literal["Ne", "Ar"],
+    *,
+    impurity_fraction: float = 1.0,
 ) -> Dict[str, float]:
     """Return line emissivity for the requested species.
 
@@ -61,6 +63,11 @@ def cr_line_emission(
         Electron density in cm^-3.
     species:
         Ion species identifier (``"Ne"`` or ``"Ar"``).
+
+    impurity_fraction:
+        Multiplier representing the fractional abundance of the emitting
+        species.  ``1.0`` corresponds to a pure plasma of the given
+        species while smaller values scale the emissivity accordingly.
 
     Returns
     -------
@@ -81,7 +88,7 @@ def cr_line_emission(
         raise ValueError(f"Unsupported species '{species}'")
 
     emissivity: Dict[str, float] = {}
-    n2 = n_e_cm3 ** 2
+    n2 = (n_e_cm3 ** 2) * impurity_fraction
     for name, line in lines.items():
         emissivity[name] = line.coeff * n2 * exp(-line.energy_eV / T_e_eV)
     return emissivity
