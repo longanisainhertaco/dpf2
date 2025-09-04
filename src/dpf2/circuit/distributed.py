@@ -27,6 +27,7 @@ from typing import Iterable, Sequence, List, Any
 import numpy as np
 import math
 import cmath
+import warnings
 
 from dpf2.core.bases import PlasmaSolverBase
 
@@ -114,15 +115,29 @@ class TransmissionLineSegment:
                     try:
                         self.R_per_m = get_resistivity(self.material)
                     except KeyError:
-                        pass
+                        warnings.warn(
+                            f"No resistivity data for material '{self.material}', using default {self.R_per_m}",
+                            stacklevel=2,
+                        )
                 if self.skin_effect_coeff == 0.0:
                     try:
                         self.skin_effect_coeff = get_skin_effect_coeff(self.material)
                     except KeyError:
-                        pass
+                        warnings.warn(
+                            f"No skin-effect data for material '{self.material}', using default {self.skin_effect_coeff}",
+                            stacklevel=2,
+                        )
             except Exception:
-                # Material tables are optional; fail silently if unavailable
-                pass
+                if self.R_per_m == 0.0:
+                    warnings.warn(
+                        f"Material tables unavailable; using default resistivity {self.R_per_m} for '{self.material}'",
+                        stacklevel=2,
+                    )
+                if self.skin_effect_coeff == 0.0:
+                    warnings.warn(
+                        f"Material tables unavailable; using default skin-effect coefficient {self.skin_effect_coeff} for '{self.material}'",
+                        stacklevel=2,
+                    )
 
     def delay(self) -> float:
         """Return propagation delay for this segment in seconds."""
