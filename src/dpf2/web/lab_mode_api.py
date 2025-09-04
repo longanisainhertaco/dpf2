@@ -50,6 +50,11 @@ def export_manifest_bundle(
 ) -> Path:
     """Write a zip bundle containing inputs and manifests for each run.
 
+    In addition to individual ``run_manifest_*.json`` and ``inputs_*.json``
+    files, a small ``bundle_manifest.json`` index is written summarising the
+    bundle contents.  This assists external HPC submission scripts in
+    discovering the manifests without needing to scan the archive structure.
+
     Parameters
     ----------
     configs:
@@ -62,12 +67,15 @@ def export_manifest_bundle(
     manifests = generate_manifest_bundle(configs, seeds=seeds)
     out_path = Path(output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    index: list[dict[str, str]] = []
     with zipfile.ZipFile(out_path, "w") as z:
         for idx, (cfg, manifest) in enumerate(zip(configs, manifests)):
             cfg_name = f"inputs_{idx}.json"
             manifest_name = f"run_manifest_{idx}.json"
             z.writestr(cfg_name, json.dumps(cfg, indent=2))
             z.writestr(manifest_name, json.dumps(manifest, indent=2))
+            index.append({"config": cfg_name, "manifest": manifest_name})
+        z.writestr("bundle_manifest.json", json.dumps(index, indent=2))
     return out_path
 
 
