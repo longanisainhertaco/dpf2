@@ -24,6 +24,7 @@ from typing import Dict, Iterable, List
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 from .project_manager import ProjectManager
 from ..core.config import DPFConfig
@@ -43,6 +44,7 @@ try:  # pragma: no cover - optional GUI dependency
         QDoubleSpinBox,
         QSpinBox,
         QPushButton,
+        QLineEdit,
     )
 except Exception:  # pragma: no cover - allow import when PyQt missing
     QApplication = None  # type: ignore
@@ -152,6 +154,13 @@ class _SweepWindow(QWidget):
         p_row.addWidget(self.pressure)
         layout.addLayout(p_row)
 
+        # Project name input for multi-project overlays
+        self.project_edit = QLineEdit("qt")
+        proj_row = QHBoxLayout()
+        proj_row.addWidget(QLabel("Project"))
+        proj_row.addWidget(self.project_edit)
+        layout.addLayout(proj_row)
+
         # Voltage sweep range controls
         self.v_min = QDoubleSpinBox()
         self.v_min.setRange(5_000, 30_000)
@@ -212,7 +221,13 @@ class _SweepWindow(QWidget):
             btn_row.addWidget(b)
         layout.addLayout(btn_row)
 
-        self.pm = ProjectManager(project="qt")
+        # Managers for each project
+        self.managers: Dict[str, ProjectManager] = {}
+
+        # Embedded plotting canvas for overlays
+        self.fig, self.ax = plt.subplots()
+        self.canvas = FigureCanvas(self.fig)
+        layout.addWidget(self.canvas)
 
         # Connect callbacks
         self.btn_sweep_v.clicked.connect(self._sweep_voltage)
@@ -227,6 +242,10 @@ class _SweepWindow(QWidget):
         cfg.charging_voltage = float(self.voltage.value())
         cfg.initial_pressure = float(self.pressure.value())
         return cfg
+
+    def _pm(self) -> ProjectManager:
+        proj = self.project_edit.text() or "qt"
+        return self.managers.setdefault(proj, ProjectManager(project=proj))
 
     def _sweep_voltage(self) -> None:
         vals = np.linspace(
@@ -245,11 +264,12 @@ class _SweepWindow(QWidget):
         self._run_sweep("initial_pressure", vals)
 
     def _run_sweep(self, param: str, values: Iterable[float]) -> None:
+        pm = self._pm()
         cfg = self._config()
-        label = f"{param}_{len(self.pm.metrics)}"
-        metrics = self.pm.run_sweep(label, cfg, param, list(values))
-        if self.pm.last_kpi_plot:
-            img = plt.imread(self.pm.last_kpi_plot)
+        label = f"{param}_{len(pm.metrics)}"
+        metrics = pm.run_sweep(label, cfg, param, list(values))
+        if pm.last_kpi_plot:
+            img = plt.imread(pm.last_kpi_plot)
             plt.figure()
             plt.imshow(img)
             plt.axis("off")
@@ -258,8 +278,7 @@ class _SweepWindow(QWidget):
         y_path = plot_yield_vs_param(
             param,
             metrics,
-            Path("results")
-            / self.pm.project
+            Path("results") / pm.project
             / f"yield_vs_{param}"
             / f"{label}.png",
         )
@@ -272,10 +291,7 @@ class _SweepWindow(QWidget):
         if param == "initial_pressure":
             s_path = plot_yield_vs_S_gv(
                 metrics,
-                Path("results")
-                / self.pm.project
-                / "yield_vs_S"
-                / f"{label}.png",
+                Path("results") / pm.project / "yield_vs_S" / f"{label}.png",
             )
             img = plt.imread(s_path)
             plt.figure()
@@ -291,20 +307,29 @@ class _SweepWindow(QWidget):
             print(f"Optimal S = {opt_S:.2f} at P={best_val}")
             if abs(opt_S - gv) > 1e-6:
                 print(f"Deviation from GV ({gv}) = {opt_S - gv:+.2f}")
+        self._overlay_runs()
 
     def _overlay_runs(self) -> None:
-        path = self.pm.overlay_metrics()
-        img = plt.imread(path)
-        plt.figure()
-        plt.imshow(img)
-        plt.axis("off")
-        plt.tight_layout()
-        plt.show()
+        self.ax.clear()
+        x_label = "parameter"
+        for proj, pm in self.managers.items():
+            for label, metrics in pm.metrics.items():
+                vals = sorted(metrics.keys())
+                y = [metrics[v].get("yield", 0.0) for v in vals]
+                self.ax.plot(vals, y, label=f"{proj}:{label}")
+                if pm.params.get(label):
+                    x_label = pm.params[label]
+        self.ax.set_xlabel(x_label)
+        self.ax.set_ylabel("Yield")
+        self.ax.legend()
+        self.canvas.draw_idle()
 
     def _export_metrics(self) -> None:
-        self.pm.export_metrics(Path("metrics.csv"))
+        pm = self._pm()
+        pm.export_metrics(Path("metrics.csv"))
 
     def _pareto_search(self) -> None:
+        pm = self._pm()
         cfg = self._config()
         bounds = {
             "charging_voltage": (
@@ -316,7 +341,7 @@ class _SweepWindow(QWidget):
                 cfg.initial_pressure * 1.5,
             ),
         }
-        front = self.pm.pareto_search(cfg, bounds, n_samples=20)
+        front = pm.pareto_search(cfg, bounds, n_samples=20)
         plt.figure()
         plt.scatter(
             [p["spot_size"] for p in front],

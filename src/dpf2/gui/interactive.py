@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import List
 import json
 import warnings
+import base64
+import io
 
 from .project_manager import ProjectManager
 from ..core.config import DPFConfig
@@ -221,6 +223,35 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                 style={} if not simplified else {"display": "none"},
             ),
             dcc.Graph(id="metrics_plot"),
+            html.Hr(),
+            html.H2("Geometry"),
+            dcc.Upload(
+                id="geom_upload",
+                children=html.Button("Upload Geometry"),
+                multiple=False,
+            ),
+            html.Div(
+                [
+                    dcc.Input(id="geom_label", placeholder="label", type="text"),
+                    dcc.Input(id="geom_dx", type="number", placeholder="dx"),
+                    dcc.Input(id="geom_dy", type="number", placeholder="dy"),
+                    dcc.Input(id="geom_dz", type="number", placeholder="dz"),
+                    html.Button("Translate", id="geom_translate"),
+                ],
+                style={"display": "flex", "gap": "0.5em"},
+            ),
+            dcc.Graph(id="geometry_view"),
+            html.H2("Circuit"),
+            html.Div(
+                [
+                    dcc.Input(id="node_a", type="text", placeholder="node A"),
+                    dcc.Input(id="node_b", type="text", placeholder="node B"),
+                    dcc.Input(id="component", type="text", placeholder="component"),
+                    html.Button("Add Component", id="add_component"),
+                ],
+                style={"display": "flex", "gap": "0.5em"},
+            ),
+            dcc.Graph(id="circuit_view"),
         ]
     )
 
@@ -378,6 +409,48 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
         fig.update_xaxes(title_text="S")
         fig.update_yaxes(title_text="Yield")
         return fig
+
+    @app.callback(
+        Output("geometry_view", "figure"),
+        Input("geom_upload", "contents"),
+        Input("geom_translate", "n_clicks"),
+        State("geom_upload", "filename"),
+        State("geom_label", "value"),
+        State("geom_dx", "value"),
+        State("geom_dy", "value"),
+        State("geom_dz", "value"),
+        prevent_initial_call=True,
+    )
+    def _update_geometry(contents, n_clicks, filename, label, dx, dy, dz):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return go.Figure()
+        trigger = ctx.triggered[0]["prop_id"].split(".")[0]
+        lbl = label or "geom"
+        if trigger == "geom_upload" and contents and filename:
+            data = contents.split(",", 1)[1]
+            decoded = base64.b64decode(data)
+            tmp = Path("uploads") / filename
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_bytes(decoded)
+            pm.import_geometry(lbl, tmp)
+        elif trigger == "geom_translate" and lbl in pm.geometries:
+            pm.transform_geometry(lbl, (dx or 0.0, dy or 0.0, dz or 0.0))
+        if lbl in pm.geometries:
+            return pm.geometry_figure(lbl)
+        return go.Figure()
+
+    @app.callback(
+        Output("circuit_view", "figure"),
+        Input("add_component", "n_clicks"),
+        State("node_a", "value"),
+        State("node_b", "value"),
+        State("component", "value"),
+        prevent_initial_call=True,
+    )
+    def _update_circuit(n_clicks, a, b, comp):
+        pm.add_component(comp or "comp", a or "A", b or "B")
+        return pm.circuit_figure()
 
     app.run_server(host=host, port=port)
 

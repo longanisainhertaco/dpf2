@@ -11,9 +11,13 @@ metrics from multiple sweeps which can then be overlaid or written to disk.
 from pathlib import Path
 import csv
 import json
-from typing import Callable, Dict, Iterable, List, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Tuple
 
 import numpy as np
+try:  # pragma: no cover - optional dependency for circuit visualisation
+    import networkx as nx
+except Exception:  # pragma: no cover
+    nx = None  # type: ignore
 
 from ..core.config import DPFConfig
 from ..optimization.param_sweep import (
@@ -46,6 +50,9 @@ class ProjectManager:
         self.project = project
         self.last_kpi_plot: Path | None = None
         self.last_convergence_plot: Path | None = None
+        # Geometry and circuit state
+        self.geometries: Dict[str, Any] = {}
+        self.circuit: nx.Graph | None = nx.Graph() if nx else None
 
     @staticmethod
     def _spot_size(t: Iterable[float], current: Iterable[float]) -> float:
@@ -374,6 +381,122 @@ class ProjectManager:
             metrics[label] = {float(k): v for k, v in vals.items()}
         self.metrics = metrics
         self.params = data.get("params", {})
+
+    # ------------------------------------------------------------------
+    # Geometry handling
+    def import_geometry(self, label: str, path: str | Path) -> None:
+        """Import a geometry file (STEP/STL/VTK) and store it under ``label``.
+
+        The geometry is kept in-memory for later visualisation or transformation.
+        Dependencies such as :mod:`trimesh` or :mod:`pyvista` are optional and
+        only required when the corresponding file format is used.
+        """
+
+        p = Path(path)
+        suffix = p.suffix.lower()
+        geom: Any
+        if suffix in {".stl", ".step", ".stp"}:
+            try:
+                import trimesh
+
+                geom = trimesh.load(p)
+            except Exception as exc:  # pragma: no cover - optional dependency
+                raise RuntimeError("trimesh is required for STEP/STL import") from exc
+        elif suffix in {".vtk", ".vtu", ".vtp"}:
+            try:
+                import pyvista as pv
+
+                geom = pv.read(p)
+            except Exception as exc:  # pragma: no cover - optional dependency
+                raise RuntimeError("pyvista is required for VTK import") from exc
+        else:
+            raise ValueError(f"Unsupported geometry format: {suffix}")
+
+        self.geometries[label] = geom
+
+    def transform_geometry(
+        self, label: str, translation: Tuple[float, float, float]
+    ) -> None:
+        """Apply a simple translation to a stored geometry."""
+
+        geom = self.geometries.get(label)
+        if geom is None:
+            raise KeyError(label)
+        try:
+            geom.apply_translation(translation)  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - fall back for pyvista
+            try:
+                geom.translate(translation)  # type: ignore[attr-defined]
+            except Exception as exc:  # pragma: no cover
+                raise RuntimeError("Geometry translation not supported") from exc
+
+    def geometry_figure(self, label: str):  # pragma: no cover - simple wrapper
+        """Return a Plotly figure visualising a stored geometry."""
+
+        geom = self.geometries.get(label)
+        if geom is None:
+            raise KeyError(label)
+        try:
+            import plotly.graph_objects as go
+            import numpy as np
+        except Exception as exc:
+            raise RuntimeError("plotly is required for geometry visualisation") from exc
+
+        if hasattr(geom, "faces") and hasattr(geom, "vertices"):
+            verts = np.asarray(geom.vertices)
+            faces = np.asarray(geom.faces)
+        elif hasattr(geom, "points") and hasattr(geom, "faces"):
+            verts = np.asarray(geom.points)
+            faces = np.asarray(geom.faces).reshape(-1, 4)[:, 1:]
+        else:  # pragma: no cover - unknown object type
+            raise RuntimeError("Unsupported geometry object")
+
+        mesh = go.Mesh3d(
+            x=verts[:, 0], y=verts[:, 1], z=verts[:, 2], i=faces[:, 0], j=faces[:, 1], k=faces[:, 2]
+        )
+        fig = go.Figure(data=[mesh])
+        fig.update_layout(scene_aspectmode="data")
+        return fig
+
+    # ------------------------------------------------------------------
+    # Circuit handling
+    def add_component(self, name: str, node_a: str, node_b: str) -> None:
+        """Add a circuit component between ``node_a`` and ``node_b``."""
+
+        if self.circuit is None:
+            raise RuntimeError("networkx is required for circuit wiring")
+        self.circuit.add_edge(node_a, node_b, component=name)
+
+    def circuit_figure(self):  # pragma: no cover - visual helper
+        """Return a Plotly figure of the current circuit wiring."""
+
+        if self.circuit is None:
+            raise RuntimeError("networkx is required for circuit visualisation")
+        try:
+            import plotly.graph_objects as go
+            import numpy as np
+        except Exception as exc:
+            raise RuntimeError("plotly is required for circuit visualisation") from exc
+
+        pos = nx.spring_layout(self.circuit)
+        x = []
+        y = []
+        for n in self.circuit.nodes:
+            px, py = pos[n]
+            x.append(px)
+            y.append(py)
+        edge_x = []
+        edge_y = []
+        for u, v in self.circuit.edges:
+            edge_x.extend([pos[u][0], pos[v][0], None])
+            edge_y.extend([pos[u][1], pos[v][1], None])
+        node_trace = go.Scatter(x=x, y=y, mode="markers+text", text=list(self.circuit.nodes))
+        edge_trace = go.Scatter(x=edge_x, y=edge_y, mode="lines")
+        fig = go.Figure(data=[edge_trace, node_trace])
+        fig.update_xaxes(visible=False)
+        fig.update_yaxes(visible=False)
+        fig.update_layout(showlegend=False)
+        return fig
 
 
 __all__ = ["ProjectManager"]
