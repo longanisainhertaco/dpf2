@@ -30,6 +30,7 @@ from .diagnostics.synthetic_signals import (
     rogowski_signal,
     bdot_signal,
 )
+from .fusion import dd_beam_target_angular_spectrum, dd_directional_yields
 
 
 class AngularDistribution:
@@ -63,13 +64,85 @@ def generate_tof_spectrum(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Create a synthetic time-of-flight spectrum from neutron energies."""
 
-    energies_j = np.asarray(energies_mev) * 1.602176634e-13
     m_n = 1.67492749804e-27  # neutron mass (kg)
-    v = np.sqrt(2.0 * energies_j / m_n)
-    tof = distance_m / v
-    counts, edges = np.histogram(tof, bins=bins)
+    tof_vals: List[float] = []
+    for e in energies_mev:
+        e_j = float(e) * 1.602176634e-13
+        v = (2.0 * e_j / m_n) ** 0.5
+        tof_vals.append(distance_m / v)
+    try:  # pragma: no cover - prefer numpy implementation
+        counts, edges = np.histogram(tof_vals, bins=bins)
+    except Exception:  # pragma: no cover - fallback for stub numpy
+        if not tof_vals:
+            edges = np.linspace(0.0, 1.0, bins + 1)
+            counts = np.zeros(bins)
+        else:
+            t_min = min(tof_vals)
+            t_max = max(tof_vals)
+            if t_max == t_min:
+                t_max = t_min + 1e-12
+            edges = np.linspace(t_min, t_max, bins + 1)
+            counts = np.zeros(bins)
+            span = t_max - t_min
+            for t in tof_vals:
+                idx = int((t - t_min) / span * bins)
+                if idx >= bins:
+                    idx = bins - 1
+                counts[idx] += 1.0
     centers = 0.5 * (edges[:-1] + edges[1:])
     return centers, counts
+
+
+def beam_target_angular_spectrum(
+    angles_deg: Sequence[float],
+    n_beam: float,
+    n_target: float,
+    beam_energy_keV: float,
+) -> np.ndarray:
+    """Normalized angular distribution for beam–target fusion."""
+
+    raw = dd_beam_target_angular_spectrum(
+        beam_energy_keV, n_beam, n_target, angles_deg
+    )
+    total = float(sum(raw))
+    if total > 0.0:
+        return raw / total
+    return raw
+
+
+def synthetic_tof_trace(
+    history: Sequence[CouplingState],
+    dt: float,
+    distance_m: float,
+    energies_mev: Sequence[float] | None = None,
+    align_to: Literal["current", "voltage"] = "current",
+    bins: int = 200,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generate a synthetic TOF trace aligned to a current/voltage spike."""
+
+    energies = energies_mev if energies_mev is not None else (2.45,)
+    wave = (
+        current_waveform(history)
+        if align_to == "current"
+        else voltage_waveform(history)
+    )
+    if not wave:
+        return np.zeros(0), np.zeros(0)
+    arr = np.asarray(wave)
+    idx = int(np.argmax(np.abs(np.gradient(arr, dt))))
+    t0 = idx * dt
+    centers, counts = generate_tof_spectrum(energies, distance_m, bins)
+    return centers + t0, counts
+
+
+def export_directional_yields(
+    path: str | Path, yields: Dict[str, float]
+) -> Path:
+    """Write directional yield components to a JSON file."""
+
+    p = Path(path)
+    p.write_text(json.dumps(yields, indent=2))
+    return p
 
 
 class SyntheticInstrument(BaseModel):
@@ -318,6 +391,10 @@ def run_diagnostic_calculations(
         outputs["rogowski"] = rogowski_signal(hist, dt)
     if cfg.synthetic_bdot_signal_enabled:
         outputs["bdot"] = bdot_signal(hist, bdot_radius, dt)
+    if cfg.synthetic_neutron_tof_enabled:
+        times, counts = synthetic_tof_trace(hist, dt, 1.0)
+        outputs["neutron_tof_time"] = list(times)
+        outputs["neutron_tof_counts"] = list(counts)
     return outputs
 
 
@@ -390,5 +467,8 @@ __all__ = [
     "SyntheticInstrument",
     "run_diagnostic_calculations",
     "export_diagnostic_data",
-
+    "generate_tof_spectrum",
+    "beam_target_angular_spectrum",
+    "synthetic_tof_trace",
+    "export_directional_yields",
 ]
