@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Any
 import math
+import numpy as np
 
 try:  # pragma: no cover - allow running without SciPy
     from scipy.constants import e, m_e, m_p
@@ -12,10 +13,17 @@ except Exception:  # pragma: no cover
     m_p = 1.67262192369e-27
 
 
-def _to_seq(val) -> list[float]:
-    if isinstance(val, Iterable) and not isinstance(val, (str, bytes)):
-        return [float(v) for v in val]
-    return [float(val)]
+def _to_array(val: Any) -> np.ndarray:
+    """Return ``val`` as a floating point array.
+
+    Mirrors :func:`_to_array` from ``m0_instability`` and tolerates the light
+    weight ``numpy`` substitute used in the tests.
+    """
+
+    try:  # pragma: no cover - real NumPy path
+        return np.asarray(val, dtype=float)
+    except TypeError:  # pragma: no cover - ``numpy_stub`` path
+        return np.asarray(val)
 
 
 @dataclass
@@ -31,17 +39,17 @@ class LowerHybridDrift:
         omega_ce = e * self.B / m_e
         return abs(omega_ci * omega_ce) ** 0.5
 
-    def growth_rate(self, k):
-        ks = _to_seq(k)
+    def growth_rate(self, k: Any) -> np.ndarray:
+        ks = _to_array(k)
         omega_lh = self.frequency()
-        rates = [0.1 * omega_lh * math.exp(-(kk * kk)) for kk in ks]
-        return rates if len(rates) > 1 else rates[0]
+        rates = 0.1 * omega_lh * np.exp(-(ks * ks))
+        return rates
 
-    def evolve(self, amplitude, k, dt: float):
-        amps = _to_seq(amplitude)
-        rates = _to_seq(self.growth_rate(k))
-        evolved = [a * math.exp(max(min(r * dt, 50.0), -50.0)) for a, r in zip(amps, rates)]
-        return evolved if len(evolved) > 1 else evolved[0]
+    def evolve(self, amplitude: Any, k: Any, dt: float):
+        amp = _to_array(amplitude)
+        rate = _to_array(self.growth_rate(k))
+        evolved = amp * np.exp(np.clip(rate * dt, -50.0, 50.0))
+        return evolved
 
 
 __all__ = ["LowerHybridDrift"]
