@@ -69,7 +69,49 @@ except Exception:  # pragma: no cover
             return np.zeros_like(rho)
 
 
-__all__ = ["MHDState", "HallMHDSolver"]
+__all__ = ["MHDState", "HallMHDSolver", "spitzer_resistivity"]
+
+
+def spitzer_resistivity(ne: np.ndarray, Te: np.ndarray, Z: float | np.ndarray) -> np.ndarray:
+    """Return classical Spitzer resistivity in ``Ω·m``.
+
+    Parameters
+    ----------
+    ne:
+        Electron number density ``[m⁻³]``.  The standard Spitzer formula is
+        independent of density when the Coulomb logarithm is treated as
+        constant, but the argument is kept for API completeness.
+    Te:
+        Electron temperature ``[K]``.
+    Z:
+        Effective ion charge state.
+
+    Returns
+    -------
+    ndarray
+        Spitzer resistivity ``η`` in SI units.  A fixed Coulomb logarithm of
+        ``lnΛ = 10`` is assumed, yielding the characteristic ``η ∝ T_e^{-3/2}``
+        scaling used in the tests.
+    """
+
+    try:  # pragma: no cover - allow running without SciPy
+        from scipy.constants import e, epsilon_0, k, m_e
+    except Exception:  # pragma: no cover
+        e = 1.602176634e-19
+        epsilon_0 = 8.8541878128e-12
+        k = 1.380649e-23
+        m_e = 9.1093837015e-31
+
+    ne = np.asarray(ne)
+    Te = np.asarray(Te)
+    Z = np.asarray(Z)
+
+    ln_lambda = 10.0  # typical value for many laboratory plasmas
+    coeff = (
+        4 * np.sqrt(2 * np.pi) * np.sqrt(m_e) * e**2 * ln_lambda
+        / (3 * (4 * np.pi * epsilon_0) ** 2 * k ** 1.5)
+    )
+    return coeff * Z / (Te ** 1.5)
 
 
 def _dd(f: np.ndarray, axis: int) -> np.ndarray:
@@ -541,6 +583,14 @@ class HallMHDSolver(PlasmaSolverBase):
         self.last_pressure = p
         self.last_ionization = zbar
 
+        # electron pressure gradient and number density for Ohm's law
+        ne = rho * np.maximum(zbar, 1e-30)
+        pe = p * zbar / (1.0 + np.maximum(zbar, 1e-30))
+        grad_pe = [_dd(pe, i) for i in range(dims)]
+        while len(grad_pe) < 3:
+            grad_pe.append(np.zeros_like(pe))
+        grad_pe_vec = np.stack(grad_pe, axis=-1)
+
         # --- Constrained transport via electric fields ---
         J = _curl(B)
         eta_local = (
@@ -550,11 +600,10 @@ class HallMHDSolver(PlasmaSolverBase):
         )
         eta_anom = self.compute_anomalous_resistivity(J)
         eta_total = eta_local + eta_anom
-        E = -np.cross(v, B) + eta_total[..., None] * J
+        E = -np.cross(v, B) + eta_total[..., None] * J - grad_pe_vec / ne[..., None]
         if self.last_E_anom is not None:
             E += self.last_E_anom
         if self.hall_coeff != 0.0:
-            ne = rho * np.maximum(zbar, 1e-30)
             E += self.hall_coeff * np.cross(J, B) / ne[..., None]
         B -= dt * _curl(E)
 

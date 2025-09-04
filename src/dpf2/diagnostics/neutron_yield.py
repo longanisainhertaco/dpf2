@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Sequence
+from bisect import bisect_right
+from typing import Callable, Protocol, Sequence, Tuple
 
 import h5py_stub as h5py  # type: ignore
+import math
 
 
 def compute_neutron_yield(reaction_rate: Sequence[float], dt: float) -> float:
@@ -30,21 +32,77 @@ def compute_neutron_yield(reaction_rate: Sequence[float], dt: float) -> float:
     return total * dt
 
 
+class IonBeamEDF(Protocol):
+    """Interface providing ion energy distributions by angle."""
+
+    def energy_distribution(self, angle_deg: float) -> Tuple[Sequence[float], Sequence[float]]:
+        """Return energies and differential flux for a detector angle."""
+
+
 def compute_beam_target_yield(
-    ion_distribution: Sequence[float],
-    target_density: Sequence[float],
-    cross_section: Sequence[float],
-    dt: float,
-) -> float:
-    """Compute beam-target neutron yield from diagnostic inputs."""
-    if dt <= 0:
-        raise ValueError("dt must be positive")
-    if not (
-        len(ion_distribution) == len(target_density) == len(cross_section)
-    ):
-        raise ValueError("all inputs must have the same length")
-    rate = [i * n * s for i, n, s in zip(ion_distribution, target_density, cross_section)]
-    return compute_neutron_yield(rate, dt)
+    ion_edf: IonBeamEDF,
+    cross_section: Callable[[float], float],
+    angles: Sequence[float],
+    distance: float,
+    time_bins: Sequence[float],
+    m_n: float = 1.674e-27,
+) -> tuple[list[float], list[list[float]]]:
+    """Integrate EDF×σ(E) and compute TOF histograms for each angle.
+
+    Parameters
+    ----------
+    ion_edf:
+        Provider of ion energy distributions.
+    cross_section:
+        Callable returning the reaction cross section for an energy value.
+    angles:
+        Detector angles in degrees for which to compute ``dN/dΩ``.
+    distance:
+        Distance from source to detector in meters for time-of-flight.
+    time_bins:
+        Monotonic sequence of time bin edges in seconds.
+    m_n:
+        Neutron mass used for flight time calculation in kg.
+
+    Returns
+    -------
+    tuple of (yields, tofs)
+        ``yields`` contains ``dN/dΩ`` for each requested angle and ``tofs``
+        contains corresponding time-of-flight histograms.
+    """
+
+    if any(time_bins[i] >= time_bins[i + 1] for i in range(len(time_bins) - 1)):
+        raise ValueError("time_bins must be monotonically increasing")
+
+    yields: list[float] = []
+    tofs: list[list[float]] = []
+    for ang in angles:
+        energies, dist = ion_edf.energy_distribution(float(ang))
+        e = [float(v) for v in energies]
+        f = [float(v) for v in dist]
+        if len(e) != len(f):
+            raise ValueError("energies and distribution must have the same length")
+        if len(e) < 2:
+            yields.append(0.0)
+            tofs.append([0.0 for _ in range(len(time_bins) - 1)])
+            continue
+        integ = 0.0
+        hist = [0.0 for _ in range(len(time_bins) - 1)]
+        for i in range(len(e) - 1):
+            e1, e2 = e[i], e[i + 1]
+            f1, f2 = f[i], f[i + 1]
+            s1, s2 = cross_section(e1), cross_section(e2)
+            dE = e2 - e1
+            contrib = 0.5 * (f1 * s1 + f2 * s2) * dE
+            integ += contrib
+            e_mid = (e1 + e2) / 2.0
+            t = distance / math.sqrt(2.0 * e_mid / m_n)
+            idx = bisect_right(time_bins, t) - 1
+            if 0 <= idx < len(hist):
+                hist[idx] += contrib
+        yields.append(integ)
+        tofs.append(hist)
+    return yields, tofs
 
 
 def compute_thermonuclear_yield(
@@ -126,6 +184,7 @@ def save_anisotropic_spectrum_hdf5(
 
 
 __all__ = [
+    "IonBeamEDF",
     "compute_neutron_yield",
     "compute_beam_target_yield",
     "compute_thermonuclear_yield",
