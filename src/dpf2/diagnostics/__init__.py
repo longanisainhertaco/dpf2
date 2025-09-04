@@ -27,6 +27,11 @@ from .synthetic_signals import (
 from .streaming import NeutronYieldStreamer, XRayEmissionStreamer, RealTimeComparator
 from .interferometry import interferometer_phase_shift
 from .pinhole_imaging import pinhole_image
+from .plasma import (
+    save_density_temperature_map_hdf5,
+    compute_eedf,
+    save_eedf_hdf5,
+)
 
 
 def apply_noise(
@@ -69,6 +74,9 @@ __all__ = [
     "apply_detector_response",
     "interferometer_phase_shift",
     "pinhole_image",
+    "save_density_temperature_map_hdf5",
+    "compute_eedf",
+    "save_eedf_hdf5",
     "Diagnostics",
     "DetectorArrayGenerator",
     "OutputField",
