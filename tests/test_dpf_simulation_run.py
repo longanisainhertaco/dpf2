@@ -156,6 +156,27 @@ def test_run_calls_modules(monkeypatch):
     monkeypatch.setitem(sys.modules, "diagnostics", diagnostics_mod)
     monkeypatch.setitem(sys.modules, "dpf2.diagnostics", diagnostics_mod)
 
+    materials_mod = ModuleType("materials")
+    class MaterialLibrary:
+        @classmethod
+        def get(cls, name):
+            return types.SimpleNamespace(name=name, density=1.0, atomic_mass=1.0, sputter_yield=0.0)
+
+    class ComponentMaterialState:
+        def __init__(self, material, erosion=0.0, film_thickness=0.0):
+            self.material = material
+            self.erosion = erosion
+            self.film_thickness = film_thickness
+
+    class MaterialDamageModel:
+        def __init__(self, components, plasma_model=None):
+            self.components = components
+
+    materials_mod.MaterialLibrary = MaterialLibrary
+    materials_mod.ComponentMaterialState = ComponentMaterialState
+    materials_mod.MaterialDamageModel = MaterialDamageModel
+    monkeypatch.setitem(sys.modules, "dpf2.materials", materials_mod)
+
     pic_solver_mod = ModuleType("pic_solver")
     class PICSolver:
         def __init__(self, *a, **k):
