@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any, Dict
 
 from pydantic import ValidationError
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -28,6 +29,7 @@ class DPFConfig:
     nz_cells: int = 200
     cfl_number: float = 0.5
     end_time: float = 10e-6
+    geometry: Dict[str, Any] | None = None
 
     @classmethod
     def from_file(cls, path: str | Path) -> "DPFConfig":

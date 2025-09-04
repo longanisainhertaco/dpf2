@@ -1,0 +1,11 @@
+MAT 1 steel
+MAT 2 air
+NODE 0 0 0
+NODE 1 0 0
+NODE 0 1 0
+NODE 1 1 0
+TRI 1 2 3 1
+TRI 2 3 4 2
+FEATURE outer 1 2
+FEATURE inner 2
+
