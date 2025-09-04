@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 import h5py_stub as h5py  # type: ignore
 
@@ -65,23 +65,64 @@ def save_anisotropic_spectrum_hdf5(
     angles: Sequence[float],
     spectrum: Sequence[Sequence[float]],
     detector_names: Sequence[str] | None = None,
+    response_fn: Callable[[float], float] | None = None,
+    noise_fn: Callable[[float], float] | None = None,
+    openpmd: bool = False,
 ) -> None:
-    """Save anisotropic neutron spectrum in an HDF5 file with per-detector datasets."""
+    """Save anisotropic neutron spectrum in an HDF5 file with per-detector datasets.
+
+    Parameters
+    ----------
+    path:
+        Output file location.
+    energies, angles, spectrum:
+        Spectral information for each detector angle.
+    detector_names:
+        Optional list naming each detector.
+    response_fn, noise_fn:
+        Optional callables applied to the spectral data.  ``response_fn`` is
+        applied first to each value while ``noise_fn`` should return a noise
+        contribution for the already response-corrected value which will be
+        added to it.
+    openpmd:
+        If ``True`` the file will include a minimal openPMD structure with
+        datasets stored under ``/data/0`` and standard attributes.
+    """
+
     spec_arr = [[float(v) for v in row] for row in spectrum]
     if len(spec_arr) != len(angles) or any(len(row) != len(energies) for row in spec_arr):
         raise ValueError("spectrum shape must be (n_angles, n_energies)")
     if detector_names is not None and len(detector_names) != len(angles):
         raise ValueError("detector_names must match number of angles")
+
     with h5py.File(path, "w") as fh:
-        e_ds = fh.create_dataset("energy_MeV", data=[float(e) for e in energies])
+        base = fh
+        if openpmd:
+            fh.attrs.update(
+                {
+                    "openPMD": "1.1.0",
+                    "basePath": "/data/%T/",
+                    "iterationEncoding": "groupBased",
+                    "iterationFormat": "%T",
+                    "software": "dpf2",
+                }
+            )
+            base = fh.require_group("data/0")
+        e_ds = base.create_dataset("energy_MeV", data=[float(e) for e in energies])
         e_ds.data = list(e_ds.data)
-        a_ds = fh.create_dataset("angle_deg", data=[float(a) for a in angles])
+        e_ds.attrs["unitSI"] = 1.0
+        a_ds = base.create_dataset("angle_deg", data=[float(a) for a in angles])
         a_ds.data = list(a_ds.data)
-        grp = fh.require_group("detectors")
+        a_ds.attrs["unitSI"] = 1.0
+        grp = base.require_group("detectors")
         for i, row in enumerate(spec_arr):
+            processed = [response_fn(v) if response_fn else v for v in row]
+            if noise_fn:
+                processed = [v + noise_fn(v) for v in processed]
             name = detector_names[i] if detector_names else f"detector_{i}"
-            ds = grp.create_dataset(name, data=row)
-            ds.data = list(row)
+            ds = grp.create_dataset(name, data=processed)
+            ds.data = list(processed)
+            ds.attrs["unitSI"] = 1.0
 
 
 __all__ = [
