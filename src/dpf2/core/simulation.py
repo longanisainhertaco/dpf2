@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 import logging
 from dataclasses import asdict
 
@@ -50,6 +50,7 @@ class DPFSimulation:
         end_time: float | None = None,
         output_dir: str | None = None,
         output_interval: float | None = None,
+        seeds: Dict[str, int] | None = None,
         verbose: bool = False,
         progress_cb: Callable[[int, float], None] | None = None,
     ) -> tuple[list[float], list[float], list[float]]:
@@ -79,7 +80,7 @@ class DPFSimulation:
         interval = output_interval or end
 
         Path(out).mkdir(parents=True, exist_ok=True)
-        self.writer = DataWriter(out, config=asdict(self.config))
+        self.writer = DataWriter(out, config=asdict(self.config), seeds=seeds)
 
         # Write initial state
         self.writer.write_hdf5({"current": self.current, "voltage": self.voltage}, time=self.time)

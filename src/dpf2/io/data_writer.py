@@ -23,13 +23,27 @@ from ..mesh import Mesh2D
 class DataWriter:
     """Write simulation data to disk with provenance metadata."""
 
-    def __init__(self, output_dir: str, config: Dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        output_dir: str,
+        config: Dict[str, Any] | None = None,
+        seeds: Dict[str, int] | None = None,
+    ) -> None:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.metadata = {
             "config_hash": self._hash_config(config),
             "git_commit": self._git_commit(),
         }
+        if config is not None:
+            try:
+                self.metadata["config"] = json.loads(
+                    json.dumps(config, sort_keys=True)
+                )
+            except Exception:
+                self.metadata["config"] = {k: str(v) for k, v in config.items()}
+        if seeds is not None:
+            self.metadata["seeds"] = seeds
 
     @staticmethod
     def _hash_config(config: Dict[str, Any] | None) -> str:

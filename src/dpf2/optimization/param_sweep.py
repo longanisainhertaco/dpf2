@@ -54,6 +54,7 @@ def run_parametric_sweep(
         cfg = DPFConfig(**cfg_dict)
         sim = DPFSimulation(cfg)
         run_dir = out_root / f"{parameter}_{val}"
+        seeds = None
         if lab_mode:
             seeds = {"python": random.getstate()[1][0]}
             try:
@@ -64,7 +65,7 @@ def run_parametric_sweep(
                     seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
                 except Exception:
                     seeds["numpy"] = 0
-        t, i, v = sim.run(output_dir=str(run_dir))
+        t, i, v = sim.run(output_dir=str(run_dir), seeds=seeds)
         if lab_mode:
             ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
             paths = [str(config_path)] if config_path else []
