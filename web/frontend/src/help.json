@@ -1,5 +1,6 @@
 {
   "login": {
+
     "username": "Your sandbox username",
     "password": "Your sandbox password",
     "submit": "Authenticate with the server"
@@ -23,5 +24,6 @@
   "tutorial": {
     "root": "Step through a quick configuration example.",
     "apply": "Apply example voltage and pressure settings"
+
   }
 }
