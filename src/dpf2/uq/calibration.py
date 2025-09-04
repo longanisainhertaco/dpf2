@@ -159,6 +159,86 @@ def nested_calibration(
     return {name: samples[:, idx] for idx, name in enumerate(names)}
 
 
+def emcee_calibrate(
+    model: Callable[[np.ndarray], np.ndarray],
+    bounds: Bounds,
+    data: np.ndarray,
+    n_walkers: int = 32,
+    n_steps: int = 1000,
+    sigma: float = 1.0,
+    seed: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Infer parameters using the :mod:`emcee` ensemble sampler.
+
+    This routine mirrors :func:`bayesian_calibration` but delegates the
+    Markov chain evolution to ``emcee`` for improved performance and
+    convergence diagnostics.
+    """
+
+    try:  # pragma: no cover - dependency may be optional
+        import emcee  # type: ignore
+    except Exception as exc:  # pragma: no cover - import error path
+        raise RuntimeError("emcee is required for emcee_calibrate") from exc
+
+    names = list(bounds)
+    lower = np.array([bounds[n][0] for n in names])
+    upper = np.array([bounds[n][1] for n in names])
+
+    def log_prob(theta: np.ndarray) -> float:
+        if np.any(theta < lower) or np.any(theta > upper):
+            return -np.inf
+        pred = np.asarray(model(theta))
+        resid = (data - pred) / sigma
+        return -0.5 * np.dot(resid, resid)
+
+    rng = np.random.default_rng(seed)
+    p0 = lower + (upper - lower) * rng.random((n_walkers, len(names)))
+    sampler = emcee.EnsembleSampler(n_walkers, len(names), log_prob)
+    sampler.run_mcmc(p0, n_steps, progress=False)
+    chain = sampler.get_chain(discard=n_steps // 2, flat=True)
+    return {name: chain[:, idx] for idx, name in enumerate(names)}
+
+
+def dynesty_calibrate(
+    model: Callable[[np.ndarray], np.ndarray],
+    bounds: Bounds,
+    data: np.ndarray,
+    n_live: int = 50,
+    n_iter: int = 500,
+    sigma: float = 1.0,
+    seed: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Infer parameters using :mod:`dynesty` nested sampling.
+
+    The interface matches :func:`emcee_calibrate` but employs a nested
+    sampler suitable for multimodal posteriors.
+    """
+
+    try:  # pragma: no cover - dependency may be optional
+        import dynesty  # type: ignore
+    except Exception as exc:  # pragma: no cover - import error path
+        raise RuntimeError("dynesty is required for dynesty_calibrate") from exc
+
+    names = list(bounds)
+    lower = np.array([bounds[n][0] for n in names])
+    upper = np.array([bounds[n][1] for n in names])
+
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        return lower + u * (upper - lower)
+
+    def log_like(theta: np.ndarray) -> float:
+        pred = np.asarray(model(theta))
+        resid = (data - pred) / sigma
+        return -0.5 * np.dot(resid, resid)
+
+    sampler = dynesty.NestedSampler(
+        log_like, prior_transform, len(names), nlive=n_live, seed=seed
+    )
+    sampler.run_nested(maxiter=n_iter, print_progress=False)
+    res = sampler.results
+    return {name: res.samples[:, idx] for idx, name in enumerate(names)}
+
+
 def emcee_calibrate_mass_current(
     current_sim: np.ndarray,
     current_data: np.ndarray,
@@ -403,6 +483,8 @@ def dynesty_calibrate_waveform(
 __all__ = [
     "bayesian_calibration",
     "nested_calibration",
+    "emcee_calibrate",
+    "dynesty_calibrate",
     "emcee_calibrate_mass_current",
     "dynesty_calibrate_mass_current",
     "emcee_calibrate_waveform",
