@@ -5,13 +5,14 @@ import logging
 from datetime import datetime
 from pathlib import Path
 import asyncio
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
 from dpf2.dpf_config import DPFConfig
+from dpf2.optimization.param_sweep import compute_sweep_metrics
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 AUDIT_LOG = BASE_DIR / "audit.log"
@@ -29,6 +30,8 @@ app = FastAPI()
 
 progress_clients: Dict[str, set[WebSocket]] = {}
 diagnostic_clients: Dict[str, set[WebSocket]] = {}
+sweep_clients: Dict[str, set[WebSocket]] = {}
+sweep_results: Dict[str, Dict[float, Dict[str, float]]] = {}
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -67,6 +70,12 @@ class UpdateRequest(BaseModel):
     pressure: float
 
 
+class SweepRequest(BaseModel):
+    config: Dict[str, Any]
+    parameter: str
+    values: List[float]
+
+
 async def broadcast_progress(run_id: str, progress: float) -> None:
     for ws in list(progress_clients.get(run_id, set())):
         await ws.send_json({"run_id": run_id, "progress": progress})
@@ -75,6 +84,13 @@ async def broadcast_progress(run_id: str, progress: float) -> None:
 async def broadcast_diagnostics(run_id: str, data: Dict[str, Any]) -> None:
     for ws in list(diagnostic_clients.get(run_id, set())):
         await ws.send_json({"run_id": run_id, "diagnostics": data})
+
+
+async def broadcast_sweep(run_id: str, param: float, metrics: Dict[str, float]) -> None:
+    sweep_results.setdefault(run_id, {})[param] = metrics
+    payload = {"run_id": run_id, "parameter": param, **metrics}
+    for ws in list(sweep_clients.get(run_id, set())):
+        await ws.send_json(payload)
 
 
 @app.post("/run")
@@ -107,6 +123,29 @@ async def update_simulation(run_id: str, req: UpdateRequest, user=Depends(get_cu
     return {"status": "updated"}
 
 
+@app.post("/sweep")
+async def run_sweep(req: SweepRequest, user=Depends(get_current_user)):
+    cfg = DPFConfig.model_validate(req.config)
+    run_id = dispatch_to_hpc(cfg, user["username"])
+    logger.info(
+        "action=sweep user=%s run_id=%s param=%s", user["username"], run_id, req.parameter
+    )
+
+    async def _mock_sweep() -> None:
+        for val in req.values:
+            await asyncio.sleep(0.1)
+            t = [0.0, 1.0]
+            current = [val, val]
+            voltage = [cfg.charging_voltage, cfg.charging_voltage]
+            metrics = compute_sweep_metrics(cfg, {val: (t, current, voltage)})[val]
+            await broadcast_sweep(run_id, val, metrics)
+        for ws in list(sweep_clients.get(run_id, set())):
+            await ws.send_json({"run_id": run_id, "status": "completed"})
+
+    asyncio.create_task(_mock_sweep())
+    return {"run_id": run_id}
+
+
 def dispatch_to_hpc(cfg: DPFConfig, username: str) -> str:
     run_id = f"run-{int(datetime.utcnow().timestamp())}"
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -122,6 +161,11 @@ def get_results(run_id: str, user=Depends(require_role("admin"))):
         raise HTTPException(status_code=404, detail="Run not found")
     logger.info("action=get_results user=%s run_id=%s", user["username"], run_id)
     return json.loads(path.read_text())
+
+
+@app.get("/sweep/{run_id}")
+async def get_sweep(run_id: str, user=Depends(get_current_user)):
+    return sweep_results.get(run_id, {})
 
 
 @app.websocket("/ws/progress/{run_id}")
@@ -144,3 +188,14 @@ async def ws_diagnostics(websocket: WebSocket, run_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         diagnostic_clients[run_id].discard(websocket)
+
+
+@app.websocket("/ws/sweep/{run_id}")
+async def ws_sweep(websocket: WebSocket, run_id: str):
+    await websocket.accept()
+    sweep_clients.setdefault(run_id, set()).add(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        sweep_clients[run_id].discard(websocket)
