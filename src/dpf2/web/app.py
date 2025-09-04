@@ -19,6 +19,7 @@ from ..optimization.param_sweep import (
     compute_sweep_metrics,
     plot_metric_overlay,
 )
+from ..physics.axial_rundown import shock_parameter, plot_shock_parameter
 
 # HTML templates rendered with simple ``render_template_string`` calls.  The
 # templates expose a subset of configuration parameters and allow users to run
@@ -55,6 +56,7 @@ DIAG_HTML = """
 <h1>Diagnostics</h1>
 {% if plot %}<img src="{{ plot }}" alt="sweep plot"><br>{% endif %}
 {% if metrics_plot %}<img src="{{ metrics_plot }}" alt="metrics plot"><br>{% endif %}
+{% if shock_plot %}<img src="{{ shock_plot }}" alt="shock parameter"><br>{% endif %}
 <ul>
 {% for f in files %}<li>{{ f }}</li>{% endfor %}
 </ul>
@@ -127,7 +129,12 @@ def create_app() -> Flask:
                         plot_metric_overlay(param, metrics, Path(output) / "sweep_metrics.png")
                 else:
                     sim = DPFSimulation(cfg)
-                    sim.run(output_dir=output)
+                    t, i, _v = sim.run(output_dir=output)
+                    try:
+                        S = shock_parameter(i, cfg.anode_radius, cfg.initial_pressure)
+                        plot_shock_parameter(t, S, Path(output) / "shock_trend.png")
+                    except Exception:
+                        pass
                 return redirect(url_for("diagnostics", output=output))
             except (ConfigurationError, SimulationRuntimeError, Exception) as exc:  # pragma: no cover - UI path
                 return render_template_string(INDEX_HTML + f"<p>Error: {exc}</p>", cfg=cfg, presets=presets.keys(), output=output)
@@ -149,7 +156,17 @@ def create_app() -> Flask:
         metrics_path = Path(output) / "sweep_metrics.png"
         if metrics_path.exists():
             metrics_plot = "data:image/png;base64," + base64.b64encode(metrics_path.read_bytes()).decode("ascii")
-        return render_template_string(DIAG_HTML, files=files, plot=plot, metrics_plot=metrics_plot)
+        shock_plot = None
+        shock_path = Path(output) / "shock_trend.png"
+        if shock_path.exists():
+            shock_plot = "data:image/png;base64," + base64.b64encode(shock_path.read_bytes()).decode("ascii")
+        return render_template_string(
+            DIAG_HTML,
+            files=files,
+            plot=plot,
+            metrics_plot=metrics_plot,
+            shock_plot=shock_plot,
+        )
 
     @app.route("/projects", methods=["GET", "POST"])
     def projects_ep():
