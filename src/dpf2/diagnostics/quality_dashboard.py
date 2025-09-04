@@ -16,6 +16,7 @@ class QualityDashboard:
     min_cfl: float | None = None
     min_lambda_D: float | None = None
     min_ppc: float | None = None
+    abort_on_violation: bool = False
     history: list[dict[str, float]] = field(default_factory=list)
 
     def log(
@@ -41,13 +42,18 @@ class QualityDashboard:
         with open(self.output_dir / "dashboard.json", "w", encoding="utf-8") as fh:
             json.dump(self.history, fh, indent=2)
 
+        def _warn_or_abort(msg: str) -> None:
+            logger.warning(msg)
+            if self.abort_on_violation:
+                raise RuntimeError(msg)
+
         if self.min_cfl is not None and cfl < self.min_cfl:
-            logger.warning("CFL below threshold: %g < %g", cfl, self.min_cfl)
+            _warn_or_abort(f"CFL below threshold: {cfl:g} < {self.min_cfl:g}")
         if self.min_lambda_D is not None and lambda_D < self.min_lambda_D:
-            logger.warning(
-                "Debye length below threshold: %g < %g", lambda_D, self.min_lambda_D
+            _warn_or_abort(
+                f"Debye length below threshold: {lambda_D:g} < {self.min_lambda_D:g}"
             )
         if self.min_ppc is not None and ppc < self.min_ppc:
-            logger.warning(
-                "Particles per cell below threshold: %g < %g", ppc, self.min_ppc
+            _warn_or_abort(
+                f"Particles per cell below threshold: {ppc:g} < {self.min_ppc:g}"
             )
