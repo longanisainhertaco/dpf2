@@ -77,6 +77,12 @@ class RLCCircuitSolver(CircuitSolverBase):
 
         Lp = coupling.Lp
         emf = coupling.emf
+
+        # Time derivative of the plasma inductance feeds back on the circuit
+        # through an induced voltage ``I * dLp/dt``.  Approximate ``dLp/dt`` using
+        # the previous coupling state recorded on ``last_feedback``.
+        dLp_dt = (Lp - self.last_feedback.Lp) / dt if dt > 0.0 else 0.0
+
         self.last_feedback = CouplingState(
             Lp=Lp, emf=emf, current=current, voltage=voltage
         )
@@ -94,19 +100,10 @@ class RLCCircuitSolver(CircuitSolverBase):
             )
 
         def rhs(I: float, V: float) -> tuple[float, float]:
-            if emf != 0.0:
-                numerator = (
-                    self.V0
-                    + V_mutual
-                    - self.R_ext * I
-                    - V
-                    - emf
-                    - back_emf
-                )
-            else:
-                numerator = (
-                    self.V0 + V_mutual - self.R_ext * I - V - back_emf
-                )
+            numerator = (
+                self.V0 + V_mutual - self.R_ext * I - V - emf - back_emf
+                - I * dLp_dt
+            )
             dIdt = numerator / Ltot
             dVdt = -I / self.C_ext
             return dIdt, dVdt
