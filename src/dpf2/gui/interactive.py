@@ -35,7 +35,7 @@ def _ensure_dash() -> None:
         raise RuntimeError("dash is required for the interactive GUI")
 
 
-def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
+def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = False) -> None:
     """Launch the Dash-based GUI.
 
     Parameters
@@ -208,10 +208,20 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
             ),
             html.Button("Sweep Voltage", id="sweep_voltage"),
             html.Button("Sweep Pressure", id="sweep_pressure"),
-            html.Button("Overlay Runs", id="overlay_runs"),
-            html.Button("Pareto Search", id="pareto"),
-            html.Button("Export Metrics", id="export"),
-            html.Button("Export Overlay", id="export_overlay"),
+            html.Button(
+                "Overlay Runs", id="overlay_runs", style={} if not simplified else {"display": "none"}
+            ),
+            html.Button(
+                "Pareto Search", id="pareto", style={} if not simplified else {"display": "none"}
+            ),
+            html.Button(
+                "Export Metrics", id="export", style={} if not simplified else {"display": "none"}
+            ),
+            html.Button(
+                "Export Overlay",
+                id="export_overlay",
+                style={} if not simplified else {"display": "none"},
+            ),
             dcc.Graph(id="metrics_plot"),
         ]
     )

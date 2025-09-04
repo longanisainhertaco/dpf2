@@ -87,3 +87,16 @@ def test_plot_run_cmd(tmp_path):
     ])
     assert result.exit_code == 0
     assert out_png.exists()
+
+
+def test_student_flag_invokes_gui(monkeypatch):
+    called: dict[str, bool] = {}
+
+    def fake_launch(*, simplified: bool = False):
+        called["simplified"] = simplified
+
+    monkeypatch.setattr(cli_main, "interactive", types.SimpleNamespace(launch=fake_launch))
+    runner = CliRunner()
+    result = runner.invoke(main, ["--student"])
+    assert result.exit_code == 0
+    assert called.get("simplified") is True

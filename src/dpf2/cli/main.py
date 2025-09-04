@@ -43,6 +43,7 @@ from dpf2.optimization.param_sweep import (
     plot_metric_overlay,
 )
 from dpf2.gui.project_manager import ProjectManager
+from dpf2.gui import interactive
 
 from dpf2.device_profiles import DeviceProfiles
 
@@ -290,13 +291,22 @@ def build_config_wizard() -> DPFConfig:
     is_flag=True,
     help="Record a reproducibility manifest alongside outputs",
 )
+@click.option(
+    "--student",
+    is_flag=True,
+    help="Launch the simplified student GUI",
+)
 @click.pass_context
-def main(ctx: click.Context, notebook: bool, lab_mode: bool) -> None:
+def main(ctx: click.Context, notebook: bool, lab_mode: bool, student: bool) -> None:
     """Entry point for the DPF2 command line interface."""
     ctx.ensure_object(dict)
     ctx.obj["lab_mode"] = lab_mode
+    ctx.obj["student"] = student
     if notebook:
         _launch_notebook()
+        return
+    if student:
+        interactive.launch(simplified=True)
         return
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())

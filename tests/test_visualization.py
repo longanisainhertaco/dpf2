@@ -13,6 +13,13 @@ def test_animate_sheath_returns_animation():
     assert anim is not None
 
 
+def test_discharge_phases_returns_animation():
+    from dpf2.visualization import animate_discharge_phases
+
+    anim = animate_discharge_phases(1.0, 0.1)
+    assert anim is not None
+
+
 def test_sheath_widget_returns_widget():
     ipywidgets = pytest.importorskip("ipywidgets")
     from dpf2.visualization import sheath_widget

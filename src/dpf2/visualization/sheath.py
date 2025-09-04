@@ -10,7 +10,7 @@ simulation dependencies.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 import numpy as np
 
@@ -78,6 +78,7 @@ def animate_sheath(
     *,
     use_vtk: bool = False,
     captions: Optional[Sequence[str]] = None,
+    overlay: Optional[Callable[[float], SheathField]] = None,
 ):
     """Animate a simple sheath evolution.
 
@@ -140,6 +141,12 @@ def animate_sheath(
     fig, ax = plt.subplots()
     field0 = _sheath_field(voltage, pressure, 0.0)
     quiver = ax.quiver(field0.x, field0.y, field0.u, field0.v)
+    overlay_quiver = None
+    if overlay is not None:
+        o0 = overlay(0.0)
+        overlay_quiver = ax.quiver(
+            o0.x, o0.y, o0.u, o0.v, color="C1", alpha=0.5
+        )
     ax.set_title("Sheath evolution")
     ax.set_xlabel("x")
     ax.set_ylabel("y")
@@ -148,15 +155,47 @@ def animate_sheath(
     def _frame(i: int):
         fld = _sheath_field(voltage, pressure, i * 0.1)
         quiver.set_UVC(fld.u, fld.v)
+        if overlay is not None and overlay_quiver is not None:
+            ov = overlay(i * 0.1)
+            overlay_quiver.set_UVC(ov.u, ov.v)
         if i < len(captions):
             caption_text.set_text(f"Step {i + 1}: {captions[i]}")
         else:
             caption_text.set_text(f"Step {i + 1}")
-        return quiver, caption_text
+        artists = [quiver, caption_text]
+        if overlay_quiver is not None:
+            artists.append(overlay_quiver)
+        return artists
 
     anim = FuncAnimation(fig, _frame, frames=40, interval=50, blit=True)
     return anim
 
 
-__all__ = ["animate_sheath"]
+def animate_discharge_phases(
+    voltage: float,
+    pressure: float,
+    *,
+    use_vtk: bool = False,
+) -> object:
+    """Animate the canonical DPF discharge phases.
+
+    This convenience wrapper overlays a uniform background field and
+    annotates the four typical phases of a dense plasma focus discharge:
+    breakdown, axial rundown, pinch and disruption.
+    """
+
+    def _overlay(_: float) -> SheathField:
+        grid = np.linspace(-1.0, 1.0, 20)
+        x, y = np.meshgrid(grid, grid)
+        u = 0.2 * np.ones_like(x)
+        v = np.zeros_like(y)
+        return SheathField(x, y, u, v)
+
+    phases = ["Breakdown", "Axial rundown", "Pinch", "Disruption"]
+    return animate_sheath(
+        voltage, pressure, use_vtk=use_vtk, captions=phases, overlay=_overlay
+    )
+
+
+__all__ = ["animate_sheath", "animate_discharge_phases"]
 
