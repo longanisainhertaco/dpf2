@@ -12,7 +12,7 @@ Predefined projects live under `benchmarks/`.  Each project contains two files:
 - `inputs.json` – configuration passed to the simulator
 - `expected.json` – reference time histories with tolerance bands
 
-Run a single case and produce a pass/fail dashboard plus a PNG overlay using:
+Run a single case and produce a pass/fail dashboard plus an overlay plot using:
 
 ```bash
 dpf2 run-benchmark unu_pff
@@ -26,7 +26,16 @@ dpf2 run-compare
 
 Both commands write plots showing the simulation output overlaid on grey
 tolerance bands and print a summary of whether current, voltage and neutron
-yield fall within their respective thresholds. Plots are written to `Validation/` by default.
+yield fall within their respective thresholds.  Results for `run-benchmark`
+are written to `Validation/<case>/` by default where the overlay and metrics
+are stored.
+
+The regression suite ships with frozen inputs and reference outputs for three
+devices:
+
+- `unu_pff` – UNU/ICTP Plasma Focus Facility
+- `pf_1000` – PF‑1000 device
+- `mjolnir` – MJOLNIR dense plasma focus
 
 ## Analytic plasma expansion
 

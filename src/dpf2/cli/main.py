@@ -1171,10 +1171,23 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
         ax.legend()
     axes[-1].set_xlabel("time (s)")
     fig.tight_layout()
-    out_root = Path(output)
+
+    out_root = Path(output) / case
     out_root.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_root / f"{case}.png")
+    fig.savefig(out_root / "overlay.png")
     plt.close(fig)
+
+    # Write metrics alongside the plot
+    metrics = {
+        name: {
+            "passed": passed,
+            "tolerance": band,
+            "max_error": float(np.max(np.abs(act - ref))),
+        }
+        for name, _, act, ref, band, passed in results
+    }
+    metrics["overall_passed"] = all(m["passed"] for m in metrics.values())
+    (out_root / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
     header_fields = ["Benchmark"] + [name.title() for name, *_ in results]
     header = " ".join(
@@ -1186,6 +1199,9 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
         f"{val:<20}" if i == 0 else f"{val:<7}" for i, val in enumerate(row_values)
     )
     click.echo(row)
+
+    if not metrics["overall_passed"]:
+        raise SystemExit(1)
 
 
 @main.command("run-compare")
