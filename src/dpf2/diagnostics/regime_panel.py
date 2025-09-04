@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 import logging
 from typing import Dict
 
@@ -102,4 +103,58 @@ class RegimePanel:
         entry["violations"] = violations
 
         return entry
+
+    # ------------------------------------------------------------------
+    def plot(self, path: str | Path) -> Path:
+        """Render the logged regime parameters versus time.
+
+        Parameters
+        ----------
+        path:
+            Destination for the generated plot.  Parent directories are
+            created automatically.  The plot contains six subplots for the
+            Lundquist number ``S``, plasma beta ``β``, Alfvén Mach number
+            ``M_A``, magnetic Reynolds number ``R_m``, Knudsen number ``K_n``
+            and the magnetisation parameter ``ω_ce τ_e``.
+
+        Returns
+        -------
+        Path
+            The path where the plot was written.  If matplotlib is unavailable
+            the file is not created but the path is still returned.
+        """
+
+        try:  # pragma: no cover - matplotlib optional
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+        except Exception:  # pragma: no cover - gracefully handle missing dep
+            return Path(path)
+
+        if not self.history:
+            raise ValueError("no regime data logged")
+
+        steps = [h["step"] for h in self.history]
+        metrics = [
+            ("S", "Lundquist"),
+            ("beta", "beta"),
+            ("M_A", "M_A"),
+            ("R_m", "R_m"),
+            ("K_n", "K_n"),
+            ("omega_ce_tau_e", "ω_ce τ_e"),
+        ]
+
+        fig, axes = plt.subplots(3, 2, sharex=True)
+        for ax, (key, label) in zip(axes.flat, metrics):
+            ax.plot(steps, [h[key] for h in self.history])
+            ax.set_ylabel(label)
+        axes[2, 0].set_xlabel("step")
+        axes[2, 1].set_xlabel("step")
+        fig.tight_layout()
+
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(p)
+        plt.close(fig)
+        return p
 

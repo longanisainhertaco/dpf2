@@ -40,6 +40,10 @@ export default function ProjectManager({ projects = [] }) {
               [msg.parameter]: {
                 yield: msg.yield,
                 efficiency: msg.efficiency,
+                yield_per_shot: msg.yield_per_shot,
+                yield_per_hour: msg.yield_per_hour,
+                wall_plug_efficiency: msg.wall_plug_efficiency,
+                lifetime_hours: msg.lifetime_hours,
               },
             },
           }));

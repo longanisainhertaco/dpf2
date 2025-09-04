@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from dpf2.dpf_config import DPFConfig
 from dpf2.optimization.param_sweep import compute_sweep_metrics
+from dpf2.diagnostics import RegimePanel
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 AUDIT_LOG = BASE_DIR / "audit.log"
@@ -32,6 +33,7 @@ progress_clients: Dict[str, set[WebSocket]] = {}
 diagnostic_clients: Dict[str, set[WebSocket]] = {}
 sweep_clients: Dict[str, set[WebSocket]] = {}
 sweep_results: Dict[str, Dict[float, Dict[str, float]]] = {}
+regime_clients: set[WebSocket] = set()
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -93,16 +95,42 @@ async def broadcast_sweep(run_id: str, param: float, metrics: Dict[str, float]) 
         await ws.send_json(payload)
 
 
+async def broadcast_regime(data: Dict[str, float]) -> None:
+    for ws in list(regime_clients):
+        await ws.send_json(data)
+
+
 @app.post("/run")
 async def run_simulation(req: RunRequest, user=Depends(get_current_user)):
     cfg = DPFConfig.model_validate(req.config)
     run_id = dispatch_to_hpc(cfg, user["username"])
     logger.info("action=submit user=%s run_id=%s", user["username"], run_id)
 
+    panel = RegimePanel(L=1.0)
+
     async def _mock_progress() -> None:
         for step in range(1, 11):
             await asyncio.sleep(0.1)
             await broadcast_progress(run_id, step / 10)
+            reg = panel.log(
+                step,
+                n=1e20,
+                T=1e3,
+                B=1.0,
+                v=1e5,
+                eta=1e-6,
+                mfp=0.01,
+                tau_e=1e-9,
+            )
+            payload = {k: reg[k] for k in [
+                "S",
+                "beta",
+                "M_A",
+                "R_m",
+                "K_n",
+                "omega_ce_tau_e",
+            ]}
+            await broadcast_regime(payload)
         await broadcast_diagnostics(run_id, {"status": "completed"})
 
     asyncio.create_task(_mock_progress())
@@ -199,3 +227,14 @@ async def ws_sweep(websocket: WebSocket, run_id: str):
             await websocket.receive_text()
     except WebSocketDisconnect:
         sweep_clients[run_id].discard(websocket)
+
+
+@app.websocket("/ws/regime")
+async def ws_regime(websocket: WebSocket):
+    await websocket.accept()
+    regime_clients.add(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        regime_clients.discard(websocket)

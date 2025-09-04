@@ -9,6 +9,7 @@ from dataclasses import asdict
 from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
 from dpf2.cli.lab import write_manifest
+from ..diagnostics import compute_performance_metrics
 import random
 import numpy as np
 
@@ -133,6 +134,9 @@ def compute_sweep_metrics(
 
     metrics: Dict[float, Dict[str, float]] = {}
     energy_in = 0.5 * base_config.capacitance * base_config.charging_voltage**2
+    rep_rate = getattr(base_config, "rep_rate_hz", 1.0)
+    electrode_mass = getattr(base_config, "electrode_mass_g", 100.0)
+    erosion_per_shot = getattr(base_config, "erosion_per_shot_g", 0.01)
 
     for val, (t, current, voltage) in results.items():
         t_arr = np.array(t)
@@ -144,10 +148,19 @@ def compute_sweep_metrics(
         peak_idx = int(i_arr.argmax()) if len(i_arr) else 0
         yield_est = float(i_arr[peak_idx])
         pinch_time = float(t_arr[peak_idx]) if len(t_arr) else 0.0
+        perf = compute_performance_metrics(
+            yield_est,
+            rep_rate_hz=rep_rate,
+            energy_out_j=energy_out,
+            energy_in_j=energy_in,
+            electrode_mass_g=electrode_mass,
+            erosion_per_shot_g=erosion_per_shot,
+        )
         metric = {
             "yield": yield_est,
             "efficiency": efficiency,
             "pinch_time": pinch_time,
+            **perf,
         }
         if parameter == "initial_pressure":
             pressure = val
