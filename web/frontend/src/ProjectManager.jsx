@@ -13,7 +13,11 @@ export default function ProjectManager({ projects }) {
       <ul>
         {projects.map((p) => (
           <li key={p.id}>
-            <button type="button" onClick={() => setActiveId(p.id)}>
+            <button
+              type="button"
+              onClick={() => setActiveId(p.id)}
+              title="Display overlays for this project"
+            >
               {p.id}
             </button>
           </li>

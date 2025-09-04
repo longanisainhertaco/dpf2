@@ -6,6 +6,7 @@ export default function App() {
   const [token, setToken] = useState('');
   const [config, setConfig] = useState('{}');
   const [runId, setRunId] = useState('');
+  const [projects, setProjects] = useState([]);
 
   const [voltage, setVoltage] = useState(1.0);
   const [pressure, setPressure] = useState(0.1);
@@ -36,18 +37,24 @@ export default function App() {
       {!token && (
         <form onSubmit={login}>
           <h3>Login</h3>
-          <input name="username" placeholder="username" />
-          <input name="password" type="password" placeholder="password" />
-          <button type="submit">Login</button>
+          <input name="username" placeholder="username" title="Your sandbox username" />
+          <input name="password" type="password" placeholder="password" title="Your sandbox password" />
+          <button type="submit" title="Authenticate with the server">Login</button>
         </form>
       )}
       {token && (
         <>
           <form onSubmit={submitConfig}>
             <h3>Submit Config</h3>
-            <textarea rows={10} cols={50} value={config} onChange={(e) => setConfig(e.target.value)} />
+            <textarea
+              rows={10}
+              cols={50}
+              value={config}
+              onChange={(e) => setConfig(e.target.value)}
+              title="Paste a JSON configuration for the simulation"
+            />
             <br />
-            <button type="submit">Run</button>
+            <button type="submit" title="Start the simulation run">Run</button>
           </form>
           <ProjectManager projects={projects} />
         </>
@@ -56,7 +63,7 @@ export default function App() {
         <div>
           <p>Submitted run: {runId}</p>
           <div>
-            <label>
+            <label title="Set the capacitor bank voltage">
               Voltage: {voltage.toFixed(2)} kV
               <input
                 type="range"
@@ -73,7 +80,7 @@ export default function App() {
             </label>
           </div>
           <div>
-            <label>
+            <label title="Adjust the fill gas pressure">
               Pressure: {pressure.toFixed(2)} bar
               <input
                 type="range"

@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function EfficiencyCurveOverlay({ data = [] }) {
   return (
-    <div className="overlay">
+    <div className="overlay" title="Displays a hypothetical efficiency curve">
       <h4>Efficiency Curve</h4>
       <svg width="200" height="100">
         <polyline

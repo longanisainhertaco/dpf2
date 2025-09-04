@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function YieldPressureOverlay({ data = [] }) {
   return (
-    <div className="overlay">
+    <div className="overlay" title="Shows how yield varies with pressure">
       <h4>Yield/Pressure Curve</h4>
       <svg width="200" height="100">
         <polyline
