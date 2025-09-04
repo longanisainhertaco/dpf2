@@ -6,9 +6,9 @@ This module provides grid construction, solver setup and particle management
 with optional collision handling.  It also includes particle energy and
 phase‑space diagnostics, simple fluid–PIC interpolation, region- and
 species‑specific collision control and runtime parameter updates.  Additional
-boundary condition types and extensive logging aim to improve robustness of
-the wrapper in minimal environments.  Relativistic, quantum and
-time‑dependent models remain future work.
+boundary condition types, optional relativistic corrections, a rudimentary
+quantum emission hook and time‑dependent boundary fields aim to improve
+robustness of the wrapper in minimal environments.
 """
 
 import os
@@ -111,6 +111,21 @@ e_charge = 1.602176634e-19
 m_e = 9.10938356e-31
 pi = np.pi
 
+
+def _compute_kinetic_energy(vel, mass, relativistic=False):
+    """Compute kinetic energy for ``vel`` with optional relativistic correction."""
+    v = np.asarray(vel)
+    v2 = np.sum(v ** 2, axis=1)
+    if not relativistic:
+        return 0.5 * mass * v2
+    energies = []
+    for vv in v2:
+        beta2 = float(vv) / c ** 2
+        beta2 = min(max(beta2, 0.0), 0.999999)
+        gamma = 1.0 / (1.0 - beta2) ** 0.5
+        energies.append((gamma - 1.0) * mass * c ** 2)
+    return np.array(energies)
+
 class Field:
     """
     Thin wrapper for field and particle arrays, matching fluid solver style.
@@ -154,6 +169,10 @@ class WarpXWrapper:
         self.circuit = circuit
         self.config = pic_params
         self.field_manager = field_manager # Store FieldManager
+
+        self.relativistic_corrections = pic_params.get('relativistic_corrections', False)
+        self.quantum_emission = pic_params.get('quantum_emission', False)
+        self.time_dependent_boundaries = pic_params.get('time_dependent_boundaries', False)
 
         # Fowler–Nordheim parameters
         self.fn_A = pic_params['FN_A']
@@ -385,12 +404,22 @@ class WarpXWrapper:
         if not self.fluid_callback:
             return
         try:
+            t = self.warp.get_time() if (self.time_dependent_boundaries and hasattr(self.warp, 'get_time')) else 0.0
             bnd = self.fluid_callback().get('boundary_fields', {})
             for comp, fld in bnd.items():
-                arr = _resample_array(
-                    np.array(fld), self.grid_shape, self.interp_method
-                )
-                self.warp.set_boundary_field(arr.tolist(), comp)
+                if callable(fld):
+                    raw = fld(t)
+                elif isinstance(fld, dict) and 'times' in fld and 'values' in fld:
+                    times = np.asarray(fld['times'])
+                    values = np.asarray(fld['values'])
+                    idx = np.searchsorted(times, t, side='right') - 1
+                    idx = np.clip(idx, 0, len(times) - 1)
+                    raw = values[idx]
+                else:
+                    raw = fld
+                arr = _resample_array(np.array(raw), self.grid_shape, self.interp_method)
+                data = arr.tolist() if hasattr(arr, 'tolist') else arr
+                self.warp.set_boundary_field(data, comp)
         except Exception as e:
             logger.error(f"Error injecting boundary fields: {e}")
 
@@ -420,6 +449,30 @@ class WarpXWrapper:
         except Exception as e:
             logger.error(f"Error mapping PIC data to fluid: {e}")
 
+    def _apply_relativistic_corrections(self, container):
+        """Apply a simple relativistic gamma correction to particle velocities."""
+        if not self.relativistic_corrections:
+            return
+        try:
+            vel = np.array(container.get_velocities())
+            v2 = np.sum(vel ** 2, axis=1)
+            gamma = 1.0 / np.sqrt(1.0 - np.clip(v2 / c ** 2, 0.0, 0.999999))
+            container.set_velocities((vel * gamma[:, None]).tolist())
+        except Exception as exc:
+            logger.error(f"Error applying relativistic correction: {exc}")
+
+    def _handle_quantum_emission(self):
+        """Very crude quantum emission placeholder."""
+        if not self.quantum_emission:
+            return
+        try:
+            Ez = np.array(self.warp.get_field('Ez'))
+            chi = np.abs(Ez) / (m_e * c ** 2 / e_charge)
+            prob = np.clip(chi ** 2, 0.0, 1.0)
+            self._last_emission_prob = float(np.mean(prob))
+        except Exception as exc:
+            logger.error(f"Error in quantum emission module: {exc}")
+
     def record_diagnostics(self):
         """Records basic diagnostics from WarpX."""
         try:
@@ -429,7 +482,7 @@ class WarpXWrapper:
                 vel = np.array(cont.get_velocities())
                 pos = np.array(cont.get_positions())
                 mass = sp['mass']
-                energy = 0.5 * mass * np.sum(vel ** 2, axis=1)
+                energy = _compute_kinetic_energy(vel, mass, self.relativistic_corrections)
                 diagnostics[f"{name}_kinetic_energy"] = float(np.sum(energy))
                 hist, _ = np.histogram(energy, bins=self.diagnostic_bins)
                 diagnostics[f"{name}_energy_hist"] = hist.tolist()
@@ -482,6 +535,9 @@ class WarpXWrapper:
                 timings['inject'] += time.perf_counter() - t_i
                 t_p = time.perf_counter()
                 self.warp.step(1)
+                for name in self.species:
+                    self._apply_relativistic_corrections(self.warp.get_particle_container(name))
+                self._handle_quantum_emission()
                 timings['pic'] += time.perf_counter() - t_p
                 if self.circuit:
                     t_c = time.perf_counter()

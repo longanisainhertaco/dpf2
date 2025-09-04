@@ -124,6 +124,9 @@ class PICConfig(BaseModel):
     enable_quantum: bool = Field(False, description="Enable quantum effect hooks")
     enable_radiation: bool = Field(False, description="Enable radiation model hooks")
     enable_mesh_adaptivity: bool = Field(False, description="Enable mesh adaptivity hooks")
+    relativistic_corrections: bool = Field(False, description="Apply relativistic corrections to particle motion")
+    quantum_emission: bool = Field(False, description="Enable quantum emission processes")
+    time_dependent_boundaries: bool = Field(False, description="Use time-dependent boundary fields")
     # Add other parameters as needed
 
 class HybridConfig(BaseModel):
