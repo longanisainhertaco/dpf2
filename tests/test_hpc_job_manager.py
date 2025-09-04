@@ -1,0 +1,76 @@
+from pathlib import Path
+from dpf2.hpc import JobManager
+
+
+def test_slurm_submit_options(tmp_path, monkeypatch):
+    script = tmp_path / "job.sh"
+    script.write_text("#!/bin/bash\n")
+    jm = JobManager("slurm")
+
+    called = {}
+
+    def fake_run(cmd, capture_output, text, check, env):
+        called["cmd"] = cmd
+        called["env"] = env
+        class R: pass
+        return R()
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    jm.submit(
+        str(script),
+        nodes=2,
+        nodelist="node1,node2",
+        gpus=2,
+        gpu_affinity=[0, 1],
+        dependencies=[11, 22],
+        restart="chkpt.dat",
+        script_args=["--foo", "bar"],
+    )
+
+    cmd = called["cmd"]
+    env = called["env"]
+    assert cmd[0] == "sbatch"
+    assert "-N" in cmd and cmd[cmd.index("-N") + 1] == "2"
+    assert "--nodelist" in cmd and cmd[cmd.index("--nodelist") + 1] == "node1,node2"
+    assert "--gpus" in cmd and cmd[cmd.index("--gpus") + 1] == "2"
+    assert "--dependency" in cmd and cmd[cmd.index("--dependency") + 1] == "afterok:11:22"
+    idx = cmd.index(str(script))
+    assert cmd[idx + 1 : idx + 5] == ["--foo", "bar", "--restart", "chkpt.dat"]
+    assert env["CUDA_VISIBLE_DEVICES"] == "0,1"
+
+
+def test_mpi_node_topology_and_restart(tmp_path, monkeypatch):
+    script = tmp_path / "run.py"
+    script.write_text("#!/bin/bash\n")
+    jm = JobManager("mpi")
+
+    called = {}
+
+    def fake_run(cmd, capture_output, text, check, env):
+        called["cmd"] = cmd
+        called["env"] = env
+        class R: pass
+        return R()
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    topo = {"hostA": [0, 1], "hostB": [0]}
+    jm.submit(str(script), node_topology=topo, restart="chk.dat", gpu_affinity=[0, 1])
+
+    cmd = called["cmd"]
+    env = called["env"]
+    assert cmd[0] == "mpirun"
+    assert "--hostfile" in cmd
+    hostfile = Path(cmd[cmd.index("--hostfile") + 1])
+    hosts = set(hostfile.read_text().strip().splitlines())
+    assert "hostA slots=2" in hosts and "hostB slots=1" in hosts
+
+    gpu_map = Path(env["DPF_GPU_MAP"]).read_text().strip().splitlines()
+    assert "0 hostA 0" in gpu_map
+    assert "1 hostA 1" in gpu_map
+    assert "2 hostB 0" in gpu_map
+
+    idx = cmd.index(str(script))
+    assert cmd[idx + 1 : idx + 3] == ["--restart", "chk.dat"]
+    assert env["CUDA_VISIBLE_DEVICES"] == "0,1"
