@@ -646,6 +646,8 @@ class PICSolver(PhysicsModule):
                     ppc,
                     cfl,
                     lambda_D,
+                    divergence_error=getattr(self, "divergence_error", 0.0),
+                    energy_drift=getattr(self, "energy_drift", 0.0),
                 )
         except Exception as e:
             logger.error(f"Error during PIC step: {e}")

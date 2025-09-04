@@ -29,6 +29,8 @@ class QualityDashboard:
         ppc: float,
         cfl: float,
         lambda_D: float,
+        divergence_error: float = 0.0,
+        energy_drift: float = 0.0,
     ) -> None:
         """Record a step's metrics and emit warnings if thresholds violated."""
         entry = {
@@ -38,6 +40,8 @@ class QualityDashboard:
             "ppc": ppc,
             "cfl": cfl,
             "lambda_D": lambda_D,
+            "divergence_error": divergence_error,
+            "energy_drift": energy_drift,
         }
 
         dt_violation = self.max_dt is not None and dt > self.max_dt

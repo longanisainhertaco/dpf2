@@ -5,8 +5,23 @@ from __future__ import annotations
 import dataclasses as _dc
 import types as _types
 
+try:  # pragma: no cover - prefer real pydantic if available
+    from pydantic import (  # type: ignore
+        BaseModel as _RealBaseModel,
+        Field as _RealField,
+        ConfigDict as _RealConfigDict,
+        ValidationError as _RealValidationError,
+    )
+    from pydantic import dataclasses as _real_dataclasses
 
-class BaseModel:
+    BaseModel = _RealBaseModel
+    Field = _RealField
+    ConfigDict = _RealConfigDict
+    ValidationError = _RealValidationError
+    dataclasses = _real_dataclasses
+except Exception:  # fallback minimal stub
+
+    class BaseModel:
     """Minimal stand-in for :class:`pydantic.BaseModel`.
 
     The implementation only stores provided keyword arguments as attributes and
@@ -54,20 +69,20 @@ def Field(default=None, **kwargs):  # pragma: no cover - trivial passthrough
     return default
 
 
-ConfigDict = dict
+    ConfigDict = dict
 
 
-class ValidationError(Exception):
-    """Placeholder for :class:`pydantic.ValidationError`."""
-    pass
+    class ValidationError(Exception):
+        """Placeholder for :class:`pydantic.ValidationError`."""
+        pass
 
-# ---------------------------------------------------------------------------
-# ``pydantic.dataclasses`` compatibility
-# ---------------------------------------------------------------------------
-dataclasses = _types.ModuleType("pydantic.dataclasses")
-dataclasses.dataclass = _dc.dataclass
+    # -----------------------------------------------------------------------
+    # ``pydantic.dataclasses`` compatibility
+    # -----------------------------------------------------------------------
+    dataclasses = _types.ModuleType("pydantic.dataclasses")
+    dataclasses.dataclass = _dc.dataclass
 
-import sys as _sys
+    import sys as _sys
 
-_sys.modules.setdefault("pydantic", _sys.modules[__name__])
+    _sys.modules.setdefault("pydantic", _sys.modules[__name__])
 
