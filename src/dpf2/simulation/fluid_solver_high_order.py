@@ -38,6 +38,7 @@ from .sheath_model import BohmSheath
 from .radiation_model import RadiationModel
 from .turbulence_model import TurbulenceModel
 from .models import PhysicsModule
+from typing import Optional, Callable, Dict, Any
 from .utils import FieldManager, SimulationState
 
 # Physical constants
@@ -195,7 +196,7 @@ class FluidSolverHighOrder:
             logger.error(f"Error initializing FluidSolverHighOrder: {e}")
             raise
 
-    def step(self, dt):
+    def step(self, dt, refinement_cb: Optional[Callable[[Dict[str, Any]], Dict[str, int]]] = None):
         try:
             # Track total energy for conservation diagnostics
             E_before = self.get_total_energy()
@@ -216,6 +217,10 @@ class FluidSolverHighOrder:
             self._dedner_clean(dt)
             if self.do_amr:
                 self._amr_refine()
+            if refinement_cb is not None:
+                stats = refinement_cb({"pressure": U_np1['pi'] + U_np1['pe']})
+                if stats:
+                    logger.info(f"AMR callback stats: {stats}")
             self._radiation_step(dt)
             self._photon_monte_carlo(dt)
 

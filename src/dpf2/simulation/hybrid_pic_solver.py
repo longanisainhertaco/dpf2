@@ -15,11 +15,15 @@ that it may be connected to the existing external circuit model.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, Optional, Callable, Dict
 
 import numpy as np
+import logging
 
 from ..core.bases import CouplingState, PlasmaSolverBase
+
+
+logger = logging.getLogger(__name__)
 
 
 class _FluidSolver(Protocol):
@@ -99,7 +103,7 @@ class HybridPICSolver(PlasmaSolverBase):
         spike = eta * abs(J)
         return eta, spike
 
-    def step(self, state: Any, dt: float, current: float, voltage: float) -> Any:
+    def step(self, state: Any, dt: float, current: float, voltage: float, refinement_cb: Optional[Callable[[Dict[str, Any]], Dict[str, int]]] = None) -> Any:
         """Advance both fluid and particle descriptions.
 
         The method updates the coupled solvers, evaluates ``m=0`` growth
@@ -120,6 +124,11 @@ class HybridPICSolver(PlasmaSolverBase):
         eta, spike = self.compute_anomalous_resistivity(J)
         self.last_voltage_spike = spike
         self.last_beam_current = self.particles.beam_current()
+
+        if refinement_cb is not None:
+            stats = refinement_cb({"current": J})
+            if stats:
+                logger.info(f"AMR callback stats: {stats}")
 
         # A crude inductance model incorporating m=0 growth.  In practice
         # this would be replaced by a full EM field solution.
