@@ -20,6 +20,11 @@ class QualityDashboard:
     max_dt: float | None = None
     abort_on_violation: bool = False
     history: list[dict[str, float]] = field(default_factory=list)
+    # thresholds for numerics panel diagnostics
+    max_l1_error: float | None = None
+    max_divB_norm: float | None = None
+    max_energy_drift: float | None = None
+    numerics_history: list[dict[str, float]] = field(default_factory=list)
 
     def log(
         self,
@@ -83,6 +88,46 @@ class QualityDashboard:
             )
 
         self._update_plot()
+
+    # ------------------------------------------------------------------
+    def evaluate_numerics(self, metrics: dict[str, float]) -> bool:
+        """Check numerical diagnostics against configured thresholds."""
+
+        self.numerics_history.append(metrics)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.output_dir / "numerics.json", "w", encoding="utf-8") as fh:
+            json.dump(self.numerics_history, fh, indent=2)
+
+        def _warn_or_abort(msg: str) -> None:
+            logger.warning(msg)
+            if self.abort_on_violation:
+                raise RuntimeError(msg)
+
+        ok = True
+        l1 = metrics.get("l1_error")
+        if self.max_l1_error is not None and l1 is not None and l1 > self.max_l1_error:
+            _warn_or_abort(
+                f"L1 error above threshold: {l1:g} > {self.max_l1_error:g}"
+            )
+            ok = False
+        div = metrics.get("divB_norm")
+        if self.max_divB_norm is not None and div is not None and div > self.max_divB_norm:
+            _warn_or_abort(
+                f"∇·B norm above threshold: {div:g} > {self.max_divB_norm:g}"
+            )
+            ok = False
+        drift = metrics.get("energy_drift")
+        if (
+            self.max_energy_drift is not None
+            and drift is not None
+            and abs(drift) > self.max_energy_drift
+        ):
+            _warn_or_abort(
+                f"Energy drift above threshold: {drift:g} > {self.max_energy_drift:g}"
+            )
+            ok = False
+
+        return ok
 
     # ------------------------------------------------------------------
     def _update_plot(self) -> None:
