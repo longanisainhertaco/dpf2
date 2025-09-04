@@ -30,6 +30,11 @@ from dpf2.diagnostics.synthetic_signals import (
 )
 from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
+from dpf2.diagnostics.thresholds import (
+    compute_debye_length,
+    check_thresholds,
+    plasma_inductance_circuit,
+)
 from dpf2.optimization.param_sweep import (
     run_parametric_sweep,
     plot_sweep_results,
@@ -542,8 +547,36 @@ def simulate(
 
         if ctx.obj.get("lab_mode"):
             ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
+            warnings_list: list[str] = []
+            temp = getattr(getattr(cfg, "initial_conditions", None), "temperature", None)
+            dens = getattr(getattr(cfg, "initial_conditions", None), "density", None)
+            if ppc is not None and temp is not None and dens is not None and len(times) > 1:
+                dt = times[1] - times[0]
+                cell = getattr(cfg, "cathode_radius", 1.0) / max(1, getattr(cfg, "nr_cells", 1))
+                debye = compute_debye_length(temp, dens)
+                warnings_list = check_thresholds(
+                    dt,
+                    debye,
+                    cell,
+                    ppc,
+                    max_dt=cfg.end_time,
+                    min_debye_cells=1.0,
+                    min_particles_per_cell=ppc,
+                )
+                if len(times) > 2 and len(voltages) > 1:
+                    dIdt = (currents[2] - currents[1]) / (times[2] - times[1])
+                    try:
+                        plasma_inductance_circuit(voltages[1], currents[1], cfg.resistance, dIdt)
+                    except Exception:
+                        pass
             cfg_paths = [p for p in [config, synthetic] if p]
-            write_manifest(output, config_paths=cfg_paths, ppc=ppc, seeds=seeds)
+            write_manifest(
+                output,
+                config_paths=cfg_paths,
+                ppc=ppc,
+                seeds=seeds,
+                warnings=warnings_list,
+            )
 
         try:
             import matplotlib.pyplot as plt
