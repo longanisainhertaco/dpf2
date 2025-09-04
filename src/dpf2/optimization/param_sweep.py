@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
+from dataclasses import asdict
+
 from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
 from dpf2.cli.lab import write_manifest
@@ -53,15 +55,26 @@ def run_parametric_sweep(
         sim = DPFSimulation(cfg)
         run_dir = out_root / f"{parameter}_{val}"
         if lab_mode:
-            seeds = {
-                "python": random.getstate()[1][0],
-                "numpy": int(np.random.get_state()[1][0]),
-            }
+            seeds = {"python": random.getstate()[1][0]}
+            try:
+                seeds["numpy"] = int(np.random.get_state()[1][0])
+            except Exception:
+                try:
+                    rng = np.random.default_rng()
+                    seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
+                except Exception:
+                    seeds["numpy"] = 0
         t, i, v = sim.run(output_dir=str(run_dir))
         if lab_mode:
             ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
             paths = [str(config_path)] if config_path else []
-            write_manifest(run_dir, config_paths=paths, ppc=ppc, seeds=seeds)
+            write_manifest(
+                run_dir,
+                config_paths=paths,
+                config=asdict(cfg),
+                ppc=ppc,
+                seeds=seeds,
+            )
         results[val] = (t, i, v)
     return results
 
