@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import ProjectManager from './ProjectManager.jsx';
+import InstabilityVisualizer from './InstabilityVisualizer.jsx';
 
 export default function App() {
   const [token, setToken] = useState('');
@@ -32,6 +33,24 @@ export default function App() {
     await axios.post(`/update/${runId}`, { voltage: v, pressure: p }, { headers: { Authorization: `Bearer ${token}` } });
   };
 
+  const exportSnapshot = () => {
+    const blob = new Blob([config], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'snapshot.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importSnapshot = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => setConfig(evt.target.result);
+    reader.readAsText(file);
+  };
+
   return (
     <div>
       {!token && (
@@ -59,6 +78,25 @@ export default function App() {
               scenario. It will be sent to the server and can be
               exported later for sharing.
             </details>
+            <div>
+              <input
+                type="file"
+                accept="application/json"
+                onChange={importSnapshot}
+                title="Import a configuration snapshot"
+              />
+              <button
+                type="button"
+                onClick={exportSnapshot}
+                title="Export the current configuration snapshot"
+              >
+                Export Snapshot
+              </button>
+              <details>
+                <summary>What is this?</summary>
+                Use snapshots to save or load simulation setups for sharing.
+              </details>
+            </div>
             <br />
             <button type="submit" title="Start the simulation run">Run</button>
           </form>
@@ -114,6 +152,7 @@ export default function App() {
               Represents ambient gas pressure; higher values damp the sheath faster.
             </details>
           </div>
+          <InstabilityVisualizer />
         </div>
       )}
     </div>
