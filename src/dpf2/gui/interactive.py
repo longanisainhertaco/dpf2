@@ -50,13 +50,73 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
     app = Dash(__name__)
 
     presets = DeviceProfiles.with_defaults().devices
-    preset_options = [
-        {"label": name, "value": name} for name in presets.keys()
-    ]
+    preset_options = [{"label": name, "value": name} for name in presets.keys()]
+
+    def _info_span(text: str) -> html.Span:
+        """Return a small "what's this?" tooltip span."""
+
+        return html.Span(
+            "What's this?",
+            title=text,
+            style={
+                "textDecoration": "underline",
+                "cursor": "help",
+                "marginLeft": "4px",
+                "fontSize": "smaller",
+            },
+        )
 
     app.layout = html.Div(
         [
             html.H1("DPF2 GUI"),
+            dcc.Tabs(
+                id="phase_tabs",
+                value="breakdown",
+                children=[
+                    dcc.Tab(
+                        label="Breakdown",
+                        value="breakdown",
+                        children=[
+                            html.P(
+                                [
+                                    "Initiate plasma by ionizing the fill gas.",
+                                    _info_span(
+                                        "Breakdown: initial ionization of the gas producing plasma.",
+                                    ),
+                                ]
+                            )
+                        ],
+                    ),
+                    dcc.Tab(
+                        label="Rundown",
+                        value="rundown",
+                        children=[
+                            html.P(
+                                [
+                                    "Current drives the plasma sheath toward the axis.",
+                                    _info_span(
+                                        "Rundown: plasma accelerates and compresses toward the axis.",
+                                    ),
+                                ]
+                            )
+                        ],
+                    ),
+                    dcc.Tab(
+                        label="Pinch",
+                        value="pinch",
+                        children=[
+                            html.P(
+                                [
+                                    "Final compression yields peak conditions and neutrons.",
+                                    _info_span(
+                                        "Pinch: plasma compression leading to fusion-relevant conditions.",
+                                    ),
+                                ]
+                            )
+                        ],
+                    ),
+                ],
+            ),
             dcc.Dropdown(
                 id="preset",
                 options=preset_options,
@@ -64,38 +124,87 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
             ),
             html.Div(
                 [
-                    dcc.Input(
-                        id="anode_radius",
-                        type="number",
-                        placeholder="Anode radius (cm)",
+                    html.Div(
+                        [
+                            html.Label(
+                                [
+                                    "Anode radius (cm)",
+                                    _info_span(
+                                        "Inner radius of the anode electrode in centimeters.",
+                                    ),
+                                ]
+                            ),
+                            dcc.Input(id="anode_radius", type="number"),
+                        ]
                     ),
-                    dcc.Input(
-                        id="cathode_radius",
-                        type="number",
-                        placeholder="Cathode radius (cm)",
+                    html.Div(
+                        [
+                            html.Label(
+                                [
+                                    "Cathode radius (cm)",
+                                    _info_span(
+                                        "Inner radius of the cathode electrode in centimeters.",
+                                    ),
+                                ]
+                            ),
+                            dcc.Input(id="cathode_radius", type="number"),
+                        ]
                     ),
-                    dcc.Input(
-                        id="electrode_length",
-                        type="number",
-                        placeholder="Electrode length (cm)",
+                    html.Div(
+                        [
+                            html.Label(
+                                [
+                                    "Electrode length (cm)",
+                                    _info_span(
+                                        "Length of the electrodes in centimeters.",
+                                    ),
+                                ]
+                            ),
+                            dcc.Input(id="electrode_length", type="number"),
+                        ]
+                    ),
+                ],
+                style={"display": "flex", "gap": "1em"},
+            ),
+            html.Div(
+                [
+                    html.Label(
+                        [
+                            "Charging Voltage",
+                            _info_span(
+                                "Capacitor bank voltage applied to the electrodes in volts.",
+                            ),
+                        ]
+                    ),
+                    dcc.Slider(
+                        5_000,
+                        30_000,
+                        1_000,
+                        value=10_000,
+                        id="voltage",
+                        tooltip={"placement": "bottom"},
                     ),
                 ]
             ),
-            dcc.Slider(
-                5_000,
-                30_000,
-                1_000,
-                value=10_000,
-                id="voltage",
-                tooltip={"placement": "bottom"},
-            ),
-            dcc.Slider(
-                0.1,
-                5.0,
-                0.1,
-                value=1.0,
-                id="pressure",
-                tooltip={"placement": "bottom"},
+            html.Div(
+                [
+                    html.Label(
+                        [
+                            "Fill Pressure",
+                            _info_span(
+                                "Initial fill gas pressure in torr.",
+                            ),
+                        ]
+                    ),
+                    dcc.Slider(
+                        0.1,
+                        5.0,
+                        0.1,
+                        value=1.0,
+                        id="pressure",
+                        tooltip={"placement": "bottom"},
+                    ),
+                ]
             ),
             html.Button("Sweep Voltage", id="sweep_voltage"),
             html.Button("Sweep Pressure", id="sweep_pressure"),
