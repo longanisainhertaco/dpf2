@@ -1,0 +1,8 @@
+{
+  "project": {
+    "export": "Download this configuration for sharing",
+    "newSet": "Upload the configuration set",
+    "geometryFile": "Optional CAD file for custom geometry",
+    "import": "Load a configuration set from JSON"
+  }
+}
