@@ -266,6 +266,8 @@ class HybridPinchModel(PinchModelBase):
 
         rad_fluid, temp, pres, Etot = diagnostics(state)
         rad_pic, e_pic = self.pic_driver.step(I[0], 0.0)
+        getattr(self.pic_driver, "exchange_fields", lambda: None)()
+        getattr(self.pic_driver, "exchange_particles", lambda: None)()
         use_pic = rad_fluid <= self.switch_radius
         rad = rad_pic if use_pic else rad_fluid
         radius.append(rad)
@@ -279,6 +281,8 @@ class HybridPinchModel(PinchModelBase):
             state = solver.step(state, dt, current=I[k])
             rad_fluid, temp, pres, Etot = diagnostics(state)
             rad_pic, e_pic = self.pic_driver.step(I[k], dt)
+            getattr(self.pic_driver, "exchange_fields", lambda: None)()
+            getattr(self.pic_driver, "exchange_particles", lambda: None)()
             if use_pic:
                 if rad_fluid > self.switch_radius:
                     use_pic = False

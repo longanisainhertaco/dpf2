@@ -25,5 +25,8 @@ def bosch_hale_dd(T_keV: float | np.ndarray) -> float | np.ndarray:
     B = -19.94
     C = 0.0
     reactivity = A * T_keV ** (2.0 / 3.0) * np.exp(B / T_keV ** (1.0 / 3.0))
-    return reactivity
+    try:
+        return float(reactivity)
+    except Exception:  # pragma: no cover - array-like input
+        return reactivity
 
