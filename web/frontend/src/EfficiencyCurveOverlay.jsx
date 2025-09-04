@@ -36,7 +36,7 @@ export default function EfficiencyCurveOverlay({ datasets = [] }) {
   };
 
   return (
-    <div className="overlay">
+    <div className="overlay" title="Displays a hypothetical efficiency curve">
       <h4>Efficiency Curve</h4>
       <svg ref={svgRef} width="200" height="100">
         {datasets.map(({ label, data, color = 'green' }) => {

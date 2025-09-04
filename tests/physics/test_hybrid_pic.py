@@ -15,19 +15,20 @@ class DummyPIC(PicDriver):
         self.exchange_fields_calls = 0
         self.exchange_particles_calls = 0
 
-    def step(self, current: float, dt: float):
+    def step(self, state, current: float, dt: float):
         self.energy += dt
         r = self.radii[self.calls]
         self.calls += 1
-        return r, self.energy
+        return r, self.energy, current
 
     def exchange_fields(self):
         self.exchange_fields_calls += 1
-        return (), ()
+        zero = np.zeros(1)
+        return (zero, zero, zero), (zero, zero, zero)
 
     def exchange_particles(self):
         self.exchange_particles_calls += 1
-        return (), ()
+        return np.zeros((0, 3)), np.zeros((0, 3))
 
 
 class DummySolver:

@@ -36,7 +36,7 @@ export default function YieldPressureOverlay({ datasets = [] }) {
   };
 
   return (
-    <div className="overlay">
+    <div className="overlay" title="Shows how yield varies with pressure">
       <h4>Yield/Pressure Curve</h4>
       <svg ref={svgRef} width="200" height="100">
         {datasets.map(({ label, data, color = 'blue' }) => {

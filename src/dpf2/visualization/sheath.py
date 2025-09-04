@@ -10,7 +10,7 @@ simulation dependencies.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Sequence
 
 import numpy as np
 
@@ -58,7 +58,13 @@ def _sheath_field(voltage: float, pressure: float, t: float) -> SheathField:
     return SheathField(x, y, u, v)
 
 
-def animate_sheath(voltage: float, pressure: float, *, use_vtk: bool = False):
+def animate_sheath(
+    voltage: float,
+    pressure: float,
+    *,
+    use_vtk: bool = False,
+    captions: Optional[Sequence[str]] = None,
+):
     """Animate a simple sheath evolution.
 
     The function returns the underlying animation/renderer object so
@@ -73,7 +79,13 @@ def animate_sheath(voltage: float, pressure: float, *, use_vtk: bool = False):
     use_vtk:
         Use a VTK pipeline instead of Matplotlib when ``True`` and VTK
         is installed.
+    captions:
+        Optional sequence of captions that will be displayed for each
+        frame.  When provided, the ``i``\ th caption is shown along with
+        the step number in the animation.
     """
+
+    captions = list(captions or [])
 
     if use_vtk and vtk is not None:
         # Minimal VTK pipeline – render a coloured sphere that changes
@@ -86,12 +98,19 @@ def animate_sheath(voltage: float, pressure: float, *, use_vtk: bool = False):
         actor.SetMapper(mapper)
         renderer = vtk.vtkRenderer()
         renderer.AddActor(actor)
+        text = vtk.vtkTextActor()
+        text.SetPosition(10, 10)
+        renderer.AddActor2D(text)
         window = vtk.vtkRenderWindow()
         window.AddRenderer(renderer)
 
         def _update(frame: int) -> None:
             colour = 0.5 + 0.5 * np.sin(frame * voltage)
             actor.GetProperty().SetColor(colour, 0.0, 1.0 - colour)
+            if frame < len(captions):
+                text.SetInput(f"Step {frame + 1}: {captions[frame]}")
+            else:
+                text.SetInput(f"Step {frame + 1}")
             window.Render()
 
         for i in range(20):
@@ -106,11 +125,18 @@ def animate_sheath(voltage: float, pressure: float, *, use_vtk: bool = False):
     field0 = _sheath_field(voltage, pressure, 0.0)
     quiver = ax.quiver(field0.x, field0.y, field0.u, field0.v)
     ax.set_title("Sheath evolution")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    caption_text = ax.text(0.02, 0.95, "", transform=ax.transAxes, va="top")
 
     def _frame(i: int):
         fld = _sheath_field(voltage, pressure, i * 0.1)
         quiver.set_UVC(fld.u, fld.v)
-        return (quiver,)
+        if i < len(captions):
+            caption_text.set_text(f"Step {i + 1}: {captions[i]}")
+        else:
+            caption_text.set_text(f"Step {i + 1}")
+        return quiver, caption_text
 
     anim = FuncAnimation(fig, _frame, frames=40, interval=50, blit=True)
     return anim

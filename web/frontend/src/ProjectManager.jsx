@@ -82,12 +82,14 @@ export default function ProjectManager({ projects = [] }) {
       <ul>
         {configSets.map((p) => (
           <li key={p.id}>
+
             <label>
               <input
                 type="checkbox"
                 checked={selectedIds.includes(p.id)}
                 onChange={() => toggleSelect(p.id)}
               />
+
               {p.id}
             </label>
           </li>
