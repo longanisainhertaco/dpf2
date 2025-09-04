@@ -18,31 +18,17 @@ export default function RegimeDashboard() {
     return () => ws.close();
   }, []);
 
-  const limits = {
-    S: 1,
-    beta: 1,
-    M_A: 1,
-    R_m: 1,
-    K_n: 0.1,
-    omega_ce_tau_e: 1,
-  };
-
+  const params = ['S', 'beta', 'M_A', 'R_m', 'K_n', 'omega_ce_tau_e'];
   const latest = data[data.length - 1] || {};
-  const check = (key) => {
-    const val = latest[key];
-    if (val === undefined) return '';
-    if (['beta', 'M_A', 'K_n'].includes(key)) {
-      return val > limits[key] ? 'violation' : '';
-    }
-    return val < limits[key] ? 'violation' : '';
-  };
+  const check = (key) =>
+    latest.violations && latest.violations[key] ? 'violation' : '';
 
   return (
     <div className="overlay" title="Tracks plasma regime parameters">
       <h4>Regime Dashboard</h4>
       <table>
         <tbody>
-          {Object.keys(limits).map((k) => (
+          {params.map((k) => (
             <tr key={k} className={check(k)}>
               <td>{k}</td>
               <td>{latest[k] !== undefined ? latest[k].toFixed(3) : '-'}</td>
