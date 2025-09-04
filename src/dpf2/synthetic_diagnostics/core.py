@@ -16,14 +16,14 @@ except Exception:  # pragma: no cover
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
-from .utils.pydantic_compat import model_validator
+from ..utils.pydantic_compat import model_validator
 
 
 
-from .core_schema import ConfigSectionBase, to_camel_case
-from .units_settings import UnitsSettings
-from .core.bases import CouplingState
-from .diagnostics.synthetic_signals import (
+from ..core_schema import ConfigSectionBase, to_camel_case
+from ..units_settings import UnitsSettings
+from ..core.bases import CouplingState
+from ..diagnostics.synthetic_signals import (
     current_waveform,
     voltage_waveform,
     coupled_current_waveform,
@@ -723,4 +723,6 @@ __all__ = [
     "export_directional_yields",
     "autocorrelated_tof_iv_report",
     "anisotropy_report",
+    "flashover_delay_stats",
+    "flashover_jitter_stats",
 ]
