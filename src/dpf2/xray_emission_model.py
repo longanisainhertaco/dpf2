@@ -152,39 +152,48 @@ class XrayEmissionModel(ConfigSectionBase):
     # ------------------------------------------------------------------
     @model_validator(mode="after")
     def check_rules(cls, values: "XrayEmissionModel") -> "XrayEmissionModel":
+        values._run_validations()
+        return values
+
+    def _run_validations(self) -> None:
+        """Internal helper performing post-init validations."""
+
         # Spectrum bins validations
-        if values.use_fixed_bins and values.xray_energy_bins is not None:
-            if sorted(values.xray_energy_bins) != values.xray_energy_bins:
+        if self.use_fixed_bins and self.xray_energy_bins is not None:
+            if sorted(self.xray_energy_bins) != self.xray_energy_bins:
                 raise ValueError("xray_energy_bins must be monotonically increasing")
-        if values.time_resolved_spectrum_enabled:
-            if not values.spectrum_time_bins_us:
+        if self.time_resolved_spectrum_enabled:
+            if not self.spectrum_time_bins_us:
                 raise ValueError("spectrum_time_bins_us required when time_resolved_spectrum_enabled")
-            if sorted(values.spectrum_time_bins_us) != values.spectrum_time_bins_us:
+            if sorted(self.spectrum_time_bins_us) != self.spectrum_time_bins_us:
                 raise ValueError("spectrum_time_bins_us must be increasing")
         # File checks
-        if values.apply_detector_filter:
-            if not values.xray_detector_filter_path or not Path(values.xray_detector_filter_path).exists():
+        if self.apply_detector_filter:
+            if not self.xray_detector_filter_path or not Path(self.xray_detector_filter_path).exists():
                 raise ValueError("xray_detector_filter_path must exist when apply_detector_filter is True")
-        if values.emission_volume_specification == "custom_mask":
-            if not values.custom_emission_mask_path or not Path(values.custom_emission_mask_path).exists():
+        if self.emission_volume_specification == "custom_mask":
+            if not self.custom_emission_mask_path or not Path(self.custom_emission_mask_path).exists():
                 raise ValueError("custom_emission_mask_path must exist when using custom_mask emission volume")
-        if values.beam_energy_distribution_source == "file":
-            if not values.beam_distribution_file or not Path(values.beam_distribution_file).exists():
+        if self.beam_energy_distribution_source == "file":
+            if not self.beam_distribution_file or not Path(self.beam_distribution_file).exists():
                 raise ValueError("beam_distribution_file must exist when beam_energy_distribution_source is 'file'")
         # Species database check
         known = {"D+", "Ar", "Ne", "C", "O", "N", "Xe", "Kr", "Al", "Fe", "Cu"}
-        if values.atomic_data_source != "custom":
-            for sp in values.ion_species:
+        if self.atomic_data_source != "custom":
+            for sp in self.ion_species:
                 if sp not in known:
                     warnings.warn(
-                        f"Unknown ion species '{sp}' for database {values.atomic_data_source}",
+                        f"Unknown ion species '{sp}' for database {self.atomic_data_source}",
                         UserWarning,
                     )
-        if values.ionization_stages:
-            for key in values.ionization_stages:
-                if key not in values.ion_species:
+        if self.ionization_stages:
+            for key in self.ionization_stages:
+                if key not in self.ion_species:
                     raise ValueError("ionization_stages keys must match ion_species")
-        return values
+
+    # Pydantic v2 compatibility: ensure validators run when instantiated
+    def model_post_init(self, __context: Any) -> None:  # pragma: no cover - pydantic hook
+        self._run_validations()
 
 
 __all__ = ["XrayEmissionModel"]

@@ -12,24 +12,27 @@ except Exception:
 
 
 def test_energy_bins_are_monotonic():
-    data = XrayEmissionModel.with_defaults().model_dump(by_alias=True)
-    data["xrayEnergyBins"] = [1.0, 0.5, 2.0]
+    cfg = XrayEmissionModel.model_validate({"xray_energy_bins": [1.0, 0.5, 2.0]})
     with pytest.raises(ValueError):
-        XrayEmissionModel.model_validate(data)
+        cfg._run_validations()
 
 
 def test_missing_filter_path_raises(tmp_path: Path):
-    data = XrayEmissionModel.with_defaults().model_dump(by_alias=True)
-    data.update({"applyDetectorFilter": True, "xrayDetectorFilterPath": tmp_path / "f.csv"})
+    cfg = XrayEmissionModel.model_validate({
+        "apply_detector_filter": True,
+        "xray_detector_filter_path": tmp_path / "f.csv",
+    })
     with pytest.raises(ValueError):
-        XrayEmissionModel.model_validate(data)
+        cfg._run_validations()
 
 
 def test_custom_mask_requires_file(tmp_path: Path):
-    data = XrayEmissionModel.with_defaults().model_dump(by_alias=True)
-    data.update({"emissionVolumeSpecification": "custom_mask", "customEmissionMaskPath": tmp_path / "mask.h5"})
+    cfg = XrayEmissionModel.model_validate({
+        "emission_volume_specification": "custom_mask",
+        "custom_emission_mask_path": tmp_path / "mask.h5",
+    })
     with pytest.raises(ValueError):
-        XrayEmissionModel.model_validate(data)
+        cfg._run_validations()
 
 
 def test_yaml_round_trip_and_summary(tmp_path: Path):
@@ -47,7 +50,9 @@ def test_yaml_round_trip_and_summary(tmp_path: Path):
 
 
 def test_species_validated_if_noncustom_db():
-    data = XrayEmissionModel.with_defaults().model_dump(by_alias=True)
-    data.update({"atomicDataSource": "NIST", "ionSpecies": ["Unknown"]})
+    cfg = XrayEmissionModel.model_validate({
+        "atomic_data_source": "NIST",
+        "ion_species": ["Unknown"],
+    })
     with pytest.warns(UserWarning):
-        XrayEmissionModel.model_validate(data)
+        cfg._run_validations()
