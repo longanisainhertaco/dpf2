@@ -48,6 +48,34 @@ export default function GuidedLabs({ setVoltage, setPressure }) {
     return saved ? JSON.parse(saved) : {};
   });
 
+  const exportExercises = () => {
+    const blob = new Blob([JSON.stringify(results, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'guided_labs.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importExercises = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    file
+      .text()
+      .then((text) => {
+        try {
+          const data = JSON.parse(text);
+          setResults(data);
+        } catch {
+          // ignore parse errors
+        }
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     localStorage.setItem('guidedLabResults', JSON.stringify(results));
   }, [results]);
@@ -74,6 +102,21 @@ export default function GuidedLabs({ setVoltage, setPressure }) {
       <p>
         Score: {score} / {labs.length}
       </p>
+      <div>
+        <button
+          type="button"
+          onClick={exportExercises}
+          title="Export your answers for classroom sharing"
+        >
+          Export Exercises
+        </button>
+        <input
+          type="file"
+          accept="application/json"
+          onChange={importExercises}
+          title="Import answers from a classmate"
+        />
+      </div>
       {labs.map((lab) => (
         <div key={lab.name}>
           <button

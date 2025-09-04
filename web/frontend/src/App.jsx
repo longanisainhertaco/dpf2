@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import ProjectManager from './ProjectManager.jsx';
 import InstabilityVisualizer from './InstabilityVisualizer.jsx';
@@ -14,6 +14,45 @@ export default function App() {
   const [voltage, setVoltage] = useState(1.0);
   const [pressure, setPressure] = useState(0.1);
 
+  // jitter controls
+  const [useJitter, setUseJitter] = useState(false);
+  const [switchJitter, setSwitchJitter] = useState(0.0);
+  const [pressureJitter, setPressureJitter] = useState(0.0);
+
+  // batch mode toggle
+  const [batchMode, setBatchMode] = useState(false);
+
+  // load snapshot on startup
+  useEffect(() => {
+    const saved = localStorage.getItem('dpfSnapshot');
+    if (saved) {
+      try {
+        const snap = JSON.parse(saved);
+        if (snap.config) setConfig(snap.config);
+        if (snap.voltage !== undefined) setVoltage(snap.voltage);
+        if (snap.pressure !== undefined) setPressure(snap.pressure);
+        if (snap.useJitter !== undefined) setUseJitter(snap.useJitter);
+        if (snap.switchJitter !== undefined) setSwitchJitter(snap.switchJitter);
+        if (snap.pressureJitter !== undefined) setPressureJitter(snap.pressureJitter);
+      } catch {
+        /* ignore parse errors */
+      }
+    }
+  }, []);
+
+  // auto-save snapshot to localStorage
+  useEffect(() => {
+    const snapshot = {
+      config,
+      voltage,
+      pressure,
+      useJitter,
+      switchJitter,
+      pressureJitter,
+    };
+    localStorage.setItem('dpfSnapshot', JSON.stringify(snapshot));
+  }, [config, voltage, pressure, useJitter, switchJitter, pressureJitter]);
+
 
   const login = async (e) => {
     e.preventDefault();
@@ -24,10 +63,27 @@ export default function App() {
 
   const submitConfig = async (e) => {
     e.preventDefault();
-    const cfg = JSON.parse(config);
-    const { data } = await axios.post('/run', { config: cfg }, { headers: { Authorization: `Bearer ${token}` } });
-    setRunId(data.run_id);
-    setProjects((p) => [...p, { id: data.run_id, config: cfg }]);
+    const cfgBase = JSON.parse(config);
+
+    const runConfigs = batchMode ? cfgBase : [cfgBase];
+
+    for (const cfg of runConfigs) {
+      if (useJitter) {
+        cfg.experimental_variability = cfg.experimental_variability || {};
+        cfg.experimental_variability.pressure_jitter_pct = pressureJitter;
+        cfg.experimental_variability.trigger_jitter_ns = switchJitter;
+      }
+      const { data } = await axios.post(
+        '/run',
+        { config: cfg },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setRunId(data.run_id);
+      setProjects((p) => [...p, { id: data.run_id, config: cfg }]);
+    }
+
+    // automatically save snapshot locally for sharing
+    exportSnapshot();
   };
 
   const updateSimulation = async (v, p) => {
@@ -36,7 +92,17 @@ export default function App() {
   };
 
   const exportSnapshot = () => {
-    const blob = new Blob([config], { type: 'application/json' });
+    const snapshot = {
+      config: JSON.parse(config),
+      voltage,
+      pressure,
+      jitter: useJitter
+        ? { pressure_jitter_pct: pressureJitter, trigger_jitter_ns: switchJitter }
+        : undefined,
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -72,7 +138,7 @@ export default function App() {
               cols={50}
               value={config}
               onChange={(e) => setConfig(e.target.value)}
-              title="Paste a JSON configuration for the simulation"
+              title="Paste a JSON configuration for the simulation or array for batch runs"
             />
             <details>
               <summary>What is this?</summary>
@@ -80,6 +146,48 @@ export default function App() {
               scenario. It will be sent to the server and can be
               exported later for sharing.
             </details>
+            <div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={useJitter}
+                  onChange={(e) => setUseJitter(e.target.checked)}
+                  title="Enable jitter for switch timing and fill pressure"
+                />
+                Enable Jitter
+              </label>
+              {useJitter && (
+                <div>
+                  <label title="Timing jitter in nanoseconds">
+                    Switch Jitter (ns)
+                    <input
+                      type="number"
+                      value={switchJitter}
+                      onChange={(e) => setSwitchJitter(parseFloat(e.target.value))}
+                    />
+                  </label>
+                  <label title="Fill pressure jitter as percent">
+                    Pressure Jitter (%)
+                    <input
+                      type="number"
+                      value={pressureJitter}
+                      onChange={(e) => setPressureJitter(parseFloat(e.target.value))}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+            <div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={batchMode}
+                  onChange={(e) => setBatchMode(e.target.checked)}
+                  title="Interpret config as array and run all entries"
+                />
+                Batch Run Manifest
+              </label>
+            </div>
             <div>
               <input
                 type="file"
