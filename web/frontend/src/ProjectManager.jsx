@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import YieldPressureOverlay from './YieldPressureOverlay.jsx';
 import EfficiencyCurveOverlay from './EfficiencyCurveOverlay.jsx';
-import GeometryPresets from './GeometryPresets.jsx';
+import GeometryPresetSlider from './GeometryPresetSlider.jsx';
 import help from './help.json';
 
 export default function ProjectManager({ projects = [] }) {
@@ -164,7 +164,7 @@ export default function ProjectManager({ projects = [] }) {
 
       <form onSubmit={addConfigSet}>
         <h4>Add Configuration Set</h4>
-        <GeometryPresets onSelect={setPreset} />
+        <GeometryPresetSlider onSelect={setPreset} />
         {preset && <p>Selected geometry: {preset}</p>}
 
         <input
