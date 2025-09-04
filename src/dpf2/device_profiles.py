@@ -101,6 +101,25 @@ class DeviceEntry(BaseModel):
             raise ValueError("geometry dimensions must be positive")
         return values
 
+    # ------------------------------------------------------------------
+    def electrode_materials(self) -> Dict[str, MaterialRef | None]:
+        """Return mapping of electrode and insulator components to materials.
+
+        This convenience helper exposes the configured materials so that
+        downstream utilities can easily assemble material libraries without
+        needing to know the field names used in :class:`DeviceEntry`.
+        """
+
+        sleeve_mat = (
+            self.insulator_sleeve.material if self.insulator_sleeve else None
+        )
+        return {
+            "anode": self.anode_material,
+            "cathode": self.cathode_material,
+            "insulator": self.insulator_material,
+            "sleeve": sleeve_mat,
+        }
+
 
 class DeviceProfiles(ConfigSectionBase):
     """Repository of known DPF machine configurations."""

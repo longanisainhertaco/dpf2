@@ -18,7 +18,7 @@ def bremsstrahlung_power(
     ni: np.ndarray,
     Te: np.ndarray,
     *,
-    Z_eff: float = 1.0,
+    Z_eff: float | np.ndarray = 1.0,
 ) -> np.ndarray:
     """Return volumetric bremsstrahlung power.
 
@@ -45,6 +45,7 @@ def bremsstrahlung_power(
     ne = np.asarray(ne)
     ni = np.asarray(ni)
     Te = np.asarray(Te)
+    Z_eff = np.asarray(Z_eff)
     coeff = 1.0
     return coeff * ne * ni * Z_eff * np.sqrt(Te)
 
@@ -53,8 +54,8 @@ def line_radiation_power(
     ne: np.ndarray,
     Te: np.ndarray,
     *,
-    coeff: float = 0.0,
-    impurity_fraction: float = 1.0,
+    coeff: float | np.ndarray = 0.0,
+    impurity_fraction: float | np.ndarray = 1.0,
 ) -> np.ndarray:
     """Placeholder line-radiation loss model.
 
@@ -66,4 +67,6 @@ def line_radiation_power(
 
     ne = np.asarray(ne)
     Te = np.asarray(Te)
+    coeff = np.asarray(coeff)
+    impurity_fraction = np.asarray(impurity_fraction)
     return coeff * impurity_fraction * ne * ne * np.sqrt(Te)
