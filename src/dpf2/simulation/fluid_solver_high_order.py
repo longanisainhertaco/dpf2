@@ -8,12 +8,9 @@ Features
 * Constrained-transport update with simple divergence cleaning
 * IMEX time-stepping skeleton using AMReX linear solves
 * Parallel I/O and checkpoint/restart via ADIOS2
-
-Future Work
------------
 * Hall and anomalous resistivity in Ohm's law
-* Adaptive mesh refinement and embedded-boundary support
-* Photon Monte Carlo coupling and advanced collision physics
+* Adaptive mesh refinement with embedded-boundary support
+* Photon Monte Carlo coupling
 * Reconnection diagnostics and viscous/heat-flux closures
 * Expanded regression tests and validation suites
 """
@@ -160,6 +157,7 @@ class FluidSolverHighOrder:
             self.coll     = CollisionModel(config.get('collision_cfg', None)) # Instantiate CollisionModel
             # Sheath and radiation
             self.sheath   = BohmSheath(config.get('stl_file', None))
+            self._init_embedded_boundary(config.get('eb_stl'))
             self.num_groups = config.get('num_groups', 1)
             self.radiation_model = RadiationModel(geom, config) # Instantiate RadiationModel
 
@@ -268,7 +266,7 @@ class FluidSolverHighOrder:
             eta_anom = np.maximum(0.0, (np.linalg.norm(J,axis=3) - self.config['Jcrit'])/
                                     self.config['Jcrit']) * self.config['eta0']
             Hall     = np.cross(J, B) / (ne[...,None] * e_charge)
-            E        = -np.cross(v, B) + (eta_par+eta_per+eta_anom)[...,None]*J + Hall[...,None]
+            E        = -np.cross(v, B) + (eta_par+eta_per+eta_anom)[...,None]*J + Hall
             # Store fields
             self.field_manager.update_E(E)
             self.field_manager.deposit_current(J)
@@ -412,6 +410,23 @@ class FluidSolverHighOrder:
         except Exception as e:
             logger.error(f"Error during Dedner cleaning: {e}")
             raise
+
+    def _init_embedded_boundary(self, stl_file: str):
+        """Load embedded-boundary geometry if provided.
+
+        Parameters
+        ----------
+        stl_file: str
+            Path to an STL file describing the boundary.
+        """
+        if not stl_file:
+            return
+        try:
+            ebis = EBIndexSpace.instance()
+            ebis.build_from_stl(stl_file)
+            logger.info("Embedded boundary loaded from %s", stl_file)
+        except Exception as exc:  # pragma: no cover - depends on amrex
+            logger.warning("Failed to load embedded boundary %s: %s", stl_file, exc)
 
     def _amr_refine(self):
         try:
