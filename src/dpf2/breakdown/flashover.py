@@ -13,6 +13,8 @@ import math
 import random
 from typing import Sequence, Dict
 
+from ..geometry import triple_junction_field
+
 
 @dataclass
 class FlashoverParameters:
@@ -96,4 +98,55 @@ def delay_statistics(delays: Sequence[float]) -> Dict[str, float]:
     mean = sum(delays) / n
     var = sum((d - mean) ** 2 for d in delays) / n
     return {"count": n, "mean": mean, "stddev": var ** 0.5}
+
+
+def holdoff_voltage(
+    geometry: str,
+    params: FlashoverParameters,
+    shot: int = 0,
+) -> float:
+    """Sample a hold-off voltage for ``geometry``.
+
+    The baseline hold-off is ``params.field_threshold`` scaled by the
+    geometry-dependent triple-junction field factor.  Conditioning is modeled
+    with :func:`conditioning_curve` such that the expected hold-off increases
+    with shot count.  A log-normal distribution with ``params.sigma`` is used
+    to introduce stochastic jitter.
+    """
+
+    if params.field_threshold <= 0:
+        raise ValueError("field_threshold must be positive")
+
+    tj_factor = triple_junction_field(geometry)
+    base = params.field_threshold * tj_factor
+    conditioned = base / conditioning_curve(shot, params.conditioning)
+    mean = max(conditioned, 1e-12)
+    mu = math.log(mean)
+    rng = random.Random(params.seed)
+    return rng.lognormvariate(mu, params.sigma)
+
+
+def holdoff_series(
+    geometry: str,
+    params: FlashoverParameters,
+    shots: int,
+) -> Sequence[float]:
+    """Generate a sequence of hold-off voltages over multiple shots."""
+
+    values = []
+    for n in range(shots):
+        p = FlashoverParameters(
+            field_threshold=params.field_threshold,
+            sigma=params.sigma,
+            conditioning=params.conditioning,
+            seed=None if params.seed is None else params.seed + n,
+        )
+        values.append(holdoff_voltage(geometry, p, shot=n))
+    return values
+
+
+def jitter_statistics(jitters: Sequence[float]) -> Dict[str, float]:
+    """Return statistics for jitter values."""
+
+    return delay_statistics(jitters)
 

@@ -2,13 +2,15 @@ from dpf2.breakdown.flashover import (
     FlashoverParameters,
     conditioning_curve,
     seea_stochastic_delay,
+    holdoff_voltage,
+    holdoff_series,
 )
 from dpf2.geometry import (
     triple_junction_field,
     set_triple_junction_field_map,
 )
 from dpf2.dpf_config import BreakdownModel
-from dpf2.synthetic_diagnostics import flashover_delay_stats
+from dpf2.synthetic_diagnostics import flashover_delay_stats, flashover_jitter_stats
 
 def test_conditioning_curve_monotonic():
     vals = [conditioning_curve(i, 0.1) for i in range(5)]
@@ -39,3 +41,20 @@ def test_flashover_delay_stats():
     assert stats["count"] == 3
     assert abs(stats["mean"] - 3.0) < 1e-12
     assert "stddev" in stats and stats["stddev"] > 0
+
+
+def test_holdoff_voltage_evolves_and_geometry_factor():
+    params = FlashoverParameters(field_threshold=10.0, sigma=0.0, conditioning=0.1, seed=123)
+    h0 = holdoff_voltage("mather", params, shot=0)
+    h5 = holdoff_voltage("mather", params, shot=5)
+    h_geom = holdoff_voltage("tapered", params, shot=0)
+    assert h5 > h0
+    assert h_geom > h0
+
+
+def test_flashover_jitter_stats():
+    params = FlashoverParameters(field_threshold=10.0, sigma=0.2, conditioning=0.0, seed=1)
+    series = holdoff_series("mather", params, shots=5)
+    stats = flashover_jitter_stats(series)
+    assert stats["count"] == 5
+    assert stats["stddev"] > 0
