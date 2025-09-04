@@ -122,30 +122,56 @@ class QualityDashboard:
             "omega_ce_tau_e": omega_ce_tau_e,
         }
 
-        self.regime_history.append(entry)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.output_dir / "regime.json", "w", encoding="utf-8") as fh:
-            json.dump(self.regime_history, fh, indent=2)
-
         def _warn_or_abort(msg: str) -> None:
             logger.warning(msg)
             if self.abort_on_violation:
                 raise RuntimeError(msg)
 
-        if self.min_S is not None and S < self.min_S:
-            _warn_or_abort(f"Lundquist number below threshold: {S:g} < {self.min_S:g}")
-        if self.max_beta is not None and beta > self.max_beta:
-            _warn_or_abort(f"Plasma beta above threshold: {beta:g} > {self.max_beta:g}")
-        if self.max_M_A is not None and M_A > self.max_M_A:
-            _warn_or_abort(f"Alfvén Mach number above threshold: {M_A:g} > {self.max_M_A:g}")
-        if self.min_R_m is not None and R_m < self.min_R_m:
-            _warn_or_abort(f"Magnetic Reynolds number below threshold: {R_m:g} < {self.min_R_m:g}")
-        if self.max_K_n is not None and K_n > self.max_K_n:
-            _warn_or_abort(f"Knudsen number above threshold: {K_n:g} > {self.max_K_n:g}")
-        if self.min_omega_ce_tau_e is not None and omega_ce_tau_e < self.min_omega_ce_tau_e:
-            _warn_or_abort(
-                f"Cyclotron frequency–collision time below threshold: {omega_ce_tau_e:g} < {self.min_omega_ce_tau_e:g}"
-            )
+        violations = {
+            "S": self.min_S is not None and S < self.min_S,
+            "beta": self.max_beta is not None and beta > self.max_beta,
+            "M_A": self.max_M_A is not None and M_A > self.max_M_A,
+            "R_m": self.min_R_m is not None and R_m < self.min_R_m,
+            "K_n": self.max_K_n is not None and K_n > self.max_K_n,
+            "omega_ce_tau_e": self.min_omega_ce_tau_e is not None
+            and omega_ce_tau_e < self.min_omega_ce_tau_e,
+        }
+
+        for key, violated in violations.items():
+            if not violated:
+                continue
+            if key == "S":
+                _warn_or_abort(
+                    f"Lundquist number below threshold: {S:g} < {self.min_S:g}"
+                )
+            elif key == "beta":
+                _warn_or_abort(
+                    f"Plasma beta above threshold: {beta:g} > {self.max_beta:g}"
+                )
+            elif key == "M_A":
+                _warn_or_abort(
+                    f"Alfvén Mach number above threshold: {M_A:g} > {self.max_M_A:g}"
+                )
+            elif key == "R_m":
+                _warn_or_abort(
+                    f"Magnetic Reynolds number below threshold: {R_m:g} < {self.min_R_m:g}"
+                )
+            elif key == "K_n":
+                _warn_or_abort(
+                    f"Knudsen number above threshold: {K_n:g} > {self.max_K_n:g}"
+                )
+            elif key == "omega_ce_tau_e":
+                _warn_or_abort(
+                    "Cyclotron frequency–collision time below threshold: "
+                    f"{omega_ce_tau_e:g} < {self.min_omega_ce_tau_e:g}"
+                )
+
+        entry["violations"] = violations
+
+        self.regime_history.append(entry)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.output_dir / "regime.json", "w", encoding="utf-8") as fh:
+            json.dump(self.regime_history, fh, indent=2)
 
         self._update_regime_plot()
 
