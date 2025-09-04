@@ -9,6 +9,7 @@ export default function App() {
 
   const [voltage, setVoltage] = useState(1.0);
   const [pressure, setPressure] = useState(0.1);
+  const [projects, setProjects] = useState([]);
 
 
   const login = async (e) => {
@@ -56,7 +57,7 @@ export default function App() {
         <div>
           <p>Submitted run: {runId}</p>
           <div>
-            <label>
+            <label title="Adjust the driving voltage applied to the plasma sheath.">
               Voltage: {voltage.toFixed(2)} kV
               <input
                 type="range"
@@ -71,9 +72,13 @@ export default function App() {
                 }}
               />
             </label>
+            <details>
+              <summary>What is this?</summary>
+              Controls the electric potential driving the sheath evolution.
+            </details>
           </div>
           <div>
-            <label>
+            <label title="Set the background gas pressure used in the simulation.">
               Pressure: {pressure.toFixed(2)} bar
               <input
                 type="range"
@@ -88,6 +93,10 @@ export default function App() {
                 }}
               />
             </label>
+            <details>
+              <summary>What is this?</summary>
+              Represents ambient gas pressure; higher values damp the sheath faster.
+            </details>
           </div>
         </div>
       )}

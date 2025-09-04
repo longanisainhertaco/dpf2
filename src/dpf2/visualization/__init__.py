@@ -7,6 +7,7 @@ full simulation stack.
 """
 
 from .sheath import animate_sheath
+from .widgets import sheath_widget
 
-__all__ = ["animate_sheath"]
+__all__ = ["animate_sheath", "sheath_widget"]
 
