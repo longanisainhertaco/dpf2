@@ -140,6 +140,62 @@ def compute_thermonuclear_yield(
     return compute_neutron_yield(rate, dt)
 
 
+def yield_components_with_anisotropy(
+    ion_edf: IonBeamEDF,
+    cross_section: Callable[[float], float],
+    angles: Sequence[float],
+    distance: float,
+    time_bins: Sequence[float],
+    reactivity: Sequence[float],
+    ion_density: Sequence[float],
+    dt: float,
+) -> Dict[str, List[float] | float]:
+    """Return beam-target and thermal yields with angular distribution.
+
+    The beam-target component is computed for each detector angle using
+    :func:`compute_beam_target_yield` while the thermonuclear component is
+    treated as isotropic.  An anisotropy factor ``(max-min)/mean`` is also
+    returned for the combined per-angle yields.
+
+    Parameters
+    ----------
+    ion_edf, cross_section, angles, distance, time_bins:
+        Inputs forwarded to :func:`compute_beam_target_yield`.
+    reactivity, ion_density, dt:
+        Inputs forwarded to :func:`compute_thermonuclear_yield`.
+
+    Returns
+    -------
+    dict
+        Dictionary with keys ``"beam_target"`` (list per angle),
+        ``"thermonuclear"`` (total yield), ``"angular_thermal"`` (list per
+        angle assuming isotropy) and ``"anisotropy"`` (float).
+    """
+
+    bt_yields, tofs = compute_beam_target_yield(
+        ion_edf, cross_section, angles, distance, time_bins
+    )
+    th_total = compute_thermonuclear_yield(reactivity, ion_density, dt)
+    # distribute thermal yield isotropically across angles
+    th_per_angle = [th_total / float(len(angles)) for _ in angles] if angles else []
+    total_per_angle = [b + t for b, t in zip(bt_yields, th_per_angle)]
+    if total_per_angle:
+        mean = sum(total_per_angle) / len(total_per_angle)
+        if mean == 0.0:
+            anisotropy = 0.0
+        else:
+            anisotropy = (max(total_per_angle) - min(total_per_angle)) / mean
+    else:
+        anisotropy = 0.0
+    return {
+        "beam_target": bt_yields,
+        "thermonuclear": th_total,
+        "angular_thermal": th_per_angle,
+        "anisotropy": anisotropy,
+        "tof": tofs,
+    }
+
+
 def simulate_tof_detectors(
     ion_edf: IonBeamEDF,
     cross_section: Callable[[float], float],
@@ -262,6 +318,31 @@ def save_tof_hdf5(
             ds.attrs["unitSI"] = 1.0
 
 
+def tof_iv_cross_correlation(
+    tof: Sequence[float],
+    current: Sequence[float],
+    voltage: Sequence[float],
+) -> Dict[str, float]:
+    """Return zero-lag correlation between TOF signal and I/V traces."""
+
+    if not (len(tof) == len(current) == len(voltage)):
+        raise ValueError("signals must have the same length")
+
+    def _corr(a: Sequence[float], b: Sequence[float]) -> float:
+        mean_a = sum(a) / len(a)
+        mean_b = sum(b) / len(b)
+        num = sum((x - mean_a) * (y - mean_b) for x, y in zip(a, b))
+        den = math.sqrt(
+            sum((x - mean_a) ** 2 for x in a) * sum((y - mean_b) ** 2 for y in b)
+        )
+        return num / den if den != 0 else 0.0
+
+    return {
+        "current": _corr(tof, current),
+        "voltage": _corr(tof, voltage),
+    }
+
+
 def angular_yield_map(
     ion_edf: IonBeamEDF,
     cross_section: Callable[[float], float],
@@ -305,9 +386,11 @@ __all__ = [
     "compute_neutron_yield",
     "compute_beam_target_yield",
     "compute_thermonuclear_yield",
+    "yield_components_with_anisotropy",
     "save_anisotropic_spectrum_hdf5",
     "simulate_tof_detectors",
     "save_tof_hdf5",
+    "tof_iv_cross_correlation",
     "angular_yield_map",
     "save_angular_yield_map_hdf5",
 ]
