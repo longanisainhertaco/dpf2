@@ -7,6 +7,11 @@ import hashlib
 from typing import Mapping
 import logging
 
+try:  # pragma: no cover - optional dependency
+    import h5py  # type: ignore
+except Exception:  # pragma: no cover - stubbed or missing
+    h5py = None  # type: ignore[assignment]
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +45,40 @@ def capture_dataset_metadata(
             raise ValueError(
                 "dataset metadata requires 'path', 'doi' and 'version'"
             )
-        h = _hash_file(Path(path))
+        p = Path(path)
+        h = _hash_file(p)
         logger.info(
             "dataset %s: hash=%s doi=%s version=%s", name, h, doi, version
         )
-        result[name] = {"hash": h, "doi": str(doi), "version": str(version)}
+        result[name] = {
+            "path": str(p),
+            "hash": h,
+            "doi": str(doi),
+            "version": str(version),
+        }
     return result
 
 
-__all__ = ["capture_dataset_metadata"]
+def write_hdf5_dataset_manifest(
+    h5file: "h5py.File", metadata: Mapping[str, Mapping[str, str]]
+) -> None:  # pragma: no cover - thin wrapper
+    """Embed dataset metadata in an HDF5 ``manifest`` group.
+
+    Parameters
+    ----------
+    h5file:
+        Open HDF5 file handle where the manifest should be written.
+    metadata:
+        Mapping of dataset name to a mapping containing ``hash``, ``doi`` and
+        ``version`` entries as produced by :func:`capture_dataset_metadata`.
+    """
+
+    manifest = h5file.require_group("manifest")
+    dgrp = manifest.require_group("datasets")
+    for name, info in metadata.items():
+        grp = dgrp.require_group(name)
+        for key, value in info.items():
+            grp.attrs[key] = value
+
+
+__all__ = ["capture_dataset_metadata", "write_hdf5_dataset_manifest"]

@@ -11,8 +11,23 @@ for neutral species and ablating walls within the simplified MHD framework.
 from ..ablation import ablation_mass_energy_source
 
 
-def neutral_density_source(rho_n: float, ionization_rate: float) -> float:
-    """Return the depletion rate of neutral mass density.
+def neutral_density_source(
+    rho_n: float,
+    ionization_rate: float,
+    *,
+    t: float = 0.0,
+    puff_start: float | None = None,
+    puff_end: float | None = None,
+    mass_flow_rate: float = 0.0,
+    volume: float = 1.0,
+) -> float:
+    """Rate of change of neutral density.
+
+    The source term combines ionisation losses with a simple
+    representation of a timed gas puff.  When ``puff_start <= t <=
+    puff_end`` a mass flow ``mass_flow_rate`` (kg/s) is injected through a
+    nozzle and converted into a density source by dividing by the system
+    volume.
 
     Parameters
     ----------
@@ -20,14 +35,31 @@ def neutral_density_source(rho_n: float, ionization_rate: float) -> float:
         Neutral mass density.
     ionization_rate:
         Effective ionisation rate coefficient ``[1/s]``.
+    t:
+        Simulation time ``[s]``.
+    puff_start, puff_end:
+        Start and end times of the gas puff ``[s]``.
+    mass_flow_rate:
+        Mass flow through the puff nozzle ``[kg/s]``.
+    volume:
+        Volume used to convert mass flow to density ``[m^3]``.
 
     Returns
     -------
     float
-        Time derivative of ``rho_n`` due to ionisation.
+        Time derivative of ``rho_n`` accounting for both sources and
+        sinks.
     """
 
-    return -ionization_rate * rho_n
+    injection = 0.0
+    if (
+        puff_start is not None
+        and puff_end is not None
+        and puff_start <= t <= puff_end
+        and mass_flow_rate > 0.0
+    ):
+        injection = mass_flow_rate / volume
+    return injection - ionization_rate * rho_n
 
 
 def wall_ablation_source(

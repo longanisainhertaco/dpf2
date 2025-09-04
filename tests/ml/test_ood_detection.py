@@ -1,7 +1,9 @@
 import pytest
 
 from dpf2.ai.simple_surrogates import LinearSurrogate
+
 from dpf2.exceptions import OutOfDomainError
+
 
 
 def _surrogate():
@@ -32,5 +34,7 @@ def test_out_of_distribution_warning_raised():
 
 def test_mahalanobis_threshold_blocks():
     model = _surrogate()
+
     with pytest.raises(OutOfDomainError):
         model.predict(3.0)
+

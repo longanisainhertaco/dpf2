@@ -12,6 +12,7 @@ except Exception:  # pragma: no cover - fallback when matplotlib missing
 
 from ..web.app import create_app
 from ..uq import sampling, analysis, calibration
+from ..physics.flashover import FlashoverModel, FlashoverParameters
 
 Bounds = Mapping[str, Tuple[float, float]]
 
@@ -255,6 +256,36 @@ def plot_kpi_with_domain(
     return ax
 
 
+def flashover_delay_distribution(
+    field: float,
+    threshold: float,
+    geometry: str,
+    shots: int,
+    *,
+    sigma: float = 0.1,
+    conditioning: float = 0.0,
+    seed: int | None = None,
+) -> Sequence[float]:
+    """Return stochastic flashover delays for GUI consumption."""
+
+    params = FlashoverParameters(
+        field_threshold=threshold,
+        sigma=sigma,
+        conditioning=conditioning,
+        seed=seed,
+    )
+    model = FlashoverModel(geometry, params)
+    return model.delay_distribution(field, shots)
+
+
+def flashover_conditioning_curve(shots: int, alpha: float) -> Sequence[float]:
+    """Return conditioning multipliers suitable for plotting."""
+
+    params = FlashoverParameters(field_threshold=1.0, conditioning=alpha)
+    model = FlashoverModel("mather", params)
+    return model.conditioning_curve(shots)
+
+
 __all__ = [
     "launch",
     "run_sampling",
@@ -262,4 +293,6 @@ __all__ = [
     "calibrate_from_file",
     "plot_posterior_distributions",
     "plot_kpi_with_domain",
+    "flashover_delay_distribution",
+    "flashover_conditioning_curve",
 ]

@@ -141,16 +141,30 @@ class MLModelConfig(ConfigSectionBase):
 
     # ------------------------------------------------------------------
     def mahalanobis_distance(self, x: "np.ndarray") -> float:
-        """Return Mahalanobis distance of ``x`` to the training hull."""
+        """Return the Mahalanobis distance of ``x`` to the training hull.
+
+        The computation is tolerant of singular covariance matrices by using
+        the pseudo-inverse.  A helpful :class:`ValueError` is raised if the
+        dimensionality of the input does not match that of the stored training
+        statistics.
+        """
 
         if self.training_mean is None or self.training_covariance is None:
-            raise ValueError("training_mean and training_covariance required for OOD detection")
+            raise ValueError(
+                "training_mean and training_covariance required for OOD detection"
+            )
+
         import numpy as np  # local import to support numpy stubs
 
         mean = np.asarray(self.training_mean, dtype=float)
         cov = np.asarray(self.training_covariance, dtype=float)
+        x_arr = np.asarray(x, dtype=float)
+        if mean.shape[-1] != x_arr.shape[-1]:
+            raise ValueError(
+                "Input dimensionality does not match training statistics"
+            )
+        diff = x_arr - mean
         inv = np.linalg.pinv(cov)
-        diff = np.asarray(x, dtype=float) - mean
         return float(np.sqrt(diff.T @ inv @ diff))
 
     def in_distribution(self, x: "np.ndarray") -> bool:

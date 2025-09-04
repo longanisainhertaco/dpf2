@@ -5,6 +5,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 import asyncio
+import random
+import tempfile
 from typing import Any, Dict, List
 
 from fastapi import (
@@ -17,12 +19,14 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
 from dpf2.dpf_config import DPFConfig
 from dpf2.optimization.param_sweep import compute_sweep_metrics
 from dpf2.diagnostics import RegimePanel
+from dpf2.web.lab_mode_api import export_manifest_bundle
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 AUDIT_LOG = BASE_DIR / "audit.log"
@@ -90,6 +94,10 @@ class SweepRequest(BaseModel):
 
 class SnapshotRequest(BaseModel):
     state: Dict[str, Any]
+
+
+class LabBundleRequest(BaseModel):
+    runs: List[Dict[str, Any]]
 
 
 async def broadcast_progress(run_id: str, progress: float) -> None:
@@ -235,6 +243,16 @@ async def upload_snapshot(file: UploadFile = File(...)):
     """Load a snapshot from a user-uploaded JSON file."""
     data = json.loads(await file.read())
     return data
+
+
+@app.post("/lab-mode/manifests")
+def create_lab_manifest_bundle(req: LabBundleRequest, user=Depends(get_current_user)):
+    """Generate a manifest bundle for a batch of lab-mode configurations."""
+    seeds = [random.randint(0, 2**32 - 1) for _ in req.runs]
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+        export_manifest_bundle(req.runs, tmp.name, seeds=seeds)
+        logger.info("action=lab_bundle user=%s runs=%d", user["username"], len(req.runs))
+        return FileResponse(tmp.name, media_type="application/zip", filename="manifest_bundle.zip")
 
 
 @app.websocket("/ws/progress/{run_id}")

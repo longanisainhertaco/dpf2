@@ -14,7 +14,12 @@ except Exception:  # pragma: no cover
 
 from ...diagnostics.modes import azimuthal_mode_spectrum, growth_rate
 
-__all__ = ["azimuthal_mode_spectrum", "growth_rate", "plot_growth_rates"]
+__all__ = [
+    "azimuthal_mode_spectrum",
+    "growth_rate",
+    "plot_growth_rates",
+    "write_growth_rates",
+]
 
 
 def plot_growth_rates(times: Sequence[float], spectra: Sequence[Sequence[float]],
@@ -49,3 +54,32 @@ def plot_growth_rates(times: Sequence[float], spectra: Sequence[Sequence[float]]
     fig.savefig(fig_path)
     plt.close(fig)
     return fig_path
+
+
+def write_growth_rates(times: Sequence[float], spectra: Sequence[Sequence[float]],
+                       outdir: Path | str = Path("synthetic_diagnostics/modes")) -> Path:
+    """Compute growth rates and write them to ``outdir``.
+
+    The returned file contains one row per interval in ``times`` with the
+    exponential growth rate for each azimuthal mode.  ``times`` and
+    ``spectra`` must therefore contain at least two samples.
+    """
+
+    if len(times) < 2 or len(spectra) < 2:
+        raise ValueError("at least two time steps required to compute growth rates")
+
+    out_path = Path(outdir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    rates = []
+    for t0, t1, s0, s1 in zip(times[:-1], times[1:], spectra[:-1], spectra[1:]):
+        dt = float(t1) - float(t0)
+        rates.append(growth_rate(s0, s1, dt))
+    arr = np.asarray(rates)
+    file_path = out_path / "growth_rates.csv"
+    if hasattr(np, "savetxt"):
+        np.savetxt(file_path, arr, delimiter=",")
+    else:  # pragma: no cover - minimal stub fallback
+        with open(file_path, "w", encoding="utf-8") as fh:
+            for row in arr:
+                fh.write(",".join(str(float(x)) for x in row) + "\n")
+    return file_path

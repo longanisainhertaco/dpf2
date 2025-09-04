@@ -91,7 +91,7 @@ class WarpXSettings(ConfigSectionBase):
         None, alias="emissionProfilePath"
     )
 
-    field_deposition: Literal["standard", "Esirkepov", "EZ"] = Field(
+    current_deposition: Literal["standard", "Esirkepov", "EZ"] = Field(
         "standard", alias="fieldDeposition"
     )
     current_correction: Optional[bool] = Field(True, alias="currentCorrection")
@@ -139,7 +139,7 @@ class WarpXSettings(ConfigSectionBase):
             "galilean_shift_velocity": None,
             "moving_window_velocity": None,
             "emission_profile_path": None,
-            "field_deposition": "standard",
+            "current_deposition": "standard",
             "current_correction": True,
             "current_smoothing_enabled": False,
             "current_smoothing_kernel": None,
@@ -154,6 +154,11 @@ class WarpXSettings(ConfigSectionBase):
         defaults = self.with_defaults(geometry).model_dump()
         defaults.update({k: v for k, v in data.items() if v is not None})
         return self.model_validate(defaults, context={"geometry": geometry})
+
+    @property
+    def field_deposition(self) -> Literal["standard", "Esirkepov", "EZ"]:
+        """Backward compatibility alias for :attr:`current_deposition`."""
+        return self.current_deposition
 
     @classmethod
     def required_fields(cls) -> List[str]:

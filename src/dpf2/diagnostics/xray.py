@@ -1,17 +1,25 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Sequence, List, Dict, Any
+from typing import Sequence, List, Dict, Any, Mapping
 import json
 
 
-def load_response(path: str | Path) -> Dict[str, Any]:
+def load_response(path: str | Path, overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     """Load an X-ray detector response description from *path*.
 
-    The JSON format mirrors that used for neutron detectors.
+    Parameters
+    ----------
+    path:
+        Location of the JSON configuration file.
+    overrides:
+        Optional mapping of values that override those read from *path*.
     """
     with open(Path(path), "r", encoding="utf-8") as fh:
-        return json.load(fh)
+        data = json.load(fh)
+    if overrides:
+        data.update(overrides)
+    return data
 
 
 def apply_response(
@@ -49,9 +57,9 @@ def apply_response(
                     last = ti
         vals = processed
 
-    dispersion = response.get("dispersion")
-    if dispersion:
-        kernel = [float(k) for k in dispersion]
+    kernel = response.get("transfer_function") or response.get("dispersion")
+    if kernel:
+        kernel = [float(k) for k in kernel]
         conv = [0.0 for _ in vals]
         for i, v in enumerate(vals):
             for j, k in enumerate(kernel):

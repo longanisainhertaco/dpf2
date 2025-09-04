@@ -16,6 +16,8 @@ from typing import Any, Callable, Dict, Tuple
 from typing import Protocol
 
 import logging
+import math
+from pathlib import Path
 import numpy as np
 try:  # pragma: no cover - allow running without SciPy
     from scipy.constants import mu_0
@@ -349,10 +351,12 @@ class HallMHDSolver(PlasmaSolverBase):
     instability_thresholds: Dict[str, float] | None = None
     sausage_onset: bool = field(init=False, default=False)
     kink_onset: bool = field(init=False, default=False)
+    mode_history: list[np.ndarray] = field(init=False, default_factory=list)
     voltage_spikes: list[float] = field(default_factory=list)
     impedance_growth: list[float] = field(default_factory=list)
     last_voltage_spike: float = field(init=False, default=0.0)
     last_lh_power: float = field(init=False, default=0.0)
+    last_lh_phase_velocity: float = field(init=False, default=0.0)
     last_eta_anom_mean: float = field(init=False, default=0.0)
     last_eta_total_mean: float = field(init=False, default=0.0)
     last_pressure: np.ndarray | None = field(init=False, default=None)
@@ -453,7 +457,14 @@ class HallMHDSolver(PlasmaSolverBase):
             _accumulate(e_eta, e_E)
 
         if self.lower_hybrid_drift is not None:
-            res = self.lower_hybrid_drift(J)
+            model = self.lower_hybrid_drift
+            source = getattr(model, "__self__", model)
+            if callable(model):
+                res = model(J)
+            elif hasattr(model, "anomalous_resistivity"):
+                res = model.anomalous_resistivity(J)
+            else:  # pragma: no cover - unexpected type
+                res = model(J)  # type: ignore[misc]
             e_eta, e_E = _process(res)
             _accumulate(e_eta, e_E, axial=True)
             s_eta += e_eta
@@ -461,13 +472,31 @@ class HallMHDSolver(PlasmaSolverBase):
                 s_E[..., 2] += e_E
             else:
                 s_E += e_E
-            if hasattr(self.lower_hybrid_drift, "power"):
+            if hasattr(source, "power"):
                 try:
-                    self.last_lh_power = float(np.max(self.lower_hybrid_drift.power()))
+                    self.last_lh_power = float(np.max(source.power()))
                 except Exception:  # pragma: no cover - power optional
                     self.last_lh_power = 0.0
+            else:
+                self.last_lh_power = 0.0
+            if hasattr(source, "last_phase_velocity"):
+                try:
+                    self.last_lh_phase_velocity = float(
+                        np.max(getattr(source, "last_phase_velocity"))
+                    )
+                except Exception:  # pragma: no cover - optional
+                    self.last_lh_phase_velocity = 0.0
+            elif hasattr(source, "phase_velocity"):
+                try:
+                    pv = source.phase_velocity()
+                    self.last_lh_phase_velocity = float(np.max(pv))
+                except Exception:  # pragma: no cover - optional
+                    self.last_lh_phase_velocity = 0.0
+            else:
+                self.last_lh_phase_velocity = 0.0
         else:
             self.last_lh_power = 0.0
+            self.last_lh_phase_velocity = 0.0
 
 
         if self.instability_thresholds:
@@ -501,10 +530,17 @@ class HallMHDSolver(PlasmaSolverBase):
         if not self.instability_thresholds:
             return
         try:
-            J_mag = np.linalg.norm(J, axis=-1)
+            if hasattr(np, "linalg") and hasattr(np.linalg, "norm"):
+                J_mag = np.linalg.norm(J, axis=-1)
+            else:  # pragma: no cover - manual magnitude for stubs
+                J_mag = np.array([
+                    math.sqrt(float(j[0]) ** 2 + float(j[1]) ** 2 + float(j[2]) ** 2)
+                    for j in J
+                ])
         except Exception:  # pragma: no cover - very small stub fallback
             return
         spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
+        self.mode_history.append(spectrum.copy())
         if (
             not self.sausage_onset
             and "sausage" in self.instability_thresholds
@@ -519,6 +555,23 @@ class HallMHDSolver(PlasmaSolverBase):
             and spectrum[1] >= self.instability_thresholds["kink"]
         ):
             self.kink_onset = True
+
+    def dump_mode_growth(self, outdir: Path | str = Path("synthetic_diagnostics/modes")) -> Path | None:
+        """Write recorded modal growth rates to ``outdir``.
+
+        The solver collects the azimuthal mode spectrum of the current density
+        during :meth:`compute_anomalous_resistivity`.  This helper computes the
+        exponential growth rate between successive spectra and stores them in
+        ``outdir`` using the :mod:`dpf2.synthetic_diagnostics.modes` helpers.
+        ``None`` is returned if fewer than two spectra have been recorded.
+        """
+
+        if len(self.mode_history) < 2:
+            return None
+        times = list(range(len(self.mode_history)))
+        from .synthetic_diagnostics.modes import write_growth_rates
+
+        return write_growth_rates(times, self.mode_history, outdir)
 
     def amr_refinement(self, state: MHDState) -> None:
         """Invoke the refinement callback if provided."""
@@ -870,9 +923,10 @@ class HallMHDSolver(PlasmaSolverBase):
             self.last_voltage_spike / (abs(self.current) + 1e-30)
         )
 
+        v_final = mom / rho[..., None]
+        B2_final = np.sum(B ** 2, axis=-1)
+
         if energy_tracker is not None:
-            v_final = mom / rho[..., None]
-            B2_final = np.sum(B ** 2, axis=-1)
             kinetic_final = 0.5 * rho * np.sum(v_final**2, axis=-1)
             magnetic_final = 0.5 * B2_final
             thermal_final = energy - kinetic_final - magnetic_final
@@ -908,6 +962,7 @@ class HallMHDSolver(PlasmaSolverBase):
             lambda_D = np.sqrt(epsilon_0 * k * T / (ne * e**2))
             ppc = float(np.mean(ne) * cell_volume)
             lh_power = self.last_lh_power
+            lh_phase = self.last_lh_phase_velocity
             impedance = self.last_eta_total_mean
             self.quality.log(
                 self.step_count,
@@ -918,9 +973,16 @@ class HallMHDSolver(PlasmaSolverBase):
                 float(np.mean(lambda_D)),
                 amr_level=getattr(self, "amr_level", None),
                 lower_hybrid_power=lh_power,
+                lower_hybrid_phase_velocity=lh_phase,
                 plasma_impedance=impedance,
                 divergence_error=getattr(self, "divergence_error", 0.0),
                 energy_drift=getattr(self, "energy_drift", 0.0),
+                hall_active=self.hall_active,
+                electron_inertia_active=self.electron_inertia_active,
+                wce_tau_e=self.last_wce_tau_e,
+                di_over_L=self.last_di_over_L,
+                hall_threshold=self.hall_threshold,
+                ei_threshold=self.ei_threshold,
 
             )
 
