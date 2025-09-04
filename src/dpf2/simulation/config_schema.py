@@ -106,6 +106,13 @@ class PICConfig(BaseModel):
     particle_injection_density: float = Field(1.0, description="Density of injected particles")
     particle_injection_velocity: List[float] = Field([0.0, 0.0, 0.0], description="Velocity of injected particles")
     particle_injection_position: List[float] = Field([0.0, 0.0, 0.0], description="Position of injected particles")
+    boundary_conditions: Dict[str, str] = Field(
+        default_factory=lambda: {'x': 'periodic', 'y': 'periodic', 'z': 'periodic'},
+        description="Particle boundary conditions for each axis",
+    )
+    enable_quantum: bool = Field(False, description="Enable quantum effect hooks")
+    enable_radiation: bool = Field(False, description="Enable radiation model hooks")
+    enable_mesh_adaptivity: bool = Field(False, description="Enable mesh adaptivity hooks")
     # Add other parameters as needed
 
 class HybridConfig(BaseModel):

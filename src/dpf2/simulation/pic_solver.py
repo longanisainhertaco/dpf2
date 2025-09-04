@@ -2,12 +2,13 @@
 
 """
 Particle-in-Cell (PIC) solver implementing classical electromagnetic dynamics,
-basic collision processes, and optional coupling to WarpX.
+basic collision processes, diagnostics and optional coupling to WarpX.
 
-Future Work:
-- Expanded diagnostics and analysis tools
-- Support for quantum and radiation models
-- Additional boundary conditions and mesh adaptivity
+Recent additions include:
+- Energy spectra and phase-space diagnostic routines
+- Configurable particle boundary conditions
+- Hooks for quantum and radiation models
+- Pluggable mesh adaptivity
 """
 
 import numpy as np
@@ -16,7 +17,7 @@ import json
 import threading
 import math
 from numba import njit, prange
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Callable
 from .config_schema import PICConfig
 from .models import PhysicsModule
 from .utils import FieldManager, SimulationState
@@ -77,7 +78,14 @@ class PICSolver(PhysicsModule):
         self.origin = (0.0, 0.0, 0.0)
         self.max_dt = config.max_dt
         self.em = config.electromag
-        self.periodic = config.periodic
+        self.boundary_conditions = config.boundary_conditions
+        bc_map = {'periodic': 0, 'reflecting': 1, 'absorbing': 2}
+        self.bc_codes = (
+            bc_map.get(self.boundary_conditions.get('x', 'reflecting'), 1),
+            bc_map.get(self.boundary_conditions.get('y', 'reflecting'), 1),
+            bc_map.get(self.boundary_conditions.get('z', 'reflecting'), 1),
+        )
+        self.bc_periodic = tuple(code == 0 for code in self.bc_codes)
         self.dt = config.dt if config.dt else 0.5 * min(self.dx, self.dy, self.dz) / PICSolver.c
         self.use_warpx = config.use_warpx
         self.unity_params = config.unity_params or {}
@@ -97,6 +105,11 @@ class PICSolver(PhysicsModule):
             ElectronIonCollision(), ElectronNeutralCollision(),
             IonizationProcess(), RecombinationProcess()
         ])
+        self.enable_quantum = config.enable_quantum
+        self.enable_radiation = config.enable_radiation
+        self.quantum_model: Optional[Callable[["PICSolver"], None]] = None
+        self.radiation_model: Optional[Callable[["PICSolver"], None]] = None
+        self.mesh_adapter: Optional[Callable[[], None]] = self.refine_grid if config.enable_mesh_adaptivity else None
         self.warpx = WarpXWrapper(
             config.grid_shape, config.grid_spacing, config.electromag,
             PICSolver.pml_thickness, PICSolver.pml_sigma_max,
@@ -121,7 +134,7 @@ class PICSolver(PhysicsModule):
     # Boris pusher
     #-------------------------------------------------------------------------------------
     @njit(parallel=True, fastmath=True)
-    def boris_push_numba(self, pos, vel, q, m, dt, E, B, origin, dxyz, periodic, dims):
+    def boris_push_numba(self, pos, vel, q, m, dt, E, B, origin, dxyz, bc, dims):
         """
         Numba-accelerated Boris pusher for updating particle positions and velocities.
 
@@ -135,7 +148,8 @@ class PICSolver(PhysicsModule):
             B: Magnetic field.
             origin: Origin of the grid.
             dxyz: Grid spacing (dx, dy, dz).
-            periodic: Whether the domain is periodic.
+            bc: Tuple describing boundary conditions per axis (0=periodic,
+                1=reflecting, 2=absorbing).
             dims: Grid dimensions (nx, ny, nz).
         """
         nx,ny,nz=dims; dx,dy,dz=dxyz; ox,oy,oz=origin
@@ -145,13 +159,13 @@ class PICSolver(PhysicsModule):
             fx,fy,fz=xi-i0,yi-j0,zi-k0
             Ex=Ey=Ez=Bx=By=Bz=0.0
             for di in (0,1):
-                wx=(1-fx) if di==0 else fx; ii=(i0+di)%nx if periodic else i0+di
+                wx=(1-fx) if di==0 else fx; ii=(i0+di)%nx if bc[0]==0 else i0+di
                 if ii<0 or ii>=nx: continue
                 for dj in (0,1):
-                    wy=(1-fy) if dj==0 else fy; jj=(j0+dj)%ny if periodic else j0+dj
+                    wy=(1-fy) if dj==0 else fy; jj=(j0+dj)%ny if bc[1]==0 else j0+dj
                     if jj<0 or jj>=ny: continue
                     for dk in (0,1):
-                        wz=(1-fz) if dk==0 else fz; kk=(k0+dk)%nz if periodic else k0+dk
+                        wz=(1-fz) if dk==0 else fz; kk=(k0+dk)%nz if bc[2]==0 else k0+dk
                         if kk<0 or kk>=nz: continue
                         w=wx*wy*wz
                         Ex+=w*E[0,ii,jj,kk]; Ey+=w*E[1,ii,jj,kk]; Ez+=w*E[2,ii,jj,kk]
@@ -161,7 +175,8 @@ class PICSolver(PhysicsModule):
             ux,uy,uz=gamma*vx,gamma*vy,gamma*vz
             ux+=q/m*Ex*(dt*0.5); uy+=q/m*Ey*(dt*0.5); uz+=q/m*Ez*(dt*0.5)
             gamma_star=math.sqrt(1+(ux*ux+uy*uy+uz*uz)/PICSolver.c**2)
-            tx,ty,tz=(q/m)*(Bx,By,Bz)*(dt*0.5)/gamma_star
+            coeff=(q/m)*(dt*0.5)/gamma_star
+            tx,ty,tz=coeff*Bx,coeff*By,coeff*Bz
             upr_x=ux+(uy*tz-uz*ty); upr_y=uy+(uz*tx-ux*tz); upr_z=uz+(ux*ty-uy*tx)
             s_den=1+tx*tx+ty*ty+tz*tz; sx,sy,sz=2*tx/s_den,2*ty/s_den,2*tz/s_den
             uxp=ux+(upr_y*sz-upr_z*sy); uyp=uy+(upr_z*sx-upr_x*sz); uzp=uz+(upr_x*sy-upr_y*sx)
@@ -169,14 +184,19 @@ class PICSolver(PhysicsModule):
             g_new=math.sqrt(1+(ux_new*ux_new+uy_new*uy_new+uz_new*uz_new)/PICSolver.c**2)
             vel[idx,0]=ux_new/g_new; vel[idx,1]=uy_new/g_new; vel[idx,2]=uz_new/g_new
             pos[idx,0]+=vel[idx,0]*dt; pos[idx,1]+=vel[idx,1]*dt; pos[idx,2]+=vel[idx,2]*dt
-            if periodic:
-                pos[idx,0]=ox+(pos[idx,0]-ox)%(nx*dx)
-                pos[idx,1]=oy+(pos[idx,1]-oy)%(ny*dy)
-                pos[idx,2]=oz+(pos[idx,2]-oz)%(nz*dz)
-            else:
-                for d,(low,high) in enumerate(((ox,ox+nx*dx),(oy,oy+ny*dy),(oz,oz+nz*dz))):
-                    if pos[idx,d]<low: pos[idx,d]=2*low-pos[idx,d]; vel[idx,d]=-vel[idx,d]
-                    if pos[idx,d]>high: pos[idx,d]=2*high-pos[idx,d]; vel[idx,d]=-vel[idx,d]
+            for d,(low,high,length) in enumerate(((ox,ox+nx*dx,nx*dx),(oy,oy+ny*dy,ny*dy),(oz,oz+nz*dz,nz*dz))):
+                b=bc[d]
+                if b==0:  # periodic
+                    if pos[idx,d]<low: pos[idx,d]+=length
+                    if pos[idx,d]>=high: pos[idx,d]-=length
+                elif b==1:  # reflecting
+                    if pos[idx,d]<low:
+                        pos[idx,d]=2*low-pos[idx,d]; vel[idx,d]=-vel[idx,d]
+                    if pos[idx,d]>high:
+                        pos[idx,d]=2*high-pos[idx,d]; vel[idx,d]=-vel[idx,d]
+                elif b==2:  # absorbing
+                    if pos[idx,d]<low or pos[idx,d]>high:
+                        pos[idx,d]=np.nan; vel[idx,d]=0.0
 
     #-------------------------------------------------------------------------------------
     # Charge & Current deposition
@@ -186,21 +206,25 @@ class PICSolver(PhysicsModule):
         try:
             self.field_manager.rho.fill(0)
             vol = self.dx * self.dy * self.dz
-            for spc in self.species.values(): # Loop over species
+            bcx, bcy, bcz = self.bc_periodic
+            for spc in self.species.values():  # Loop over species
                 q, pos = spc['q'], spc['pos']
                 for p in pos:
                     xi, yi, zi = (p[0] - self.origin[0]) / self.dx, (p[1] - self.origin[1]) / self.dy, (p[2] - self.origin[2]) / self.dz
                     i0, j0, k0 = int(np.floor(xi)), int(np.floor(yi)), int(np.floor(zi))
                     fx, fy, fz = xi - i0, yi - j0, zi - k0
                     for di in (0, 1):
-                        wx = (1 - fx) if di == 0 else fx; ii = (i0 + di) % self.nx if self.periodic else i0 + di
-                        if ii < 0 or ii >= self.nx: continue
+                        wx = (1 - fx) if di == 0 else fx; ii = (i0 + di) % self.nx if bcx else i0 + di
+                        if ii < 0 or ii >= self.nx:
+                            continue
                         for dj in (0, 1):
-                            wy = (1 - fy) if dj == 0 else fy; jj = (j0 + dj) % self.ny if self.periodic else j0 + dj
-                            if jj < 0 or jj >= self.ny: continue
+                            wy = (1 - fy) if dj == 0 else fy; jj = (j0 + dj) % self.ny if bcy else j0 + dj
+                            if jj < 0 or jj >= self.ny:
+                                continue
                             for dk in (0, 1):
-                                wz = (1 - fz) if dk == 0 else fz; kk = (k0 + dk) % self.nz if self.periodic else k0 + dk
-                                if kk < 0 or kk >= self.nz: continue
+                                wz = (1 - fz) if dk == 0 else fz; kk = (k0 + dk) % self.nz if bcz else k0 + dk
+                                if kk < 0 or kk >= self.nz:
+                                    continue
                                 self.field_manager.rho[ii, jj, kk] += q * (wx * wy * wz) / vol
         except Exception as e:
             logger.error(f"Error depositing charge: {e}")
@@ -210,21 +234,25 @@ class PICSolver(PhysicsModule):
         try:
             self.field_manager.J.fill(0)
             vol = self.dx * self.dy * self.dz
-            for spc in self.species.values(): # Loop over species
+            bcx, bcy, bcz = self.bc_periodic
+            for spc in self.species.values():  # Loop over species
                 q, pos, vel = spc['q'], spc['pos'], spc['vel']
                 for p, v in zip(pos, vel):
                     xi, yi, zi = (p[0] - self.origin[0]) / self.dx, (p[1] - self.origin[1]) / self.dy, (p[2] - self.origin[2]) / self.dz
                     i0, j0, k0 = int(np.floor(xi)), int(np.floor(yi)), int(np.floor(zi))
                     fx, fy, fz = xi - i0, yi - j0, zi - k0
                     for di in (0, 1):
-                        wx = (1 - fx) if di == 0 else fx; ii = (i0 + di) % self.nx if self.periodic else i0 + di
-                        if ii < 0 or ii >= self.nx: continue
+                        wx = (1 - fx) if di == 0 else fx; ii = (i0 + di) % self.nx if bcx else i0 + di
+                        if ii < 0 or ii >= self.nx:
+                            continue
                         for dj in (0, 1):
-                            wy = (1 - fy) if dj == 0 else fy; jj = (j0 + dj) % self.ny if self.periodic else j0 + dj
-                            if jj < 0 or jj >= self.ny: continue
+                            wy = (1 - fy) if dj == 0 else fy; jj = (j0 + dj) % self.ny if bcy else j0 + dj
+                            if jj < 0 or jj >= self.ny:
+                                continue
                             for dk in (0, 1):
-                                wz = (1 - fz) if dk == 0 else fz; kk = (k0 + dk) % self.nz if self.periodic else k0 + dk
-                                if kk < 0 or kk >= self.nz: continue
+                                wz = (1 - fz) if dk == 0 else fz; kk = (k0 + dk) % self.nz if bcz else k0 + dk
+                                if kk < 0 or kk >= self.nz:
+                                    continue
                                 w = wx * wy * wz
                                 self.field_manager.J[0, ii, jj, kk] += q * v[0] * w / vol
                                 self.field_manager.J[1, ii, jj, kk] += q * v[1] * w / vol
@@ -417,15 +445,24 @@ class PICSolver(PhysicsModule):
             for name, spc in self.species.items():  # Loop over species
                 self.boris_push_numba(spc['pos'], spc['vel'], spc['q'], spc['m'], self.dt,
                                       E, B, self.origin, (self.dx, self.dy, self.dz),
-                                      self.periodic, (self.nx, self.ny, self.nz))  # Boris pusher
+                                      self.bc_codes, (self.nx, self.ny, self.nz))
             self.apply_collisions()
+            if self.enable_quantum and self.quantum_model:
+                self.quantum_model()
+            if self.enable_radiation and self.radiation_model:
+                self.radiation_model()
             self.calculate_vdf()
             self.calculate_moments()
             self.calculate_spatial_diagnostics()
-            self.refine_grid()
+            if self.mesh_adapter:
+                self.mesh_adapter()
             self.stream_to_unity()
         except Exception as e:
             logger.error(f"Error during PIC step: {e}")
+
+    def apply(self, state: SimulationState, dt: float) -> None:  # type: ignore[override]
+        """Interface required by ``PhysicsModule``."""
+        self.step()
 
     def apply_collisions(self):
         """Applies collision processes to the particles."""
@@ -471,6 +508,52 @@ class PICSolver(PhysicsModule):
         except Exception as e:
             logger.error(f"Error computing total energy: {e}")
             return 0.0
+
+    #-------------------------------------------------------------------------------------
+    # Diagnostics
+    #-------------------------------------------------------------------------------------
+    def compute_energy_spectra(self, species: Optional[str] = None, bins: int = 50):
+        """Compute kinetic-energy spectra for particles.
+
+        Args:
+            species: Name of the species to analyse. If ``None`` a dictionary of
+                spectra for all species is returned.
+            bins: Number of histogram bins.
+
+        Returns:
+            Tuple of ``(bin_edges, counts)`` for the requested species or a
+            dictionary of such tuples when ``species`` is ``None``.
+        """
+        results: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+        names = [species] if species else list(self.species.keys())
+        for name in names:
+            spc = self.species[name]
+            m = spc['m']
+            vel = spc['vel']
+            energy = 0.5 * m * np.sum(vel**2, axis=1)
+            hist, edges = np.histogram(energy, bins=bins)
+            results[name] = (edges, hist)
+        return results[species] if species else results
+
+    def compute_phase_space(self, species: str, x_dim: int = 0, v_dim: int = 0, bins: int = 50):
+        """Compute a phase-space histogram for a given species."""
+        spc = self.species[species]
+        x = spc['pos'][:, x_dim]
+        v = spc['vel'][:, v_dim]
+        H, xedges, vedges = np.histogram2d(x, v, bins=bins)
+        return xedges, vedges, H
+
+    def set_quantum_model(self, model: Callable[["PICSolver"], None]):
+        """Attach a quantum-effects model callable."""
+        self.quantum_model = lambda: model(self)
+
+    def set_radiation_model(self, model: Callable[["PICSolver"], None]):
+        """Attach a radiation model callable."""
+        self.radiation_model = lambda: model(self)
+
+    def set_mesh_adapter(self, adapter: Callable[["PICSolver"], None]):
+        """Attach a mesh-adaptivity callback."""
+        self.mesh_adapter = lambda: adapter(self)
 
     #-------------------------------------------------------------------------------------
     # Unity streaming
