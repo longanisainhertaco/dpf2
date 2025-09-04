@@ -3,13 +3,34 @@ import React, { useMemo, useRef } from 'react';
 export default function EfficiencyCurveOverlay({ datasets = [] }) {
   const svgRef = useRef(null);
 
+  const summary = useMemo(() => {
+    if (datasets.length === 0) return null;
+    const first = datasets[0].data || {};
+    const metrics = Object.values(first);
+    if (metrics.length === 0) return null;
+    const best = metrics.reduce((a, b) => {
+      const aEff = a.wall_plug_efficiency ?? a.efficiency ?? 0;
+      const bEff = b.wall_plug_efficiency ?? b.efficiency ?? 0;
+      return bEff > aEff ? b : a;
+    });
+    return {
+      yieldShot: best.yield_per_shot ?? 0,
+      yieldHour: best.yield_per_hour ?? 0,
+      wallPlug: best.wall_plug_efficiency ?? best.efficiency ?? 0,
+      lifetime: best.lifetime_hours ?? 0,
+    };
+  }, [datasets]);
+
   const computePoints = (data) => {
     const entries = Object.entries(data);
     if (entries.length === 0) return '';
     const width = 200;
     const height = 100;
     const sorted = entries
-      .map(([p, m]) => ({ param: parseFloat(p), value: m.efficiency }))
+      .map(([p, m]) => ({
+        param: parseFloat(p),
+        value: m.wall_plug_efficiency ?? m.efficiency,
+      }))
       .sort((a, b) => a.param - b.param);
     const minParam = sorted[0].param;
     const maxParam = sorted[sorted.length - 1].param;
@@ -44,6 +65,14 @@ export default function EfficiencyCurveOverlay({ datasets = [] }) {
           return <polyline key={label} points={pts} stroke={color} fill="none" />;
         })}
       </svg>
+      {summary && (
+        <ul className="metrics">
+          <li>Yield/shot: {summary.yieldShot.toLocaleString()}</li>
+          <li>Yield/hour: {summary.yieldHour.toLocaleString()}</li>
+          <li>Wall-plug eff.: {(summary.wallPlug * 100).toFixed(2)}%</li>
+          <li>Lifetime: {summary.lifetime.toFixed(1)} h</li>
+        </ul>
+      )}
       <button type="button" onClick={download}>
         Download
       </button>
