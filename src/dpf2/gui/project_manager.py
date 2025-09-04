@@ -33,6 +33,7 @@ class ProjectManager:
 
     def __init__(self) -> None:
         self.metrics: Dict[str, Dict[float, Dict[str, float]]] = {}
+        self.params: Dict[str, str] = {}
 
     def run_sweep(
         self,
@@ -59,9 +60,12 @@ class ProjectManager:
             Directory where individual run results should be written.
         """
 
-        results = run_parametric_sweep(base_config, parameter, values, output_dir=output_dir)
+        results = run_parametric_sweep(
+            base_config, parameter, values, output_dir=output_dir
+        )
         metrics = compute_sweep_metrics(base_config, results)
         self.metrics[label] = metrics
+        self.params[label] = parameter
         return metrics
 
     def overlay_yield_pressure(self, path: str | Path) -> Path:
@@ -69,14 +73,29 @@ class ProjectManager:
 
         return plot_yield_pressure_overlay(self.metrics, path)
 
-    def overlay_metrics(self, parameter: str, path: str | Path) -> Path:
-        """Overlay yield, pinch time and efficiency curves for stored sweeps."""
+    def overlay_metrics(
+        self, path: str | Path, parameter: str | None = None
+    ) -> Path:
+        """Overlay yield, pinch time and efficiency curves for stored sweeps.
+
+        Parameters
+        ----------
+        path:
+            Destination image path.
+        parameter:
+            Optional axis label. If omitted and all recorded sweeps share a
+            common parameter, that name is used automatically.
+        """
 
         import matplotlib.pyplot as plt
 
+        if parameter is None:
+            params = {self.params.get(k, "") for k in self.metrics}
+            parameter = params.pop() if len(params) == 1 else "parameter"
+
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 9))
+        fig, axes = plt.subplots(1, 3, sharex=False, figsize=(12, 4))
 
         for label, metrics in self.metrics.items():
             vals = sorted(metrics.keys())
@@ -90,8 +109,8 @@ class ProjectManager:
         axes[0].set_ylabel("Yield")
         axes[1].set_ylabel("Pinch Time")
         axes[2].set_ylabel("Efficiency")
-        axes[2].set_xlabel(parameter)
         for ax in axes:
+            ax.set_xlabel(parameter)
             ax.grid(True)
             ax.legend()
         fig.tight_layout()
