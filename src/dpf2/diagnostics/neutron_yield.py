@@ -323,7 +323,13 @@ def tof_iv_cross_correlation(
     current: Sequence[float],
     voltage: Sequence[float],
 ) -> Dict[str, float]:
-    """Return zero-lag correlation between TOF signal and I/V traces."""
+    """Return zero-lag correlation between TOF signal and I/V traces.
+
+    In addition to individual current and voltage correlations the
+    correlation with instantaneous electrical power (``I*V``) is also
+    returned.  All inputs must be the same length and are treated as
+    uniformly sampled in time.
+    """
 
     if not (len(tof) == len(current) == len(voltage)):
         raise ValueError("signals must have the same length")
@@ -337,9 +343,11 @@ def tof_iv_cross_correlation(
         )
         return num / den if den != 0 else 0.0
 
+    power = [i * v for i, v in zip(current, voltage)]
     return {
         "current": _corr(tof, current),
         "voltage": _corr(tof, voltage),
+        "power": _corr(tof, power),
     }
 
 

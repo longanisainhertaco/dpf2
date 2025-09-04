@@ -104,3 +104,4 @@ def test_tof_iv_cross_correlation():
     corr = tof_iv_cross_correlation(tof, current, voltage)
     assert np.isclose(corr["current"], 1.0)
     assert np.isclose(corr["voltage"], -1.0)
+    assert np.isclose(corr["power"], 0.0)
