@@ -31,7 +31,6 @@ from .diagnostics.synthetic_signals import (
     rogowski_signal,
     bdot_signal,
 )
-from .fusion import dd_beam_target_angular_spectrum, dd_directional_yields
 
 
 class AngularDistribution:
@@ -128,6 +127,22 @@ def directional_yields(
     """
 
     return dd_directional_yields(beam_energy_keV, n_beam, n_target, bins=bins)
+
+
+def flashover_delay_stats(delays: Sequence[float]) -> Dict[str, float]:
+    """Return simple statistics for flashover delays.
+
+    A pure-Python implementation is used to remain compatible with the
+    lightweight numerical stubs bundled with the test suite.
+    """
+
+    vals = [float(d) for d in delays]
+    n = len(vals)
+    if n == 0:
+        return {"count": 0, "mean": 0.0, "stddev": 0.0}
+    mean = sum(vals) / n
+    var = sum((d - mean) ** 2 for d in vals) / n
+    return {"count": n, "mean": mean, "stddev": var ** 0.5}
 
 
 def export_directional_yields(path: Path | str, totals: Dict[str, float]) -> Path:
