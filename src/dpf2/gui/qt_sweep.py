@@ -79,6 +79,50 @@ def plot_yield_vs_S_gv(
     return path
 
 
+def plot_yield_vs_param(
+    parameter: str,
+    metrics: Dict[float, Dict[str, float]],
+    path: Path,
+    gv_S: float = 2.0,
+) -> Path:
+    """Plot yield against a swept parameter and highlight optimal ``S``.
+
+    The point with the best yield is emphasised and annotated with its
+    corresponding ``S`` value.  Additionally, points whose ``S`` deviates
+    markedly from the ``gv_S`` target are coloured red to make sub-optimal
+    operating conditions obvious at a glance.
+    """
+
+    vals = sorted(metrics.keys())
+    y_vals = [metrics[v].get("yield", 0.0) for v in vals]
+    s_vals = [metrics[v].get("S", 0.0) for v in vals]
+    colors = ["red" if abs(s - gv_S) > 0.5 else "blue" for s in s_vals]
+
+    # Determine the best yield and corresponding parameter/S values
+    best_idx = max(range(len(vals)), key=lambda i: y_vals[i]) if vals else 0
+    best_val = vals[best_idx] if vals else 0.0
+    best_yield = y_vals[best_idx] if vals else 0.0
+    best_S = s_vals[best_idx] if vals else 0.0
+
+    plt.figure()
+    plt.scatter(vals, y_vals, c=colors)
+    plt.scatter(
+        [best_val],
+        [best_yield],
+        c="gold",
+        edgecolors="black",
+        zorder=3,
+        label=f"best S={best_S:.2f}",
+    )
+    plt.xlabel(parameter)
+    plt.ylabel("Yield")
+    plt.legend()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(path)
+    plt.close()
+    return path
+
+
 class _SweepWindow(QWidget):
     """Main window for the sweep GUI."""
 
@@ -211,6 +255,20 @@ class _SweepWindow(QWidget):
             plt.axis("off")
             plt.tight_layout()
             plt.show()
+        y_path = plot_yield_vs_param(
+            param,
+            metrics,
+            Path("results")
+            / self.pm.project
+            / f"yield_vs_{param}"
+            / f"{label}.png",
+        )
+        img = plt.imread(y_path)
+        plt.figure()
+        plt.imshow(img)
+        plt.axis("off")
+        plt.tight_layout()
+        plt.show()
         if param == "initial_pressure":
             s_path = plot_yield_vs_S_gv(
                 metrics,
@@ -313,6 +371,9 @@ def main(argv: List[str] | None = None) -> None:
     metrics = compute_sweep_metrics(cfg, results, args.param)
     plot_metric_overlay(
         args.param, metrics, Path(args.output) / f"{args.param}_metrics.png"
+    )
+    plot_yield_vs_param(
+        args.param, metrics, Path(args.output) / f"yield_vs_{args.param}.png"
     )
     if args.param == "initial_pressure":
         plot_yield_vs_S_gv(metrics, Path(args.output) / "yield_vs_S.png")
