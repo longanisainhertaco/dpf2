@@ -61,11 +61,35 @@ class Array:
     def __setitem__(self, idx, value):
         if isinstance(value, Array):
             value = value.data
+        if idx is Ellipsis:
+            def _fill(arr):
+                if isinstance(arr, list):
+                    return [_fill(a) for a in arr]
+                return value
+            self.data = _fill(self.data)
+            return
         if isinstance(idx, tuple):
             idx = tuple(slice(None) if i is Ellipsis else i for i in idx)
             if len(idx) == 2 and isinstance(idx[0], slice) and idx[0] == slice(None) and isinstance(idx[1], int):
-                for row, val in zip(self.data, value):
-                    row[idx[1]] = val
+                if isinstance(value, (int, float)):
+                    for row in self.data:
+                        row[idx[1]] = value
+                else:
+                    for row, val in zip(self.data, value):
+                        row[idx[1]] = val
+                return
+            if (
+                len(idx) == 3
+                and isinstance(idx[0], int)
+                and isinstance(idx[1], int)
+                and isinstance(idx[2], slice)
+                and idx[2] == slice(None)
+            ):
+                row = self.data[idx[0]][idx[1]]
+                if isinstance(value, (int, float)):
+                    self.data[idx[0]][idx[1]] = [value] * len(row)
+                else:
+                    self.data[idx[0]][idx[1]] = list(value)
                 return
             arr = self.data
             for i in idx[:-1]:
@@ -122,12 +146,23 @@ class Array:
         return self.__mul__(other)
 
     def __truediv__(self, other):
-        return self._binary(other, lambda a, b: a / b)
+        return self._binary(other, lambda a, b: a / b if b != 0 else 0.0)
+
+    def __rtruediv__(self, other):
+        return Array(other).__truediv__(self)
+
+    def __pow__(self, other):
+        return self._binary(other, lambda a, b: a ** b)
 
     def __neg__(self):
         if isinstance(self.data, list):
             return Array([(-Array(x)).data if isinstance(x, list) else -x for x in self.data])
         return Array(-self.data)
+
+    def __float__(self):
+        if isinstance(self.data, list):
+            return float(sum_(self.data))
+        return float(self.data)
 
     # helper used by ``__neg__``
     def __repr__(self):  # pragma: no cover - debug helper
@@ -255,6 +290,29 @@ def arange(n: int) -> Array:
     return Array(list(range(n)))
 
 
+def meshgrid(*arrays, indexing="xy"):
+    arrays = [array(a).data for a in arrays]
+    dims = len(arrays)
+    shape = [len(a) for a in arrays]
+    grids = [zeros(tuple(shape)).data for _ in arrays]
+
+    def fill(prefix):
+        if len(prefix) == dims:
+            for i, grid in enumerate(grids):
+                val = arrays[i][prefix[i]]
+                tgt = grid
+                for p in prefix[:-1]:
+                    tgt = tgt[p]
+                tgt[prefix[-1]] = val
+            return
+        dim = len(prefix)
+        for i in range(shape[dim]):
+            fill(prefix + [i])
+
+    fill([])
+    return tuple(array(g) for g in grids)
+
+
 def isscalar(x) -> bool:
     return not isinstance(x, (Array, list, tuple))
 
@@ -287,14 +345,40 @@ def max_(vals):
     return arr.data
 
 
+def sum_(vals, axis=None):
+    arr = array(vals).data
+    if axis is None:
+        if isinstance(arr, list):
+            total = 0.0
+            for v in arr:
+                total += sum_(v)
+            return total
+        return arr
+    if not isinstance(arr, list):
+        return arr
+    if axis < 0:
+        axis = len(Array(arr).shape) + axis
+    if axis == 0:
+        result = arr[0]
+        for sub in arr[1:]:
+            result = Array(result)._binary(sub, lambda a, b: a + b).data
+        return array(result)
+    return array([sum_(sub, axis=axis - 1) for sub in arr])
+
+
 def dot(a: Array, b: Array) -> float:
     return sum(x * y for x, y in zip(array(a), array(b)))
 def mean(vals):
-    arr = array(vals)
-    data = arr.data if isinstance(arr, Array) else arr
-    if isinstance(data, list):
-        return sum(data) / len(data) if data else 0.0
-    return data
+    arr = array(vals).data
+    def _count(a):
+        if isinstance(a, list):
+            return sum(_count(x) for x in a)
+        return 1
+    if isinstance(arr, list):
+        total = sum_(arr)
+        cnt = _count(arr)
+        return total / cnt if cnt else 0.0
+    return arr
 
 
 
@@ -381,15 +465,18 @@ np = types.SimpleNamespace(
     isclose=isclose,
     allclose=allclose,
     array_equal=array_equal,
+    asarray=array,
+    sum=sum_,
     argmax=argmax,
     random=types.SimpleNamespace(default_rng=default_rng),
     Array=Array,
     inf=float("inf"),
     pi=math.pi,
     bool_=bool,
+    meshgrid=meshgrid,
 )
 
 sys.modules.setdefault("numpy", np)
 
-__all__ = ["Array", "array", "zeros", "zeros_like", "vstack", "linspace", "arange", "sin", "exp", "abs_", "max_", "dot", "clip", "sqrt", "gradient", "isclose", "allclose", "np"]
+__all__ = ["Array", "array", "zeros", "zeros_like", "vstack", "linspace", "arange", "meshgrid", "sin", "exp", "abs_", "max_", "dot", "clip", "sqrt", "gradient", "isclose", "allclose", "np"]
 
