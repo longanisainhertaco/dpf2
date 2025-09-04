@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 
 export default function QuickStartTutorial({ setVoltage, setPressure }) {
@@ -110,6 +111,7 @@ export default function QuickStartTutorial({ setVoltage, setPressure }) {
       </div>
       <button type="button" onClick={shareTutorial} title={qs.share}>
         Share Tutorial
+
       </button>
     </div>
   );
