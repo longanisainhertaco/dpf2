@@ -1,7 +1,14 @@
 import json
 import pytest
 
-from dpf2.synthetic_diagnostics import SyntheticDiagnostics, SyntheticInstrument
+from dpf2.synthetic_diagnostics import (
+    SyntheticDiagnostics,
+    SyntheticInstrument,
+    run_diagnostic_calculations,
+    export_diagnostic_data,
+)
+from dpf2.core.bases import CouplingState
+import h5py_stub as h5py
 
 try:
     import yaml  # type: ignore
@@ -118,3 +125,44 @@ def test_hash_stability_on_toggle_change():
     assert cfg1.hash_synthetic_diagnostics_config() == cfg2.hash_synthetic_diagnostics_config()
     cfg2 = cfg2.model_copy(update={"synthetic_current_waveform_enabled": False})
     assert cfg1.hash_synthetic_diagnostics_config() != cfg2.hash_synthetic_diagnostics_config()
+
+
+def test_run_and_export(tmp_path):
+    history = [
+        CouplingState(current=1.0, voltage=2.0),
+        CouplingState(current=2.0, voltage=3.0),
+    ]
+    cfg = SyntheticDiagnostics.with_defaults()
+    data = run_diagnostic_calculations(history, cfg, dt=1.0)
+    assert "current" in data and len(data["current"]) == 2
+
+    cfg_csv = cfg.model_copy(update={"output_format": "csv"})
+    export_diagnostic_data(data, cfg_csv, tmp_path)
+    assert (tmp_path / "current.csv").exists()
+
+    cfg_h5 = cfg.model_copy(update={"output_format": "hdf5"})
+    export_diagnostic_data(data, cfg_h5, tmp_path)
+    with h5py.File(tmp_path / "current.h5", "r") as fh:
+        assert list(fh["current"]) == pytest.approx(data["current"])  # type: ignore[arg-type]
+
+
+def test_export_image_and_map(tmp_path):
+    cfg = SyntheticDiagnostics.with_defaults()
+    cfg = cfg.model_copy(
+        update={
+            "diagnostic_output_type": {"img": "image", "map": "spatial_map"},
+            "output_format": "csv",
+        }
+    )
+    data = {
+        "img": [[1.0, 2.0], [3.0, 4.0]],
+        "map": [[5.0, 6.0], [7.0, 8.0]],
+    }
+    export_diagnostic_data(data, cfg, tmp_path)
+    assert (tmp_path / "img.csv").exists()
+    assert (tmp_path / "map.csv").exists()
+
+    cfg_h5 = cfg.model_copy(update={"output_format": "hdf5"})
+    export_diagnostic_data(data, cfg_h5, tmp_path)
+    with h5py.File(tmp_path / "img.h5", "r") as fh:
+        assert fh["img"].shape == (2, 2)
