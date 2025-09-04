@@ -342,6 +342,9 @@ def run_circuit_simulation(
         if switches and getattr(cfg, "trigger_jitter_stddev", 0.0):
             jitter = cfg.trigger_jitter_stddev * 1e-9
             for sw in switches:
+                # Respect per-switch jitter specified at construction time
+                if getattr(sw, "jitter_std", 0.0) > 0.0:
+                    continue
                 if getattr(sw, "trigger_times", None):
                     sw.trigger_times = [
                         tt + float(np.random.normal(0.0, jitter)) for tt in sw.trigger_times
@@ -379,11 +382,17 @@ def run_circuit_simulation(
                 src_node, last_node = 0, 1
             for stage in cbs:
                 res = stage.get("resistance", 0.0)
-                trig = stage.get("trigger", 0.0)
-                jitter = stage.get("jitter", getattr(cfg, "trigger_jitter_stddev", 0.0))
-                switches.append(
-                    CrowbarStage(src_node, last_node, res, trig, jitter_std=jitter * 1e-9)
+                trig = stage.get("trigger", 0.0) * 1e-9
+                jitter = stage.get(
+                    "jitter", getattr(cfg, "trigger_jitter_stddev", 0.0)
+                ) * 1e-9
+                arc = stage.get("arc_resistance", 0.0) * 1e6
+                cb = CrowbarStage(
+                    src_node, last_node, res, trig, jitter_std=jitter
                 )
+                if arc:
+                    cb.arc_resistance = arc
+                switches.append(cb)
 
         dt = t_end * 1e-6 / (num_points - 1)
         sol = solve_distributed_circuit(

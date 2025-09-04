@@ -6,9 +6,15 @@ module re-exports the public API to maintain backwards compatibility
 with older import paths.
 """
 
+# Re-export small shims from the new ``dpf2.circuit.distributed`` module so
+# existing import paths continue to function.  The real implementations live in
+# the submodule but older code expects to import from ``dpf2.distributed_circuit``.
 from .circuit.distributed import (
     TransmissionLineSegment,
     TriggeredSwitch,
+    CrowbarStage,
+    BlumleinSection,
+    PlasmaInductance,
     assemble_matrices,
 )
 
@@ -18,5 +24,13 @@ from .circuit.distributed import (
 # path ``dpf2.distributed_circuit``.
 Switch = TriggeredSwitch
 
-__all__ = ["TransmissionLineSegment", "TriggeredSwitch", "assemble_matrices", "Switch"]
+__all__ = [
+    "TransmissionLineSegment",
+    "TriggeredSwitch",
+    "CrowbarStage",
+    "BlumleinSection",
+    "PlasmaInductance",
+    "assemble_matrices",
+    "Switch",
+]
 
