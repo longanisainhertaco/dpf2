@@ -1,29 +1,10 @@
 {
-  "login": {
 
-    "username": "Your sandbox username",
-    "password": "Your sandbox password",
-    "submit": "Authenticate with the server"
-  },
-  "config": {
-    "textarea": "Paste a JSON configuration for the simulation or array for batch runs",
-    "jitter": {
-      "toggle": "Enable jitter for switch timing and fill pressure",
-      "switch": "Timing jitter in nanoseconds",
-      "pressure": "Fill pressure jitter as percent"
-    },
-    "batch": "Interpret config as array and run all entries",
-    "import": "Import a configuration snapshot",
-    "export": "Export the current configuration snapshot",
-    "run": "Start the simulation run"
-  },
-  "slider": {
-    "voltage": "Adjust the driving voltage applied to the plasma sheath.",
-    "pressure": "Set the background gas pressure used in the simulation."
-  },
-  "tutorial": {
-    "root": "Step through a quick configuration example.",
-    "apply": "Apply example voltage and pressure settings"
+  "project": {
+    "export": "Download this configuration for sharing",
+    "newSet": "Upload the configuration set",
+    "geometryFile": "Optional CAD file for custom geometry",
+    "import": "Load a configuration set from JSON"
 
   }
 }
