@@ -6,6 +6,9 @@ from typing import Dict, Iterable, List, Tuple
 
 from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
+from dpf2.cli.lab import write_manifest
+import random
+import numpy as np
 
 
 SweepResult = Tuple[List[float], List[float], List[float]]
@@ -17,6 +20,8 @@ def run_parametric_sweep(
     values: Iterable[float],
     *,
     output_dir: str | Path = "sweep_output",
+    lab_mode: bool = False,
+    config_path: str | Path | None = None,
 ) -> Dict[float, SweepResult]:
     """Run a series of simulations while varying a single parameter.
 
@@ -47,7 +52,16 @@ def run_parametric_sweep(
         cfg = DPFConfig(**cfg_dict)
         sim = DPFSimulation(cfg)
         run_dir = out_root / f"{parameter}_{val}"
+        if lab_mode:
+            seeds = {
+                "python": random.getstate()[1][0],
+                "numpy": int(np.random.get_state()[1][0]),
+            }
         t, i, v = sim.run(output_dir=str(run_dir))
+        if lab_mode:
+            ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
+            paths = [str(config_path)] if config_path else []
+            write_manifest(run_dir, config_paths=paths, ppc=ppc, seeds=seeds)
         results[val] = (t, i, v)
     return results
 

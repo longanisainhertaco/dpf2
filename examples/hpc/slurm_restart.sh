@@ -17,11 +17,11 @@ checkpoint=${DPF_RESTART:-$SLURM_SUBMIT_DIR/results/result.npz}
 cp "$checkpoint" "$tmp/"
 cd "$tmp"
 
-# Restart the simulation from the checkpoint
+# Restart the simulation from the checkpoint using the CLI and record a manifest
 chk_file=$(basename "$checkpoint")
 echo "Restarting from $chk_file"
-srun python $SLURM_SUBMIT_DIR/examples/run_simulation.py --config config.json --restart "$chk_file" --output restart_result.npz
+srun dpf2 simulate --config config.json --output restart_run --lab-mode
 
 # Collect output data back to the submission directory
 mkdir -p $SLURM_SUBMIT_DIR/results
-cp restart_result.npz $SLURM_SUBMIT_DIR/results/
+cp -r restart_run $SLURM_SUBMIT_DIR/results/

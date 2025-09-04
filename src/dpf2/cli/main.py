@@ -9,6 +9,9 @@ import os
 import subprocess
 import tempfile
 import textwrap
+import random
+
+import numpy as np
 
 import click
 import numpy as np
@@ -38,6 +41,7 @@ from dpf2.scaling_laws import sweep_yield_scaling
 from dpf2.uq.sampling import latin_hypercube, sobol_sample
 
 from .errors import format_error
+from .lab import write_manifest
 
 
 def _prompt_with_range(prompt: str, default: float, minimum: float, maximum: float, tip: str) -> float:
@@ -253,9 +257,16 @@ def build_config_wizard() -> DPFConfig:
     is_flag=True,
     help="Launch Jupyter notebook with plotting widgets preloaded",
 )
+@click.option(
+    "--lab-mode",
+    is_flag=True,
+    help="Record a reproducibility manifest alongside outputs",
+)
 @click.pass_context
-def main(ctx: click.Context, notebook: bool) -> None:
+def main(ctx: click.Context, notebook: bool, lab_mode: bool) -> None:
     """Entry point for the DPF2 command line interface."""
+    ctx.ensure_object(dict)
+    ctx.obj["lab_mode"] = lab_mode
     if notebook:
         _launch_notebook()
         return
@@ -291,7 +302,9 @@ def main(ctx: click.Context, notebook: bool) -> None:
     help="Save key waveforms and diagnostics at completion",
 )
 @click.option("--wizard", is_flag=True, help="Interactive mode to build configuration")
+@click.pass_context
 def simulate(
+    ctx: click.Context,
     config: str | None,
     output: str,
     voltage: float | None,
@@ -360,6 +373,11 @@ def simulate(
                 cfg.electrode_length = segment_length
 
         sim = DPFSimulation(cfg)
+
+        seeds = {
+            "python": random.getstate()[1][0],
+            "numpy": int(np.random.get_state()[1][0]),
+        }
 
         live_times: list[float] = []
         live_currents: list[float] = []
@@ -522,6 +540,11 @@ def simulate(
             diag_file.write_text(json.dumps(diag))
             click.echo(f"Diagnostics written to {diag_file}")
 
+        if ctx.obj.get("lab_mode"):
+            ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
+            cfg_paths = [p for p in [config, synthetic] if p]
+            write_manifest(output, config_paths=cfg_paths, ppc=ppc, seeds=seeds)
+
         try:
             import matplotlib.pyplot as plt
 
@@ -670,14 +693,22 @@ def plot_run(run_dir: str, output: str) -> None:
 @click.option("--parameter", type=str, required=True)
 @click.option("--values", type=float, multiple=True, required=True, help="Values to sweep")
 @click.option("--output", type=click.Path(file_okay=False), default="sweep_output")
+@click.pass_context
 def param_sweep_cmd(
-    config: str, parameter: str, values: tuple[float, ...], output: str
+    ctx: click.Context, config: str, parameter: str, values: tuple[float, ...], output: str
 ) -> None:
     """Run a parameter sweep and plot current, yield and efficiency overlays."""
 
     try:
         cfg = DPFConfig.from_file(config)
-        results = run_parametric_sweep(cfg, parameter, values, output_dir=output)
+        results = run_parametric_sweep(
+            cfg,
+            parameter,
+            values,
+            output_dir=output,
+            lab_mode=ctx.obj.get("lab_mode", False),
+            config_path=config,
+        )
         plot_sweep_results(parameter, results, Path(output) / "sweep_plot.png")
         metrics = compute_sweep_metrics(cfg, results)
         plot_metric_overlay(parameter, metrics, Path(output) / "sweep_metrics.png")

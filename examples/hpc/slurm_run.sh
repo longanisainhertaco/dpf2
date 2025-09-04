@@ -11,10 +11,11 @@ tmp=${SLURM_TMPDIR:-$(mktemp -d)}
 cp $SLURM_SUBMIT_DIR/examples/config.json "$tmp/"
 cd "$tmp"
 
-# Execute the simulation. GPU affinity can be controlled by setting
-# ``CUDA_VISIBLE_DEVICES`` prior to submission (e.g. via the JobManager).
-srun python $SLURM_SUBMIT_DIR/examples/run_simulation.py --config config.json --output result.npz
+# Execute the simulation using the CLI with lab-mode manifest.
+# GPU affinity can be controlled by setting ``CUDA_VISIBLE_DEVICES`` prior to
+# submission (e.g. via the JobManager).
+srun dpf2 simulate --config config.json --output run --lab-mode
 
 # Collect output data back to the submission directory
 mkdir -p $SLURM_SUBMIT_DIR/results
-cp result.npz $SLURM_SUBMIT_DIR/results/
+cp -r run $SLURM_SUBMIT_DIR/results/
