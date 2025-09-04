@@ -3,7 +3,10 @@ import warnings
 import pytest
 
 from dpf2.ai.simple_surrogates import LinearSurrogate
-from dpf2.optimization import OptimizationWarning, enable_optimization_warning_as_error
+from dpf2.optimization import (
+    OptimizationWarning,
+    enable_optimization_warning_as_error,
+)
 
 
 def _surrogate():
@@ -41,3 +44,4 @@ def test_enable_warning_as_error_blocks():
         enable_optimization_warning_as_error()
         with pytest.raises(OptimizationWarning):
             model.predict(10.0)
+
