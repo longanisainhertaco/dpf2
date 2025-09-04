@@ -86,12 +86,25 @@ def run(case: str, benchmark_dir: str, output: str) -> None:
     rmse = float(np.sqrt(np.mean(err ** 2)))
     max_ref = float(np.max(np.abs(ref_i))) or 1.0
     rmse_pct = rmse / max_ref * 100.0
-    passed = rmse_pct <= 5.0
+
+    def _grade(pct: float) -> str:
+        if pct <= 2.0:
+            return "A"
+        if pct <= 5.0:
+            return "B"
+        if pct <= 10.0:
+            return "C"
+        if pct <= 20.0:
+            return "D"
+        return "F"
+
+    grade = _grade(rmse_pct)
+    passed = grade in {"A", "B"}
 
     out_root = Path(output) / case
     out_root.mkdir(parents=True, exist_ok=True)
 
-    metrics = {"rmse": rmse, "rmse_percent": rmse_pct, "passed": passed}
+    metrics = {"rmse": rmse, "rmse_percent": rmse_pct, "grade": grade, "passed": passed}
     (out_root / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
     if plt is not None:  # pragma: no cover - plotting optional
@@ -102,6 +115,7 @@ def run(case: str, benchmark_dir: str, output: str) -> None:
         ax.set_xlabel("time (s)")
         ax.set_ylabel("current (A)")
         ax.legend()
+        ax.text(0.98, 0.02, f"Grade: {grade}", transform=ax.transAxes, ha="right", va="bottom")
         fig.tight_layout()
         fig.savefig(out_root / "overlay.png")
         plt.close(fig)
@@ -122,7 +136,7 @@ def run(case: str, benchmark_dir: str, output: str) -> None:
             manifest.attrs["rmse_percent"] = rmse_pct
 
     status = "PASSED" if passed else "FAILED"
-    click.echo(f"Benchmark {case} {status}")
+    click.echo(f"Benchmark {case} {status} (grade {grade})")
     if not passed:
         raise SystemExit(1)
 

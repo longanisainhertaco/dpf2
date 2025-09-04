@@ -85,13 +85,36 @@ def run_benchmark(case: str, benchmark_dir: str = "benchmarks", output: str = "V
     }
 
     metrics: Dict[str, float] = {}
+    grades: Dict[str, str] = {}
     passed = True
     tol = expected.get("tolerance", {})
+
+    def _grade(err: float, tol_val: float) -> str:
+        if tol_val <= 0:
+            return "N/A"
+        ratio = err / tol_val
+        if ratio <= 1:
+            return "A"
+        if ratio <= 2:
+            return "B"
+        if ratio <= 3:
+            return "C"
+        if ratio <= 4:
+            return "D"
+        return "F"
+
     for key, sim_vals in sim_interp.items():
         exp_vals = np.array(expected[key])
         err = float(np.max(np.abs(sim_vals - exp_vals)))
         metrics[key] = err
-        passed = passed and err <= float(tol.get(key, 0.0))
+        g = _grade(err, float(tol.get(key, 0.0)))
+        grades[key] = g
+        passed = passed and g in {"A", "B"}
+
+    grade_order = {"A": 0, "B": 1, "C": 2, "D": 3, "F": 4, "N/A": 5}
+    overall = max(grades.values(), key=lambda x: grade_order.get(x, 5)) if grades else "N/A"
+    metrics["grades"] = grades
+    metrics["overall_grade"] = overall
     metrics["passed"] = passed
 
     out_root = Path(output) / case
@@ -111,6 +134,14 @@ def run_benchmark(case: str, benchmark_dir: str = "benchmarks", output: str = "V
             ax.set_ylabel(field.replace("_", " "))
         axes[-1].set_xlabel("time (s)")
         axes[0].legend()
+        axes[0].text(
+            0.98,
+            0.02,
+            f"Grade: {overall}",
+            transform=axes[0].transAxes,
+            ha="right",
+            va="bottom",
+        )
         fig.tight_layout()
         fig.savefig(out_root / "overlay.png")
         plt.close(fig)

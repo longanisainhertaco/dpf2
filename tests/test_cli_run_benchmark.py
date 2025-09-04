@@ -15,6 +15,7 @@ import h5py
 
 
 class _DummyAxes:
+    transAxes = object()
     def plot(self, *args, **kwargs):
         return None
 
