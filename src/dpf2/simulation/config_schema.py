@@ -157,6 +157,18 @@ class AMRConfig(BaseModel):
         10, ge=1, description="Interval for dumping AMR diagnostics"
     )
 
+
+class MaterialConfig(BaseModel):
+    """Selection of component materials and initial lifecycle parameters."""
+
+    components: Dict[str, str] = Field(
+        default_factory=dict, description="Mapping of component name to material"
+    )
+    initial_state: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict,
+        description="Initial state parameters keyed by component",
+    )
+
 class SimulationConfig(BaseModel):
     """Main configuration for the DPF simulation."""
     grid_shape: List[int] = Field(..., min_items=3, max_items=3, description="Number of grid points (nx, ny, nz)")
@@ -175,6 +187,9 @@ class SimulationConfig(BaseModel):
     geometry: Optional[GeometryConfig] = None
     field_manager: FieldManagerConfig = Field(default_factory=FieldManagerConfig, description="Configuration for the FieldManager.")
     amr: AMRConfig = Field(default_factory=AMRConfig, description="Adaptive mesh refinement settings")
+    materials: MaterialConfig = Field(
+        default_factory=MaterialConfig, description="Material selection and initial state"
+    )
     provenance: Optional[Dict[str, Any]] = None
     telemetry: Optional[Dict[str, Any]] = None
     io: Optional[Dict[str, Any]] = None
