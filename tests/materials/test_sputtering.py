@@ -25,7 +25,21 @@ def test_yamamura_angle_scaling():
     assert pytest.approx(y, rel=1e-6) == 0.0075262530
 
 
+def test_yamamura_grazing_returns_zero():
+    d = Species("D", Z=1, mass_u=2.0)
+    cu = Species("Cu", Z=29, mass_u=63.5)
+    assert yamamura_yield(d, cu, 100.0, 95.0) == 0.0
+
+
 def test_impurity_source_terms():
     cu = Species("Cu", Z=29, mass_u=63.5)
     flux = impurity_source_terms(1e20, 0.01, cu)
     assert flux["Cu"] == pytest.approx(1e18)
+
+
+def test_impurity_source_terms_zero_flux_or_yield():
+    cu = Species("Cu", Z=29, mass_u=63.5)
+    zero_flux = impurity_source_terms(0.0, 0.01, cu)
+    zero_yield = impurity_source_terms(1e20, 0.0, cu)
+    assert zero_flux["Cu"] == 0.0
+    assert zero_yield["Cu"] == 0.0

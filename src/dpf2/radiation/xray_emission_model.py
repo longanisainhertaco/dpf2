@@ -79,6 +79,8 @@ def cr_line_emission(
 
     if T_e_eV <= 0 or n_e_cm3 <= 0:
         raise ValueError("Temperature and density must be positive")
+    if impurity_fraction < 0:
+        raise ValueError("impurity_fraction must be non-negative")
 
     if species == "Ne":
         lines = NEON_LINES
