@@ -351,6 +351,16 @@ class CircuitConfig(ConfigSectionBase):
     def get_field_metadata(self) -> Dict[str, Dict[str, object]]:
         return {name: (field.json_schema_extra or field.metadata or {}) for name, field in self.model_fields.items()}
 
+    # Pydantic ``model_copy`` behaviour is inconsistent across the lightweight
+    # testing stubs and different pydantic versions.  Implement a small wrapper
+    # that always honours the ``update`` argument so tests can create modified
+    # configurations without depending on the underlying library.
+    def model_copy(self, update: Dict[str, object] | None = None, **kwargs) -> "CircuitConfig":
+        data = self.model_dump()
+        if update:
+            data.update(update)
+        return type(self)(**data)
+
     def summarize(self) -> str:
         w_desc = "none"
         if self.waveform_profile is not None:
