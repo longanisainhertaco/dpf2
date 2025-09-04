@@ -17,6 +17,7 @@ nav:
       - Sandbox Walk-Through: student_intro.md
   - API Reference: api_reference.md
   - Benchmarks: benchmarks.md
+  - Run & Compare: run_compare.md
   - Reports:
       - Milestone Demos: reports/milestone_demos.md
 
