@@ -9,13 +9,14 @@ simulation infrastructure.
 
 Predefined projects live under `benchmarks/`.  Each project contains two files:
 
-- `deck.json` – configuration passed to the simulator
-- `reference.csv` – reference time histories for key signals
+- `inputs.json` – configuration for a simple RLC circuit
+- `expected.json` – reference time histories and tolerance bands
 
-Run a single case and produce a pass/fail dashboard plus an overlay plot using:
+Execute a case and produce a pass/fail dashboard plus an overlay plot using
+the helper script:
 
 ```bash
-dpf2 benchmark run UNU
+python scripts/run_benchmark.py unu_pff
 ```
 
 The command writes plots showing the simulation output overlaid on the
@@ -26,9 +27,9 @@ default results are written to `Validation/<case>/` where the overlay,
 The regression suite ships with frozen inputs and reference outputs for three
 devices:
 
-- `UNU` – UNU/ICTP Plasma Focus Facility
-- `PF-1000` – PF‑1000 device
-- `MJOLNIR` – MJOLNIR dense plasma focus
+- `unu_pff` – UNU/ICTP Plasma Focus Facility
+- `pf_1000` – PF‑1000 device
+- `mjolnir` – MJOLNIR dense plasma focus
 
 ## Analytic plasma expansion
 
