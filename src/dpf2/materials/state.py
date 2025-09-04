@@ -10,7 +10,8 @@ class ComponentMaterialState:
 
     material: Material
     erosion: float = 0.0
-    film_thickness: float = 0.0
+    redeposited_mass: float = 0.0
+    contamination_thickness: float = 0.0
     temperature_history: List[float] = field(default_factory=list)
 
     def record_temperature(self, temp: float) -> None:
@@ -19,14 +20,18 @@ class ComponentMaterialState:
     def erode(self, amount: float) -> None:
         self.erosion += amount
 
+    def redeposit(self, amount: float) -> None:
+        self.redeposited_mass += amount
+
     def deposit(self, amount: float) -> None:
-        self.film_thickness += amount
+        self.contamination_thickness += amount
 
     def to_dict(self) -> Dict[str, object]:
         return {
             "material": self.material.name,
             "erosion": self.erosion,
-            "film_thickness": self.film_thickness,
+            "redeposited_mass": self.redeposited_mass,
+            "contamination_thickness": self.contamination_thickness,
             "temperature_history": list(self.temperature_history),
         }
 
@@ -36,6 +41,7 @@ class ComponentMaterialState:
         return cls(
             material=mat,
             erosion=float(data.get("erosion", 0.0)),
-            film_thickness=float(data.get("film_thickness", 0.0)),
+            redeposited_mass=float(data.get("redeposited_mass", 0.0)),
+            contamination_thickness=float(data.get("contamination_thickness", 0.0)),
             temperature_history=list(data.get("temperature_history", [])),
         )
