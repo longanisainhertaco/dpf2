@@ -38,7 +38,9 @@ class QualityDashboard:
         ppc: float,
         cfl: float,
         lambda_D: float,
-
+        amr_level: int | None = None,
+        lower_hybrid_power: float | None = None,
+        plasma_impedance: float | None = None,
         divergence_error: float = 0.0,
         energy_drift: float = 0.0,
 

@@ -19,6 +19,7 @@ from .neutron_yield import (
     simulate_tof_detectors,
     save_tof_hdf5,
     tof_iv_cross_correlation,
+    ez_beam_correlation,
     angular_yield_map,
     save_angular_yield_map_hdf5,
 )
@@ -90,6 +91,7 @@ __all__ = [
     "simulate_tof_detectors",
     "save_tof_hdf5",
     "tof_iv_cross_correlation",
+    "ez_beam_correlation",
     "angular_yield_map",
     "save_angular_yield_map_hdf5",
     "compute_performance_metrics",
