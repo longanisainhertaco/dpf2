@@ -3,14 +3,26 @@ nav:
   - Home: index.md
   - User Guide: user_guide.md
   - Student Introduction: student_intro.md  # persona: student
+  - Engineer Introduction: engineer_intro.md  # persona: engineer
   - Tutorials:
       - Quickstart: tutorials/quickstart.md  # persona: student
       - Basic Experiment: tutorials/basic_experiment.md  # persona: student
       - Advanced Workflow: tutorials/advanced_workflow.md  # persona: engineer
       - Optimization: tutorials/optimization.md  # persona: engineer
       - Diagnostics: tutorials/diagnostics.md  # persona: engineer
+      - Driver Design: tutorials/driver_design.md  # persona: engineer
+      - Parameter Sweeps: tutorials/param_sweeps.md  # persona: engineer
       - Uncertainty Quantification: tutorials/uq.md  # persona: engineer
-  - Scientist Theory: scientist_theory.md  # persona: scientist
+  - Scientist Theory:
+      - Overview: scientist_theory.md  # persona: scientist
+      - MHD: theory/mhd.md  # persona: scientist
+      - PIC: theory/pic.md  # persona: scientist
+      - Fusion Models: theory/fusion_models.md  # persona: scientist
+  - Education:
+      - Breakdown Lab Worksheet: education/breakdown.md  # persona: student
+      - Rundown Lab Worksheet: education/rundown.md  # persona: student
+      - Pinch Lab Worksheet: education/pinch.md  # persona: student
+      - Phase Visualizations Lab: education/phase_visualizations.md  # persona: student
   - Examples:  # persona: engineer, scientist
       - Run Simulation: ../examples/run_simulation.py
       - PIC Collision: ../examples/pic_collision_example.py
