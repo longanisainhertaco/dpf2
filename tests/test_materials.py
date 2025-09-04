@@ -1,12 +1,9 @@
 import pytest
 
-import pytest
-
-from dpf2.materials import (
-    MaterialLibrary,
-    ComponentMaterialState,
-    MaterialDamageModel,
-)
+from dpf2.materials.library import MaterialLibrary
+from dpf2.materials.state import ComponentMaterialState
+from dpf2.materials.mdm import MaterialDamageModel
+from dpf2.materials import MaterialRef
 
 
 def test_material_lookup():
@@ -48,3 +45,16 @@ def test_state_serialization_roundtrip():
     assert restored.erosion == pytest.approx(1.0)
     assert restored.film_thickness == pytest.approx(0.2)
     assert restored.temperature_history == [300.0, 310.0]
+
+
+def test_materialref_alias_roundtrip():
+    ref = MaterialRef(material_id="copper", coating_id="nickel")
+    dumped = ref.model_dump(by_alias=True)
+    assert dumped.get("materialId", dumped.get("material_id")) == "copper"
+    assert dumped.get("coatingId", dumped.get("coating_id")) == "nickel"
+
+    restored = MaterialRef.model_validate({"material_id": "copper"})
+    assert restored.material_id == "copper"
+    assert restored.coating_id is None
+    clone = restored.model_copy()
+    assert clone is not restored and clone.material_id == restored.material_id
