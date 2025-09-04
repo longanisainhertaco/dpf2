@@ -61,7 +61,7 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
     suffix = p.suffix.lower()
     if suffix == ".json":
         return json.loads(p.read_text())
-    if suffix in {".step", ".stp", ".iges", ".igs"}:
+    if suffix in {".step", ".stp", ".iges", ".igs", ".stl", ".vtk"}:
         if meshio is not None:
             try:  # pragma: no cover - exercised when meshio is available
                 m = meshio.read(p)
@@ -71,7 +71,6 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
                     if block.type in {"triangle", "quad"}:
                         data = block.data.tolist()
                         elements.extend(data)
-                        # try to pull material tags from cell data
                         tag = None
                         if m.cell_data:
                             for key in ("material", "gmsh:physical", "cell_tags"):
@@ -80,7 +79,9 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
                                     tag = vals[idx]
                                     break
                         if tag is not None:
-                            materials.extend(tag.tolist() if hasattr(tag, "tolist") else list(tag))
+                            materials.extend(
+                                tag.tolist() if hasattr(tag, "tolist") else list(tag)
+                            )
                 if not elements and m.cells:
                     elements = m.cells[0].data.tolist()
                 result: Dict[str, Any] = {"nodes": m.points.tolist(), "elements": elements}
@@ -89,9 +90,84 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
                 return result
             except Exception:
                 pass
-        # fallback simple text representation
+        # fallback simple text representation for a tiny subset of the formats
         lines = [ln.strip() for ln in p.read_text().splitlines() if ln.strip()]
-        return _parse_step_like(lines)
+        if suffix in {".step", ".stp", ".iges", ".igs"}:
+            return _parse_step_like(lines)
+        if suffix == ".stl":
+            nodes: List[List[float]] = []
+            elements: List[List[int]] = []
+            materials: List[Any] = []
+            node_idx: Dict[tuple[float, float, float], int] = {}
+            current: List[int] = []
+            current_mat: Any | None = None
+            for ln in lines:
+                parts = ln.split()
+                if not parts:
+                    continue
+                tag = parts[0].lower()
+                if tag == "solid":
+                    current_mat = parts[1] if len(parts) > 1 else None
+                elif tag == "facet":
+                    current = []
+                elif tag == "vertex" and len(parts) == 4:
+                    pt = tuple(float(v) for v in parts[1:])
+                    idx = node_idx.get(pt)
+                    if idx is None:
+                        idx = len(nodes)
+                        nodes.append(list(pt))
+                        node_idx[pt] = idx
+                    current.append(idx)
+                elif tag == "endfacet" and len(current) == 3:
+                    elements.append(current[:3])
+                    if current_mat is not None:
+                        materials.append(current_mat)
+            result: Dict[str, Any] = {"nodes": nodes, "elements": elements}
+            if materials:
+                result["materials"] = materials
+            return result
+        if suffix == ".vtk":
+            nodes: List[List[float]] = []
+            elements: List[List[int]] = []
+            materials: List[Any] = []
+            it = iter(lines)
+            for ln in it:
+                up = ln.upper()
+                if up.startswith("POINTS"):
+                    parts = ln.split()
+                    npts = int(parts[1])
+                    for _ in range(npts):
+                        x, y, z = next(it).split()[:3]
+                        nodes.append([float(x), float(y), float(z)])
+                elif up.startswith("POLYGONS") or up.startswith("TRIANGLE") or up.startswith("TRIANGLES"):
+                    parts = ln.split()
+                    ntri = int(parts[1])
+                    for _ in range(ntri):
+                        vals = next(it).split()
+                        if int(vals[0]) >= 3:
+                            elements.append([int(vals[1]), int(vals[2]), int(vals[3])])
+                elif up.startswith("CELL_DATA"):
+                    ncell = int(ln.split()[1])
+                    # expect "SCALARS" followed by lookup table and values
+                    ln = next(it).strip()
+                    if ln.upper().startswith("SCALARS"):
+                        name = ln.split()[1].lower()
+                        if name in {"material", "materials", "gmsh:physical", "cell_tags"}:
+                            ln = next(it).strip()
+                            vals: List[str] = []
+                            if not ln.upper().startswith("LOOKUP_TABLE"):
+                                vals.extend(ln.split())
+                            while len(vals) < ncell:
+                                vals.extend(next(it).split())
+                            for v in vals[:ncell]:
+                                try:
+                                    materials.append(int(v))
+                                except ValueError:
+                                    materials.append(v)
+            result: Dict[str, Any] = {"nodes": nodes, "elements": elements}
+            if materials:
+                result["materials"] = materials
+            return result
     raise ValueError(f"Unsupported CAD format: {suffix}")
 
 

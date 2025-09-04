@@ -1,0 +1,18 @@
+# vtk DataFile Version 2.0
+Example with material tags
+ASCII
+DATASET POLYDATA
+POINTS 6 float
+0 0 0
+1 0 0
+0 1 0
+0 0 1
+1 0 1
+0 1 1
+POLYGONS 2 8
+3 0 1 2
+3 3 4 5
+CELL_DATA 2
+SCALARS material int 1
+LOOKUP_TABLE default
+1 2

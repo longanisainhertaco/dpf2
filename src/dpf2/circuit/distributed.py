@@ -92,6 +92,28 @@ class TransmissionLineSegment:
     propagation_velocity: float | None = None
     skin_effect_coeff: float = 0.0
     dielectric_loss_coeff: float = 0.0
+    material: str | None = None
+
+    def __post_init__(self) -> None:
+        """Populate electrical properties from material tables when available."""
+
+        if self.material:
+            try:
+                from dpf2.materials import get_resistivity, get_skin_effect_coeff
+
+                if self.R_per_m == 0.0:
+                    try:
+                        self.R_per_m = get_resistivity(self.material)
+                    except KeyError:
+                        pass
+                if self.skin_effect_coeff == 0.0:
+                    try:
+                        self.skin_effect_coeff = get_skin_effect_coeff(self.material)
+                    except KeyError:
+                        pass
+            except Exception:
+                # Material tables are optional; fail silently if unavailable
+                pass
 
     def delay(self) -> float:
         """Return propagation delay for this segment in seconds."""
