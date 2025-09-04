@@ -5,6 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 import hashlib
 from typing import Mapping
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def _hash_file(path: Path) -> str:
@@ -33,8 +37,13 @@ def capture_dataset_metadata(
         doi = info.get("doi")
         version = info.get("version")
         if path is None or doi is None or version is None:
-            raise ValueError("dataset metadata requires 'path', 'doi' and 'version'")
+            raise ValueError(
+                "dataset metadata requires 'path', 'doi' and 'version'"
+            )
         h = _hash_file(Path(path))
+        logger.info(
+            "dataset %s: hash=%s doi=%s version=%s", name, h, doi, version
+        )
         result[name] = {"hash": h, "doi": str(doi), "version": str(version)}
     return result
 

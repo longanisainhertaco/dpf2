@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Mapping
+import logging
 
 
 @dataclass
@@ -20,13 +21,24 @@ class DatasetMetadata:
     version: str
 
 
-def _load(path: Path | str) -> DatasetMetadata:
-    data = json.loads(Path(path).read_text())
+logger = logging.getLogger(__name__)
+
+
+def _require_metadata_fields(data: Mapping[str, object]) -> DatasetMetadata:
+    """Validate required provenance fields and build :class:`DatasetMetadata`."""
+
     doi = data.get("doi")
     version = data.get("version")
     if not doi or not version:
         raise ValueError("metadata requires 'doi' and 'version'")
     return DatasetMetadata(doi=str(doi), version=str(version))
+
+
+def _load(path: Path | str) -> DatasetMetadata:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    meta = _require_metadata_fields(data)
+    logger.info("Loaded chemistry metadata: doi=%s version=%s", meta.doi, meta.version)
+    return meta
 
 
 def load_adas_metadata(meta_path: Path | str) -> DatasetMetadata:
