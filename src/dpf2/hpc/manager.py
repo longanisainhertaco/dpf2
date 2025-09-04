@@ -42,6 +42,14 @@ class JobManager:
                     flags = [flags]
                 cmd.extend(list(flags) + [value])
 
+    def _write_temp_file(self, content: str, suffix: str = "") -> str:
+        """Write ``content`` to a temporary file and return its path."""
+
+        fd, path = tempfile.mkstemp(suffix=suffix)
+        with os.fdopen(fd, "w") as fh:
+            fh.write(content)
+        return path
+
     def _wrap_staging(
         self,
         job_script: str,
@@ -157,6 +165,10 @@ class JobManager:
             if deps is not None:
                 raise ValueError("Dependencies are not supported for MPI scheduler")
 
+            hosts = kwargs.pop("hosts", None)
+            host_gpus = kwargs.pop("host_gpus", None)
+            decomp: Dict[str, Any] | None = kwargs.pop("decomp", None)
+
             cmd = ["mpirun"]
             self._extend_cmd(
                 cmd,
@@ -165,18 +177,38 @@ class JobManager:
                     "nprocs": "-n",
                 },
             )
-            decomp: Dict[str, Any] | None = kwargs.get("decomp")
-            if decomp:
-                for axis, cnt in decomp.items():
-                    cmd.extend([f"--decomp-{axis}", str(cnt)])
-            if "restart" in kwargs:
-                cmd.extend(["--restart", str(kwargs["restart"])])
-            cmd.append(job_script)
 
             env = os.environ.copy()
-            if gpus is not None:
+
+            # Generate hostfile and GPU mapping if requested
+            if host_gpus is not None:
+                host_lines = []
+                gpu_map_lines = []
+                rank = 0
+                for host, gpu_list in host_gpus.items():
+                    host_lines.append(f"{host} slots={len(gpu_list)}")
+                    for gpu in gpu_list:
+                        gpu_map_lines.append(f"{rank} {host} {gpu}")
+                        rank += 1
+                hostfile = self._write_temp_file("\n".join(host_lines) + "\n", suffix=".hosts")
+                cmd.extend(["--hostfile", hostfile])
+                gpu_map_file = self._write_temp_file("\n".join(gpu_map_lines) + "\n", suffix=".gpus")
+                env["DPF_GPU_MAP"] = gpu_map_file
+            elif hosts is not None:
+                hostfile = self._write_temp_file("\n".join(hosts) + "\n", suffix=".hosts")
+                cmd.extend(["--hostfile", hostfile])
+
+            script_cmd = [job_script]
+            if decomp:
+                for axis, cnt in decomp.items():
+                    script_cmd.extend([f"--decomp-{axis}", str(cnt)])
+            if "restart" in kwargs:
+                script_cmd.extend(["--restart", str(kwargs["restart"])])
+
+            if gpus is not None and host_gpus is None:
                 env["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in range(int(gpus)))
 
+            cmd.extend(script_cmd)
             return subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
         raise ValueError(f"Unsupported scheduler: {self.scheduler}")
 
