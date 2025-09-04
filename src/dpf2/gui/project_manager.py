@@ -10,7 +10,7 @@ metrics from multiple sweeps which can then be overlaid or written to disk.
 
 from pathlib import Path
 import csv
-from typing import Dict, Iterable, List, Tuple
+from typing import Callable, Dict, Iterable, List, Tuple
 
 import numpy as np
 
@@ -21,7 +21,11 @@ from ..optimization.param_sweep import (
     plot_yield_pressure_overlay,
     plot_yield_vs_S as _plot_yield_vs_S,
 )
-from ..optimization.multi_objective import random_pareto_search
+from ..optimization.multi_objective import (
+    ConvergenceRecord,
+    nsga2,
+    random_pareto_search,
+)
 
 
 class ProjectManager:
@@ -40,6 +44,7 @@ class ProjectManager:
         self.params: Dict[str, str] = {}
         self.project = project
         self.last_kpi_plot: Path | None = None
+        self.last_convergence_plot: Path | None = None
 
     @staticmethod
     def _spot_size(t: Iterable[float], current: Iterable[float]) -> float:
@@ -155,8 +160,32 @@ class ProjectManager:
         base_config: DPFConfig,
         bounds: Dict[str, Tuple[float, float]],
         n_samples: int = 100,
+        *,
+        solver: str = "random",
+        n_generations: int = 25,
+        pop_size: int = 40,
+        hardware_constraint: Callable[[np.ndarray], bool] | None = None,
     ) -> List[Dict[str, float]]:
-        """Run a random Pareto search for yield versus spot size."""
+        """Run a Pareto search for yield versus spot size.
+
+        Parameters
+        ----------
+        base_config:
+            Starting configuration for each simulation.
+        bounds:
+            Mapping of parameter names to ``(min, max)`` bounds.
+        n_samples:
+            Number of random samples when ``solver='random'``.
+        solver:
+            Optimization backend.  ``"random"`` performs an unbiased search
+            while ``"nsga2"`` executes a multi-objective genetic algorithm.
+        n_generations:
+            Generation count for ``"nsga2"`` runs.
+        pop_size:
+            Population size for ``"nsga2"`` runs.
+        hardware_constraint:
+            Optional predicate enforcing hardware limits for candidate vectors.
+        """
 
         eval_cache: Dict[Tuple[float, ...], Tuple[float, float]] = {}
 
@@ -176,13 +205,57 @@ class ProjectManager:
             eval_cache[tuple(params)] = (yield_val, spot)
             return yield_val, spot
 
-        pareto_params = random_pareto_search(evaluate, bounds, n_samples=n_samples)
+        if solver == "random":
+            pareto_params = random_pareto_search(evaluate, bounds, n_samples=n_samples)
+            history: List[ConvergenceRecord] | None = None
+        elif solver == "nsga2":
+            pareto_params, history = nsga2(
+                evaluate,
+                bounds,
+                n_generations=n_generations,
+                pop_size=pop_size,
+                constraint=hardware_constraint,
+                return_history=True,
+            )
+        else:
+            raise ValueError(f"Unknown solver '{solver}'")
+
         front: List[Dict[str, float]] = []
         for param_dict in pareto_params:
             params = tuple(param_dict[name] for name in names)
             y, s = eval_cache[params]
             front.append({**param_dict, "yield": y, "spot_size": s})
+
+        if history:
+            self._save_convergence_plot(history, solver)
         return front
+
+    def _save_convergence_plot(
+        self, history: List[ConvergenceRecord], solver: str
+    ) -> Path:
+        """Write convergence metrics to disk and track the plot path."""
+
+        import matplotlib.pyplot as plt
+
+        gens = [rec.generation for rec in history]
+        best_y = [rec.best_yield for rec in history]
+        min_s = [rec.min_spot_size for rec in history]
+
+        fig, ax1 = plt.subplots()
+        ax1.plot(gens, best_y, marker="o", color="tab:blue", label="Best Yield")
+        ax1.set_xlabel("Generation")
+        ax1.set_ylabel("Yield", color="tab:blue")
+        ax2 = ax1.twinx()
+        ax2.plot(gens, min_s, marker="s", color="tab:red", label="Min Spot")
+        ax2.set_ylabel("Spot Size", color="tab:red")
+        fig.tight_layout()
+
+        path = Path("results") / self.project / "convergence" / f"{solver}.png"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(path)
+        plt.close(fig)
+        self.last_convergence_plot = path
+        return path
 
     def overlay_metrics(
         self, path: str | Path | None = None, parameter: str | None = None
