@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from typing import Iterable
 
 import numpy as np
+import warnings
+
+from .diagnostics import magnetic_reynolds_number
 
 mu0 = 4e-7 * np.pi
 
@@ -15,6 +18,7 @@ class SheathResult:
     velocity: np.ndarray
     jxb_force: np.ndarray
     end_index: int
+    magnetic_reynolds: np.ndarray | None = None
 
 
 class AxialSheathModel:
@@ -41,6 +45,7 @@ class AxialSheathModel:
         v = self.initial_velocity
         end_idx = len(t) - 1
 
+        rms: list[float] = []
         for k in range(start_index, len(t) - 1):
             dt = t[k + 1] - t[k]
             F = jxb[k] * self.area
@@ -49,6 +54,13 @@ class AxialSheathModel:
             p += v * dt
             pos.append(p)
             vel.append(v)
+            rm = magnetic_reynolds_number(abs(v), self.length, 1e5)
+            rms.append(rm)
+            if rm < 0.1:
+                warnings.warn(
+                    "Magnetic Reynolds number much less than one during rundown",
+                    RuntimeWarning,
+                )
             if p >= self.length:
                 end_idx = k + 1
                 break
@@ -56,4 +68,11 @@ class AxialSheathModel:
             end_idx = len(t) - 1
 
         times = t[start_index:end_idx + 1]
-        return SheathResult(time=times, position=np.array(pos), velocity=np.array(vel), jxb_force=jxb[start_index:end_idx + 1], end_index=end_idx)
+        return SheathResult(
+            time=times,
+            position=np.array(pos),
+            velocity=np.array(vel),
+            jxb_force=jxb[start_index:end_idx + 1],
+            end_index=end_idx,
+            magnetic_reynolds=np.array(rms),
+        )
