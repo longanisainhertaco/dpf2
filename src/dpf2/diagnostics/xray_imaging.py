@@ -1,6 +1,47 @@
 from __future__ import annotations
 
-from typing import Callable, List, Sequence, Tuple
+from typing import Callable, Dict, List, Sequence, Tuple
+
+
+# ---------------------------------------------------------------------------
+# Filter pack definitions
+# ---------------------------------------------------------------------------
+
+def _be_filter(E: float) -> float:
+    """Crude beryllium filter transmission."""
+
+    return 0.5 if E <= 1.0 else 0.2
+
+
+def _al_filter(E: float) -> float:
+    """Crude aluminium filter transmission."""
+
+    return 0.4 if E <= 2.0 else 0.1
+
+
+def _ti_filter(E: float) -> float:
+    """Crude titanium filter transmission."""
+
+    return 0.3 if E <= 4.0 else 0.05
+
+
+FILTER_PACKS: Dict[str, Callable[[float], float]] = {
+    "open": lambda E: 1.0,
+    "Be": _be_filter,
+    "Al": _al_filter,
+    "Ti": _ti_filter,
+    "BeAl": lambda E: _be_filter(E) * _al_filter(E),
+    "AlTi": lambda E: _al_filter(E) * _ti_filter(E),
+}
+
+
+def apply_filter_pack(energies: Sequence[float], pack: str) -> List[float]:
+    """Apply transmission of a filter pack to photon energies."""
+
+    if pack not in FILTER_PACKS:
+        raise ValueError(f"Unknown filter pack '{pack}'")
+    fn = FILTER_PACKS[pack]
+    return [float(E) * fn(float(E)) for E in energies]
 
 
 def xray_image(
@@ -66,4 +107,32 @@ def xray_image(
     return image
 
 
-__all__ = ["xray_image"]
+def pinhole_camera(
+    photon_positions: Sequence[Tuple[float, float, float]],
+    photon_energies: Sequence[float],
+    detector_distance: float,
+    detector_pixels: Tuple[int, int],
+    pixel_size: float,
+    filter_pack: str = "open",
+    noise_fn: Callable[[float], float] | None = None,
+) -> List[List[float]]:
+    """Synthesize a pinhole camera image including filter pack effects."""
+
+    energies = apply_filter_pack(photon_energies, filter_pack)
+    return xray_image(
+        photon_positions,
+        energies,
+        detector_distance,
+        detector_pixels,
+        pixel_size,
+        response_fn=None,
+        noise_fn=noise_fn,
+    )
+
+
+__all__ = [
+    "xray_image",
+    "pinhole_camera",
+    "apply_filter_pack",
+    "FILTER_PACKS",
+]
