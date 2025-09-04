@@ -68,6 +68,19 @@ export default function ProjectManager({ projects = [] }) {
     }
   };
 
+  const exportConfig = (project) => {
+    if (!project?.config) return;
+    const blob = new Blob([JSON.stringify(project.config, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${project.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const colors = ['blue', 'green', 'red', 'orange', 'purple'];
   const datasets = selectedIds.map((id, idx) => ({
     label: id,
@@ -82,30 +95,51 @@ export default function ProjectManager({ projects = [] }) {
       <ul>
         {configSets.map((p) => (
           <li key={p.id}>
-
             <label>
               <input
                 type="checkbox"
                 checked={selectedIds.includes(p.id)}
                 onChange={() => toggleSelect(p.id)}
               />
-
               {p.id}
             </label>
+            {p.config && (
+              <button
+                type="button"
+                onClick={() => exportConfig(p)}
+                title="Download this configuration for sharing"
+              >
+                Export
+              </button>
+            )}
           </li>
         ))}
       </ul>
 
       <form onSubmit={addConfigSet}>
         <h4>Add Configuration Set</h4>
-        <select value={preset} onChange={(e) => setPreset(e.target.value)}>
+        <select
+          value={preset}
+          onChange={(e) => setPreset(e.target.value)}
+          title="Choose a starting geometry"
+        >
           <option value="">Geometry Preset</option>
           <option value="tapered">Tapered</option>
           <option value="hollow">Hollow</option>
           <option value="re-entrant">Re-entrant</option>
         </select>
-        <input type="file" onChange={(e) => setCad(e.target.files[0])} />
-        <button type="submit">Add</button>
+        <input
+          type="file"
+          onChange={(e) => setCad(e.target.files[0])}
+          title="Optional CAD file for custom geometry"
+        />
+        <button type="submit" title="Upload the configuration set">Add</button>
+        <details>
+          <summary>What is this?</summary>
+          Select a preset geometry or upload a CAD file to create a new
+          configuration set. These settings can later be exported for
+          sharing.
+        </details>
       </form>
 
       {selectedIds.length > 0 && (

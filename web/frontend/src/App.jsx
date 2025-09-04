@@ -10,7 +10,6 @@ export default function App() {
 
   const [voltage, setVoltage] = useState(1.0);
   const [pressure, setPressure] = useState(0.1);
-  const [projects, setProjects] = useState([]);
 
 
   const login = async (e) => {
@@ -54,6 +53,12 @@ export default function App() {
               onChange={(e) => setConfig(e.target.value)}
               title="Paste a JSON configuration for the simulation"
             />
+            <details>
+              <summary>What is this?</summary>
+              Provide a complete JSON configuration describing your
+              scenario. It will be sent to the server and can be
+              exported later for sharing.
+            </details>
             <br />
             <button type="submit" title="Start the simulation run">Run</button>
           </form>

@@ -50,3 +50,16 @@ python -m dpf2.cli.main best -i sweep_runs/ --metric neutron_yield -o optimal.js
 This file can be used directly in subsequent simulations or shared with
 collaborators.
 
+## 5. Share configurations
+
+Use the command line or sandbox GUI to distribute promising scenarios.
+
+From the CLI, export any configuration to a portable JSON file:
+
+```bash
+dpf2 share --config optimal.json --output shared.json
+```
+
+In the web sandbox, choose a project and click *Export* to download its
+settings for classmates.
+
