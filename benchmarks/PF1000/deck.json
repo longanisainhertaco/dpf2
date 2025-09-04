@@ -1,0 +1,15 @@
+{
+  "cathode_radius": 0.02,
+  "anode_radius": 0.03,
+  "electrode_length": 0.12,
+  "capacitance": 5e-05,
+  "inductance": 3e-08,
+  "resistance": 0.008,
+  "charging_voltage": 28000.0,
+  "gas_type": "deuterium",
+  "initial_pressure": 150.0,
+  "nr_cells": 100,
+  "nz_cells": 200,
+  "cfl_number": 0.5,
+  "end_time": 1e-05
+}

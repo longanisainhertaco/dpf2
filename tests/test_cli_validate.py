@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import json
+from pathlib import Path
+
 import pydantic
 import pytest
 
@@ -28,3 +31,13 @@ def test_run_validation_creates_report(tmp_path):
     report = (outdir / "validation_report.json").read_text()
     assert "rmse" in report and "l2" in report
     assert isinstance(ok, bool)
+
+
+def test_run_validation_benchmark(tmp_path):
+    deck = Path("benchmarks/UNU/deck.json")
+    ds = "benchmarks/UNU"
+    outdir = tmp_path / "unu"
+    ok = run_validation(deck, ds, outdir=outdir)
+    report = json.loads((outdir / "benchmark_report.json").read_text())
+    assert report["passed"] is True
+    assert "current_rmse" in report

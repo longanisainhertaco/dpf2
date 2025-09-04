@@ -7,29 +7,37 @@ simulation infrastructure.
 
 ## Frozen regression suite
 
-Predefined projects live under `benchmarks/`.  Each project contains two files:
+Predefined projects live under `benchmarks/`.  Each reference device has a
+read‑only directory containing three JSON files:
 
-- `inputs.json` – configuration for a simple RLC circuit
-- `expected.json` – reference time histories and tolerance bands
+- `deck.json` – minimal simulation configuration for the reference shot
+- `inputs.json` – waveform and scalar outputs produced by the simulator
+- `expected.json` – published reference data used for validation
 
-Execute a case and produce a pass/fail dashboard plus an overlay plot using
-the helper script:
+Run a benchmark using the CLI ``validate`` command:
 
 ```bash
-python scripts/run_benchmark.py unu_pff
+python -m dpf2.cli.main validate \
+    --config benchmarks/PF1000/deck.json \
+    --dataset benchmarks/PF1000 \
+    --outdir Validation/PF1000
 ```
 
-The command writes plots showing the simulation output overlaid on the
-reference trace and prints whether the waveform falls within tolerance.  By
-default results are written to `Validation/<case>/` where the overlay,
-`metrics.json` and `results.h5` manifest are stored.
+The command compares the current trace, neutron yield, and anisotropy against
+``expected.json`` and writes a ``benchmark_report.json`` summarising pass/fail
+status for each metric.
 
-The regression suite ships with frozen inputs and reference outputs for three
-devices:
+### Acceptance tolerances
 
-- `unu_pff` – UNU/ICTP Plasma Focus Facility
-- `pf_1000` – PF‑1000 device
-- `mjolnir` – MJOLNIR dense plasma focus
+- Current trace: RMSE within 10 % of the peak reference current
+- Neutron yield: 5 % relative error
+- Anisotropy: 5 % relative error
+
+### Reference devices
+
+- `PF1000` – PF‑1000 facility [Sadowski 1992]
+- `UNU` – UNU/ICTP Plasma Focus Facility [Lee 2014]
+- `MJOLNIR` – LLNL MJOLNIR dense plasma focus [Eddleman 2020]
 
 ## Analytic plasma expansion
 

@@ -469,6 +469,73 @@ def score_simulation(
     }
 
 
+def evaluate_benchmark(
+    sim: Dict[str, Any],
+    expected: Dict[str, Any],
+    *,
+    tolerances: Optional[Dict[str, float]] = None,
+) -> Dict[str, Any]:
+    """Compare simulation outputs against expected benchmark values.
+
+    Parameters
+    ----------
+    sim:
+        Simulation results containing ``current`` time series, ``neutron_yield``
+        and ``anisotropy`` entries.
+    expected:
+        Mapping with the same structure providing the reference values.
+    tolerances:
+        Optional relative tolerances for ``current``, ``neutron_yield`` and
+        ``anisotropy``.  Defaults to ``0.1`` for the current trace and ``0.05``
+        for the scalar metrics.
+    """
+
+    tol = {"current": 0.1, "neutron_yield": 0.05, "anisotropy": 0.05}
+    if tolerances:
+        tol.update(tolerances)
+
+    # --- Current trace -----------------------------------------------------
+    exp_cur = expected.get("current", {})
+    sim_cur = sim.get("current", {})
+    t_exp = np.array(exp_cur.get("time", []))
+    v_exp = np.array(exp_cur.get("value", []))
+    t_sim = np.array(sim_cur.get("time", []))
+    v_sim = np.array(sim_cur.get("value", []))
+    if len(t_exp) and len(t_sim):
+        v_interp = np.interp(t_exp, t_sim, v_sim)
+        cur_rmse = float(np.sqrt(np.mean((v_interp - v_exp) ** 2)))
+        norm = np.max(np.abs(v_exp)) or 1.0
+        cur_pass = cur_rmse <= norm * tol["current"]
+    else:  # pragma: no cover - defensive
+        cur_rmse = float("inf")
+        cur_pass = False
+
+    # --- Scalar metrics ----------------------------------------------------
+    def _rel_err(key: str) -> Tuple[float, bool]:
+        exp_val = float(expected.get(key, 0.0))
+        sim_val = float(sim.get(key, 0.0))
+        if exp_val == 0:
+            return float("inf"), False
+        err = abs(sim_val - exp_val) / abs(exp_val)
+        return err, err <= tol[key]
+
+    y_err, y_pass = _rel_err("neutron_yield")
+    a_err, a_pass = _rel_err("anisotropy")
+
+    passed = cur_pass and y_pass and a_pass
+    return {
+        "current_rmse": cur_rmse,
+        "neutron_yield_error": y_err,
+        "anisotropy_error": a_err,
+        "passed": passed,
+        "checks": {
+            "current": cur_pass,
+            "neutron_yield": y_pass,
+            "anisotropy": a_pass,
+        },
+    }
+
+
 __all__ = [
     "ValidationSuite",
     "load_benchmark_dataset",
@@ -480,6 +547,7 @@ __all__ = [
     "load_validation_dataset",
     "resample_profile",
     "score_simulation",
+    "evaluate_benchmark",
 ]
 
 
