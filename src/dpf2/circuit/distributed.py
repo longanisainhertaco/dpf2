@@ -22,13 +22,22 @@ which is perfectly adequate for the unit tests that exercise this module.
 """
 
 from dataclasses import dataclass, field
-from typing import Iterable, Sequence, List
+from typing import Iterable, Sequence, List, Any
 
 import numpy as np
 import math
 import cmath
 
-__all__ = ["TransmissionLineSegment", "TriggeredSwitch", "assemble_matrices"]
+from dpf2.core.bases import PlasmaSolverBase
+
+__all__ = [
+    "TransmissionLineSegment",
+    "TriggeredSwitch",
+    "CrowbarStage",
+    "BlumleinSection",
+    "PlasmaInductance",
+    "assemble_matrices",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +207,7 @@ class TriggeredSwitch:
     R_off: float = 1e6
     trigger_times: Sequence[float] | None = None
     trigger_time: float | None = None  # backward compatible single trigger
+    jitter_std: float = 0.0
     L_parasitic: float = 0.0
     R_parasitic: float = 0.0
     C_parasitic: float = 0.0
@@ -214,6 +224,10 @@ class TriggeredSwitch:
             self.trigger_times = list(self.trigger_times)
             if self.trigger_time is not None:
                 self.trigger_times.append(self.trigger_time)
+        # Optional Gaussian jitter applied to trigger times
+        if self.jitter_std > 0.0 and self.trigger_times:
+            jitter = np.random.normal(0.0, self.jitter_std, len(self.trigger_times))
+            self.trigger_times = [t + j for t, j in zip(self.trigger_times, jitter)]
         # Ensure times are in ascending order for efficient processing
         self.trigger_times = sorted(self.trigger_times)
 
@@ -238,6 +252,85 @@ class TriggeredSwitch:
             self.update(t)
         base = self.R_on if self.closed else self.R_off
         return base + self.R_parasitic
+
+
+@dataclass
+class CrowbarStage(TriggeredSwitch):
+    """Resistive crowbar stage engaging at ``trigger_time`` with optional jitter."""
+
+    def __init__(
+        self,
+        from_node: int,
+        to_node: int,
+        resistance: float,
+        trigger_time: float,
+        jitter_std: float = 0.0,
+    ) -> None:
+        super().__init__(
+            from_node=from_node,
+            to_node=to_node,
+            closed=False,
+            R_on=resistance,
+            R_off=1e12,
+            trigger_times=[trigger_time],
+            jitter_std=jitter_std,
+        )
+
+
+@dataclass
+class BlumleinSection:
+    """Transmission line segment with a triggerable switch representing a Blumlein block."""
+
+    segment: TransmissionLineSegment
+    trigger: TriggeredSwitch
+
+    def __init__(
+        self,
+        segment: TransmissionLineSegment,
+        trigger_time: float,
+        jitter_std: float = 0.0,
+        R_on: float = 1e-3,
+        R_off: float = 1e6,
+    ) -> None:
+        self.segment = segment
+        self.trigger = TriggeredSwitch(
+            from_node=segment.to_node,
+            to_node=segment.from_node,
+            closed=False,
+            R_on=R_on,
+            R_off=R_off,
+            trigger_times=[trigger_time],
+            jitter_std=jitter_std,
+        )
+
+    def components(self) -> tuple[TransmissionLineSegment, TriggeredSwitch]:
+        """Return the underlying segment and trigger switch."""
+
+        return self.segment, self.trigger
+
+
+@dataclass
+class PlasmaInductance:
+    """Dynamic inductive branch sourced from an external plasma solver."""
+
+    from_node: int
+    to_node: int
+    solver: PlasmaSolverBase
+
+    def delay(self) -> float:
+        return 0.0
+
+    def totals(
+        self, t: float = 0.0, frequency: float | None = None
+    ) -> tuple[float, float, float]:
+        """Return instantaneous plasma inductance ``Lp``."""
+
+        try:
+            fb = self.solver.coupling_interface()
+            Lp = float(getattr(fb, "Lp", 0.0))
+        except Exception:
+            Lp = 0.0
+        return Lp, 0.0, 0.0
 
 
 # ---------------------------------------------------------------------------
