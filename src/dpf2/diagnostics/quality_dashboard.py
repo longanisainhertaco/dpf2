@@ -21,6 +21,15 @@ class QualityDashboard:
     abort_on_violation: bool = False
     history: list[dict[str, float]] = field(default_factory=list)
 
+    min_S: float | None = None
+    max_beta: float | None = None
+    max_M_A: float | None = None
+    min_R_m: float | None = None
+    max_K_n: float | None = None
+    min_omega_ce_tau_e: float | None = None
+    regime_history: list[dict[str, float]] = field(default_factory=list)
+
+
     def log(
         self,
         step: int,
@@ -29,8 +38,10 @@ class QualityDashboard:
         ppc: float,
         cfl: float,
         lambda_D: float,
+
         divergence_error: float = 0.0,
         energy_drift: float = 0.0,
+
     ) -> None:
         """Record a step's metrics and emit warnings if thresholds violated."""
         entry = {
@@ -43,6 +54,13 @@ class QualityDashboard:
             "divergence_error": divergence_error,
             "energy_drift": energy_drift,
         }
+        if amr_level is not None:
+            entry["amr_level"] = amr_level
+
+        if lower_hybrid_power is not None:
+            entry["lower_hybrid_power"] = lower_hybrid_power
+        if plasma_impedance is not None:
+            entry["plasma_impedance"] = plasma_impedance
 
         dt_violation = self.max_dt is not None and dt > self.max_dt
         lambda_violation = lambda_D < cell_size
@@ -80,6 +98,95 @@ class QualityDashboard:
 
         self._update_plot()
 
+    def log_regime(
+        self,
+        step: int,
+        S: float,
+        beta: float,
+        M_A: float,
+        R_m: float,
+        K_n: float,
+        omega_ce_tau_e: float,
+    ) -> None:
+        """Record dimensionless regime parameters and flag threshold violations."""
+
+        entry = {
+            "step": step,
+            "S": S,
+            "beta": beta,
+            "M_A": M_A,
+            "R_m": R_m,
+            "K_n": K_n,
+            "omega_ce_tau_e": omega_ce_tau_e,
+        }
+
+        self.regime_history.append(entry)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.output_dir / "regime.json", "w", encoding="utf-8") as fh:
+            json.dump(self.regime_history, fh, indent=2)
+
+        def _warn_or_abort(msg: str) -> None:
+            logger.warning(msg)
+            if self.abort_on_violation:
+                raise RuntimeError(msg)
+
+        if self.min_S is not None and S < self.min_S:
+            _warn_or_abort(f"Lundquist number below threshold: {S:g} < {self.min_S:g}")
+        if self.max_beta is not None and beta > self.max_beta:
+            _warn_or_abort(f"Plasma beta above threshold: {beta:g} > {self.max_beta:g}")
+        if self.max_M_A is not None and M_A > self.max_M_A:
+            _warn_or_abort(f"Alfvén Mach number above threshold: {M_A:g} > {self.max_M_A:g}")
+        if self.min_R_m is not None and R_m < self.min_R_m:
+            _warn_or_abort(f"Magnetic Reynolds number below threshold: {R_m:g} < {self.min_R_m:g}")
+        if self.max_K_n is not None and K_n > self.max_K_n:
+            _warn_or_abort(f"Knudsen number above threshold: {K_n:g} > {self.max_K_n:g}")
+        if self.min_omega_ce_tau_e is not None and omega_ce_tau_e < self.min_omega_ce_tau_e:
+            _warn_or_abort(
+                f"Cyclotron frequency–collision time below threshold: {omega_ce_tau_e:g} < {self.min_omega_ce_tau_e:g}"
+            )
+
+        self._update_regime_plot()
+
+    # ------------------------------------------------------------------
+    def evaluate_numerics(self, metrics: dict[str, float]) -> bool:
+        """Check numerical diagnostics against configured thresholds."""
+
+        self.numerics_history.append(metrics)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.output_dir / "numerics.json", "w", encoding="utf-8") as fh:
+            json.dump(self.numerics_history, fh, indent=2)
+
+        def _warn_or_abort(msg: str) -> None:
+            logger.warning(msg)
+            if self.abort_on_violation:
+                raise RuntimeError(msg)
+
+        ok = True
+        l1 = metrics.get("l1_error")
+        if self.max_l1_error is not None and l1 is not None and l1 > self.max_l1_error:
+            _warn_or_abort(
+                f"L1 error above threshold: {l1:g} > {self.max_l1_error:g}"
+            )
+            ok = False
+        div = metrics.get("divB_norm")
+        if self.max_divB_norm is not None and div is not None and div > self.max_divB_norm:
+            _warn_or_abort(
+                f"∇·B norm above threshold: {div:g} > {self.max_divB_norm:g}"
+            )
+            ok = False
+        drift = metrics.get("energy_drift")
+        if (
+            self.max_energy_drift is not None
+            and drift is not None
+            and abs(drift) > self.max_energy_drift
+        ):
+            _warn_or_abort(
+                f"Energy drift above threshold: {drift:g} > {self.max_energy_drift:g}"
+            )
+            ok = False
+
+        return ok
+
     # ------------------------------------------------------------------
     def _update_plot(self) -> None:
         """Render a simple plot of stability metrics."""
@@ -97,8 +204,13 @@ class QualityDashboard:
         dts = [h["dt"] for h in self.history]
         lambdas = [h["lambda_D"] for h in self.history]
         cells = [h["cell_size"] for h in self.history]
+        levels = [h.get("amr_level") for h in self.history]
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        has_levels = any(l is not None for l in levels)
+        if has_levels:
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        else:
+            fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
         ax1.plot(steps, dts, label="Δt")
         if self.max_dt is not None:
             ax1.axhspan(0, self.max_dt, color="lightgreen", alpha=0.3)
@@ -128,9 +240,48 @@ class QualityDashboard:
             alpha=0.3,
         )
         ax2.set_ylabel("λ_D")
-        ax2.set_xlabel("step")
-        ax2.legend()
+        if has_levels:
+            ax2.legend()
+            ax3.step(steps, [l if l is not None else 0 for l in levels], where="post", label="AMR level")
+            ax3.set_ylabel("level")
+            ax3.set_xlabel("step")
+            ax3.legend()
+        else:
+            ax2.set_xlabel("step")
+            ax2.legend()
 
         fig.tight_layout()
         fig.savefig(self.output_dir / "stability.png")
+        plt.close(fig)
+
+    # ------------------------------------------------------------------
+    def _update_regime_plot(self) -> None:
+        """Render a plot of regime parameters over time."""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+        except Exception:  # pragma: no cover - matplotlib optional
+            return
+
+        if not self.regime_history:
+            return
+
+        steps = [h["step"] for h in self.regime_history]
+        metrics = [
+            ("S", "Lundquist"),
+            ("beta", "beta"),
+            ("M_A", "M_A"),
+            ("R_m", "R_m"),
+            ("K_n", "K_n"),
+            ("omega_ce_tau_e", "ω_ce τ_e"),
+        ]
+        fig, axes = plt.subplots(3, 2, sharex=True)
+        for ax, (key, label) in zip(axes.flat, metrics):
+            ax.plot(steps, [h[key] for h in self.regime_history])
+            ax.set_ylabel(label)
+        axes[2, 0].set_xlabel("step")
+        axes[2, 1].set_xlabel("step")
+        fig.tight_layout()
+        fig.savefig(self.output_dir / "regime.png")
         plt.close(fig)

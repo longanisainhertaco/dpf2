@@ -15,6 +15,7 @@ import numpy as np
 
 from ..core_schema import IonizationModel
 from .kinetics import RateTable, RateEquations
+from .metadata import DatasetMetadata, load_adas_metadata, load_lxcat_metadata
 
 __all__ = [
     "ChemistryModel",
@@ -23,6 +24,9 @@ __all__ = [
     "create_chemistry",
     "RateTable",
     "RateEquations",
+    "DatasetMetadata",
+    "load_adas_metadata",
+    "load_lxcat_metadata",
 ]
 
 

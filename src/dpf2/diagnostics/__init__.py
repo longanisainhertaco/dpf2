@@ -40,6 +40,7 @@ from .synthetic_signals import (
 from .streaming import NeutronYieldStreamer, XRayEmissionStreamer, RealTimeComparator
 from .interferometry import interferometer_phase_shift
 from .pinhole_imaging import pinhole_image
+from .regime_panel import RegimePanel
 from .plasma import (
     bennett_radius,
     plasma_beta,
@@ -56,6 +57,7 @@ from .neutron_spectra import (
     angular_spectrum,
     anisotropy_metric,
 )
+from .performance_metrics import compute_performance_metrics
 
 
 def apply_noise(
@@ -90,6 +92,7 @@ __all__ = [
     "tof_iv_cross_correlation",
     "angular_yield_map",
     "save_angular_yield_map_hdf5",
+    "compute_performance_metrics",
     "compute_xray_spectrum",
     "compute_scope_trace",
     "current_waveform",
@@ -120,6 +123,7 @@ __all__ = [
     "synthetic_tof_spectrum",
     "angular_spectrum",
     "anisotropy_metric",
+    "RegimePanel",
     "Diagnostics",
     "DetectorArrayGenerator",
     "OutputField",
@@ -142,6 +146,10 @@ class SXRModel(BaseModel):
 
     name: str
     position: Tuple[float, float, float]
+    response_file: Path | None = None
+    gate: Tuple[float, float] | None = Field(None, metadata={"units": "ns"})
+    dead_time_ns: float | None = Field(None, metadata={"units": "ns"})
+    dispersion: List[float] | None = None
 
 
 class TOFModel(BaseModel):
@@ -149,6 +157,10 @@ class TOFModel(BaseModel):
 
     name: str
     position: Tuple[float, float, float]
+    response_file: Path | None = None
+    gate: Tuple[float, float] | None = Field(None, metadata={"units": "ns"})
+    dead_time_ns: float | None = Field(None, metadata={"units": "ns"})
+    dispersion: List[float] | None = None
 
 
 class OutputField(str, Enum):

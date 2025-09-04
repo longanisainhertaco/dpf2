@@ -47,6 +47,8 @@ class DeviceEntry(BaseModel):
     cathode_radius_cm: float = Field(..., alias="cathodeRadiusCm", ge=0.0)
     anode_length_cm: float = Field(..., alias="anodeLengthCm", ge=0.0)
     insulator_length_cm: float = Field(..., alias="insulatorLengthCm", ge=0.0)
+    anode_material: Optional[MaterialRef] = Field(None, alias="anodeMaterial")
+    cathode_material: Optional[MaterialRef] = Field(None, alias="cathodeMaterial")
     insulator_material: Optional[MaterialRef] = Field(None, alias="insulatorMaterial")
     insulator_sleeve: Optional[InsulatorSleeve] = Field(
         None, alias="insulatorSleeve"

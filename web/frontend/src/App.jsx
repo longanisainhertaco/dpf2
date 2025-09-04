@@ -3,6 +3,7 @@ import axios from 'axios';
 import ProjectManager from './ProjectManager.jsx';
 import InstabilityVisualizer from './InstabilityVisualizer.jsx';
 import SheathBeamOverlay from './SheathBeamOverlay.jsx';
+import RegimeDashboard from './RegimeDashboard.jsx';
 
 import QuickStartTutorial from './QuickStartTutorial.jsx';
 
@@ -266,6 +267,7 @@ export default function App() {
           </div>
           <InstabilityVisualizer />
           <SheathBeamOverlay voltage={voltage} pressure={pressure} />
+          <RegimeDashboard />
 
           <QuickStartTutorial
             setVoltage={setVoltage}

@@ -50,4 +50,10 @@
       }
     ]
   }
+  ,
+  "lxcat": {
+    "dummy": {
+      "Ar": "tests/neutral/lxcat_dummy.csv"
+    }
+  }
 }

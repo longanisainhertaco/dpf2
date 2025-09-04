@@ -15,10 +15,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List
 import json
+import warnings
 
 from .project_manager import ProjectManager
 from ..core.config import DPFConfig
 from ..device_profiles import DeviceProfiles
+from ..optimization import OptimizationWarning
 
 try:  # pragma: no cover - optional dependency
     import dash
@@ -56,6 +58,9 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
 
     pm = ProjectManager()
     app = Dash(__name__)
+
+    # Surface optimisation warnings to the user interface
+    warnings.simplefilter("always", OptimizationWarning)
 
     presets = DeviceProfiles.with_defaults().devices
     preset_options = [{"label": name, "value": name} for name in presets.keys()]
