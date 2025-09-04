@@ -18,7 +18,7 @@ output file.
 
 When executing in lab mode or other batch-oriented commands, a manifest is
 stored in each run directory.  The manifest is available as both
-`manifest.json` and `manifest.h5` and mirrors the metadata embedded in the
+`run_manifest.json` and `run_manifest.h5` and mirrors the metadata embedded in the
 HDF5 outputs.
 
 Manifests include paths to configuration files, computed seeds and additional

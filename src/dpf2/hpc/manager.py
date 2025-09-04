@@ -85,15 +85,19 @@ class JobManager:
         os.chmod(path, 0o755)
         return path
 
-    def submit(self, job_script: str, **kwargs: Any) -> Any:
+    def submit(self, job_script: str, *, manifest: str | None = None, **kwargs: Any) -> Any:
         """Submit ``job_script`` to the configured scheduler.
 
         Parameters
         ----------
         job_script:
             Path to a submission script or executable.
+        manifest:
+            Optional path to a ``run_manifest.json`` that should be staged with
+            other outputs.
         **kwargs:
-            Additional scheduler specific keyword arguments.
+            Additional scheduler specific keyword arguments. ``restart`` may
+            reference a manifest path to resume a previous run.
 
         Returns
         -------
@@ -103,6 +107,13 @@ class JobManager:
 
         stage_in: Mapping[str, str] | None = kwargs.pop("stage_in", None)
         stage_out: Mapping[str, str] | None = kwargs.pop("stage_out", None)
+        restart = kwargs.get("restart")
+        if manifest is not None:
+            stage_out = dict(stage_out or {})
+            stage_out[manifest] = manifest
+        if restart is not None and str(restart).endswith(".json"):
+            stage_in = dict(stage_in or {})
+            stage_in[str(restart)] = str(restart)
         job_script = self._wrap_staging(job_script, stage_in, stage_out)
 
         # Script level arguments and restart handling
@@ -147,7 +158,7 @@ class JobManager:
             if gpu_affinity is not None:
                 env["CUDA_VISIBLE_DEVICES"] = ",".join(str(g) for g in gpu_affinity)
             if restart is not None:
-                # Allow job scripts to locate the checkpoint for staging
+                # Allow job scripts to locate the checkpoint or manifest for staging
                 env["DPF_RESTART"] = str(restart)
             return subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
         if self.scheduler == "awsbatch":

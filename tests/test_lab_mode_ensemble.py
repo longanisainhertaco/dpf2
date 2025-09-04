@@ -24,6 +24,6 @@ def test_lab_mode_runs_multiple_shots(tmp_path):
     assert result.exit_code == 0, result.output
     shot0 = tmp_path / "out" / "shot_000"
     shot1 = tmp_path / "out" / "shot_001"
-    assert (shot0 / "manifest.json").exists()
-    assert (shot1 / "manifest.json").exists()
+    assert (shot0 / "run_manifest.json").exists()
+    assert (shot1 / "run_manifest.json").exists()
     assert any(p.suffix == ".h5" for p in shot0.iterdir())

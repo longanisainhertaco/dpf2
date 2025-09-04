@@ -11,3 +11,4 @@ def test_manifest_includes_config_and_seeds(tmp_path):
     assert data["code_hash"]
     assert data["config"] == cfg
     assert data["random_seeds"] == seeds
+    assert "environment" in data and "python" in data["environment"]
