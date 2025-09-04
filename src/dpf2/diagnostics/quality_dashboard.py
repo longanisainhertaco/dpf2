@@ -39,7 +39,8 @@ class QualityDashboard:
         cfl: float,
         lambda_D: float,
 
-        amr_level: int | None = None,
+        divergence_error: float = 0.0,
+        energy_drift: float = 0.0,
 
     ) -> None:
         """Record a step's metrics and emit warnings if thresholds violated."""
@@ -50,6 +51,8 @@ class QualityDashboard:
             "ppc": ppc,
             "cfl": cfl,
             "lambda_D": lambda_D,
+            "divergence_error": divergence_error,
+            "energy_drift": energy_drift,
         }
         if amr_level is not None:
             entry["amr_level"] = amr_level

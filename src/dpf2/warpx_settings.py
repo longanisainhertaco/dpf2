@@ -91,7 +91,7 @@ class WarpXSettings(ConfigSectionBase):
         None, alias="emissionProfilePath"
     )
 
-    field_deposition: Literal["standard", "Esirkepov"] = Field(
+    field_deposition: Literal["standard", "Esirkepov", "EZ"] = Field(
         "standard", alias="fieldDeposition"
     )
     current_correction: Optional[bool] = Field(True, alias="currentCorrection")

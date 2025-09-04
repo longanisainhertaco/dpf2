@@ -871,8 +871,10 @@ class HallMHDSolver(PlasmaSolverBase):
                 ppc,
                 cfl,
                 float(np.mean(lambda_D)),
-                lower_hybrid_power=lh_power,
-                plasma_impedance=impedance,
+
+                divergence_error=getattr(self, "divergence_error", 0.0),
+                energy_drift=getattr(self, "energy_drift", 0.0),
+
             )
 
         return new_state
