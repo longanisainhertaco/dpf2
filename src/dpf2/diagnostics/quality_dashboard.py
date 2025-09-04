@@ -20,6 +20,10 @@ class QualityDashboard:
     max_dt: float | None = None
     abort_on_violation: bool = False
     history: list[dict[str, float]] = field(default_factory=list)
+    max_l1_error: float | None = None
+    max_divB_norm: float | None = None
+    max_energy_drift: float | None = None
+    numerics_history: list[dict[str, float]] = field(default_factory=list)
 
     min_S: float | None = None
     max_beta: float | None = None
@@ -28,6 +32,14 @@ class QualityDashboard:
     max_K_n: float | None = None
     min_omega_ce_tau_e: float | None = None
     regime_history: list[dict[str, float]] = field(default_factory=list)
+
+    max_l1_error: float | None = None
+    max_divB_norm: float | None = None
+
+    max_divE_norm: float | None = None
+
+    max_energy_drift: float | None = None
+    numerics_history: list[dict[str, float]] = field(default_factory=list)
 
 
     def log(
@@ -40,9 +52,16 @@ class QualityDashboard:
         lambda_D: float,
         amr_level: int | None = None,
         lower_hybrid_power: float | None = None,
+        lower_hybrid_phase_velocity: float | None = None,
         plasma_impedance: float | None = None,
         divergence_error: float = 0.0,
         energy_drift: float = 0.0,
+        hall_active: bool | None = None,
+        electron_inertia_active: bool | None = None,
+        wce_tau_e: float | None = None,
+        di_over_L: float | None = None,
+        hall_threshold: float | None = None,
+        ei_threshold: float | None = None,
 
     ) -> None:
         """Record a step's metrics and emit warnings if thresholds violated.
@@ -70,8 +89,22 @@ class QualityDashboard:
 
         if lower_hybrid_power is not None:
             entry["lower_hybrid_power"] = lower_hybrid_power
+        if lower_hybrid_phase_velocity is not None:
+            entry["lower_hybrid_phase_velocity"] = lower_hybrid_phase_velocity
         if plasma_impedance is not None:
             entry["plasma_impedance"] = plasma_impedance
+        if hall_active is not None:
+            entry["hall_active"] = hall_active
+        if electron_inertia_active is not None:
+            entry["electron_inertia_active"] = electron_inertia_active
+        if wce_tau_e is not None:
+            entry["wce_tau_e"] = wce_tau_e
+        if di_over_L is not None:
+            entry["di_over_L"] = di_over_L
+        if hall_threshold is not None:
+            entry["hall_threshold"] = hall_threshold
+        if ei_threshold is not None:
+            entry["ei_threshold"] = ei_threshold
 
         dt_violation = self.max_dt is not None and dt > self.max_dt
         lambda_violation = lambda_D < cell_size
@@ -205,10 +238,16 @@ class QualityDashboard:
                 f"L1 error above threshold: {l1:g} > {self.max_l1_error:g}"
             )
             ok = False
-        div = metrics.get("divB_norm")
-        if self.max_divB_norm is not None and div is not None and div > self.max_divB_norm:
+        divB = metrics.get("divB_norm")
+        if self.max_divB_norm is not None and divB is not None and divB > self.max_divB_norm:
             _warn_or_abort(
-                f"∇·B norm above threshold: {div:g} > {self.max_divB_norm:g}"
+                f"∇·B norm above threshold: {divB:g} > {self.max_divB_norm:g}"
+            )
+            ok = False
+        divE = metrics.get("divE_norm")
+        if self.max_divE_norm is not None and divE is not None and divE > self.max_divE_norm:
+            _warn_or_abort(
+                f"∇·E norm above threshold: {divE:g} > {self.max_divE_norm:g}"
             )
             ok = False
         drift = metrics.get("energy_drift")

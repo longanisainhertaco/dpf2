@@ -59,6 +59,19 @@ class NeutralPlasmaCoupler:
         self.plasma_solver = plasma_solver
 
     def run(self, dt: float) -> NeutralPlasmaResult:
+        """Run coupled neutral and plasma solvers for a single step.
+
+        Parameters
+        ----------
+        dt:
+            Time step forwarded to the DSMC neutral solver.
+
+        Returns
+        -------
+        NeutralPlasmaResult
+            Container bundling the neutral density with the plasma solver
+            payload.
+        """
         nd = self.dsmc.run(dt)
         plasma = self.plasma_solver.run(neutral_density=nd)
         return NeutralPlasmaResult(neutral_density=nd, plasma=plasma)

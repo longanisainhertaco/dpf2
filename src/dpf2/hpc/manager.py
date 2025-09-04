@@ -27,6 +27,7 @@ class JobManager:
         path: str,
         config: Mapping[str, Any] | None,
         container_hash: str | None,
+        datasets: Mapping[str, Mapping[str, str]] | None = None,
     ) -> None:
         """Write a minimal HDF5 manifest capturing run metadata.
 
@@ -70,6 +71,9 @@ class JobManager:
                 manifest.attrs["config"] = json.dumps(config)
             if container_hash:
                 manifest.attrs["container_hash"] = container_hash
+            if datasets:
+                from ..io.manifest import write_hdf5_dataset_manifest
+                write_hdf5_dataset_manifest(h5, datasets)
 
     def _extend_cmd(self, cmd: list[str], opts: Dict[str, Any], flag_map: Dict[str, Iterable[str]]) -> None:
         """Append CLI options from ``opts`` to ``cmd`` using ``flag_map``.

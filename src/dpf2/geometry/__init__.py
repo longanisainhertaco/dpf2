@@ -15,6 +15,7 @@ from .parameterized import (
 from .triple_junction import (
     triple_junction_field,
     set_triple_junction_field_map,
+    triple_junction_enhancement,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "ReentrantGeometry",
     "triple_junction_field",
     "set_triple_junction_field_map",
+    "triple_junction_enhancement",
 ]

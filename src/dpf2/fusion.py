@@ -160,12 +160,17 @@ def dd_yield_components(
     beam_energy_keV: float | None,
     volume: float,
     duration: float,
+    thermo_rate_sigma: float | None = None,
+    beam_rate_sigma: float | None = None,
 ) -> dict[str, tuple[float, float]]:
-    """Return D-D neutron yields with simple Poisson uncertainties.
+    """Return D-D neutron yields with propagated uncertainties.
 
     The underlying reaction rates are provided by :func:`dd_fusion_rates`.  The
     yields are obtained by multiplying the rates by ``volume`` and ``duration``.
-    Uncertainties are estimated assuming Poisson statistics, i.e. ``sqrt(N)``.
+    By default only a simple Poisson estimate (``sqrt(N)``) is used for the
+    uncertainties.  Optional ``thermo_rate_sigma`` and ``beam_rate_sigma``
+    values allow additional uncertainty on the input rates to be propagated in
+    quadrature.
 
     Parameters
     ----------
@@ -173,6 +178,10 @@ def dd_yield_components(
         Inputs forwarded to :func:`dd_fusion_rates`.
     volume, duration
         Plasma volume (m^3) and integration time (s).
+    thermo_rate_sigma, beam_rate_sigma
+        Optional uncertainties on the thermonuclear and beam--target reaction
+        rates (same units as the rates).  When provided they are combined with
+        the counting statistics in quadrature.
 
     Returns
     -------
@@ -187,9 +196,18 @@ def dd_yield_components(
     th_yield = thermo_rate * volume * duration
     bt_yield = beam_rate * volume * duration
     total = th_yield + bt_yield
+
+    th_var = th_yield if th_yield > 0 else 0.0
+    bt_var = bt_yield if bt_yield > 0 else 0.0
+    if thermo_rate_sigma is not None:
+        th_var += (float(thermo_rate_sigma) * volume * duration) ** 2
+    if beam_rate_sigma is not None:
+        bt_var += (float(beam_rate_sigma) * volume * duration) ** 2
+    total_var = th_var + bt_var
+
     return {
-        "thermonuclear": (th_yield, math.sqrt(th_yield) if th_yield > 0 else 0.0),
-        "beam_target": (bt_yield, math.sqrt(bt_yield) if bt_yield > 0 else 0.0),
-        "total": (total, math.sqrt(total) if total > 0 else 0.0),
+        "thermonuclear": (th_yield, math.sqrt(th_var) if th_var > 0 else 0.0),
+        "beam_target": (bt_yield, math.sqrt(bt_var) if bt_var > 0 else 0.0),
+        "total": (total, math.sqrt(total_var) if total_var > 0 else 0.0),
     }
 

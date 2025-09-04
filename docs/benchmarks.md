@@ -8,11 +8,13 @@ simulation infrastructure.
 ## Frozen regression suite
 
 Predefined projects live under `benchmarks/`.  Each reference device has a
-read‑only directory containing three JSON files:
+read‑only directory containing three JSON files and a CSV file:
 
 - `deck.json` – minimal simulation configuration for the reference shot
 - `inputs.json` – waveform and scalar outputs produced by the simulator
 - `expected.json` – published reference data used for validation
+- `reference.csv` – raw time histories used by the legacy ``benchmark run``
+  CLI
 
 Run a benchmark using the CLI ``validate`` command:
 
@@ -26,6 +28,20 @@ python -m dpf2.cli.main validate \
 The command compares the current trace, neutron yield, and anisotropy against
 ``expected.json`` and writes a ``benchmark_report.json`` summarising pass/fail
 status for each metric.
+
+### Overlay comparisons
+
+For a quick visual check of the frozen RLC benchmarks, the helper script
+``scripts/run_benchmark.py`` executes a case and plots the simulation overlayed
+with the reference signal and its tolerance band:
+
+```bash
+python scripts/run_benchmark.py PF1000
+```
+
+Results are written to ``Validation/<case>/`` containing an ``overlay.png`` and
+``metrics.json`` summary.  The tolerances for each signal are specified in
+``expected.json``.
 
 ### Acceptance tolerances
 
