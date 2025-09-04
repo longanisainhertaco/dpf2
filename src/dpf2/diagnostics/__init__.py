@@ -14,11 +14,18 @@ from .neutron_yield import (
     compute_neutron_yield,
     compute_beam_target_yield,
     compute_thermonuclear_yield,
+    yield_components_with_anisotropy,
     save_anisotropic_spectrum_hdf5,
     simulate_tof_detectors,
     save_tof_hdf5,
+    tof_iv_cross_correlation,
     angular_yield_map,
     save_angular_yield_map_hdf5,
+)
+from .detector_models import (
+    cr39_response,
+    rcf_response,
+    time_gated_scintillator_response,
 )
 from .xray_spectra import compute_xray_spectrum
 from .scope_trace import compute_scope_trace
@@ -76,9 +83,11 @@ __all__ = [
     "compute_neutron_yield",
     "compute_beam_target_yield",
     "compute_thermonuclear_yield",
+    "yield_components_with_anisotropy",
     "save_anisotropic_spectrum_hdf5",
     "simulate_tof_detectors",
     "save_tof_hdf5",
+    "tof_iv_cross_correlation",
     "angular_yield_map",
     "save_angular_yield_map_hdf5",
     "compute_xray_spectrum",
@@ -104,6 +113,9 @@ __all__ = [
     "save_density_temperature_map_hdf5",
     "compute_eedf",
     "save_eedf_hdf5",
+    "cr39_response",
+    "rcf_response",
+    "time_gated_scintillator_response",
     "DetectorLayout",
     "synthetic_tof_spectrum",
     "angular_spectrum",

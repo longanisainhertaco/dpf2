@@ -6,6 +6,13 @@ from dpf2.diagnostics.neutron_yield import (
     compute_beam_target_yield,
     compute_thermonuclear_yield,
     save_anisotropic_spectrum_hdf5,
+    yield_components_with_anisotropy,
+    tof_iv_cross_correlation,
+)
+from dpf2.diagnostics.detector_models import (
+    cr39_response,
+    rcf_response,
+    time_gated_scintillator_response,
 )
 
 
@@ -43,3 +50,57 @@ def test_save_anisotropic_spectrum_hdf5(tmp_path):
         np.testing.assert_allclose(fh["angle_deg"][:], angles)
         for i, row in enumerate(spectrum):
             np.testing.assert_allclose(fh[f"detectors/detector_{i}"][:], row)
+
+
+def test_yield_components_and_anisotropy():
+    beam = _TestBeam()
+    cross_section = lambda e: e
+    angles = [0.0, 90.0]
+    distance = 1.0
+    time_bins = [0.0, 1.0]
+    reactivity = [1e-20, 1e-20]
+    ion_density = [1e19, 1e19]
+    dt = 1e-6
+    result = yield_components_with_anisotropy(
+        beam,
+        cross_section,
+        angles,
+        distance,
+        time_bins,
+        reactivity,
+        ion_density,
+        dt,
+    )
+    bt, _ = compute_beam_target_yield(beam, cross_section, angles, distance, time_bins)
+    th = compute_thermonuclear_yield(reactivity, ion_density, dt)
+    th_per = [th / 2.0, th / 2.0]
+    total = [b + t for b, t in zip(bt, th_per)]
+    mean = sum(total) / 2.0
+    expected_aniso = (max(total) - min(total)) / mean if mean else 0.0
+    assert result["beam_target"] == bt
+    assert result["thermonuclear"] == th
+    assert result["angular_thermal"] == th_per
+    assert result["anisotropy"] == expected_aniso
+
+
+def test_detector_models():
+    yields = [10.0, 20.0]
+    area = 1e-4
+    distance = 1.0
+    expected = [y * area / distance ** 2 for y in yields]
+    assert cr39_response(yields, area, distance) == expected
+    assert rcf_response(yields, area, distance) == expected
+
+    hist = [1.0, 2.0, 3.0]
+    bins = [0.0, 1.0, 2.0, 3.0]
+    count = time_gated_scintillator_response(hist, bins, 0.0, 3.0, area, distance)
+    assert count == sum(hist) * area / distance ** 2
+
+
+def test_tof_iv_cross_correlation():
+    tof = [1.0, 2.0, 3.0]
+    current = [1.0, 2.0, 3.0]
+    voltage = [3.0, 2.0, 1.0]
+    corr = tof_iv_cross_correlation(tof, current, voltage)
+    assert np.isclose(corr["current"], 1.0)
+    assert np.isclose(corr["voltage"], -1.0)
