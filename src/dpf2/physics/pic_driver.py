@@ -27,6 +27,12 @@ class PicDriver(Protocol):
     def exchange_particles(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return particle positions and velocities."""
 
+    def deposit_current(self, J: np.ndarray) -> None:
+        """Deposit a charge conserving current array onto the PIC grid."""
+
+    def push_fields(self, E: np.ndarray, B: np.ndarray) -> None:
+        """Load electric and magnetic fields from the Hall-MHD solver."""
+
 
 @dataclass
 class PhysicalPICDriver:
@@ -43,10 +49,12 @@ class PhysicalPICDriver:
     B_coeff: float = 1.0
     last_E: np.ndarray | None = None
     last_B: np.ndarray | None = None
+    last_J: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         self.last_E = np.zeros((1, 1, 1, 3))
         self.last_B = np.zeros((1, 1, 1, 3))
+        self.last_J = np.zeros((1, 1, 1, 3))
 
     def step(self, state: "MHDState", current: float, dt: float) -> Tuple[float, float, float]:
         voltage = current * self.field_coeff
@@ -78,6 +86,13 @@ class PhysicalPICDriver:
             positions[:, 2] = np.asarray(self.pic.positions)
             velocities[:, 2] = np.asarray(self.pic.velocities)
         return positions, velocities
+
+    def deposit_current(self, J: np.ndarray) -> None:
+        self.last_J = np.array(J, copy=True)
+
+    def push_fields(self, E: np.ndarray, B: np.ndarray) -> None:
+        self.last_E = np.array(E, copy=True)
+        self.last_B = np.array(B, copy=True)
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +129,20 @@ try:  # pragma: no cover - exercised when WarpX dependency is present
             radius, energy = super().step(current, dt)
             self.exchange_particles()
             return radius, energy, current
+
+        def deposit_current(self, J: _np.ndarray) -> None:
+            if hasattr(self.warp, "deposit_current"):
+                try:
+                    self.warp.deposit_current(J)
+                except Exception:
+                    pass
+
+        def push_fields(self, E: _np.ndarray, B: _np.ndarray) -> None:
+            if hasattr(self.warp, "set_fields"):
+                try:
+                    self.warp.set_fields(E, B)
+                except Exception:
+                    pass
 
 except Exception:  # pragma: no cover - fallback when WarpX is unavailable
     class WarpXPICDriver(PicDriver):  # type: ignore[misc]
