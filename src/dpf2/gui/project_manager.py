@@ -35,9 +35,11 @@ class ProjectManager:
     >>> pm.export_metrics("metrics.csv")  # doctest: +SKIP
     """
 
-    def __init__(self) -> None:
+    def __init__(self, project: str = "default") -> None:
         self.metrics: Dict[str, Dict[float, Dict[str, float]]] = {}
         self.params: Dict[str, str] = {}
+        self.project = project
+        self.last_kpi_plot: Path | None = None
 
     @staticmethod
     def _spot_size(t: Iterable[float], current: Iterable[float]) -> float:
@@ -53,6 +55,46 @@ class ProjectManager:
         if not mask.any():
             return 0.0
         return float(t_arr[mask][-1] - t_arr[mask][0])
+
+    def _save_kpi_plot(
+        self, label: str, parameter: str, metrics: Dict[float, Dict[str, float]]
+    ) -> Path:
+        """Persist KPI plots for a single sweep.
+
+        A three-panel figure is created showing yield, wall-plug efficiency
+        and spot size versus the swept ``parameter``.  The resulting image is
+        stored under ``results/<project>/kpi_plots/`` and the path recorded on
+        ``last_kpi_plot`` for later display.
+        """
+
+        import matplotlib.pyplot as plt
+
+        vals = sorted(metrics.keys())
+        y = [metrics[v].get("yield", 0.0) for v in vals]
+        eff = [
+            metrics[v].get("wall_plug_efficiency", metrics[v].get("efficiency", 0.0))
+            for v in vals
+        ]
+        spot = [metrics[v].get("spot_size", 0.0) for v in vals]
+
+        fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+        axes[0].plot(vals, y, marker="o")
+        axes[0].set_ylabel("Yield")
+        axes[1].plot(vals, eff, marker="s")
+        axes[1].set_ylabel("Wall-Plug Eff.")
+        axes[2].plot(vals, spot, marker="^")
+        axes[2].set_ylabel("Spot Size")
+        for ax in axes:
+            ax.set_xlabel(parameter)
+            ax.grid(True)
+
+        fig.tight_layout()
+        path = Path("results") / self.project / "kpi_plots" / f"{label}.png"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(path)
+        plt.close(fig)
+        self.last_kpi_plot = path
+        return path
 
     def run_sweep(
         self,
@@ -83,8 +125,18 @@ class ProjectManager:
             base_config, parameter, values, output_dir=output_dir
         )
         metrics = compute_sweep_metrics(base_config, results, parameter)
+
+        energy_in = 0.5 * base_config.capacitance * base_config.charging_voltage**2
+        for val, (t, current, voltage) in results.items():
+            power = np.array(current) * np.array(voltage)
+            energy_out = float(np.trapz(power, np.array(t)))
+            wall = energy_out / energy_in if energy_in else 0.0
+            metrics[val]["wall_plug_efficiency"] = wall
+            metrics[val]["spot_size"] = self._spot_size(t, current)
+
         self.metrics[label] = metrics
         self.params[label] = parameter
+        self._save_kpi_plot(label, parameter, metrics)
         return metrics
 
     def overlay_yield_pressure(self, path: str | Path) -> Path:
@@ -133,17 +185,13 @@ class ProjectManager:
         return front
 
     def overlay_metrics(
-        self, path: str | Path, parameter: str | None = None
+        self, path: str | Path | None = None, parameter: str | None = None
     ) -> Path:
-        """Overlay yield, pinch time and efficiency curves for stored sweeps.
+        """Overlay KPI curves for stored sweeps.
 
-        Parameters
-        ----------
-        path:
-            Destination image path.
-        parameter:
-            Optional axis label. If omitted and all recorded sweeps share a
-            common parameter, that name is used automatically.
+        The generated figure contains yield, wall-plug efficiency and spot size
+        panels.  When ``path`` is omitted the plot is written beneath
+        ``results/<project>/kpi_plots/overlay.png``.
         """
 
         import matplotlib.pyplot as plt
@@ -152,22 +200,31 @@ class ProjectManager:
             params = {self.params.get(k, "") for k in self.metrics}
             parameter = params.pop() if len(params) == 1 else "parameter"
 
-        path = Path(path)
+        if path is None:
+            path = Path("results") / self.project / "kpi_plots" / "overlay.png"
+        else:
+            path = Path(path)
+            if not path.is_absolute():
+                path = Path("results") / self.project / "kpi_plots" / path
         path.parent.mkdir(parents=True, exist_ok=True)
+
         fig, axes = plt.subplots(1, 3, sharex=False, figsize=(12, 4))
 
         for label, metrics in self.metrics.items():
             vals = sorted(metrics.keys())
             y = [metrics[v].get("yield", 0.0) for v in vals]
-            p = [metrics[v].get("pinch_time", 0.0) for v in vals]
-            e = [metrics[v].get("efficiency", 0.0) for v in vals]
+            e = [
+                metrics[v].get("wall_plug_efficiency", metrics[v].get("efficiency", 0.0))
+                for v in vals
+            ]
+            s = [metrics[v].get("spot_size", 0.0) for v in vals]
             axes[0].plot(vals, y, label=label)
-            axes[1].plot(vals, p, label=label)
-            axes[2].plot(vals, e, label=label)
+            axes[1].plot(vals, e, label=label)
+            axes[2].plot(vals, s, label=label)
 
         axes[0].set_ylabel("Yield")
-        axes[1].set_ylabel("Pinch Time")
-        axes[2].set_ylabel("Efficiency")
+        axes[1].set_ylabel("Wall-Plug Eff.")
+        axes[2].set_ylabel("Spot Size")
         for ax in axes:
             ax.set_xlabel(parameter)
             ax.grid(True)
@@ -181,7 +238,8 @@ class ProjectManager:
         """Export all stored metrics to a CSV file.
 
         The resulting table contains the sweep label, parameter value and the
-        computed ``yield``, ``pinch_time`` and ``efficiency`` metrics.
+        computed ``yield``, ``pinch_time``, ``efficiency``,
+        ``wall_plug_efficiency`` and ``spot_size`` metrics.
 
         Parameters
         ----------
@@ -193,16 +251,30 @@ class ProjectManager:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["label", "parameter", "yield", "pinch_time", "efficiency"])
+            writer.writerow(
+                [
+                    "label",
+                    "parameter",
+                    "yield",
+                    "pinch_time",
+                    "efficiency",
+                    "wall_plug_efficiency",
+                    "spot_size",
+                ]
+            )
             for label, metrics in self.metrics.items():
                 for param_val, vals in metrics.items():
-                    writer.writerow([
-                        label,
-                        param_val,
-                        vals.get("yield", 0.0),
-                        vals.get("pinch_time", 0.0),
-                        vals.get("efficiency", 0.0),
-                    ])
+                    writer.writerow(
+                        [
+                            label,
+                            param_val,
+                            vals.get("yield", 0.0),
+                            vals.get("pinch_time", 0.0),
+                            vals.get("efficiency", 0.0),
+                            vals.get("wall_plug_efficiency", 0.0),
+                            vals.get("spot_size", 0.0),
+                        ]
+                    )
         return path
 
 

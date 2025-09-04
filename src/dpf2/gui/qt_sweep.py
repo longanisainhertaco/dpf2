@@ -88,7 +88,7 @@ class _SweepWindow(QWidget):
             btn_row.addWidget(b)
         layout.addLayout(btn_row)
 
-        self.pm = ProjectManager()
+        self.pm = ProjectManager(project="qt")
 
         # Connect callbacks
         self.btn_sweep_v.clicked.connect(
@@ -113,17 +113,17 @@ class _SweepWindow(QWidget):
         base = getattr(cfg, param)
         values = [base * f for f in factors]
         label = f"{param}_{len(self.pm.metrics)}"
-        metrics = self.pm.run_sweep(label, cfg, param, values)
-        vals = sorted(metrics.keys())
-        plt.figure()
-        plt.plot(vals, [metrics[v]["yield"] for v in vals], marker="o")
-        plt.xlabel(param)
-        plt.ylabel("Yield")
-        plt.tight_layout()
-        plt.show()
+        self.pm.run_sweep(label, cfg, param, values)
+        if self.pm.last_kpi_plot:
+            img = plt.imread(self.pm.last_kpi_plot)
+            plt.figure()
+            plt.imshow(img)
+            plt.axis("off")
+            plt.tight_layout()
+            plt.show()
 
     def _overlay_runs(self) -> None:
-        path = self.pm.overlay_metrics(Path("overlay.png"))
+        path = self.pm.overlay_metrics()
         img = plt.imread(path)
         plt.figure()
         plt.imshow(img)
