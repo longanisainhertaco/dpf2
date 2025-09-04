@@ -325,6 +325,9 @@ def parse_arguments():
         action="store_true",
         help="Enable OpenCensus tracing for simulation stages",
     )
+    parser.add_argument("--relativistic-corrections", action="store_true", help="Enable relativistic PIC corrections")
+    parser.add_argument("--quantum-emission", action="store_true", help="Enable quantum emission module")
+    parser.add_argument("--time-dependent-boundaries", action="store_true", help="Enable time-dependent PIC boundaries")
     args = parser.parse_args()
     return args
 
@@ -358,6 +361,13 @@ def main():
     # Load and validate configuration
     try:
         config = load_config_from_json(args.config_file)
+        if config.pic:
+            if args.relativistic_corrections:
+                config.pic.relativistic_corrections = True
+            if args.quantum_emission:
+                config.pic.quantum_emission = True
+            if args.time_dependent_boundaries:
+                config.pic.time_dependent_boundaries = True
     except ConfigurationError as e:
         logger.error(e)
         sys.exit(1)
