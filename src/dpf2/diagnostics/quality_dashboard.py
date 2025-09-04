@@ -29,6 +29,9 @@ class QualityDashboard:
         ppc: float,
         cfl: float,
         lambda_D: float,
+        *,
+        lower_hybrid_power: float | None = None,
+        plasma_impedance: float | None = None,
     ) -> None:
         """Record a step's metrics and emit warnings if thresholds violated."""
         entry = {
@@ -39,6 +42,11 @@ class QualityDashboard:
             "cfl": cfl,
             "lambda_D": lambda_D,
         }
+
+        if lower_hybrid_power is not None:
+            entry["lower_hybrid_power"] = lower_hybrid_power
+        if plasma_impedance is not None:
+            entry["plasma_impedance"] = plasma_impedance
 
         dt_violation = self.max_dt is not None and dt > self.max_dt
         lambda_violation = lambda_D < cell_size
