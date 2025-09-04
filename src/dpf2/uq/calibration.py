@@ -227,9 +227,68 @@ def emcee_calibrate_mass_current(
     return {name: chain[:, idx] for idx, name in enumerate(names)}
 
 
+# ---------------------------------------------------------------------------
+def emcee_calibrate_waveform(
+    time_sim: np.ndarray,
+    current_sim: np.ndarray,
+    time_data: np.ndarray,
+    current_data: np.ndarray,
+    bounds: Bounds | None = None,
+    n_walkers: int = 32,
+    n_steps: int = 1000,
+    sigma: float = 1.0,
+    seed: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Infer mass/current scaling factors from a current waveform using MCMC.
+
+    The routine assumes ``current_sim`` provides the baseline simulated
+    waveform sampled at times ``time_sim``.  The measured waveform
+    ``current_data`` is sampled at ``time_data``.  The unknown
+    ``mass_factor`` scales the time axis of the simulation while
+    ``current_factor`` scales the amplitude.  A simple Gaussian likelihood is
+    used with observational noise ``sigma``.
+    """
+
+    try:  # pragma: no cover - dependency may be optional
+        import emcee  # type: ignore
+    except Exception as exc:  # pragma: no cover - import error path
+        raise RuntimeError("emcee is required for emcee_calibrate_waveform") from exc
+
+    if bounds is None:
+        bounds = {"mass_factor": (0.5, 1.5), "current_factor": (0.5, 1.5)}
+
+    names = ["mass_factor", "current_factor"]
+    lower = np.array([bounds[n][0] for n in names])
+    upper = np.array([bounds[n][1] for n in names])
+
+    time_sim = np.asarray(time_sim, dtype=float)
+    current_sim = np.asarray(current_sim, dtype=float)
+    time_data = np.asarray(time_data, dtype=float)
+    current_data = np.asarray(current_data, dtype=float)
+
+    def log_prob(theta: np.ndarray) -> float:
+        if np.any(theta < lower) or np.any(theta > upper):
+            return -np.inf
+        mass_factor, current_factor = theta
+        # Scale the simulation time axis by mass_factor and interpolate
+        scaled_time = mass_factor * time_sim
+        sim_interp = np.interp(time_data, scaled_time, current_sim, left=0.0, right=0.0)
+        pred = current_factor * sim_interp
+        resid = (current_data - pred) / sigma
+        return -0.5 * np.dot(resid, resid)
+
+    rng = np.random.default_rng(seed)
+    p0 = lower + (upper - lower) * rng.random((n_walkers, len(names)))
+    sampler = emcee.EnsembleSampler(n_walkers, len(names), log_prob)
+    sampler.run_mcmc(p0, n_steps, progress=False)
+    chain = sampler.get_chain(discard=n_steps // 2, flat=True)
+    return {name: chain[:, idx] for idx, name in enumerate(names)}
+
+
 __all__ = [
     "bayesian_calibration",
     "nested_calibration",
     "emcee_calibrate_mass_current",
+    "emcee_calibrate_waveform",
 ]
 
