@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Iterable, Sequence
 
+import dataclasses
 import numpy as np
 
 from .simulation_engine import SimulationResults
+from .core.config import DPFConfig
+from .circuit_solver import RLCCircuit, CircuitSolver
+from .pinch_models import AnalyticPinchModel
 
 
 def _load_config(dataset_dir: Path) -> Dict[str, Any]:
@@ -65,4 +69,98 @@ def compare_to_scaling(results: SimulationResults, dataset_dir: Path) -> Dict[st
 
     return metrics
 
-__all__ = ["compare_to_scaling"]
+
+def _fit_power_law(x: Sequence[float], y: Sequence[float]) -> tuple[float, float]:
+    """Fit ``y = k * x**m`` returning ``(k, m)``.
+
+    Only positive ``x`` and ``y`` entries are used in the fit.
+    """
+
+    x_arr = np.asarray(x, dtype=float)
+    y_arr = np.asarray(y, dtype=float)
+    mask = (x_arr > 0) & (y_arr > 0)
+    if mask.sum() < 2:
+        return float("nan"), float("nan")
+    logx = np.log(x_arr[mask])
+    logy = np.log(y_arr[mask])
+    m, logk = np.polyfit(logx, logy, 1)
+    return float(np.exp(logk)), float(m)
+
+
+def sweep_yield_scaling(
+    base_config: DPFConfig,
+    parameter: str,
+    values: Iterable[float],
+    *,
+    t_end: float | None = None,
+    dt: float | None = None,
+) -> Dict[str, Any]:
+    """Generate ``Y_n`` scaling data for a parameter sweep.
+
+    The circuit is modelled using an analytic RLC solution and neutron yield is
+    estimated with :class:`AnalyticPinchModel`.  The fitted power-law exponent
+    ``m`` is returned for both ``Y_n`` vs. ``I_peak`` and ``Y_n`` vs. the swept
+    parameter.
+    """
+
+    cfg = base_config
+    model = AnalyticPinchModel()
+    t_end = t_end or cfg.end_time
+    dt = dt or t_end / 1000.0
+
+    results: list[Dict[str, float]] = []
+
+    if parameter == "initial_pressure":
+        circuit = RLCCircuit(
+            L=cfg.inductance, R=cfg.resistance, C=cfg.capacitance, V0=cfg.charging_voltage
+        )
+        solver = CircuitSolver(circuit)
+        t, base_current = solver.solve(t_end=t_end, dt=dt)
+        base_p = cfg.initial_pressure
+        for p in values:
+            scale = (base_p / p) ** 0.5
+            current = base_current * scale
+            res = model.run(np.array(t), current)
+            results.append(
+                {
+                    "parameter": float(p),
+                    "I_peak": float(np.max(current)),
+                    "yield": float(res.neutron_yield),
+                }
+            )
+    else:
+        for val in values:
+            new_cfg = dataclasses.replace(cfg, **{parameter: val})
+            circuit = RLCCircuit(
+                L=new_cfg.inductance,
+                R=new_cfg.resistance,
+                C=new_cfg.capacitance,
+                V0=new_cfg.charging_voltage,
+            )
+            solver = CircuitSolver(circuit)
+            t, current = solver.solve(t_end=t_end, dt=dt)
+            res = model.run(np.array(t), current)
+            results.append(
+                {
+                    "parameter": float(val),
+                    "I_peak": float(np.max(current)),
+                    "yield": float(res.neutron_yield),
+                }
+            )
+
+    params = [r["parameter"] for r in results]
+    i_peaks = [r["I_peak"] for r in results]
+    yields = [r["yield"] for r in results]
+    _, m_current = _fit_power_law(i_peaks, yields)
+    _, m_param = _fit_power_law(params, yields)
+    return {
+        "parameter": parameter,
+        "values": params,
+        "I_peak": i_peaks,
+        "Y_n": yields,
+        "m_current": m_current,
+        "m_parameter": m_param,
+    }
+
+
+__all__ = ["compare_to_scaling", "sweep_yield_scaling"]
