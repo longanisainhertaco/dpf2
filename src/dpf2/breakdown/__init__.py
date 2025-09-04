@@ -6,6 +6,9 @@ from .flashover import (
     seea_stochastic_delay,
     delay_series,
     delay_statistics,
+    holdoff_voltage,
+    holdoff_series,
+    jitter_statistics,
 )
 
 __all__ = [
@@ -14,4 +17,7 @@ __all__ = [
     "seea_stochastic_delay",
     "delay_series",
     "delay_statistics",
+    "holdoff_voltage",
+    "holdoff_series",
+    "jitter_statistics",
 ]

@@ -145,6 +145,15 @@ def flashover_delay_stats(delays: Sequence[float]) -> Dict[str, float]:
     return {"count": n, "mean": mean, "stddev": var ** 0.5}
 
 
+def flashover_jitter_stats(holdoffs: Sequence[float]) -> Dict[str, float]:
+    """Return jitter statistics for flashover hold-off voltages.
+
+    This simply forwards to :func:`flashover_delay_stats` for clarity.
+    """
+
+    return flashover_delay_stats(holdoffs)
+
+
 def export_directional_yields(path: Path | str, totals: Dict[str, float]) -> Path:
     """Write directional yield ``totals`` to ``path`` in JSON format."""
 
