@@ -2,7 +2,7 @@
 
 The `run-compare` command executes frozen benchmark configurations and
 compares the results against reference outputs stored under
-`Reference/Benchmarks/`.
+`benchmarks/`.
 
 Each benchmark directory contains two files:
 
@@ -11,10 +11,10 @@ Each benchmark directory contains two files:
   current, voltage and neutron yield.
 
 Running the command produces a pass/fail dashboard and PNG overlays for
-all three diagnostics:
+all three diagnostics. By default plots are written to `Validation/`:
 
 ```bash
-$ dpf2 run-compare --benchmark-dir Reference/Benchmarks --output results
+$ dpf2 run-compare
 ```
 
 The generated plots include grey tolerance bands around the reference

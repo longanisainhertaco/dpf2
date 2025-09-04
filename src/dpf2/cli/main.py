@@ -1033,16 +1033,16 @@ def wizard(output: str) -> None:
 @click.option(
     "--benchmark-dir",
     type=click.Path(file_okay=False),
-    default="Reference/Benchmarks",
+    default="benchmarks",
     show_default=True,
     help="Directory containing benchmark projects",
 )
 @click.option(
     "--output",
     type=click.Path(file_okay=False),
-    default="Reference/Benchmarks/results",
+    default="Validation",
     show_default=True,
-    help="Where to write comparison dashboards",
+    help="Where to write comparison plots",
 )
 def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
     """Run a single frozen benchmark and report tolerance grades."""
@@ -1050,6 +1050,7 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
     # Local imports to keep CLI lightweight when numpy/matplotlib are absent
     import json
     from pathlib import Path
+    import numpy as np
     import matplotlib.pyplot as plt
 
     project = Path(benchmark_dir) / case
@@ -1064,37 +1065,39 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
     neutron = [0.0 for _ in time]
 
     expected = json.loads(expected_path.read_text())
+    t_ref = np.array(expected.get("time", []))
+    current_ref = np.array(expected.get("current", []))
+    voltage_ref = np.array(expected.get("voltage", []))
+    neutron_ref = np.array(expected.get("neutron_yield", []))
     tol = expected.get("tolerance", {})
 
-    def _grade(key: str, actual: list[float]) -> tuple[bool, list[float]]:
-        exp = [float(x) for x in expected.get(key, [])]
+    current_act = np.interp(t_ref, time, current)
+    voltage_act = np.interp(t_ref, time, voltage)
+    neutron_act = np.interp(t_ref, time, neutron)
+
+    def _check(actual, ref, key: str) -> tuple[bool, float]:
         band = float(tol.get(key, 0.0))
-        passed = all(abs(a - e) <= band for a, e in zip(actual, exp))
-        return passed, exp
+        passed = all(abs(a - r) <= band for a, r in zip(actual, ref))
+        return passed, band
 
-    pass_current, exp_current = _grade("current", current)
-    pass_voltage, exp_voltage = _grade("voltage", voltage)
-    pass_neut, exp_neut = _grade("neutron_yield", neutron)
+    pass_current, band_current = _check(current_act, current_ref, "current")
+    pass_voltage, band_voltage = _check(voltage_act, voltage_ref, "voltage")
+    pass_neut, band_neut = _check(neutron_act, neutron_ref, "neutron_yield")
 
-    t = list(time)
     fig, axes = plt.subplots(3, 1, figsize=(6, 8))
     labels = ["current", "voltage", "neutron_yield"]
     units = ["A", "V", "yield"]
-    actual = [current, voltage, neutron]
-    expected_series = [exp_current, exp_voltage, exp_neut]
-    for ax, key, unit, data, exp in zip(axes, labels, units, actual, expected_series):
-        band = float(tol.get(key, 0.0))
-        low = [e - band for e in exp]
-        high = [e + band for e in exp]
-        ax.plot(t, data, label="actual")
-        ax.fill_between(
-            t,
-            low,
-            high,
-            color="gray",
-            alpha=0.3,
-            label="expected±tol",
-        )
+    actual = [current_act, voltage_act, neutron_act]
+    reference = [current_ref, voltage_ref, neutron_ref]
+    bands = [band_current, band_voltage, band_neut]
+    for ax, key, unit, act, ref, band in zip(
+        axes, labels, units, actual, reference, bands
+    ):
+        low = ref - band
+        high = ref + band
+        ax.plot(t_ref, ref, label="expected")
+        ax.plot(t_ref, act, label="actual")
+        ax.fill_between(t_ref, low, high, color="gray", alpha=0.3, label="expected±tol")
         ax.set_ylabel(f"{key} ({unit})")
         ax.legend()
     axes[-1].set_xlabel("time (s)")
@@ -1121,16 +1124,16 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
 @click.option(
     "--benchmark-dir",
     type=click.Path(exists=True, file_okay=False),
-    default="Reference/Benchmarks",
+    default="benchmarks",
     show_default=True,
     help="Directory containing benchmark projects",
 )
 @click.option(
     "--output",
     type=click.Path(file_okay=False),
-    default="Reference/Benchmarks/results",
+    default="Validation",
     show_default=True,
-    help="Where to write comparison dashboards",
+    help="Where to write comparison plots",
 )
 def run_compare(benchmark_dir: str, output: str) -> None:
     """Run frozen benchmarks and compare results.
@@ -1167,37 +1170,42 @@ def run_compare(benchmark_dir: str, output: str) -> None:
         neutron = [0.0 for _ in time]
 
         expected = json.loads(expected_path.read_text())
+        t_ref = np.array(expected.get("time", []))
+        current_ref = np.array(expected.get("current", []))
+        voltage_ref = np.array(expected.get("voltage", []))
+        neutron_ref = np.array(expected.get("neutron_yield", []))
         tol = expected.get("tolerance", {})
 
-        def _check(key: str, actual: list[float]) -> bool:
-            exp = np.array(expected.get(key, []), dtype=float)
-            act = np.array(actual, dtype=float)
-            return np.all(np.abs(act - exp) <= tol.get(key, 0.0))
+        current_act = np.interp(t_ref, time, current)
+        voltage_act = np.interp(t_ref, time, voltage)
+        neutron_act = np.interp(t_ref, time, neutron)
 
-        pass_current = _check("current", current)
-        pass_voltage = _check("voltage", voltage)
-        pass_neut = _check("neutron_yield", neutron)
+        def _check(act, ref, key: str) -> tuple[bool, float]:
+            band = float(tol.get(key, 0.0))
+            passed = all(abs(a - r) <= band for a, r in zip(act, ref))
+            return passed, band
+
+        pass_current, band_current = _check(current_act, current_ref, "current")
+        pass_voltage, band_voltage = _check(voltage_act, voltage_ref, "voltage")
+        pass_neut, band_neut = _check(neutron_act, neutron_ref, "neutron_yield")
 
         results.append((project.name, pass_current, pass_voltage, pass_neut))
 
         # Plot overlays
-        t = np.array(time)
         fig, axes = plt.subplots(3, 1, figsize=(6, 8))
         labels = ["current", "voltage", "neutron_yield"]
         units = ["A", "V", "yield"]
-        actual = [current, voltage, neutron]
-        for ax, key, unit, data in zip(axes, labels, units, actual):
-            exp = np.array(expected.get(key, [0.0] * len(time)))
-            band = tol.get(key, 0.0)
-            ax.plot(t, data, label="actual")
-            ax.fill_between(
-                t,
-                exp - band,
-                exp + band,
-                color="gray",
-                alpha=0.3,
-                label="expected±tol",
-            )
+        actual = [current_act, voltage_act, neutron_act]
+        reference = [current_ref, voltage_ref, neutron_ref]
+        bands = [band_current, band_voltage, band_neut]
+        for ax, key, unit, act, ref, band in zip(
+            axes, labels, units, actual, reference, bands
+        ):
+            low = ref - band
+            high = ref + band
+            ax.plot(t_ref, ref, label="expected")
+            ax.plot(t_ref, act, label="actual")
+            ax.fill_between(t_ref, low, high, color="gray", alpha=0.3, label="expected±tol")
             ax.set_ylabel(f"{key} ({unit})")
             ax.legend()
         axes[-1].set_xlabel("time (s)")
