@@ -16,6 +16,8 @@ from typing import Any, Callable, Dict, Tuple
 from typing import Protocol
 
 import logging
+import math
+from pathlib import Path
 import numpy as np
 try:  # pragma: no cover - allow running without SciPy
     from scipy.constants import mu_0
@@ -349,6 +351,7 @@ class HallMHDSolver(PlasmaSolverBase):
     instability_thresholds: Dict[str, float] | None = None
     sausage_onset: bool = field(init=False, default=False)
     kink_onset: bool = field(init=False, default=False)
+    mode_history: list[np.ndarray] = field(init=False, default_factory=list)
     voltage_spikes: list[float] = field(default_factory=list)
     impedance_growth: list[float] = field(default_factory=list)
     last_voltage_spike: float = field(init=False, default=0.0)
@@ -527,10 +530,17 @@ class HallMHDSolver(PlasmaSolverBase):
         if not self.instability_thresholds:
             return
         try:
-            J_mag = np.linalg.norm(J, axis=-1)
+            if hasattr(np, "linalg") and hasattr(np.linalg, "norm"):
+                J_mag = np.linalg.norm(J, axis=-1)
+            else:  # pragma: no cover - manual magnitude for stubs
+                J_mag = np.array([
+                    math.sqrt(float(j[0]) ** 2 + float(j[1]) ** 2 + float(j[2]) ** 2)
+                    for j in J
+                ])
         except Exception:  # pragma: no cover - very small stub fallback
             return
         spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
+        self.mode_history.append(spectrum.copy())
         if (
             not self.sausage_onset
             and "sausage" in self.instability_thresholds
@@ -545,6 +555,23 @@ class HallMHDSolver(PlasmaSolverBase):
             and spectrum[1] >= self.instability_thresholds["kink"]
         ):
             self.kink_onset = True
+
+    def dump_mode_growth(self, outdir: Path | str = Path("synthetic_diagnostics/modes")) -> Path | None:
+        """Write recorded modal growth rates to ``outdir``.
+
+        The solver collects the azimuthal mode spectrum of the current density
+        during :meth:`compute_anomalous_resistivity`.  This helper computes the
+        exponential growth rate between successive spectra and stores them in
+        ``outdir`` using the :mod:`dpf2.synthetic_diagnostics.modes` helpers.
+        ``None`` is returned if fewer than two spectra have been recorded.
+        """
+
+        if len(self.mode_history) < 2:
+            return None
+        times = list(range(len(self.mode_history)))
+        from .synthetic_diagnostics.modes import write_growth_rates
+
+        return write_growth_rates(times, self.mode_history, outdir)
 
     def amr_refinement(self, state: MHDState) -> None:
         """Invoke the refinement callback if provided."""
