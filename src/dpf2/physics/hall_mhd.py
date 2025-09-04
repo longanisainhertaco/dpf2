@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 
 import numpy as np
+
+try:  # pragma: no cover - allow running without SciPy
+    from scipy.constants import e as q_e, m_e, m_p, mu_0
+except Exception:  # pragma: no cover
+    q_e = 1.602176634e-19
+    m_e = 9.1093837015e-31
+    m_p = 1.67262192369e-27
+    mu_0 = 4e-7 * np.pi
 
 from .mhd import ResistiveMHD
 from ..mesh import Mesh2D, Mesh3D
@@ -30,6 +38,12 @@ class HallMHD(ResistiveMHD):
 
     hall_coeff: float = 0.0
     electron_inertia: float = 0.0
+    hall_enabled: bool = True
+    omega_ce_tau_e_min: float = 1.0
+    di_over_L_min: float = 0.01
+    nernst: float = 0.0
+    righi_leduc: float = 0.0
+    hall_active: bool = field(default=False, init=False)
     current: float = 0.0
     back_emf: float = 0.0
     beam_velocity: float = 0.0
@@ -40,6 +54,40 @@ class HallMHD(ResistiveMHD):
     # plasma inductance state (Henries)
     inductance: float = 0.0
     circuit_feedback: CouplingState | None = field(default=None, init=False)
+
+    def update_transport(self, ne: float, Te: float, B: float, L: float) -> None:
+        """Update transport coefficients and activation state.
+
+        The Braginskii coefficients are calculated using very small subsets of
+        the NRL Formulary expressions.  Activation is gated on the electron
+        magnetisation ``ω_ce τ_e`` and the ratio of the ion inertial length to
+        the system size ``d_i/L``.  When the Hall model is inactive the
+        coefficients are set to zero to recover classical resistive MHD.
+        """
+
+        omega_tau, di_over_L = hall_parameters(ne, Te, B, L)
+        self.omega_ce_tau_e = omega_tau
+        self.di_over_L = di_over_L
+        self.hall_active = (
+            self.hall_enabled
+            and omega_tau > self.omega_ce_tau_e_min
+            and di_over_L > self.di_over_L_min
+        )
+
+        if not self.hall_active:
+            self.eta = 0.0
+            self.kappa_parallel = 0.0
+            self.kappa_perp = 0.0
+            self.nernst = 0.0
+            self.righi_leduc = 0.0
+            return
+
+        coeffs = braginskii_coefficients(ne, Te, B)
+        self.kappa_parallel = coeffs["kappa_parallel"]
+        self.kappa_perp = coeffs["kappa_perp"]
+        self.eta = coeffs["eta_parallel"]
+        self.nernst = coeffs["nernst"]
+        self.righi_leduc = coeffs["righi_leduc"]
 
     # ------------------------------------------------------------------
     # Primitive ↔ conservative conversions
@@ -144,7 +192,14 @@ class HallMHD(ResistiveMHD):
     # ------------------------------------------------------------------
     # Fluxes with Hall term and back EMF
     # ------------------------------------------------------------------
-    def flux_function(self, U: np.ndarray, direction: str, J: np.ndarray | None = None) -> np.ndarray:
+    def flux_function(
+        self,
+        U: np.ndarray,
+        direction: str,
+        J: np.ndarray | None = None,
+        grad_pe: np.ndarray | None = None,
+        ne: float | None = None,
+    ) -> np.ndarray:
         """Compute fluxes including Hall effect and optional back EMF.
 
         Parameters
@@ -156,35 +211,55 @@ class HallMHD(ResistiveMHD):
         J:
             Current density ``curl(B)`` at the cell.  When omitted the Hall
             contribution vanishes.
+        grad_pe:
+            Gradient of the electron pressure.  Only used when the Hall model
+            is active.
+        ne:
+            Electron number density used for the ``∇p_e`` term.
         """
 
         F = super().flux_function(U, direction)
 
-        if J is not None:
-            if self.hall_coeff != 0.0:
-                rho = U[0]
-                B = U[5:8]
-                hall_e = self.hall_coeff * np.cross(J, B) / rho
-                if direction == "x":
-                    F[6] -= hall_e[2]
-                    F[7] -= hall_e[1]
-                elif direction == "y":
-                    F[5] -= hall_e[2]
-                    F[7] -= hall_e[0]
-                elif direction == "z":
-                    F[5] -= hall_e[1]
-                    F[6] -= hall_e[0]
-            if self.electron_inertia != 0.0:
-                inertia_e = self.electron_inertia * J
-                if direction == "x":
-                    F[6] += inertia_e[2]
-                    F[7] += inertia_e[1]
-                elif direction == "y":
-                    F[5] += inertia_e[2]
-                    F[7] += inertia_e[0]
-                elif direction == "z":
-                    F[5] += inertia_e[1]
-                    F[6] += inertia_e[0]
+        if not self.hall_active:
+            return F
+
+        if J is not None and self.hall_coeff != 0.0:
+            rho = U[0]
+            B = U[5:8]
+            hall_e = self.hall_coeff * np.cross(J, B) / rho
+            if direction == "x":
+                F[6] -= hall_e[2]
+                F[7] -= hall_e[1]
+            elif direction == "y":
+                F[5] -= hall_e[2]
+                F[7] -= hall_e[0]
+            elif direction == "z":
+                F[5] -= hall_e[1]
+                F[6] -= hall_e[0]
+
+        if J is not None and self.electron_inertia != 0.0:
+            inertia_e = self.electron_inertia * J
+            if direction == "x":
+                F[6] += inertia_e[2]
+                F[7] += inertia_e[1]
+            elif direction == "y":
+                F[5] += inertia_e[2]
+                F[7] += inertia_e[0]
+            elif direction == "z":
+                F[5] += inertia_e[1]
+                F[6] += inertia_e[0]
+
+        if grad_pe is not None and ne is not None and ne > 0.0:
+            E_pe = grad_pe / (ne * q_e)
+            if direction == "x":
+                F[6] -= E_pe[2]
+                F[7] -= E_pe[1]
+            elif direction == "y":
+                F[5] -= E_pe[2]
+                F[7] -= E_pe[0]
+            elif direction == "z":
+                F[5] -= E_pe[1]
+                F[6] -= E_pe[0]
 
         return F
 
@@ -295,4 +370,70 @@ def nrl_braginskii(rho: np.ndarray, T: np.ndarray, B: np.ndarray) -> tuple[np.nd
     return nu_par, kappa_par
 
 
-__all__ = ["HallMHD", "nrl_braginskii"]
+# ---------------------------------------------------------------------------
+# Extended transport helpers
+# ---------------------------------------------------------------------------
+
+
+def electron_collision_time(ne: float, Te: float, Z: float = 1.0, ln_lambda: float = 10.0) -> float:
+    """Return the electron-ion collision time ``τ_e`` in seconds."""
+
+    return 3.44e5 * (Te ** 1.5) / (Z * ne * ln_lambda)
+
+
+def hall_parameters(ne: float, Te: float, B: float, L: float, Z: float = 1.0) -> tuple[float, float]:
+    """Return ``ω_ce τ_e`` and ``d_i/L`` for gating decisions."""
+
+    tau_e = electron_collision_time(ne, Te, Z)
+    omega_ce = abs(q_e) * B / m_e
+    di = np.sqrt(m_p / (mu_0 * ne * q_e ** 2))
+    return omega_ce * tau_e, di / L
+
+
+def braginskii_coefficients(ne: float, Te: float, B: float, Z: float = 1.0, ln_lambda: float = 10.0) -> Dict[str, float]:
+    """Return a subset of Braginskii transport coefficients."""
+
+    tau_e = electron_collision_time(ne, Te, Z, ln_lambda)
+    omega_ce = abs(q_e) * B / m_e
+    omega_tau = omega_ce * tau_e
+    kappa_parallel = 3.16e-12 * Te ** 2.5 / (Z * ln_lambda)
+    kappa_perp = kappa_parallel / (1.0 + omega_tau ** 2)
+    eta_parallel = 1.03e-4 * Z * ln_lambda / (Te ** 1.5)
+    eta_perp = eta_parallel * (1.0 + omega_tau ** 2)
+    nernst = 0.81 * omega_tau / (1.0 + omega_tau ** 2)
+    righi_leduc = omega_tau ** 2 / (1.0 + omega_tau ** 2)
+    return {
+        "kappa_parallel": kappa_parallel,
+        "kappa_perp": kappa_perp,
+        "eta_parallel": eta_parallel,
+        "eta_perp": eta_perp,
+        "nernst": nernst,
+        "righi_leduc": righi_leduc,
+    }
+
+
+def whistler_dispersion(k: float, ne: float, B: float) -> float:
+    """Return the whistler-wave frequency for wavenumber ``k``."""
+
+    di = np.sqrt(m_p / (mu_0 * ne * q_e ** 2))
+    omega_ci = abs(q_e) * B / m_p
+    return omega_ci * (k * di) ** 2
+
+
+def hall_shock_speed(B: float, ne: float, L: float) -> float:
+    """Return a characteristic Hall shock speed used in tests."""
+
+    vA = B / np.sqrt(mu_0 * m_p * ne)
+    di = np.sqrt(m_p / (mu_0 * ne * q_e ** 2))
+    return vA * (1.0 + di / L)
+
+
+__all__ = [
+    "HallMHD",
+    "nrl_braginskii",
+    "electron_collision_time",
+    "hall_parameters",
+    "braginskii_coefficients",
+    "whistler_dispersion",
+    "hall_shock_speed",
+]
