@@ -29,7 +29,19 @@ except Exception:  # pragma: no cover - vtk is optional
 
 @dataclass
 class SheathField:
-    """Container for the vector field used in the animation."""
+    """Container for the vector field used in the animation.
+
+    Attributes
+    ----------
+    x:
+        Grid x-coordinates for plotting the sheath.
+    y:
+        Grid y-coordinates matching ``x``.
+    u:
+        Horizontal field component at each grid point.
+    v:
+        Vertical field component at each grid point.
+    """
 
     x: np.ndarray
     y: np.ndarray
@@ -43,9 +55,11 @@ def _sheath_field(voltage: float, pressure: float, t: float) -> SheathField:
     Parameters
     ----------
     voltage:
-        Driving voltage for the sheath.
+        Driving voltage for the sheath; higher values accelerate
+        expansion. Used for ``What is this?`` tooltips in the sandbox.
     pressure:
-        Background pressure affecting decay.
+        Background pressure affecting decay. Larger numbers damp the
+        sheath motion more quickly.
     t:
         Time-like parameter for the evolution.
     """
@@ -73,9 +87,11 @@ def animate_sheath(
     Parameters
     ----------
     voltage:
-        Driving voltage.
+        Driving voltage. Higher values accelerate sheath expansion and
+        are surfaced in the sandbox as a tooltip.
     pressure:
-        Background pressure.
+        Background pressure. Increasing pressure damps the sheath and
+        is described inline in the sandbox controls.
     use_vtk:
         Use a VTK pipeline instead of Matplotlib when ``True`` and VTK
         is installed.

@@ -775,6 +775,31 @@ def diagnostics(
 
 
 @main.command()
+@click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    required=True,
+    help="Configuration file to export",
+)
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(),
+    default="shared_config.json",
+    help="Destination path for exported configuration",
+)
+def share(config: str, output: str) -> None:
+    """Export a configuration for sharing with classmates."""
+    try:
+        cfg = DPFConfig.from_file(config)
+        with open(output, "w") as fh:
+            json.dump(asdict(cfg), fh, indent=2)
+        click.echo(f"Configuration written to {output}")
+    except Exception as e:
+        raise click.ClickException(format_error("SHARE", str(e)))
+
+
+@main.command()
 def schema() -> None:
     """Print the configuration schema."""
     fields = {
