@@ -353,10 +353,25 @@ class SimulationEngine:
             state = CouplingState(current=current, voltage=voltage)
             if plasma_solver is not None:
                 plasma_state = plasma_solver.step(plasma_state, dt, current, voltage)
+                Lp = 0.0
+                if hasattr(plasma_solver, "compute_plasma_inductance"):
+                    try:
+                        Lp = float(plasma_solver.compute_plasma_inductance(plasma_state, current))
+                    except Exception:
+                        Lp = 0.0
+                elif hasattr(plasma_solver, "plasma_inductance"):
+                    try:
+                        Lp = float(plasma_solver.plasma_inductance(plasma_state))
+                    except Exception:
+                        Lp = 0.0
                 iface = plasma_solver.coupling_interface()
+                iface.Lp = Lp
                 br = iface.back_reaction
                 if self.comm is not None and self.comm.size > 1:  # pragma: no cover - MPI
                     br = self.comm.allreduce(br, op=MPI.SUM)
+                state.Lp = Lp
+                state.emf = iface.emf
+                state.mutual_inductance = iface.mutual_inductance
                 state.back_reaction = br
 
             # Optional multithreading for circuit stepping
