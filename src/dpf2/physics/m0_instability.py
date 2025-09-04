@@ -39,6 +39,7 @@ class MZeroInstability:
     current: Any  # Discharge current [A]
     radius: Any  # Pinch radius [m]
     density: Any  # Mass density [kg/m^3]
+    amplitude: Any | None = None  # Latest perturbation amplitude
     comm: Any | None = None  # MPI communicator
 
     def growth_rate(self) -> np.ndarray:
@@ -55,7 +56,13 @@ class MZeroInstability:
         amp = _to_array(amplitude)
         rate = _to_array(self.growth_rate())
         evolved = amp * np.exp(np.clip(rate * dt, -50.0, 50.0))
+        self.amplitude = evolved
         return evolved
 
+
+
+    def anomalous_resistivity(self, J: np.ndarray):
+        eta = self.amplitude if self.amplitude is not None else np.zeros(J.shape[:-1])
+        return eta, np.zeros_like(J)
 
 __all__ = ["MZeroInstability"]

@@ -4,7 +4,7 @@ from .pic import SimplePIC, HybridPIC
 from .gv_front import GVFront
 from .eos import TabulatedEOS, load_tabulated_eos, load_standard_eos
 from .radiation import RadiationTransport
-from .pic_driver import PicDriver, SimplePicDriver, WarpXPICDriver
+from .pic_driver import PicDriver, PhysicalPICDriver, WarpXPICDriver
 from .lower_hybrid_drift import LowerHybridDrift
 from .m0_instability import MZeroInstability
 
@@ -52,5 +52,5 @@ if HallMHD is not None:
 if neutral_density_source is not None:
     __all__.extend(["neutral_density_source", "wall_ablation_source"])
 __all__.append("PicDriver")
-__all__.append("SimplePicDriver")
+__all__.append("PhysicalPICDriver")
 __all__.append("WarpXPICDriver")
