@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import YieldPressureOverlay from './YieldPressureOverlay.jsx';
 import EfficiencyCurveOverlay from './EfficiencyCurveOverlay.jsx';
@@ -10,6 +10,7 @@ export default function ProjectManager({ projects = [] }) {
 
   const [preset, setPreset] = useState('');
   const [cad, setCad] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     setConfigSets(projects);
@@ -55,6 +56,7 @@ export default function ProjectManager({ projects = [] }) {
 
   const addConfigSet = async (e) => {
     e.preventDefault();
+    if (error) return;
     const form = new FormData();
     form.append('preset', preset);
     if (cad) form.append('cad', cad);
@@ -74,6 +76,35 @@ export default function ProjectManager({ projects = [] }) {
     data: results[id] || {},
     color: colors[idx % colors.length],
   }));
+
+  const metrics = useMemo(() => {
+    const out = {};
+    selectedIds.forEach((id) => {
+      const res = results[id] || {};
+      const vals = Object.values(res);
+      if (vals.length) {
+        out[id] = {
+          maxYield: Math.max(...vals.map((v) => v.yield)),
+          maxEfficiency: Math.max(...vals.map((v) => v.efficiency)),
+        };
+      }
+    });
+    return out;
+  }, [results, selectedIds]);
+
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    setError('');
+    if (file) {
+      const ok = /\.(step|stp|iges|igs|json)$/i.test(file.name);
+      if (!ok) {
+        setError('Unsupported geometry format');
+        setCad(null);
+        return;
+      }
+    }
+    setCad(file);
+  };
 
   return (
     <div>
@@ -104,9 +135,39 @@ export default function ProjectManager({ projects = [] }) {
           <option value="hollow">Hollow</option>
           <option value="re-entrant">Re-entrant</option>
         </select>
-        <input type="file" onChange={(e) => setCad(e.target.files[0])} />
+        <input type="file" onChange={handleFile} />
+        {error && <p className="error">{error}</p>}
         <button type="submit">Add</button>
       </form>
+
+      {selectedIds.length > 1 && (
+        <table className="comparison">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Max Yield</th>
+              <th>Max Efficiency</th>
+            </tr>
+          </thead>
+          <tbody>
+            {selectedIds.map((id) => (
+              <tr key={id}>
+                <td>{id}</td>
+                <td>
+                  {metrics[id]?.maxYield !== undefined
+                    ? metrics[id].maxYield.toFixed(3)
+                    : '-'}
+                </td>
+                <td>
+                  {metrics[id]?.maxEfficiency !== undefined
+                    ? metrics[id].maxEfficiency.toFixed(3)
+                    : '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
       {selectedIds.length > 0 && (
         <div className="overlays">

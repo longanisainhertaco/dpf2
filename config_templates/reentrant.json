@@ -1,0 +1,11 @@
+{
+  "cathode_radius": 0.02,
+  "anode_radius": 0.045,
+  "electrode_length": 0.1,
+  "gas_type": "deuterium",
+  "initial_pressure": 133.3,
+  "capacitance": 3e-5,
+  "inductance": 2e-8,
+  "resistance": 0.01,
+  "charging_voltage": 15000.0
+}

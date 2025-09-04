@@ -162,7 +162,9 @@ class CircuitConfig(BaseModel):
         )
 
 class ElectrodeGeometry(BaseModel):
-    geometry_preset: Optional[Literal["mather", "filippov"]] = None
+    geometry_preset: Optional[
+        Literal["mather", "filippov", "tapered", "hollow", "reentrant"]
+    ] = None
     cathode_type: str
     cathode_bar_count: int
     cathode_gap_degrees: float
@@ -191,6 +193,12 @@ class ElectrodeGeometry(BaseModel):
                 cathode_gap_degrees=0.0,
                 anode_shape="cylinder",
             )
+        if geometry_preset == "tapered":
+            return cls.tapered(geometry_preset="tapered", cathode_type="bar", cathode_bar_count=10, cathode_gap_degrees=36.0)
+        if geometry_preset == "hollow":
+            return cls.hollow(geometry_preset="hollow", cathode_type="bar", cathode_bar_count=10, cathode_gap_degrees=36.0)
+        if geometry_preset == "reentrant":
+            return cls.reentrant(geometry_preset="reentrant", cathode_type="bar", cathode_bar_count=10, cathode_gap_degrees=36.0)
         # default to mather-style geometry
         return cls(
             geometry_preset="mather",
