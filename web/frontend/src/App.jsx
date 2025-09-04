@@ -9,6 +9,7 @@ export default function App() {
 
   const [voltage, setVoltage] = useState(1.0);
   const [pressure, setPressure] = useState(0.1);
+  const [projects, setProjects] = useState([]);
 
 
   const login = async (e) => {
