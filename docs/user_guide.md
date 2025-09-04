@@ -60,6 +60,28 @@ dpf2 simulate -c examples/config.json -o results.json
 
 For an interactive walk-through, open the Jupyter notebook in the `examples/notebooks/quickstart.ipynb` file.
 
+## Uncertainty Quantification
+
+The simulator includes basic tools for exploring how input parameters
+affect key outputs.  Two sampling schemes are available: Latin hypercube
+(`lhs`) and Sobol sequences (`sobol`).  A sweep generates multiple
+configurations and records the peak current from each run:
+
+```bash
+dpf2 uq-sweep --config config.json \
+    --parameters '{"charging_voltage":[14000,16000]}' \
+    --method sobol --samples 8 --output sweep.json
+```
+
+Summary statistics can then be computed over the sweep results:
+
+```bash
+dpf2 uq-stats --input sweep.json
+```
+
+The `uq-stats` command prints the mean and standard deviation of the
+peak current across all simulated samples.
+
 ## Server Usage
 
 A lightweight Flask server is provided for remote execution. Install server extras and launch:
