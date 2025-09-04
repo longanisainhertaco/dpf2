@@ -10,14 +10,18 @@ metrics from multiple sweeps which can then be overlaid or written to disk.
 
 from pathlib import Path
 import csv
-from typing import Dict, Iterable
+from typing import Dict, Iterable, List, Tuple
+
+import numpy as np
 
 from ..core.config import DPFConfig
 from ..optimization.param_sweep import (
     run_parametric_sweep,
     compute_sweep_metrics,
     plot_yield_pressure_overlay,
+    plot_yield_vs_S as _plot_yield_vs_S,
 )
+from ..optimization.multi_objective import random_pareto_search
 
 
 class ProjectManager:
@@ -34,6 +38,21 @@ class ProjectManager:
     def __init__(self) -> None:
         self.metrics: Dict[str, Dict[float, Dict[str, float]]] = {}
         self.params: Dict[str, str] = {}
+
+    @staticmethod
+    def _spot_size(t: Iterable[float], current: Iterable[float]) -> float:
+        """Estimate spot size as the FWHM of the current trace."""
+
+        t_arr = np.array(list(t))
+        i_arr = np.array(list(current))
+        if len(t_arr) == 0:
+            return 0.0
+        peak = float(i_arr.max())
+        half = 0.5 * peak
+        mask = i_arr >= half
+        if not mask.any():
+            return 0.0
+        return float(t_arr[mask][-1] - t_arr[mask][0])
 
     def run_sweep(
         self,
@@ -63,7 +82,7 @@ class ProjectManager:
         results = run_parametric_sweep(
             base_config, parameter, values, output_dir=output_dir
         )
-        metrics = compute_sweep_metrics(base_config, results)
+        metrics = compute_sweep_metrics(base_config, results, parameter)
         self.metrics[label] = metrics
         self.params[label] = parameter
         return metrics
@@ -72,6 +91,46 @@ class ProjectManager:
         """Generate a yield-versus-pressure overlay plot for stored metrics."""
 
         return plot_yield_pressure_overlay(self.metrics, path)
+
+    def plot_yield_vs_S(self, label: str, path: str | Path) -> Path:
+        """Plot yield versus shock parameter ``S`` for a stored sweep."""
+
+        metrics = self.metrics.get(label, {})
+        return _plot_yield_vs_S(metrics, path)
+
+    def pareto_search(
+        self,
+        base_config: DPFConfig,
+        bounds: Dict[str, Tuple[float, float]],
+        n_samples: int = 100,
+    ) -> List[Dict[str, float]]:
+        """Run a random Pareto search for yield versus spot size."""
+
+        eval_cache: Dict[Tuple[float, ...], Tuple[float, float]] = {}
+
+        names = list(bounds)
+
+        def evaluate(params: np.ndarray) -> Tuple[float, float]:
+            cfg_dict = base_config.__dict__.copy()
+            for idx, name in enumerate(names):
+                cfg_dict[name] = float(params[idx])
+            cfg = DPFConfig(**cfg_dict)
+            from ..core.simulation import DPFSimulation
+
+            sim = DPFSimulation(cfg)
+            t, i, v = sim.run()
+            yield_val = float(max(i)) if len(i) else 0.0
+            spot = self._spot_size(t, i)
+            eval_cache[tuple(params)] = (yield_val, spot)
+            return yield_val, spot
+
+        pareto_params = random_pareto_search(evaluate, bounds, n_samples=n_samples)
+        front: List[Dict[str, float]] = []
+        for param_dict in pareto_params:
+            params = tuple(param_dict[name] for name in names)
+            y, s = eval_cache[params]
+            front.append({**param_dict, "yield": y, "spot_size": s})
+        return front
 
     def overlay_metrics(
         self, path: str | Path, parameter: str | None = None
