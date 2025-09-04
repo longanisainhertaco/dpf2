@@ -10,6 +10,7 @@ metrics from multiple sweeps which can then be overlaid or written to disk.
 
 from pathlib import Path
 import csv
+import json
 from typing import Callable, Dict, Iterable, List, Tuple
 
 import numpy as np
@@ -349,6 +350,30 @@ class ProjectManager:
                         ]
                     )
         return path
+
+    def export_scene(self, path: str | Path) -> Path:
+        """Export current metrics and parameters to ``path`` in JSON format."""
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "project": self.project,
+            "metrics": self.metrics,
+            "params": self.params,
+        }
+        path.write_text(json.dumps(data, indent=2))
+        return path
+
+    def import_scene(self, path: str | Path) -> None:
+        """Populate the manager from a JSON file produced by ``export_scene``."""
+
+        data = json.loads(Path(path).read_text())
+        self.project = data.get("project", self.project)
+        metrics: Dict[str, Dict[float, Dict[str, float]]] = {}
+        for label, vals in data.get("metrics", {}).items():
+            metrics[label] = {float(k): v for k, v in vals.items()}
+        self.metrics = metrics
+        self.params = data.get("params", {})
 
 
 __all__ = ["ProjectManager"]

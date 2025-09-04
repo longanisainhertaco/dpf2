@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import List
+import json
 
 from .project_manager import ProjectManager
 from ..core.config import DPFConfig
@@ -26,6 +27,13 @@ try:  # pragma: no cover - optional dependency
     from plotly.subplots import make_subplots
 except Exception:  # pragma: no cover - allow import without dash
     Dash = None  # type: ignore[misc]
+
+
+HELP_TEXT_PATH = Path(__file__).with_name("help_text.json")
+try:  # pragma: no cover - helper file may not exist
+    HELP_TEXT = json.loads(HELP_TEXT_PATH.read_text())
+except Exception:  # pragma: no cover - fallback when file missing
+    HELP_TEXT = {}
 
 
 def _ensure_dash() -> None:
@@ -52,9 +60,10 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
     presets = DeviceProfiles.with_defaults().devices
     preset_options = [{"label": name, "value": name} for name in presets.keys()]
 
-    def _info_span(text: str) -> html.Span:
-        """Return a small "what's this?" tooltip span."""
+    def _info_span(key: str) -> html.Span:
+        """Return a small "what's this?" tooltip span from JSON help text."""
 
+        text = HELP_TEXT.get(key, "")
         return html.Span(
             "What's this?",
             title=text,
@@ -80,9 +89,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                             html.P(
                                 [
                                     "Initiate plasma by ionizing the fill gas.",
-                                    _info_span(
-                                        "Breakdown: initial ionization of the gas producing plasma.",
-                                    ),
+                                    _info_span("breakdown"),
                                 ]
                             )
                         ],
@@ -94,9 +101,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                             html.P(
                                 [
                                     "Current drives the plasma sheath toward the axis.",
-                                    _info_span(
-                                        "Rundown: plasma accelerates and compresses toward the axis.",
-                                    ),
+                                    _info_span("rundown"),
                                 ]
                             )
                         ],
@@ -108,9 +113,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                             html.P(
                                 [
                                     "Final compression yields peak conditions and neutrons.",
-                                    _info_span(
-                                        "Pinch: plasma compression leading to fusion-relevant conditions.",
-                                    ),
+                                    _info_span("pinch"),
                                 ]
                             )
                         ],
@@ -129,9 +132,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                             html.Label(
                                 [
                                     "Anode radius (cm)",
-                                    _info_span(
-                                        "Inner radius of the anode electrode in centimeters.",
-                                    ),
+                                    _info_span("anode_radius"),
                                 ]
                             ),
                             dcc.Input(id="anode_radius", type="number"),
@@ -142,9 +143,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                             html.Label(
                                 [
                                     "Cathode radius (cm)",
-                                    _info_span(
-                                        "Inner radius of the cathode electrode in centimeters.",
-                                    ),
+                                    _info_span("cathode_radius"),
                                 ]
                             ),
                             dcc.Input(id="cathode_radius", type="number"),
@@ -155,9 +154,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                             html.Label(
                                 [
                                     "Electrode length (cm)",
-                                    _info_span(
-                                        "Length of the electrodes in centimeters.",
-                                    ),
+                                    _info_span("electrode_length"),
                                 ]
                             ),
                             dcc.Input(id="electrode_length", type="number"),
@@ -171,9 +168,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                     html.Label(
                         [
                             "Charging Voltage",
-                            _info_span(
-                                "Capacitor bank voltage applied to the electrodes in volts.",
-                            ),
+                            _info_span("charging_voltage"),
                         ]
                     ),
                     dcc.Slider(
@@ -191,9 +186,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                     html.Label(
                         [
                             "Fill Pressure",
-                            _info_span(
-                                "Initial fill gas pressure in torr.",
-                            ),
+                            _info_span("initial_pressure"),
                         ]
                     ),
                     dcc.Slider(
