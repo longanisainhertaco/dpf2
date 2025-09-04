@@ -42,6 +42,7 @@ from dpf2.optimization.param_sweep import (
     compute_sweep_metrics,
     plot_metric_overlay,
 )
+from dpf2.gui.project_manager import ProjectManager
 
 from dpf2.scaling_laws import sweep_yield_scaling
 from dpf2.uq.sampling import latin_hypercube, sobol_sample
@@ -804,6 +805,7 @@ def plot_run(run_dir: str, output: str) -> None:
     "--values", type=float, multiple=True, required=True, help="Values to sweep"
 )
 @click.option("--output", type=click.Path(file_okay=False), default="sweep_output")
+@click.option("--kpi", is_flag=True, help="Generate KPI plots without GUI")
 @click.pass_context
 def param_sweep_cmd(
     ctx: click.Context,
@@ -811,22 +813,35 @@ def param_sweep_cmd(
     parameter: str,
     values: tuple[float, ...],
     output: str,
+    kpi: bool,
 ) -> None:
-    """Run a parameter sweep and plot current, yield and efficiency overlays."""
+    """Run a parameter sweep and optionally generate KPI plots."""
 
     try:
         cfg = DPFConfig.from_file(config)
-        results = run_parametric_sweep(
-            cfg,
-            parameter,
-            values,
-            output_dir=output,
-            lab_mode=ctx.obj.get("lab_mode", False),
-            config_path=config,
-        )
-        plot_sweep_results(parameter, results, Path(output) / "sweep_plot.png")
-        metrics = compute_sweep_metrics(cfg, results)
-        plot_metric_overlay(parameter, metrics, Path(output) / "sweep_metrics.png")
+        if kpi:
+            pm = ProjectManager(project=Path(output).name)
+            label = f"{parameter}_sweep"
+            pm.run_sweep(
+                label,
+                cfg,
+                parameter,
+                values,
+                output_dir=output,
+            )
+            pm.overlay_metrics()
+        else:
+            results = run_parametric_sweep(
+                cfg,
+                parameter,
+                values,
+                output_dir=output,
+                lab_mode=ctx.obj.get("lab_mode", False),
+                config_path=config,
+            )
+            plot_sweep_results(parameter, results, Path(output) / "sweep_plot.png")
+            metrics = compute_sweep_metrics(cfg, results)
+            plot_metric_overlay(parameter, metrics, Path(output) / "sweep_metrics.png")
     except Exception as e:
         raise click.ClickException(format_error("SWEEP", str(e)))
 
