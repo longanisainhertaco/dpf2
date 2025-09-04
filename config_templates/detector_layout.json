@@ -1,0 +1,5 @@
+{
+  "angles": [0.0, 90.0, 180.0],
+  "distance_m": 1.0,
+  "names": ["front", "side", "back"]
+}
