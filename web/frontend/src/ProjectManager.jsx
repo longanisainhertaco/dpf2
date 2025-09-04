@@ -3,6 +3,7 @@ import axios from 'axios';
 import YieldPressureOverlay from './YieldPressureOverlay.jsx';
 import EfficiencyCurveOverlay from './EfficiencyCurveOverlay.jsx';
 import GeometryPresets from './GeometryPresets.jsx';
+import help from './help.json';
 
 export default function ProjectManager({ projects = [] }) {
   const [configSets, setConfigSets] = useState(projects);
@@ -152,7 +153,7 @@ export default function ProjectManager({ projects = [] }) {
               <button
                 type="button"
                 onClick={() => exportConfig(p)}
-                title="Download this configuration for sharing"
+                title={help.project.export}
               >
                 Export
               </button>
@@ -169,9 +170,9 @@ export default function ProjectManager({ projects = [] }) {
         <input
           type="file"
           onChange={handleFile}
-          title="Optional CAD file for custom geometry"
+          title={help.project.geometryFile}
         />
-        <button type="submit" title="Upload the configuration set">Add</button>
+        <button type="submit" title={help.project.newSet}>Add</button>
         <details>
           <summary>What is this?</summary>
           Drag a geometry preset into the drop zone or upload a CAD file to
@@ -187,7 +188,7 @@ export default function ProjectManager({ projects = [] }) {
           type="file"
           accept="application/json"
           onChange={importConfig}
-          title="Load a configuration set from JSON"
+          title={help.project.import}
         />
         <details>
           <summary>What is this?</summary>
