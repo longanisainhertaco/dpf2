@@ -92,6 +92,13 @@ class MLModelConfig(ConfigSectionBase):
     model_config_hash: Optional[str] = None
 
     # ------------------------------------------------------------------
+    # Out-of-distribution detection
+    ood_detection_enabled: bool = False
+    training_mean: Optional[List[float]] = None
+    training_covariance: Optional[List[List[float]]] = None
+    ood_threshold: float = 3.0
+
+    # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> "MLModelConfig":
         return cls(
@@ -132,6 +139,25 @@ class MLModelConfig(ConfigSectionBase):
             parts.append(f"Inference: {inf} | Confidence{conf}")
         return "\n".join(parts)
 
+    # ------------------------------------------------------------------
+    def mahalanobis_distance(self, x: "np.ndarray") -> float:
+        """Return Mahalanobis distance of ``x`` to the training hull."""
+
+        if self.training_mean is None or self.training_covariance is None:
+            raise ValueError("training_mean and training_covariance required for OOD detection")
+        import numpy as np  # local import to support numpy stubs
+
+        mean = np.asarray(self.training_mean, dtype=float)
+        cov = np.asarray(self.training_covariance, dtype=float)
+        inv = np.linalg.pinv(cov)
+        diff = np.asarray(x, dtype=float) - mean
+        return float(np.sqrt(diff.T @ inv @ diff))
+
+    def in_distribution(self, x: "np.ndarray") -> bool:
+        if not self.ood_detection_enabled:
+            return True
+        return self.mahalanobis_distance(x) <= self.ood_threshold
+
     def hash_ml_model_config(self) -> str:
         data = self.model_dump(by_alias=True, exclude={"model_config_hash"}, exclude_none=True)
         serialized = json.dumps(data, sort_keys=True, default=str)
@@ -153,6 +179,12 @@ class MLModelConfig(ConfigSectionBase):
             raise ValueError("validation_split must be None when cv_folds is set")
         if values.load_existing_model and values.existing_model_path is None:
             raise ValueError("existing_model_path required when load_existing_model is True")
+        if values.ood_detection_enabled and (
+            values.training_mean is None or values.training_covariance is None
+        ):
+            raise ValueError(
+                "training_mean and training_covariance required when ood_detection_enabled"
+            )
         values = values.model_copy(update={"model_config_hash": values.hash_ml_model_config()})
         return values
 
