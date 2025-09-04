@@ -4,11 +4,13 @@ import pytest
 from dpf2.synthetic_diagnostics import (
     SyntheticDiagnostics,
     SyntheticInstrument,
+
     run_diagnostic_calculations,
     export_diagnostic_data,
 )
 from dpf2.core.bases import CouplingState
 import h5py_stub as h5py
+
 
 try:
     import yaml  # type: ignore
@@ -127,6 +129,7 @@ def test_hash_stability_on_toggle_change():
     assert cfg1.hash_synthetic_diagnostics_config() != cfg2.hash_synthetic_diagnostics_config()
 
 
+
 def test_run_and_export(tmp_path):
     history = [
         CouplingState(current=1.0, voltage=2.0),
@@ -166,3 +169,4 @@ def test_export_image_and_map(tmp_path):
     export_diagnostic_data(data, cfg_h5, tmp_path)
     with h5py.File(tmp_path / "img.h5", "r") as fh:
         assert fh["img"].shape == (2, 2)
+

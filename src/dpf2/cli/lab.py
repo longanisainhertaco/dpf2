@@ -34,6 +34,7 @@ def write_manifest(
     output_dir: str | Path,
     *,
     config_paths: Sequence[str] | None = None,
+    config: Mapping[str, object] | None = None,
     ppc: int | None = None,
     seeds: Mapping[str, int] | None = None,
     warnings: Sequence[str] | None = None,
@@ -46,6 +47,9 @@ def write_manifest(
         Directory where the manifest should be written.
     config_paths:
         Sequence of configuration files used for the run.
+    config:
+        Configuration dictionary for the executed run. When provided, this is
+        embedded directly in the manifest to aid exact reproducibility.
     ppc:
         Particle-per-cell setting, if applicable.
     seeds:
@@ -73,6 +77,13 @@ def write_manifest(
         "particle_per_cell": ppc,
         "config_paths": [str(p) for p in (config_paths or [])],
     }
+    if config is not None:
+        # ``config`` may contain non-serialisable objects; best effort to cast
+        # via ``json.dumps`` when writing the manifest.
+        try:
+            manifest["config"] = json.loads(json.dumps(config))
+        except Exception:
+            manifest["config"] = {k: str(v) for k, v in config.items()}
     if warnings:
         manifest["warnings"] = list(warnings)
 

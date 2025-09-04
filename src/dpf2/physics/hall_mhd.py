@@ -109,27 +109,21 @@ class HallMHD(ResistiveMHD):
             on the model instance.
         """
 
-        prev_I = self.current
         self.current = current
 
         Lp = self.plasma_inductance(state)
-        dLpdt = (Lp - self.inductance) / max(dt, 1.0e-30)
 
-        dIdt = (current - prev_I) / max(dt, 1.0e-30)
-        emf = Lp * dIdt + current * dLpdt
         amp = instability_amp
         if isinstance(amp, (list, tuple)):
             amp_sum = sum(amp)
         else:
             amp_sum = float(amp)
-        emf += amp_sum
+        emf = amp_sum
         self.beam_velocity = abs(amp_sum)
 
-        # Store plasma feedback for the circuit solver.  The induced EMF is
-        # recorded on ``back_emf`` while the external circuit is advanced with
-        # the updated inductance information.  No separate ``back_emf`` term is
-        # supplied to the circuit as the plasma induced voltage is already
-        # accounted for via ``emf`` above.
+        # Store plasma feedback for the circuit solver.  ``emf`` represents
+        # only additional plasma-induced voltages beyond the inductance change
+        # which is handled directly by the circuit solver.
         self.inductance = Lp
         self.back_emf = emf
         self.circuit_feedback = CouplingState(

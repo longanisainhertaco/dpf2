@@ -28,7 +28,14 @@ def _to_array(val: Any) -> np.ndarray:
 
 @dataclass
 class LowerHybridDrift:
-    """Minimal lower-hybrid drift instability model."""
+    """Minimal lower-hybrid drift instability model.
+
+    The model evolves a perturbation amplitude representing the strength of
+    lower‑hybrid waves and exposes an ``anomalous_resistivity`` callback
+    compatible with :class:`~dpf2.hall_mhd_solver.HallMHDSolver`.  When the
+    solver requests a resistivity field the stored amplitude is returned along
+    with an optional electric‑field contribution.
+    """
 
     B: float  # Magnetic field strength [T]
     n_i: float  # Ion number density [m^-3]
@@ -56,7 +63,8 @@ class LowerHybridDrift:
 
 
     def anomalous_resistivity(self, J: np.ndarray):
-        eta = self.amplitude if self.amplitude is not None else np.zeros(J.shape[:-1])
+        base = np.zeros(J.shape[:-1])
+        eta = base if self.amplitude is None else np.broadcast_to(self.amplitude, base.shape)
         return eta, np.zeros_like(J)
 
 __all__ = ["LowerHybridDrift"]

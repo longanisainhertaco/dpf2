@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
+from dataclasses import asdict
+
 from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
 from dpf2.cli.lab import write_manifest
@@ -53,15 +55,26 @@ def run_parametric_sweep(
         sim = DPFSimulation(cfg)
         run_dir = out_root / f"{parameter}_{val}"
         if lab_mode:
-            seeds = {
-                "python": random.getstate()[1][0],
-                "numpy": int(np.random.get_state()[1][0]),
-            }
+            seeds = {"python": random.getstate()[1][0]}
+            try:
+                seeds["numpy"] = int(np.random.get_state()[1][0])
+            except Exception:
+                try:
+                    rng = np.random.default_rng()
+                    seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
+                except Exception:
+                    seeds["numpy"] = 0
         t, i, v = sim.run(output_dir=str(run_dir))
         if lab_mode:
             ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
             paths = [str(config_path)] if config_path else []
-            write_manifest(run_dir, config_paths=paths, ppc=ppc, seeds=seeds)
+            write_manifest(
+                run_dir,
+                config_paths=paths,
+                config=asdict(cfg),
+                ppc=ppc,
+                seeds=seeds,
+            )
         results[val] = (t, i, v)
     return results
 
@@ -89,7 +102,9 @@ def plot_sweep_results(
 
 
 def compute_sweep_metrics(
-    base_config: DPFConfig, results: Dict[float, SweepResult]
+    base_config: DPFConfig,
+    results: Dict[float, SweepResult],
+    parameter: str | None = None,
 ) -> Dict[float, Dict[str, float]]:
     """Compute simple yield, pinch time and efficiency estimates for sweep results.
 
@@ -107,7 +122,10 @@ def compute_sweep_metrics(
         Mapping of parameter value to metrics ``{"yield", "pinch_time",
         "efficiency"}``.  Yield is estimated as the peak current, pinch time is
         the time at which the peak current occurs and efficiency is the ratio of
-        the time-integrated ``I*V`` product to the initial stored energy.
+        the time-integrated ``I*V`` product to the initial stored energy.  If
+        ``parameter`` is provided and equals ``"initial_pressure"``, the
+        dimensionless shock parameter ``S = I/(a*p0)`` is also recorded for each
+        sweep value.
     """
 
     import numpy as np
@@ -125,11 +143,19 @@ def compute_sweep_metrics(
         peak_idx = int(i_arr.argmax()) if len(i_arr) else 0
         yield_est = float(i_arr[peak_idx])
         pinch_time = float(t_arr[peak_idx]) if len(t_arr) else 0.0
-        metrics[val] = {
+        metric = {
             "yield": yield_est,
             "efficiency": efficiency,
             "pinch_time": pinch_time,
         }
+        if parameter == "initial_pressure":
+            pressure = val
+        else:
+            pressure = base_config.initial_pressure
+        a = getattr(base_config, "anode_radius", 0.0)
+        if a > 0 and pressure > 0:
+            metric["S"] = yield_est / (a * pressure)
+        metrics[val] = metric
 
     return metrics
 
@@ -171,6 +197,25 @@ def plot_metric_overlay(
     return path
 
 
+def plot_yield_vs_S(metrics: Dict[float, Dict[str, float]], path: str | Path) -> Path:
+    """Plot yield as a function of the shock parameter ``S``."""
+
+    import matplotlib.pyplot as plt
+
+    pairs = sorted((m.get("S", 0.0), m.get("yield", 0.0)) for m in metrics.values())
+    s_vals = [p[0] for p in pairs]
+    y_vals = [p[1] for p in pairs]
+    plt.figure()
+    plt.plot(s_vals, y_vals, marker="o")
+    plt.xlabel("S")
+    plt.ylabel("Yield")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(path)
+    plt.close()
+    return path
+
+
 def plot_yield_pressure_overlay(
     metric_sets: Dict[str, Dict[float, Dict[str, float]]],
     path: str | Path,
@@ -198,6 +243,7 @@ __all__ = [
     "plot_sweep_results",
     "compute_sweep_metrics",
     "plot_metric_overlay",
+    "plot_yield_vs_S",
     "plot_yield_pressure_overlay",
     "SweepResult",
 ]

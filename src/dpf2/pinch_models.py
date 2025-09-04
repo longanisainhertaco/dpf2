@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Any
 
 import numpy as np
 try:  # pragma: no cover - allow running without SciPy
@@ -52,6 +52,8 @@ class PinchResult:
     alfven_mach: np.ndarray | None = None
     magnetic_reynolds: np.ndarray | None = None
     lundquist: np.ndarray | None = None
+    voltage: np.ndarray | None = None
+    current: np.ndarray | None = None
 
 
 class PinchModelBase:
@@ -172,11 +174,13 @@ class MHDPinchModel(PinchModelBase):
         init_density: float = 1.0,
         init_pressure: float = 1e5,
         current_norm: float = 1e4,
+        resistivity_model: Any | None = None,
     ) -> None:
         self.grid_shape = grid_shape
         self.init_density = init_density
         self.init_pressure = init_pressure
         self.current_norm = current_norm
+        self.resistivity_model = resistivity_model
         nx, ny, nz = grid_shape
         x = (np.arange(nx) - nx / 2) * 1e-3
         y = (np.arange(ny) - ny / 2) * 1e-3
@@ -187,9 +191,15 @@ class MHDPinchModel(PinchModelBase):
 
     def run(self, time: Iterable[float], current: Iterable[float]) -> PinchResult:
         t = np.asarray(time)
-        I = np.asarray(current)
+        I = np.asarray(current).copy()
         gamma = 5.0 / 3.0
-        solver = HallMHDSolver()
+        solver = HallMHDSolver(
+            anomalous_resistivity=(
+                self.resistivity_model.anomalous_resistivity
+                if self.resistivity_model is not None
+                else None
+            )
+        )
 
         rho = np.full(self.grid_shape, self.init_density)
         mom = np.zeros(self.grid_shape + (3,))
@@ -240,11 +250,21 @@ class MHDPinchModel(PinchModelBase):
         alfven_hist.append(a)
         rm_hist.append(rm)
         s_hist.append(s_num)
+        voltage_hist: list[float] = [0.0]
 
         neutron_yield = 0.0
+        k_field = None
+        if self.resistivity_model is not None:
+            if self.resistivity_model.amplitude is None:
+                self.resistivity_model.amplitude = np.zeros(self.grid_shape)
+            k_field = np.zeros(self.grid_shape) + 0.1
         for k in range(len(t) - 1):
             dt = t[k + 1] - t[k]
-            state = solver.step(state, dt)
+            if self.resistivity_model is not None and k_field is not None:
+                self.resistivity_model.evolve(
+                    self.resistivity_model.amplitude, k_field, dt
+                )
+            state = solver.step(state, dt, current=float(I[k]))
             rad, temp, pres, Etot, b, a, rm, s_num = diagnostics(state)
             radius.append(rad)
             temperature.append(temp)
@@ -254,6 +274,10 @@ class MHDPinchModel(PinchModelBase):
             alfven_hist.append(a)
             rm_hist.append(rm)
             s_hist.append(s_num)
+            spike = solver.voltage_spikes[-1] if solver.voltage_spikes else 0.0
+            voltage_hist.append(spike)
+            if k + 1 < len(I):
+                I[k + 1] = max(I[k + 1] - spike * dt / self.current_norm, 0.0)
             n_i = np.mean(state.rho) / (3.344e-27)
             reactivity = bosch_hale_dd(max(temp, 0.0) / 1e3)
             mag = np.mean(np.sum(state.B**2, axis=-1))
@@ -271,6 +295,8 @@ class MHDPinchModel(PinchModelBase):
             alfven_mach=np.asarray(alfven_hist),
             magnetic_reynolds=np.asarray(rm_hist),
             lundquist=np.asarray(s_hist),
+            voltage=np.asarray(voltage_hist),
+            current=I,
         )
 
 

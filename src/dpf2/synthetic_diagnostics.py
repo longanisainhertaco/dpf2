@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+
 from typing import Any, ClassVar, Dict, List, Optional, Literal, Iterable, Sequence
 
 import csv
@@ -11,6 +12,8 @@ try:  # pragma: no cover - h5py may be optional
 except Exception:  # pragma: no cover
     import h5py_stub as h5py  # type: ignore
 
+
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator
 
@@ -27,6 +30,46 @@ from .diagnostics.synthetic_signals import (
     rogowski_signal,
     bdot_signal,
 )
+
+
+class AngularDistribution:
+    """Simple histogram of particle counts versus angle."""
+
+    def __init__(self, bins: int = 36) -> None:
+        self.bins = bins
+        self.edges = np.linspace(-180.0, 180.0, bins + 1)
+        self.counts = np.zeros(bins)
+
+    def add(self, angle_deg: float) -> None:
+        """Accumulate a count for ``angle_deg``."""
+
+        idx = np.searchsorted(self.edges, angle_deg, side="right") - 1
+        if 0 <= idx < self.bins:
+            self.counts[idx] += 1.0
+
+    def distribution(self) -> np.ndarray:
+        """Return the normalized angular distribution."""
+
+        total = self.counts.sum()
+        if total > 0.0:
+            return self.counts / total
+        return self.counts
+
+
+def generate_tof_spectrum(
+    energies_mev: Sequence[float],
+    distance_m: float,
+    bins: int = 200,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Create a synthetic time-of-flight spectrum from neutron energies."""
+
+    energies_j = np.asarray(energies_mev) * 1.602176634e-13
+    m_n = 1.67492749804e-27  # neutron mass (kg)
+    v = np.sqrt(2.0 * energies_j / m_n)
+    tof = distance_m / v
+    counts, edges = np.histogram(tof, bins=bins)
+    centers = 0.5 * (edges[:-1] + edges[1:])
+    return centers, counts
 
 
 class SyntheticInstrument(BaseModel):
@@ -235,6 +278,7 @@ class SyntheticDiagnostics(ConfigSectionBase):
         return values
 
 
+
 def run_diagnostic_calculations(
     history: Iterable[CouplingState],
     cfg: "SyntheticDiagnostics",
@@ -346,4 +390,5 @@ __all__ = [
     "SyntheticInstrument",
     "run_diagnostic_calculations",
     "export_diagnostic_data",
+
 ]

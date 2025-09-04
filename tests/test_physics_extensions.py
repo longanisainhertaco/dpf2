@@ -58,6 +58,8 @@ pinch_mod = _load("dpf2.pinch_models", root / "dpf2" / "pinch_models.py")
 
 RealGasEOS = eos_mod.RealGasEOS
 bosch_hale_dd = fusion_mod.bosch_hale_dd
+dd_fusion_rates = fusion_mod.dd_fusion_rates
+dd_channel_fractions = fusion_mod.dd_channel_fractions
 SemiAnalyticPinchModel = pinch_mod.SemiAnalyticPinchModel
 
 
@@ -92,3 +94,14 @@ def test_semi_analytic_yield_positive():
     I = np.ones_like(t) * 1e4
     res = model.run(t, I)
     assert res.neutron_yield >= 0.0
+
+
+def test_dd_fusion_rates_components():
+    thermo, beam = dd_fusion_rates(10.0, 1e20, n_beam=1e18, beam_energy_keV=100.0)
+    assert thermo > 0.0
+    assert beam > 0.0
+
+
+def test_dd_channel_fractions_normalized():
+    fracs = dd_channel_fractions(10.0, 1e20, n_beam=1e18, beam_energy_keV=100.0)
+    assert pytest.approx(sum(fracs.values())) == 1.0

@@ -10,6 +10,7 @@ from dpf2.optimization.param_sweep import (
     plot_sweep_results,
     run_parametric_sweep,
     compute_sweep_metrics,
+    plot_yield_vs_S,
 )
 import pytest
 pytest.importorskip("matplotlib")
@@ -32,3 +33,15 @@ def test_compute_sweep_metrics_includes_pinch(tmp_path: Path) -> None:
     metrics = compute_sweep_metrics(cfg, results)
     for val in values:
         assert "pinch_time" in metrics[val]
+
+
+def test_yield_vs_s_plot(tmp_path: Path) -> None:
+    cfg = DPFConfig()
+    values = [0.5, 1.0]
+    results = run_parametric_sweep(cfg, "initial_pressure", values, output_dir=tmp_path)
+    metrics = compute_sweep_metrics(cfg, results, parameter="initial_pressure")
+    path = tmp_path / "ys.png"
+    plot_yield_vs_S(metrics, path)
+    assert path.exists()
+    for val in values:
+        assert "S" in metrics[val]

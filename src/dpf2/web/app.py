@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Iterable
 import uuid
+import json
 
 from flask import Flask, redirect, render_template_string, request, url_for, jsonify
 
@@ -63,6 +64,7 @@ DIAG_HTML = """
 {% if yield_pressure_plot %}<img src="{{ yield_pressure_plot }}" alt="yield vs pressure"><br>{% endif %}
 {% if current_plot %}<img src="{{ current_plot }}" alt="current/voltage"><br>{% endif %}
 {% if vector_plot %}<img src="{{ vector_plot }}" alt="vector field"><br>{% endif %}
+{% if channel_fractions %}<p>Thermonuclear: {{ channel_fractions['thermonuclear'] }}, Beam-target: {{ channel_fractions['beam_target'] }}</p>{% endif %}
 <ul>
 {% for f in files %}<li>{{ f }}</li>{% endfor %}
 </ul>
@@ -188,6 +190,13 @@ def create_app() -> Flask:
         vf_path = Path(output) / "vector_field.png"
         if vf_path.exists():
             vector_plot = "data:image/png;base64," + base64.b64encode(vf_path.read_bytes()).decode("ascii")
+        channel_fractions = None
+        cf_path = Path(output) / "channel_fractions.json"
+        if cf_path.exists():
+            try:
+                channel_fractions = json.loads(cf_path.read_text())
+            except Exception:
+                channel_fractions = None
         return render_template_string(
             DIAG_HTML,
             files=files,
@@ -197,6 +206,7 @@ def create_app() -> Flask:
             yield_pressure_plot=yield_pressure_plot,
             current_plot=current_plot,
             vector_plot=vector_plot,
+            channel_fractions=channel_fractions,
         )
 
     @app.route("/projects", methods=["GET", "POST"])

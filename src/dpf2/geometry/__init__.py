@@ -6,6 +6,11 @@ from .loaders import (
     load_cad_geometry,
     load_unstructured_mesh,
 )
+from .parameterized import (
+    TaperedGeometry,
+    HollowGeometry,
+    ReentrantGeometry,
+)
 
 __all__ = [
     "coaxial_inductance",
@@ -13,4 +18,7 @@ __all__ = [
     "load_cad_geometry",
     "load_axisymmetric_mesh",
     "load_unstructured_mesh",
+    "TaperedGeometry",
+    "HollowGeometry",
+    "ReentrantGeometry",
 ]
