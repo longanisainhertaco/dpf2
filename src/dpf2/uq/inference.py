@@ -107,4 +107,116 @@ def dynesty_infer(
     return {name: res.samples[:, idx] for idx, name in enumerate(names)}
 
 
-__all__ = ["emcee_infer", "dynesty_infer"]
+def emcee_infer_waveform(
+    time_sim: np.ndarray,
+    current_sim: np.ndarray,
+    time_data: np.ndarray,
+    current_data: np.ndarray,
+    bounds: Bounds | None = None,
+    n_walkers: int = 32,
+    n_steps: int = 1000,
+    sigma: float = 1.0,
+    seed: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Infer mass and current scaling from waveform data using MCMC.
+
+    The routine fits ``mass_factor`` and ``current_factor`` such that a
+    simulated current waveform best matches experimental measurements.
+    ``mass_factor`` scales the simulation time axis while
+    ``current_factor`` scales the amplitude.
+    """
+
+    try:  # pragma: no cover - dependency may be optional
+        import emcee  # type: ignore
+    except Exception as exc:  # pragma: no cover - import error path
+        raise RuntimeError("emcee is required for emcee_infer_waveform") from exc
+
+    if bounds is None:
+        bounds = {"mass_factor": (0.5, 1.5), "current_factor": (0.5, 1.5)}
+
+    names = ["mass_factor", "current_factor"]
+    lower = np.array([bounds[n][0] for n in names])
+    upper = np.array([bounds[n][1] for n in names])
+
+    time_sim = np.asarray(time_sim, dtype=float)
+    current_sim = np.asarray(current_sim, dtype=float)
+    time_data = np.asarray(time_data, dtype=float)
+    current_data = np.asarray(current_data, dtype=float)
+
+    def log_prob(theta: np.ndarray) -> float:
+        if np.any(theta < lower) or np.any(theta > upper):
+            return -np.inf
+        mass_factor, current_factor = theta
+        scaled_time = mass_factor * time_sim
+        sim_interp = np.interp(
+            time_data, scaled_time, current_sim, left=0.0, right=0.0
+        )
+        pred = current_factor * sim_interp
+        resid = (current_data - pred) / sigma
+        return -0.5 * np.dot(resid, resid)
+
+    rng = np.random.default_rng(seed)
+    p0 = lower + (upper - lower) * rng.random((n_walkers, len(names)))
+    sampler = emcee.EnsembleSampler(n_walkers, len(names), log_prob)
+    sampler.run_mcmc(p0, n_steps, progress=False)
+    chain = sampler.get_chain(discard=n_steps // 2, flat=True)
+    return {name: chain[:, idx] for idx, name in enumerate(names)}
+
+
+def dynesty_infer_waveform(
+    time_sim: np.ndarray,
+    current_sim: np.ndarray,
+    time_data: np.ndarray,
+    current_data: np.ndarray,
+    bounds: Bounds | None = None,
+    n_live: int = 50,
+    n_iter: int = 500,
+    sigma: float = 1.0,
+    seed: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Infer waveform scaling factors using :mod:`dynesty` nested sampling."""
+
+    try:  # pragma: no cover - dependency may be optional
+        import dynesty  # type: ignore
+    except Exception as exc:  # pragma: no cover - import error path
+        raise RuntimeError("dynesty is required for dynesty_infer_waveform") from exc
+
+    if bounds is None:
+        bounds = {"mass_factor": (0.5, 1.5), "current_factor": (0.5, 1.5)}
+
+    names = ["mass_factor", "current_factor"]
+    lower = np.array([bounds[n][0] for n in names])
+    upper = np.array([bounds[n][1] for n in names])
+
+    time_sim = np.asarray(time_sim, dtype=float)
+    current_sim = np.asarray(current_sim, dtype=float)
+    time_data = np.asarray(time_data, dtype=float)
+    current_data = np.asarray(current_data, dtype=float)
+
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        return lower + u * (upper - lower)
+
+    def log_like(theta: np.ndarray) -> float:
+        mass_factor, current_factor = theta
+        scaled_time = mass_factor * time_sim
+        sim_interp = np.interp(
+            time_data, scaled_time, current_sim, left=0.0, right=0.0
+        )
+        pred = current_factor * sim_interp
+        resid = (current_data - pred) / sigma
+        return -0.5 * np.dot(resid, resid)
+
+    sampler = dynesty.NestedSampler(
+        log_like, prior_transform, len(names), nlive=n_live, seed=seed
+    )
+    sampler.run_nested(maxiter=n_iter, print_progress=False)
+    res = sampler.results
+    return {name: res.samples[:, idx] for idx, name in enumerate(names)}
+
+
+__all__ = [
+    "emcee_infer",
+    "dynesty_infer",
+    "emcee_infer_waveform",
+    "dynesty_infer_waveform",
+]
