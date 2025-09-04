@@ -21,7 +21,7 @@ simple – topology is ignored and all elements are assumed to be in series –
 which is perfectly adequate for the unit tests that exercise this module.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterable, Sequence, List, Any
 
 import numpy as np
@@ -30,6 +30,7 @@ import cmath
 import warnings
 
 from dpf2.core.bases import PlasmaSolverBase
+from .switches import TriggeredSwitch, CrowbarStage
 
 __all__ = [
     "TransmissionLineSegment",
@@ -209,93 +210,6 @@ class TransmissionLineSegment:
             return 1.0 + 0.0j
         ZL = complex(Z_load)
         return (ZL - Z0) / (ZL + Z0)
-
-
-@dataclass
-class TriggeredSwitch:
-    """Ideal resistive switch with optional trigger times and parasitics."""
-
-    from_node: int
-    to_node: int
-    closed: bool = True
-    R_on: float = 1e-3
-    R_off: float = 1e6
-    trigger_times: Sequence[float] | None = None
-    trigger_time: float | None = None  # backward compatible single trigger
-    jitter_std: float = 0.0
-    arc_resistance: float = 0.0
-    L_parasitic: float = 0.0
-    R_parasitic: float = 0.0
-    C_parasitic: float = 0.0
-    _next_trigger: int = field(init=False, default=0)
-    _closed_since: float | None = field(init=False, default=None)
-
-    def __post_init__(self) -> None:
-        # Allow ``trigger_time`` alias for a single entry
-        if self.trigger_times is None:
-            if self.trigger_time is not None:
-                self.trigger_times = [self.trigger_time]
-            else:
-                self.trigger_times = []
-        else:
-            self.trigger_times = list(self.trigger_times)
-            if self.trigger_time is not None:
-                self.trigger_times.append(self.trigger_time)
-        # Optional Gaussian jitter applied to trigger times
-        if self.jitter_std > 0.0 and self.trigger_times:
-            jitter = np.random.normal(0.0, self.jitter_std, len(self.trigger_times))
-            self.trigger_times = [t + j for t, j in zip(self.trigger_times, jitter)]
-        # Ensure times are in ascending order for efficient processing
-        self.trigger_times = sorted(self.trigger_times)
-
-    # ------------------------------------------------------------------
-    def update(self, t: float) -> None:
-        """Update the switch state based on ``t``.
-
-        Every time a trigger time is crossed the state is toggled.  The update
-        is idempotent: calling it multiple times with the same ``t`` has no
-        effect.
-        """
-
-        while self._next_trigger < len(self.trigger_times) and t >= self.trigger_times[self._next_trigger]:
-            self.closed = not self.closed
-            # Track time since closure for arc resistance evolution
-            self._closed_since = t if self.closed else None
-            self._next_trigger += 1
-
-    # ------------------------------------------------------------------
-    def resistance(self, t: float | None = None) -> float:
-        """Return instantaneous resistance including parasitic component."""
-
-        if t is not None:
-            self.update(t)
-        base = self.R_on if self.closed else self.R_off
-        if self.closed and self.arc_resistance > 0.0 and self._closed_since is not None and t is not None:
-            base += self.arc_resistance * max(0.0, t - self._closed_since)
-        return base + self.R_parasitic
-
-
-@dataclass
-class CrowbarStage(TriggeredSwitch):
-    """Resistive crowbar stage engaging at ``trigger_time`` with optional jitter."""
-
-    def __init__(
-        self,
-        from_node: int,
-        to_node: int,
-        resistance: float,
-        trigger_time: float,
-        jitter_std: float = 0.0,
-    ) -> None:
-        super().__init__(
-            from_node=from_node,
-            to_node=to_node,
-            closed=False,
-            R_on=resistance,
-            R_off=1e12,
-            trigger_times=[trigger_time],
-            jitter_std=jitter_std,
-        )
 
 
 @dataclass

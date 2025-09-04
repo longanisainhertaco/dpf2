@@ -499,6 +499,11 @@ def solve_distributed_circuit(
             currents[k, :] += fb.back_reaction
             node_voltages[k, :] += fb.voltage
             plasma_L = getattr(fb, "Lp", plasma_L)
+            if hasattr(em_solver, "plasma_inductance"):
+                try:
+                    plasma_L = float(em_solver.plasma_inductance(em_state))
+                except Exception:
+                    pass
 
         total_I[k] = tot
 

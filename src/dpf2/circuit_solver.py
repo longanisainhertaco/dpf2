@@ -60,6 +60,8 @@ from .core.circuit import RLCCircuitSolver
 from .core.bases import PlasmaSolverBase, CouplingState
 
 from .geometry.inductance import loop_mutual_inductance
+from .circuit import TransmissionLineSegment, CrowbarStage, TriggeredSwitch
+from .rlc_solver import solve_distributed_circuit
 
 
 __all__ = ["CircuitSolver", "RLCCircuit", "run_circuit_simulation"]
@@ -324,12 +326,59 @@ def run_circuit_simulation(
         mutual-induced voltage [V].
     """
 
-    if cfg.segments:
-        # Build distributed model and delegate to the lightweight solver
-        segments, switches = cfg.build_distributed_model()
+    # ------------------------------------------------------------------
+    # Distributed multi‑section circuit handling
+    if getattr(cfg, "segments", None) or getattr(cfg, "rlc_sections", None) or getattr(cfg, "crowbar_stages", None):
+        segments: list[TransmissionLineSegment] = []
+        switches: list[CrowbarStage | TriggeredSwitch] = []
+
+        # Existing transmission line segments defined via configuration
+        if getattr(cfg, "segments", None):
+            segs, sws = cfg.build_distributed_model()
+            segments.extend(segs)
+            switches.extend(sws)
+
+        # Optional multi‑section lumped elements
+        secs = getattr(cfg, "rlc_sections", None)
+        if secs:
+            node = 0
+            for sec in secs:
+                L = sec.get("L", 0.0)
+                R = sec.get("R", 0.0)
+                C = sec.get("C", 0.0)
+                segments.append(
+                    TransmissionLineSegment(
+                        from_node=node,
+                        to_node=node + 1,
+                        length=1.0,
+                        L_per_m=L,
+                        R_per_m=R,
+                        C_per_m=C,
+                    )
+                )
+                node += 1
+
+        # Optional crowbar stages connecting source to return
+        cbs = getattr(cfg, "crowbar_stages", None)
+        if cbs:
+            if segments:
+                src_node = segments[0].from_node
+                last_node = segments[-1].to_node
+            else:
+                src_node, last_node = 0, 1
+            for stage in cbs:
+                res = stage.get("resistance", 0.0)
+                trig = stage.get("trigger", 0.0)
+                switches.append(CrowbarStage(src_node, last_node, res, trig))
+
         dt = t_end * 1e-6 / (num_points - 1)
         sol = solve_distributed_circuit(
-            segments, switches, V0=cfg.V0 * 1e3, t_end=t_end * 1e-6, dt=dt
+            segments,
+            switches,
+            V0=cfg.V0 * 1e3,
+            t_end=t_end * 1e-6,
+            dt=dt,
+            em_solver=plasma_solver,
         )
         z = np.zeros_like(sol.current)
         return sol.t, sol.current, sol.voltage, z, z
@@ -353,14 +402,27 @@ def run_circuit_simulation(
     v_hist = [voltage]
     im_hist = [Im_val(0.0)]
     vm_hist = [0.0]
+    prev_Lp = Lp_val(0.0)
 
     for t in t_total[1:]:
-        Lp = Lp_val(t)
-        dLpdt = Lp_der(t)
+        if plasma_solver is not None:
+            plasma_state = plasma_solver.step(plasma_state, dt, current, voltage)
+            fb = plasma_solver.coupling_interface()
+            Lp = getattr(fb, "Lp", 0.0)
+            emf = getattr(fb, "emf", 0.0)
+            back_emf = getattr(fb, "back_reaction", 0.0)
+            dLpdt = (Lp - prev_Lp) / dt if dt > 0 else 0.0
+            prev_Lp = Lp
+            M = getattr(fb, "mutual_inductance", 0.0)
+        else:
+            Lp = Lp_val(t)
+            dLpdt = Lp_der(t)
+            M = M_val(t)
+            back_emf = M * Im_der(t) + Im_val(t) * M_der(t)
+            emf = 0.0
+
         Ltot = L_ext + Lp
-        M = M_val(t)
-        back_emf = M * Im_der(t) + Im_val(t) * M_der(t)
-        dIdt = (voltage - R_ext * current - back_emf - current * dLpdt) / Ltot
+        dIdt = (voltage - R_ext * current - back_emf - current * dLpdt - emf) / Ltot
         dVdt = -current / C_ext
         current += dIdt * dt
         voltage += dVdt * dt
