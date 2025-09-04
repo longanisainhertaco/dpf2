@@ -1104,9 +1104,12 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
     fig.savefig(out_root / f"{case}.png")
     plt.close(fig)
 
-    header = "{:<7} {:<7} {:<7}".format("Current", "Voltage", "Neutron")
+    header = "{:<20} {:<7} {:<7} {:<7}".format(
+        "Benchmark", "Current", "Voltage", "Neutron"
+    )
     click.echo(header)
-    row = "{:<7} {:<7} {:<7}".format(
+    row = "{:<20} {:<7} {:<7} {:<7}".format(
+        case,
         "PASS" if pass_current else "FAIL",
         "PASS" if pass_voltage else "FAIL",
         "PASS" if pass_neut else "FAIL",
