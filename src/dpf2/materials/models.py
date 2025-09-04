@@ -2,21 +2,9 @@ from __future__ import annotations
 
 from typing import ClassVar, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from ..utils import BaseModel, ConfigDict, Field
 
 from ..core_schema import to_camel_case
-
-
-# -----------------------------------------------------------------------------
-# Compatibility layer for Pydantic v1/v2 differences
-if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls(**d))
-if not hasattr(BaseModel, "model_dump"):
-    BaseModel.model_dump = BaseModel.dict
-if not hasattr(BaseModel, "model_dump_json"):
-    BaseModel.model_dump_json = BaseModel.json
-if not hasattr(BaseModel, "model_copy"):
-    BaseModel.model_copy = BaseModel.copy
 
 
 class MaterialRef(BaseModel):

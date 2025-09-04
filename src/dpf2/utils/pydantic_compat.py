@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 try:  # pragma: no cover - use real pydantic when available
-    from pydantic import BaseModel, root_validator  # type: ignore
+    from pydantic import BaseModel, ConfigDict, Field, root_validator  # type: ignore
 except Exception:  # pragma: no cover - fallback to lightweight stubs
-    from pydantic_stub import BaseModel, root_validator  # type: ignore
+    from pydantic_stub import BaseModel, ConfigDict, Field, root_validator  # type: ignore
 
 
 def model_validator(*, mode: str = "after"):
@@ -73,6 +73,7 @@ if not hasattr(BaseModel, "model_copy"):
 
         BaseModel.model_copy = _copy  # type: ignore[attr-defined]
 
+
 if not hasattr(BaseModel, "model_rebuild"):
     if hasattr(BaseModel, "update_forward_refs"):
         BaseModel.model_rebuild = classmethod(
@@ -82,3 +83,4 @@ if not hasattr(BaseModel, "model_rebuild"):
         BaseModel.model_rebuild = classmethod(lambda cls, *_, **__: None)
 
 __all__ = ["model_validator"]
+
