@@ -32,10 +32,10 @@ from ..scaling_laws import compare_to_scaling
 # Data handling helpers
 
 def _build_validation_suite(dataset: str) -> ValidationSuite:
-    """Create a :class:`ValidationSuite` for bundled benchmark data."""
+    """Create a :class:`ValidationSuite` for bundled validation data."""
     root = Path(__file__).resolve().parents[3]
-    data_dir = root / "data" / "benchmarks" / dataset
-    device_map = {"LLNL_MJOLNIR": "LLNL-DPF"}
+    data_dir = root / "data" / "validation" / dataset
+    device_map = {"MJOLNIR": "LLNL-DPF", "LLNL_MJOLNIR": "LLNL-DPF"}
     return ValidationSuite(
         experiment_device_id=device_map.get(dataset, dataset),
         experiment_campaign_id="demo",
