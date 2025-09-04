@@ -3,7 +3,7 @@ import axios from 'axios';
 import ProjectManager from './ProjectManager.jsx';
 import InstabilityVisualizer from './InstabilityVisualizer.jsx';
 import SheathBeamOverlay from './SheathBeamOverlay.jsx';
-import GuidedLabs from './GuidedLabs.jsx';
+import QuickStartTutorial from './QuickStartTutorial.jsx';
 
 export default function App() {
   const [token, setToken] = useState('');
@@ -264,7 +264,10 @@ export default function App() {
           </div>
           <InstabilityVisualizer />
           <SheathBeamOverlay voltage={voltage} pressure={pressure} />
-          <GuidedLabs setVoltage={setVoltage} setPressure={setPressure} />
+          <QuickStartTutorial
+            setVoltage={setVoltage}
+            setPressure={setPressure}
+          />
         </div>
       )}
     </div>
