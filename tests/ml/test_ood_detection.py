@@ -1,12 +1,9 @@
-import warnings
-
 import pytest
 
 from dpf2.ai.simple_surrogates import LinearSurrogate
-from dpf2.optimization import (
-    OptimizationWarning,
-    enable_optimization_warning_as_error,
-)
+
+from dpf2.exceptions import OutOfDomainError
+
 
 
 def _surrogate():
@@ -32,16 +29,12 @@ def test_in_distribution_prediction_has_band():
 
 def test_out_of_distribution_warning_raised():
     model = _surrogate()
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
+    with pytest.raises(OutOfDomainError):
         model.predict(10.0)
-    assert any(issubclass(wi.category, OptimizationWarning) for wi in w)
 
-
-def test_enable_warning_as_error_blocks():
+def test_mahalanobis_threshold_blocks():
     model = _surrogate()
-    with warnings.catch_warnings():
-        enable_optimization_warning_as_error()
-        with pytest.raises(OptimizationWarning):
-            model.predict(10.0)
+
+    with pytest.raises(OutOfDomainError):
+        model.predict(3.0)
 

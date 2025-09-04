@@ -81,7 +81,9 @@ def _train_torch(x: np.ndarray, y: np.ndarray) -> "torch.nn.Module":
     return model
 
 
-def _conformal_quantile(model: "torch.nn.Module", x: np.ndarray, y: np.ndarray, q: float = 0.9) -> float:
+def _conformal_quantile(
+    model: "torch.nn.Module", x: np.ndarray, y: np.ndarray, q: float = 0.95
+) -> float:
     """Compute conformal calibration quantile of absolute residuals."""
     if torch is None:  # pragma: no cover - environment without torch
         raise RuntimeError("PyTorch is required for calibration")

@@ -1,6 +1,5 @@
 import json
 import numpy as np
-import warnings
 from click.testing import CliRunner
 import pytest
 
@@ -24,7 +23,5 @@ def test_make_surrogate_cli(tmp_path, monkeypatch):
     val = float(data[0, 0])
     pred = model.predict(val)
     assert model.domain[0] <= val <= model.domain[1]
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
+    with pytest.raises(simple_surrogates.OutOfDomainError):
         model.predict(model.domain[1] + 10)
-    assert w
