@@ -159,5 +159,77 @@ def nested_calibration(
     return {name: samples[:, idx] for idx, name in enumerate(names)}
 
 
-__all__ = ["bayesian_calibration", "nested_calibration"]
+def emcee_calibrate_mass_current(
+    current_sim: np.ndarray,
+    current_data: np.ndarray,
+    tof_sim: np.ndarray,
+    tof_data: np.ndarray,
+    bounds: Bounds | None = None,
+    n_walkers: int = 32,
+    n_steps: int = 1000,
+    sigma_current: float = 1.0,
+    sigma_tof: float = 1.0,
+    seed: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Estimate mass and current scaling factors using :mod:`emcee`.
+
+    The function assumes ``current_sim`` and ``tof_sim`` represent baseline
+    model predictions.  The unknown multiplicative ``mass_factor`` and
+    ``current_factor`` scale these predictions to best match the measured
+    ``current_data`` and ``tof_data``.
+
+    Parameters
+    ----------
+    current_sim, current_data:
+        Arrays of simulated and measured current waveforms.
+    tof_sim, tof_data:
+        Arrays of simulated and measured time-of-flight values.
+    bounds:
+        Optional mapping providing ``(min, max)`` pairs for ``mass_factor`` and
+        ``current_factor``.  Defaults to ``(0.5, 1.5)`` for each if omitted.
+    n_walkers, n_steps:
+        Controls for the ensemble sampler.
+    sigma_current, sigma_tof:
+        Standard deviations of the observational noise for each dataset.
+    seed:
+        Optional seed for reproducibility.
+    """
+
+    try:  # pragma: no cover - dependency may be optional
+        import emcee  # type: ignore
+    except Exception as exc:  # pragma: no cover - import error path
+        raise RuntimeError("emcee is required for emcee_calibrate_mass_current") from exc
+
+    if bounds is None:
+        bounds = {"mass_factor": (0.5, 1.5), "current_factor": (0.5, 1.5)}
+
+    names = ["mass_factor", "current_factor"]
+    lower = np.array([bounds[n][0] for n in names])
+    upper = np.array([bounds[n][1] for n in names])
+
+    def log_prob(theta: np.ndarray) -> float:
+        if np.any(theta < lower) or np.any(theta > upper):
+            return -np.inf
+        mass_factor, current_factor = theta
+        curr_pred = current_factor * np.asarray(current_sim)
+        tof_pred = mass_factor * np.asarray(tof_sim)
+        resid_current = (np.asarray(current_data) - curr_pred) / sigma_current
+        resid_tof = (np.asarray(tof_data) - tof_pred) / sigma_tof
+        return -0.5 * (
+            np.dot(resid_current, resid_current) + np.dot(resid_tof, resid_tof)
+        )
+
+    rng = np.random.default_rng(seed)
+    p0 = lower + (upper - lower) * rng.random((n_walkers, len(names)))
+    sampler = emcee.EnsembleSampler(n_walkers, len(names), log_prob)
+    sampler.run_mcmc(p0, n_steps, progress=False)
+    chain = sampler.get_chain(discard=n_steps // 2, flat=True)
+    return {name: chain[:, idx] for idx, name in enumerate(names)}
+
+
+__all__ = [
+    "bayesian_calibration",
+    "nested_calibration",
+    "emcee_calibrate_mass_current",
+]
 
