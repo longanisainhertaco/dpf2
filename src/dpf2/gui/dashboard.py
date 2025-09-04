@@ -209,6 +209,7 @@ def plot_kpi_with_domain(
     y: Sequence[float],
     y_err: Sequence[float],
     training_domain: Tuple[float, float],
+    ood_flags: Sequence[bool] | None = None,
     ax: Any | None = None,
 ) -> Any:
     """Plot KPI values with error bars and highlight training domain.
@@ -222,6 +223,9 @@ def plot_kpi_with_domain(
     training_domain:
         ``(min, max)`` range of the surrogate model's training data.  The
         region is shaded on the plot.
+    ood_flags:
+        Optional boolean mask indicating which samples are out-of-distribution.
+        These points are highlighted on the plot.
     ax:
         Optional :class:`matplotlib.axes.Axes` to draw on.  A new figure is
         created when omitted and :mod:`matplotlib` is available.
@@ -233,6 +237,13 @@ def plot_kpi_with_domain(
     if ax is None:
         _, ax = plt.subplots()
     ax.errorbar(x, y, yerr=y_err, fmt="o", label="KPI")
+    if ood_flags:
+        added = False
+        for xv, yv, flag in zip(x, y, ood_flags):
+            if flag:
+                ax.scatter([xv], [yv], color="red", marker="x",
+                           label="OOD" if not added else None)
+                added = True
     ax.axvspan(training_domain[0], training_domain[1], color="grey", alpha=0.1,
                label="training domain")
     lower = [val - err for val, err in zip(y, y_err)]

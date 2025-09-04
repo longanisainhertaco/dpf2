@@ -3,12 +3,12 @@
 The surrogates are trained offline and stored as JSON files containing the
 linear coefficients, the training domain and an estimate of the training
 error.  At runtime the helpers load these files and perform predictions while
-emitting a warning when inputs fall outside the training range.
+enforcing out-of-distribution checks to prevent evaluations outside the
+training hull.
 """
 from __future__ import annotations
 
 import json
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -16,7 +16,7 @@ from typing import Iterable, Sequence
 import numpy as np
 
 from .surrogate import ONNXSurrogateModel
-from ..optimization import OptimizationWarning
+from ..exceptions import OutOfDomainError
 
 
 @dataclass
@@ -39,7 +39,7 @@ class LinearSurrogate:
     def predict_with_uncertainty(
         self, x: float | Iterable[float]
     ) -> tuple[float, tuple[float, float]] | list[tuple[float, tuple[float, float]]]:
-        """Return prediction and conformal error band."""
+        """Return prediction and 95% conformal interval."""
 
         if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
             inputs = list(x)
@@ -52,10 +52,8 @@ class LinearSurrogate:
         if val < lo or val > hi or (
             self.ood_threshold is not None and dist > self.ood_threshold
         ):
-            warnings.warn(
-                f"Input {val} outside training range [{lo}, {hi}] (distance={dist:.2f})",
-                OptimizationWarning,
-                stacklevel=2,
+            raise OutOfDomainError(
+                f"Input {val} outside training range [{lo}, {hi}] (distance={dist:.2f})"
             )
         a, b = self.coeffs
         return a * val + b
@@ -114,6 +112,7 @@ class ONNXLinearSurrogate:
     def predict_with_uncertainty(
         self, x: float | Iterable[float]
     ) -> tuple[float, tuple[float, float]] | list[tuple[float, tuple[float, float]]]:
+        """Return prediction and 95% conformal interval."""
         if isinstance(x, Iterable) and not isinstance(x, (str, bytes)):
             arr = np.asarray(list(x), dtype=np.float32).reshape(-1, 1)
             return [self._predict_with_uncertainty_single(v) for v in arr[:, 0]]
@@ -125,10 +124,8 @@ class ONNXLinearSurrogate:
         if val < lo or val > hi or (
             self.ood_threshold is not None and dist > self.ood_threshold
         ):
-            warnings.warn(
-                f"Input {val} outside training range [{lo}, {hi}] (distance={dist:.2f})",
-                OptimizationWarning,
-                stacklevel=2,
+            raise OutOfDomainError(
+                f"Input {val} outside training range [{lo}, {hi}] (distance={dist:.2f})"
             )
         inp = np.array([[val]], dtype=np.float32)
         return float(self.model.predict(inp)[0, 0])

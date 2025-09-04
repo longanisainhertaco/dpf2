@@ -65,6 +65,11 @@ def train() -> None:
             pinch_times.append(p)
 
     domain = [min(currents), max(currents)]
+    mean = sum(currents) / len(currents)
+    var = sum((c - mean) ** 2 for c in currents) / len(currents)
+
+    # Two-sigma Mahalanobis threshold ~95% for Gaussian data
+    ood_threshold = 2.0
 
     # Yield model -------------------------------------------------------
     a_y, b_y = _linear_regression(currents, yields)
@@ -79,6 +84,9 @@ def train() -> None:
                 "coeffs": [a_y, b_y],
                 "training_domain": domain,
                 "error": err_y,
+                "mean": mean,
+                "covariance": var,
+                "ood_threshold": ood_threshold,
             },
             fh,
             indent=2,
@@ -95,6 +103,9 @@ def train() -> None:
                 "coeffs": [a_p, b_p],
                 "training_domain": domain,
                 "error": err_p,
+                "mean": mean,
+                "covariance": var,
+                "ood_threshold": ood_threshold,
             },
             fh,
             indent=2,
