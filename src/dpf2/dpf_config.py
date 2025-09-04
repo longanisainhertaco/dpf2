@@ -360,22 +360,31 @@ class DPFConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_cross_fields(cls, values):
-        sc = values.get("simulation_control")
-        gr = values.get("grid_resolution")
+        sc = getattr(values, "simulation_control", None)
+        gr = getattr(values, "grid_resolution", None)
         if sc and gr and sc.geometry == "2D_RZ" and gr.ny != 1:
             raise ValueError("ny must be 1 for 2D_RZ geometry")
 
-        amrex = values.get("amrex_settings")
+        amrex = getattr(values, "amrex_settings", None)
         if sc and amrex and amrex.electrode_geometry and amrex.electrode_geometry.mesh_file:
-            from .geometry.loaders import load_cad_geometry, load_unstructured_mesh
+            from .geometry.loaders import (
+                load_axisymmetric_mesh,
+                load_cad_geometry,
+                load_unstructured_mesh,
+            )
 
             p = Path(amrex.electrode_geometry.mesh_file)
-            try:
-                data = load_cad_geometry(p)
-            except ValueError:
-                data = load_unstructured_mesh(p)
+            suffix = p.suffix.lower()
+            if sc.geometry == "2D_RZ" and suffix in {".stl", ".vtk"}:
+                data = load_axisymmetric_mesh(p)
+                nodes = list(zip(data.get("r", []), data.get("z", [])))
+            else:
+                try:
+                    data = load_cad_geometry(p)
+                except ValueError:
+                    data = load_unstructured_mesh(p)
+                nodes = data.get("nodes") or []
 
-            nodes = data.get("nodes") or []
             if not nodes:
                 raise ValueError("Imported mesh contains no nodes")
             dim = len(nodes[0])

@@ -15,3 +15,9 @@ try:  # pragma: no cover - optional dash dependency
     __all__.append("launch_dash")
 except Exception:  # pragma: no cover - simplify when dash missing
     pass
+
+try:  # pragma: no cover - optional PyQt dependency
+    from .qt_sweep import launch as launch_qt
+    __all__.append("launch_qt")
+except Exception:  # pragma: no cover - simplify when PyQt missing
+    pass

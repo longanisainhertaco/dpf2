@@ -30,6 +30,7 @@ from .diagnostics.synthetic_signals import (
     rogowski_signal,
     bdot_signal,
 )
+from .fusion import dd_beam_target_angular_spectrum, dd_directional_yields
 
 
 class AngularDistribution:
@@ -63,13 +64,34 @@ def generate_tof_spectrum(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Create a synthetic time-of-flight spectrum from neutron energies."""
 
-    energies_j = np.asarray(energies_mev) * 1.602176634e-13
     m_n = 1.67492749804e-27  # neutron mass (kg)
-    v = np.sqrt(2.0 * energies_j / m_n)
-    tof = distance_m / v
-    counts, edges = np.histogram(tof, bins=bins)
+    tof_vals: List[float] = []
+    for e in energies_mev:
+        e_j = float(e) * 1.602176634e-13
+        v = (2.0 * e_j / m_n) ** 0.5
+        tof_vals.append(distance_m / v)
+    try:  # pragma: no cover - prefer numpy implementation
+        counts, edges = np.histogram(tof_vals, bins=bins)
+    except Exception:  # pragma: no cover - fallback for stub numpy
+        if not tof_vals:
+            edges = np.linspace(0.0, 1.0, bins + 1)
+            counts = np.zeros(bins)
+        else:
+            t_min = min(tof_vals)
+            t_max = max(tof_vals)
+            if t_max == t_min:
+                t_max = t_min + 1e-12
+            edges = np.linspace(t_min, t_max, bins + 1)
+            counts = np.zeros(bins)
+            span = t_max - t_min
+            for t in tof_vals:
+                idx = int((t - t_min) / span * bins)
+                if idx >= bins:
+                    idx = bins - 1
+                counts[idx] += 1.0
     centers = 0.5 * (edges[:-1] + edges[1:])
     return centers, counts
+
 
 
 def _cr39_image(history: Sequence[CouplingState], size: int = 64) -> List[List[float]]:
@@ -115,6 +137,7 @@ def _faraday_eedf(history: Sequence[CouplingState], bins: int = 50) -> List[floa
     temp = max_energy / 7.0 if max_energy > 0 else 1.0
     dist = np.sqrt(energies) * np.exp(-energies / temp)
     return dist.tolist()
+
 
 
 class SyntheticInstrument(BaseModel):
@@ -375,6 +398,7 @@ def run_diagnostic_calculations(
         outputs["rogowski"] = rogowski_signal(hist, dt)
     if cfg.synthetic_bdot_signal_enabled:
         outputs["bdot"] = bdot_signal(hist, bdot_radius, dt)
+
     if cfg.synthetic_cr39_image_enabled:
         outputs["cr39_image"] = _cr39_image(hist)
     if cfg.synthetic_rcf_image_enabled:
@@ -383,6 +407,7 @@ def run_diagnostic_calculations(
         outputs["faraday_iedf"] = _faraday_iedf(hist)
     if cfg.synthetic_faraday_eedf_enabled:
         outputs["faraday_eedf"] = _faraday_eedf(hist)
+
     return outputs
 
 
@@ -455,5 +480,8 @@ __all__ = [
     "SyntheticInstrument",
     "run_diagnostic_calculations",
     "export_diagnostic_data",
-
+    "generate_tof_spectrum",
+    "beam_target_angular_spectrum",
+    "synthetic_tof_trace",
+    "export_directional_yields",
 ]

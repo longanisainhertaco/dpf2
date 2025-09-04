@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import YieldPressureOverlay from './YieldPressureOverlay.jsx';
 import EfficiencyCurveOverlay from './EfficiencyCurveOverlay.jsx';
+import GeometryPresets from './GeometryPresets.jsx';
 
 export default function ProjectManager({ projects = [] }) {
   const [configSets, setConfigSets] = useState(projects);
@@ -162,28 +163,20 @@ export default function ProjectManager({ projects = [] }) {
 
       <form onSubmit={addConfigSet}>
         <h4>Add Configuration Set</h4>
-        <select
-          value={preset}
-          onChange={(e) => setPreset(e.target.value)}
-          title="Choose a starting geometry"
-        >
-          <option value="">Geometry Preset</option>
-          <option value="tapered">Tapered</option>
-          <option value="hollow">Hollow</option>
-          <option value="re-entrant">Re-entrant</option>
-        </select>
+        <GeometryPresets onSelect={setPreset} />
+        {preset && <p>Selected geometry: {preset}</p>}
 
         <input
           type="file"
-          onChange={(e) => setCad(e.target.files[0])}
+          onChange={handleFile}
           title="Optional CAD file for custom geometry"
         />
         <button type="submit" title="Upload the configuration set">Add</button>
         <details>
           <summary>What is this?</summary>
-          Select a preset geometry or upload a CAD file to create a new
-          configuration set. These settings can later be exported for
-          sharing.
+          Drag a geometry preset into the drop zone or upload a CAD file to
+          create a new configuration set. These settings can later be exported
+          for sharing.
         </details>
 
       </form>

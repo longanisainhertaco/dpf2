@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from dpf2.geometry.loaders import load_cad_geometry, load_axisymmetric_mesh
+from dpf2.geometry import AxisymmetricProfile
 
 
 def test_load_step_geometry():
@@ -23,3 +24,24 @@ def test_load_axisymmetric_mesh():
     mesh = load_axisymmetric_mesh(path)
     assert mesh["r"][0] == 0.0
     assert mesh["z"][-1] == 2.0
+
+
+def test_load_axisymmetric_stl():
+    path = Path(__file__).with_name("axisymmetric.stl")
+    mesh = load_axisymmetric_mesh(path)
+    assert mesh["r"][-1] == 1.0
+    assert mesh["z"][-1] == 2.0
+
+
+def test_load_axisymmetric_vtk():
+    path = Path(__file__).with_name("axisymmetric.vtk")
+    mesh = load_axisymmetric_mesh(path)
+    assert mesh["r"][-1] == 1.0
+    assert mesh["z"][-1] == 2.0
+
+
+def test_axisymmetric_profile_from_file():
+    path = Path(__file__).with_name("axisymmetric.stl")
+    prof = AxisymmetricProfile.from_file(path)
+    assert prof.r[-1] == 1.0
+    assert prof.z[-1] == 2.0
