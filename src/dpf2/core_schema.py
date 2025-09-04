@@ -31,11 +31,6 @@ from .utils.pydantic_compat import model_validator
 
 logger = logging.getLogger(__name__)
 
-
-
-if not hasattr(BaseModel, "model_rebuild"):
-    BaseModel.model_rebuild = classmethod(lambda cls, *_, **__: None)
-
 # ---------------------------------------------------------------------------
 # Type aliases
 TimeVoltageProfile = List[Tuple[float, float]]

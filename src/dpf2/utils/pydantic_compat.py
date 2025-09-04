@@ -73,4 +73,14 @@ if not hasattr(BaseModel, "model_copy"):
 
         BaseModel.model_copy = _copy  # type: ignore[attr-defined]
 
-__all__ = ["BaseModel", "ConfigDict", "Field", "model_validator"]
+
+if not hasattr(BaseModel, "model_rebuild"):
+    if hasattr(BaseModel, "update_forward_refs"):
+        BaseModel.model_rebuild = classmethod(
+            lambda cls, *_, **__: cls.update_forward_refs()  # type: ignore[attr-defined]
+        )
+    else:  # pragma: no cover - minimal stub
+        BaseModel.model_rebuild = classmethod(lambda cls, *_, **__: None)
+
+__all__ = ["model_validator"]
+
