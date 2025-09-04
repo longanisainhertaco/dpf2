@@ -137,10 +137,15 @@ def run_validation(
     cfg = DPFConfig.from_file(config)
     engine = SimulationEngine(cfg)
     if lab_mode:
-        seeds = {
-            "python": random.getstate()[1][0],
-            "numpy": int(np.random.get_state()[1][0]),
-        }
+    seeds = {"python": random.getstate()[1][0]}
+    try:
+        seeds["numpy"] = int(np.random.get_state()[1][0])
+    except Exception:
+        try:
+            rng = np.random.default_rng()
+            seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
+        except Exception:
+            seeds["numpy"] = 0
     results = engine.run()
 
     vsuite = _build_validation_suite(dataset)
@@ -179,7 +184,16 @@ def run_validation(
 
     if lab_mode:
         ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
-        write_manifest(outdir, config_paths=[str(config)], ppc=ppc, seeds=seeds)
+        cfg_dict = (
+            cfg.model_dump(mode="python") if hasattr(cfg, "model_dump") else cfg.__dict__
+        )
+        write_manifest(
+            outdir,
+            config_paths=[str(config)],
+            config=cfg_dict,
+            ppc=ppc,
+            seeds=seeds,
+        )
 
     for name, score in report["scores"].items():
         print(f"{name}: {score:.3f}")

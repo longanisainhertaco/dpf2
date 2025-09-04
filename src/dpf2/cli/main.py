@@ -332,6 +332,13 @@ def main(ctx: click.Context, notebook: bool, lab_mode: bool) -> None:
     help="Save key waveforms and diagnostics at completion",
 )
 @click.option("--wizard", is_flag=True, help="Interactive mode to build configuration")
+@click.option(
+    "--shots",
+    type=int,
+    default=1,
+    show_default=True,
+    help="Number of jittered shots to run when lab-mode is enabled",
+)
 @click.pass_context
 def simulate(
     ctx: click.Context,
@@ -344,6 +351,7 @@ def simulate(
     synthetic: str | None,
     diagnostics: bool,
     wizard: bool,
+    shots: int,
 ) -> None:
     """Run a DPF simulation."""
     try:
@@ -403,10 +411,17 @@ def simulate(
 
         sim = DPFSimulation(cfg)
 
-        seeds = {
-            "python": random.getstate()[1][0],
-            "numpy": int(np.random.get_state()[1][0]),
-        }
+        warnings_list: list[str] = []
+
+        seeds = {"python": random.getstate()[1][0]}
+        try:
+            seeds["numpy"] = int(np.random.get_state()[1][0])
+        except Exception:
+            try:
+                rng = np.random.default_rng()
+                seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
+            except Exception:
+                seeds["numpy"] = 0
 
         live_times: list[float] = []
         live_currents: list[float] = []
@@ -572,6 +587,49 @@ def simulate(
             diag_file.write_text(json.dumps(diag))
             click.echo(f"Diagnostics written to {diag_file}")
 
+        if ctx.obj.get("lab_mode") and shots > 1:
+            # In lab mode with multiple shots requested, run an ensemble with
+            # simple jitter applied to key inputs for each realization.
+            for idx in range(shots):
+                shot_cfg = dataclasses.replace(
+                    cfg,
+                    charging_voltage=random.gauss(
+                        cfg.charging_voltage, cfg.charging_voltage * 0.02
+                    ),
+                    initial_pressure=random.gauss(
+                        cfg.initial_pressure, cfg.initial_pressure * 0.02
+                    ),
+                )
+                shot_sim = DPFSimulation(shot_cfg)
+                shot_dir = Path(output) / f"shot_{idx:03d}"
+                shot_seeds = {"python": random.getstate()[1][0]}
+                try:
+                    shot_seeds["numpy"] = int(np.random.get_state()[1][0])
+                except Exception:
+                    try:
+                        rng = np.random.default_rng()
+                        shot_seeds["numpy"] = int(
+                            rng.bit_generator.state["state"]["state"]
+                        )
+                    except Exception:
+                        shot_seeds["numpy"] = 0
+                shot_sim.run(output_dir=str(shot_dir))
+                ppc = getattr(
+                    getattr(shot_cfg, "warpx_settings", None),
+                    "max_particles_per_cell",
+                    None,
+                )
+                cfg_paths = [p for p in [config, synthetic] if p]
+                write_manifest(
+                    shot_dir,
+                    config_paths=cfg_paths,
+                    config=asdict(shot_cfg),
+                    ppc=ppc,
+                    seeds=shot_seeds,
+                    warnings=warnings_list,
+                )
+            return
+
         if ctx.obj.get("lab_mode"):
 
             ppc = getattr(
@@ -582,6 +640,7 @@ def simulate(
             write_manifest(
                 output,
                 config_paths=cfg_paths,
+                config=asdict(cfg),
                 ppc=ppc,
                 seeds=seeds,
                 warnings=warnings_list,

@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 import logging
+from dataclasses import asdict
 
 from ..mesh import Mesh2D
 from .config import DPFConfig
@@ -78,7 +79,7 @@ class DPFSimulation:
         interval = output_interval or end
 
         Path(out).mkdir(parents=True, exist_ok=True)
-        self.writer = DataWriter(out)
+        self.writer = DataWriter(out, config=asdict(self.config))
 
         # Write initial state
         self.writer.write_hdf5({"current": self.current, "voltage": self.voltage}, time=self.time)

@@ -44,18 +44,25 @@ def main(argv: list[str] | None = None) -> None:
         cfg = DPFConfig.from_file(args.config)
         engine = SimulationEngine(cfg)
         if args.lab_mode:
-            seeds = {
-                "python": random.getstate()[1][0],
-                "numpy": int(np.random.get_state()[1][0]),
-            }
+            seeds = {"python": random.getstate()[1][0]}
+            try:
+                seeds["numpy"] = int(np.random.get_state()[1][0])
+            except Exception:
+                try:
+                    rng = np.random.default_rng()
+                    seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
+                except Exception:
+                    seeds["numpy"] = 0
         results = engine.run(method=args.method, pinch_model=args.pinch_model)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(results.to_dict(), indent=2))
         if args.lab_mode:
             ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
+            cfg_dict = cfg.model_dump(mode="python") if hasattr(cfg, "model_dump") else cfg.__dict__
             write_manifest(
                 args.output.parent,
                 config_paths=[str(args.config)],
+                config=cfg_dict,
                 ppc=ppc,
                 seeds=seeds,
             )
