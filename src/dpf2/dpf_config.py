@@ -122,6 +122,8 @@ class PhysicsModels(BaseModel):
     wall_ablation_rate: Optional[float] = None
     wall_ablation_latent_heat: Optional[float] = None
     resistivity_model: Optional[str] = None
+    anomalous_resistivity_enabled: bool = False
+    anomalous_resistivity_parameters: Dict[str, float] = Field(default_factory=dict)
     ionization_model: Optional[str] = None
     radiation_model: Optional[str] = None
     radiation_transport_model: Optional[str] = None

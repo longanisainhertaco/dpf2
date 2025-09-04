@@ -40,6 +40,8 @@ from .boundary_conditions import KineticSheath
 from .physics.energy import EnergyTracker
 from .diagnostics.quality_dashboard import QualityDashboard
 from .diagnostics.modes import azimuthal_mode_spectrum
+from .physics.anomalous_resistivity import SpectralResistivity
+from .physics.lower_hybrid_drift import LowerHybridDrift
 
 logger = logging.getLogger(__name__)
 
@@ -384,6 +386,31 @@ class HallMHDSolver(PlasmaSolverBase):
         """Invoke the boundary-condition hook if provided."""
         if self.bc is not None:
             self.bc(state)
+
+    # ------------------------------------------------------------------
+    def enable_spectral_resistivity(
+        self,
+        lhd: LowerHybridDrift,
+        scale: float = 1.0,
+        floor: float = 0.0,
+    ) -> None:
+        """Enable lower-hybrid drift spectral anomalous resistivity.
+
+        Parameters
+        ----------
+        lhd:
+            Instance providing the local lower-hybrid frequency.
+        scale:
+            Scaling applied to the spectral power when mapping to
+            resistivity.
+        floor:
+            Minimum resistivity returned by the model.
+
+        The created model is attached to :attr:`lower_hybrid_drift` so it is
+        automatically included by :meth:`compute_anomalous_resistivity`.
+        """
+
+        self.lower_hybrid_drift = SpectralResistivity(lhd, scale=scale, floor=floor)
 
     def compute_anomalous_resistivity(self, J: np.ndarray) -> np.ndarray:
         """Evaluate anomalous resistivity models and record voltage spikes.
