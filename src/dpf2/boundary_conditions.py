@@ -4,34 +4,12 @@ from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional, Literal
 import math
 
-from pydantic import BaseModel, ConfigDict, Field, root_validator
+from pydantic import BaseModel, ConfigDict, Field
+from .utils.pydantic_compat import model_validator as _model_validator
+
 
 # ---------------------------------------------------------------------------
-# Compatibility helpers mirroring pydantic v2 model_validator
 
-def model_validator(*, mode: str = "after"):
-    def decorator(func):
-        if mode == "after":
-            def wrapper(cls, values):
-                inst = cls.construct(**values)
-                result = func(cls, inst)
-                return result.__dict__ if isinstance(result, cls) else values
-            return root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(wrapper)
-        else:
-            def wrapper(cls, values):
-                out = func(values)
-                return out if out is not None else values
-            return root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(wrapper)
-    return decorator
-
-if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls(**d))
-if not hasattr(BaseModel, "model_dump"):
-    BaseModel.model_dump = lambda self, **_: getattr(self, "__dict__", {})
-if not hasattr(BaseModel, "model_dump_json"):
-    BaseModel.model_dump_json = lambda self, **_: str(getattr(self, "__dict__", {}))
-if not hasattr(BaseModel, "model_copy"):
-    BaseModel.model_copy = lambda self, **_: self
 
 # Local imports ---------------------------------------------------------------
 try:  # pragma: no cover - during early import core_schema may not be ready
