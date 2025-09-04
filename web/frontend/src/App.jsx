@@ -4,6 +4,8 @@ import ProjectManager from './ProjectManager.jsx';
 import InstabilityVisualizer from './InstabilityVisualizer.jsx';
 import SheathBeamOverlay from './SheathBeamOverlay.jsx';
 import GuidedLabs from './GuidedLabs.jsx';
+import QuickStartTutorial from './QuickStartTutorial.jsx';
+import help from './help.json';
 
 export default function App() {
   const [token, setToken] = useState('');
@@ -124,9 +126,9 @@ export default function App() {
       {!token && (
         <form onSubmit={login}>
           <h3>Login</h3>
-          <input name="username" placeholder="username" title="Your sandbox username" />
-          <input name="password" type="password" placeholder="password" title="Your sandbox password" />
-          <button type="submit" title="Authenticate with the server">Login</button>
+          <input name="username" placeholder="username" title={help.login.username} />
+          <input name="password" type="password" placeholder="password" title={help.login.password} />
+          <button type="submit" title={help.login.submit}>Login</button>
         </form>
       )}
       {token && (
@@ -138,7 +140,7 @@ export default function App() {
               cols={50}
               value={config}
               onChange={(e) => setConfig(e.target.value)}
-              title="Paste a JSON configuration for the simulation or array for batch runs"
+              title={help.config.textarea}
             />
             <details>
               <summary>What is this?</summary>
@@ -152,13 +154,13 @@ export default function App() {
                   type="checkbox"
                   checked={useJitter}
                   onChange={(e) => setUseJitter(e.target.checked)}
-                  title="Enable jitter for switch timing and fill pressure"
+                  title={help.config.jitter.toggle}
                 />
                 Enable Jitter
               </label>
               {useJitter && (
                 <div>
-                  <label title="Timing jitter in nanoseconds">
+                  <label title={help.config.jitter.switch}>
                     Switch Jitter (ns)
                     <input
                       type="number"
@@ -166,7 +168,7 @@ export default function App() {
                       onChange={(e) => setSwitchJitter(parseFloat(e.target.value))}
                     />
                   </label>
-                  <label title="Fill pressure jitter as percent">
+                  <label title={help.config.jitter.pressure}>
                     Pressure Jitter (%)
                     <input
                       type="number"
@@ -183,7 +185,7 @@ export default function App() {
                   type="checkbox"
                   checked={batchMode}
                   onChange={(e) => setBatchMode(e.target.checked)}
-                  title="Interpret config as array and run all entries"
+                  title={help.config.batch}
                 />
                 Batch Run Manifest
               </label>
@@ -193,12 +195,12 @@ export default function App() {
                 type="file"
                 accept="application/json"
                 onChange={importSnapshot}
-                title="Import a configuration snapshot"
+                title={help.config.import}
               />
               <button
                 type="button"
                 onClick={exportSnapshot}
-                title="Export the current configuration snapshot"
+                title={help.config.export}
               >
                 Export Snapshot
               </button>
@@ -208,7 +210,7 @@ export default function App() {
               </details>
             </div>
             <br />
-            <button type="submit" title="Start the simulation run">Run</button>
+            <button type="submit" title={help.config.run}>Run</button>
           </form>
           <ProjectManager projects={projects} />
         </>
@@ -218,7 +220,7 @@ export default function App() {
           <p>Submitted run: {runId}</p>
           <div>
 
-            <label title="Adjust the driving voltage applied to the plasma sheath.">
+            <label title={help.slider.voltage}>
 
               Voltage: {voltage.toFixed(2)} kV
               <input
@@ -241,7 +243,7 @@ export default function App() {
           </div>
           <div>
 
-            <label title="Set the background gas pressure used in the simulation.">
+            <label title={help.slider.pressure}>
 
               Pressure: {pressure.toFixed(2)} bar
               <input
@@ -265,6 +267,7 @@ export default function App() {
           <InstabilityVisualizer />
           <SheathBeamOverlay voltage={voltage} pressure={pressure} />
           <GuidedLabs setVoltage={setVoltage} setPressure={setPressure} />
+          <QuickStartTutorial setVoltage={setVoltage} setPressure={setPressure} />
         </div>
       )}
     </div>
