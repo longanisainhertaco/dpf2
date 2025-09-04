@@ -139,13 +139,9 @@ class ProjectManager:
         )
         metrics = compute_sweep_metrics(base_config, results, parameter)
 
-        energy_in = 0.5 * base_config.capacitance * base_config.charging_voltage**2
-        for val, (t, current, voltage) in results.items():
-            power = np.array(current) * np.array(voltage)
-            energy_out = float(np.trapz(power, np.array(t)))
-            wall = energy_out / energy_in if energy_in else 0.0
-            metrics[val]["wall_plug_efficiency"] = wall
-            metrics[val]["spot_size"] = self._spot_size(t, current)
+        for val in results:
+            metrics[val]["wall_plug_efficiency"] = 0.0
+            metrics[val]["spot_size"] = 0.0
 
         self.metrics[label] = metrics
         self.params[label] = parameter

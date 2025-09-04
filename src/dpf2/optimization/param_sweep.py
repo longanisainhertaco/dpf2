@@ -1,20 +1,35 @@
-"""Utilities for performing parametric sweeps of simulation parameters."""
+"""Utilities for evaluating surrogate models over parameter sweeps.
+
+This module previously executed the full :class:`~dpf2.core.simulation.DPFSimulation`
+for each sweep point and recorded the resulting current traces.  The new
+implementation instead queries lightweight surrogate models that predict the
+neutron yield and pinch time directly.  Each prediction is accompanied by a
+simple conformal uncertainty band.
+
+When a sweep value lies outside the training domain of a surrogate model the
+model may raise :class:`OutOfDomainError`.  Such points are skipped and a
+warning is emitted so that callers can decide how to handle missing results.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
-
-from dataclasses import asdict
+from typing import Dict, Iterable, Tuple
+import warnings
 
 from ..core.config import DPFConfig
-from ..core.simulation import DPFSimulation
-from dpf2.cli.lab import write_manifest
-from ..diagnostics import compute_performance_metrics
-import random
-import numpy as np
+from . import OptimizationWarning
 
 
-SweepResult = Tuple[List[float], List[float], List[float]]
+class OutOfDomainError(Exception):
+    """Raised when querying a surrogate outside its trained domain."""
+
+
+# A prediction consists of a value and its (lo, hi) conformal band
+Prediction = Tuple[float, Tuple[float, float]]
+
+# Each sweep result stores the yield and pinch time predictions
+SweepResult = Dict[str, Prediction]
 
 
 def run_parametric_sweep(
@@ -22,85 +37,82 @@ def run_parametric_sweep(
     parameter: str,
     values: Iterable[float],
     *,
+    yield_model: str | Path | None = None,
+    pinch_model: str | Path | None = None,
     output_dir: str | Path = "sweep_output",
-    lab_mode: bool = False,
+    lab_mode: bool = False,  # retained for API compatibility
     config_path: str | Path | None = None,
 ) -> Dict[float, SweepResult]:
-    """Run a series of simulations while varying a single parameter.
+    """Evaluate surrogate models for a set of parameter values.
 
     Parameters
     ----------
     base_config:
-        Starting :class:`DPFConfig` for the sweep.
+        Starting configuration for the sweep.  Currently only used when
+        computing derived metrics such as the shock parameter ``S``.
     parameter:
-        Name of the configuration attribute to vary.
+        Name of the configuration attribute to vary.  The value is passed
+        directly to the surrogate models.
     values:
         Iterable of values for ``parameter``.
-    output_dir:
-        Directory where per-run results are written.
+    yield_model, pinch_model:
+        Optional paths to surrogate model JSON files.  When omitted the
+        built-in repository models are used.
+    output_dir, lab_mode, config_path:
+        Accepted for backward compatibility but currently unused.  The output
+        directory is still created so callers relying on its existence do not
+        break.
 
     Returns
     -------
     Dict[float, SweepResult]
-        Mapping of parameter value to time history tuples ``(t, I, V)``.
+        Mapping of parameter values to prediction dictionaries.  Each
+        dictionary contains entries ``{"yield": (y, (lo, hi)), "pinch_time":
+        (p, (lo, hi))}``.
     """
 
-    out_root = Path(output_dir)
-    out_root.mkdir(parents=True, exist_ok=True)
+    from ..ai.simple_surrogates import (
+        LinearSurrogate,
+        load_pinch_time_surrogate,
+        load_yield_surrogate,
+    )
+    try:  # pragma: no cover - prefer surrogate-defined error if available
+        from ..ai.simple_surrogates import OutOfDomainError as _OOD
+    except Exception:  # pragma: no cover
+        _OOD = OutOfDomainError
+    else:
+        global OutOfDomainError
+        OutOfDomainError = _OOD
+
+    # Load surrogate models -------------------------------------------------
+    if yield_model:
+        y_model = LinearSurrogate.load(Path(yield_model))
+    else:
+        y_model = load_yield_surrogate()
+
+    if pinch_model:
+        p_model = LinearSurrogate.load(Path(pinch_model))
+    else:
+        p_model = load_pinch_time_surrogate()
+
+    # Ensure the output directory exists for compatibility with older APIs
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     results: Dict[float, SweepResult] = {}
     for val in values:
-        cfg_dict = base_config.__dict__.copy()
-        cfg_dict[parameter] = val
-        cfg = DPFConfig(**cfg_dict)
-        sim = DPFSimulation(cfg)
-        run_dir = out_root / f"{parameter}_{val}"
-        seeds = None
-        if lab_mode:
-            seeds = {"python": random.getstate()[1][0]}
-            try:
-                seeds["numpy"] = int(np.random.get_state()[1][0])
-            except Exception:
-                try:
-                    rng = np.random.default_rng()
-                    seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
-                except Exception:
-                    seeds["numpy"] = 0
-        t, i, v = sim.run(output_dir=str(run_dir), seeds=seeds)
-        if lab_mode:
-            ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
-            paths = [str(config_path)] if config_path else []
-            write_manifest(
-                run_dir,
-                config_paths=paths,
-                config=asdict(cfg),
-                ppc=ppc,
-                seeds=seeds,
-            )
-        results[val] = (t, i, v)
+        try:
+            y_pred, y_band = y_model.predict_with_uncertainty(val)
+            p_pred, p_band = p_model.predict_with_uncertainty(val)
+        except OutOfDomainError as exc:
+            warnings.warn(str(exc), OptimizationWarning, stacklevel=2)
+            continue
+
+        results[float(val)] = {
+            "yield": (float(y_pred), (float(y_band[0]), float(y_band[1]))),
+            "pinch_time": (float(p_pred), (float(p_band[0]), float(p_band[1]))),
+        }
+
     return results
-
-
-def plot_sweep_results(
-    parameter: str,
-    results: Dict[float, SweepResult],
-    path: str | Path,
-) -> Path:
-    """Create an overlay plot of currents for a sweep."""
-
-    import matplotlib.pyplot as plt
-
-    for val, (t, current, _v) in results.items():
-        plt.plot(t, current, label=f"{parameter}={val:g}")
-
-    plt.xlabel("Time (s)")
-    plt.ylabel("Current (A)")
-    plt.legend()
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(path)
-    plt.close()
-    return path
 
 
 def compute_sweep_metrics(
@@ -108,67 +120,33 @@ def compute_sweep_metrics(
     results: Dict[float, SweepResult],
     parameter: str | None = None,
 ) -> Dict[float, Dict[str, float]]:
-    """Compute simple yield, pinch time and efficiency estimates for sweep results.
+    """Compute simple metrics for surrogate sweep results.
 
-    Parameters
-    ----------
-    base_config:
-        Configuration used for the sweep.  The capacitance and charging
-        voltage are used to estimate the initial energy in the circuit.
-    results:
-        Output of :func:`run_parametric_sweep`.
-
-    Returns
-    -------
-    Dict[float, Dict[str, float]]
-        Mapping of parameter value to metrics ``{"yield", "pinch_time",
-        "efficiency"}``.  Yield is estimated as the peak current, pinch time is
-        the time at which the peak current occurs and efficiency is the ratio of
-        the time-integrated ``I*V`` product to the initial stored energy.  If
-        ``parameter`` is provided and equals ``"initial_pressure"``, the
-        dimensionless shock parameter ``S = I/(a*p0)`` is also recorded for each
-        sweep value.
+    The returned mapping contains the surrogate predictions along with their
+    uncertainty bands.  Efficiency is currently undefined for surrogate-only
+    sweeps and is therefore reported as ``0.0``.
     """
 
-    import numpy as np
-
     metrics: Dict[float, Dict[str, float]] = {}
-    energy_in = 0.5 * base_config.capacitance * base_config.charging_voltage**2
-    rep_rate = getattr(base_config, "rep_rate_hz", 1.0)
-    electrode_mass = getattr(base_config, "electrode_mass_g", 100.0)
-    erosion_per_shot = getattr(base_config, "erosion_per_shot_g", 0.01)
+    a = getattr(base_config, "anode_radius", 0.0)
 
-    for val, (t, current, voltage) in results.items():
-        t_arr = np.array(t)
-        i_arr = np.array(current)
-        v_arr = np.array(voltage)
-        power = i_arr * v_arr
-        energy_out = float(np.trapz(power, t_arr))
-        efficiency = energy_out / energy_in if energy_in else 0.0
-        peak_idx = int(i_arr.argmax()) if len(i_arr) else 0
-        yield_est = float(i_arr[peak_idx])
-        pinch_time = float(t_arr[peak_idx]) if len(t_arr) else 0.0
-        perf = compute_performance_metrics(
-            yield_est,
-            rep_rate_hz=rep_rate,
-            energy_out_j=energy_out,
-            energy_in_j=energy_in,
-            electrode_mass_g=electrode_mass,
-            erosion_per_shot_g=erosion_per_shot,
-        )
-        metric = {
-            "yield": yield_est,
-            "efficiency": efficiency,
-            "pinch_time": pinch_time,
-            **perf,
+    for val, preds in results.items():
+        y_pred, y_band = preds.get("yield", (0.0, (0.0, 0.0)))
+        p_pred, p_band = preds.get("pinch_time", (0.0, (0.0, 0.0)))
+        metric: Dict[str, float] = {
+            "yield": float(y_pred),
+            "pinch_time": float(p_pred),
+            "yield_lo": float(y_band[0]),
+            "yield_hi": float(y_band[1]),
+            "pinch_time_lo": float(p_band[0]),
+            "pinch_time_hi": float(p_band[1]),
+            "efficiency": 0.0,
         }
-        if parameter == "initial_pressure":
-            pressure = val
-        else:
-            pressure = base_config.initial_pressure
-        a = getattr(base_config, "anode_radius", 0.0)
+
+        pressure = val if parameter == "initial_pressure" else base_config.initial_pressure
         if a > 0 and pressure > 0:
-            metric["S"] = yield_est / (a * pressure)
+            metric["S"] = float(y_pred) / (a * pressure)
+
         metrics[val] = metric
 
     return metrics
@@ -186,7 +164,7 @@ def plot_metric_overlay(
     vals = sorted(metrics.keys())
     yields = [metrics[v]["yield"] for v in vals]
     pinch = [metrics[v].get("pinch_time", 0.0) for v in vals]
-    effs = [metrics[v]["efficiency"] for v in vals]
+    effs = [metrics[v].get("efficiency", 0.0) for v in vals]
 
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 9))
 
@@ -254,10 +232,11 @@ def plot_yield_pressure_overlay(
 
 __all__ = [
     "run_parametric_sweep",
-    "plot_sweep_results",
     "compute_sweep_metrics",
     "plot_metric_overlay",
     "plot_yield_vs_S",
     "plot_yield_pressure_overlay",
     "SweepResult",
+    "Prediction",
 ]
+

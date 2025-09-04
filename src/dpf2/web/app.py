@@ -15,7 +15,6 @@ from ..core.simulation import DPFSimulation
 from ..device_profiles import DeviceProfiles
 from ..exceptions import ConfigurationError, SimulationRuntimeError
 from ..optimization.param_sweep import (
-    plot_sweep_results,
     run_parametric_sweep,
     compute_sweep_metrics,
     plot_metric_overlay,
@@ -124,16 +123,15 @@ def create_app() -> Flask:
                     if param and values:
                         vals = list(_parse_sweep_values(values))
                         results = run_parametric_sweep(cfg, param, vals, output_dir=output)
-                        plot_path = Path(output) / "sweep_plot.png"
-                        plot_sweep_results(param, results, plot_path)
+                        metrics = compute_sweep_metrics(cfg, results, param)
+                        plot_metric_overlay(param, metrics, Path(output) / "sweep_metrics.png")
                 elif action == "sweep_metrics":
                     param = request.form.get("sweep_param")
                     values = request.form.get("sweep_values", "")
                     if param and values:
                         vals = list(_parse_sweep_values(values))
                         results = run_parametric_sweep(cfg, param, vals, output_dir=output)
-                        plot_sweep_results(param, results, Path(output) / "sweep_plot.png")
-                        metrics = compute_sweep_metrics(cfg, results)
+                        metrics = compute_sweep_metrics(cfg, results, param)
                         plot_metric_overlay(param, metrics, Path(output) / "sweep_metrics.png")
                         if "pressure" in param:
                             plot_yield_pressure_overlay({"sweep": metrics}, Path(output) / "yield_pressure.png")
