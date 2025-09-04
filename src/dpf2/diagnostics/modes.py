@@ -19,6 +19,7 @@ from typing import Sequence
 
 __all__ = [
     "azimuthal_mode_spectrum",
+    "azimuthal_decomposition",
     "growth_rate",
     "lh_azimuthal_power",
     "log_impedance_ratio",
@@ -95,6 +96,63 @@ def azimuthal_mode_spectrum(field: np.ndarray, axis: int = -1) -> np.ndarray:
             count += 1
         spectrum.append(c_sum / count if count else 0.0)
     return np.array(spectrum)
+
+
+def azimuthal_decomposition(field: np.ndarray, axis: int = -1) -> np.ndarray:
+    """Return complex azimuthal Fourier coefficients of ``field``.
+
+    This is similar to :func:`azimuthal_mode_spectrum` but retains the
+    complex phase information of each mode.  The coefficients are scaled so
+    that a pure ``cos(m\theta)`` signal yields a real coefficient of one and
+    a vanishing imaginary part.
+    """
+
+    data = np.asarray(field)
+
+    if hasattr(np, "fft"):
+        data = np.moveaxis(data, axis, -1)
+        n = data.shape[-1]
+        if n == 0:
+            return np.array([])
+        coeff = np.fft.rfft(data, axis=-1) / float(n)
+        if n % 2 == 0:
+            if coeff.shape[-1] > 2:
+                coeff[..., 1:-1] *= 2.0
+        else:
+            if coeff.shape[-1] > 1:
+                coeff[..., 1:] *= 2.0
+        mean_axes = tuple(range(coeff.ndim - 1))
+        return np.mean(coeff, axis=mean_axes)
+
+    if axis not in (-1, data.ndim - 1):
+        raise ValueError("manual mode decomposition only supports the last axis")
+    n = data.shape[-1]
+    if n == 0:
+        return np.array([])
+    theta = [2.0 * math.pi * k / n for k in range(n)]
+    m_max = n // 2
+    coeff = []
+    cos_cache = [[math.cos(m * t) for t in theta] for m in range(m_max + 1)]
+    sin_cache = [[math.sin(m * t) for t in theta] for m in range(m_max + 1)]
+    for m in range(m_max + 1):
+        c_sum = 0.0 + 0.0j
+        count = 0
+        for idx in product(*(range(s) for s in data.shape[:-1])):
+            row = data[idx]
+            a = 0.0
+            b = 0.0
+            for j in range(n):
+                a += row[j] * cos_cache[m][j]
+                b += row[j] * sin_cache[m][j]
+            a /= n
+            b /= n
+            if m != 0:
+                a *= 2.0
+                b *= 2.0
+            c_sum += complex(a, -b)
+            count += 1
+        coeff.append(c_sum / count if count else 0.0)
+    return np.asarray(coeff)
 
 
 def growth_rate(previous: Sequence[float], current: Sequence[float], dt: float) -> np.ndarray:

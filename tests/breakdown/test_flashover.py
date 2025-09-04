@@ -8,6 +8,7 @@ from dpf2.breakdown.flashover import (
 from dpf2.geometry import (
     triple_junction_field,
     set_triple_junction_field_map,
+    triple_junction_enhancement,
 )
 from dpf2.dpf_config import BreakdownModel
 from dpf2.synthetic_diagnostics import flashover_delay_stats, flashover_jitter_stats
@@ -30,6 +31,12 @@ def test_triple_junction_field_map():
     set_triple_junction_field_map("custom", 42.0)
     assert triple_junction_field("custom") == 42.0
     assert base == 1.0
+
+
+def test_triple_junction_enhancement_geometry_ratio():
+    base = triple_junction_field("mather")
+    enhanced = triple_junction_enhancement("mather", anode_radius=1.0, cathode_radius=2.0)
+    assert enhanced > base
 
 def test_breakdown_model_exposes_parameters():
     bm = BreakdownModel(type="flashover", seea_sigma=0.2, conditioning_alpha=0.1)

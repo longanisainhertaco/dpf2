@@ -120,9 +120,11 @@ def write_manifest(
             manifest["config"] = {k: str(v) for k, v in config.items()}
     if warnings:
         manifest["warnings"] = list(warnings)
+    dataset_meta = None
     if datasets:
         from ..io.manifest import capture_dataset_metadata
-        manifest["datasets"] = capture_dataset_metadata(datasets)
+        dataset_meta = capture_dataset_metadata(datasets)
+        manifest["datasets"] = dataset_meta
 
     path = out / RUN_MANIFEST_FILENAME
     path.write_text(json.dumps(manifest, indent=2))
@@ -130,13 +132,19 @@ def write_manifest(
     if h5py is not None:  # pragma: no cover - only when h5py available
         h5_path = out / RUN_MANIFEST_H5_FILENAME
         with h5py.File(h5_path, "w") as h5:
+            mgrp = h5.require_group("manifest")
             for key, value in manifest.items():
+                if key == "datasets":
+                    continue
                 if isinstance(value, (dict, list)):
-                    h5.attrs[key] = json.dumps(value)
+                    mgrp.attrs[key] = json.dumps(value)
                 elif value is None:
-                    h5.attrs[key] = "null"
+                    mgrp.attrs[key] = "null"
                 else:
-                    h5.attrs[key] = value
+                    mgrp.attrs[key] = value
+            if dataset_meta:
+                from ..io.manifest import write_hdf5_dataset_manifest
+                write_hdf5_dataset_manifest(h5, dataset_meta)
 
     return path
 

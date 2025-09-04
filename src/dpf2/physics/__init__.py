@@ -8,6 +8,17 @@ from .pic_driver import PicDriver, PhysicalPICDriver, WarpXPICDriver
 from .lower_hybrid_drift import LowerHybridDrift
 from .m0_instability import MZeroInstability
 
+from .material_interactions import (
+    Species,
+    sigmund_yield,
+    yamamura_yield,
+    impurity_source_terms,
+    ImpurityState,
+    MATERIAL_PROPERTIES,
+    get_material_properties,
+)
+
+
 
 # Import optional modules individually so that a failure in one does not
 # prevent access to the others.  This keeps ``HallMHD`` available even when
@@ -42,6 +53,15 @@ __all__ = [
     "LowerHybridDrift",
     "MZeroInstability",
     "GVFront",
+
+    "Species",
+    "sigmund_yield",
+    "yamamura_yield",
+    "impurity_source_terms",
+    "ImpurityState",
+    "MATERIAL_PROPERTIES",
+    "get_material_properties",
+
 ]
 
 

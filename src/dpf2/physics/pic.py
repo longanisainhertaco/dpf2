@@ -12,6 +12,7 @@ voltage.  A simple current estimate provides a coupling back to the circuit via
 from dataclasses import dataclass, field
 from typing import Any, List
 
+import math
 import numpy as np
 
 from ..core.bases import PlasmaSolverBase, CouplingState
@@ -68,6 +69,7 @@ class SimplePIC(PlasmaSolverBase):
 
     # ------------------------------------------------------------------
     def _deposit(self) -> None:
+
         if len(self.rho) == 0:
             return
 
@@ -101,12 +103,15 @@ class SimplePIC(PlasmaSolverBase):
             gauss = self.rho / EPS0
             self.divergence_error = float(abs(np.sum(dEdx - gauss)))
 
+
     def _interp_E(self, x: float) -> float:
         if len(self.E) == 0:
             return 0.0
+
         import math
 
         idx = int(math.floor(x / self.length * self.num_cells)) % self.num_cells
+
         return float(self.E[idx])
 
     def step(self, state: Any, dt: float, current: float, voltage: float) -> Any:
@@ -149,7 +154,9 @@ class SimplePIC(PlasmaSolverBase):
 
         # Diagnostics ------------------------------------------------------
         if len(self.E):
+
             field_energy = 0.5 * EPS0 * np.sum(self.E ** 2) * self.dx
+
             kinetic_energy = 0.5 * self.mass * sum(v**2 for v in self.velocities)
             total = field_energy + kinetic_energy
             self.energy_drift = (

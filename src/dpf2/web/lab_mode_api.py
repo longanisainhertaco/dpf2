@@ -1,6 +1,7 @@
 """Utilities for managing lab-mode manifests via a simple API."""
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import zipfile
@@ -10,7 +11,15 @@ from typing import Mapping, Sequence
 from ..cli.lab import _code_hash
 
 
-def generate_manifest(config: Mapping[str, object], *, seed: int | None = None) -> dict[str, object]:
+def _config_hash(config: Mapping[str, object]) -> str:
+    """Return a stable hash of ``config`` for provenance purposes."""
+    serialized = json.dumps(config, sort_keys=True)
+    return hashlib.sha256(serialized.encode()).hexdigest()
+
+
+def generate_manifest(
+    config: Mapping[str, object], *, seed: int | None = None, diagnostics: Mapping[str, object] | None = None
+) -> dict[str, object]:
     """Generate a single manifest describing a run.
 
     Parameters
@@ -19,26 +28,34 @@ def generate_manifest(config: Mapping[str, object], *, seed: int | None = None) 
         Configuration mapping used for the run.
     seed:
         Optional random seed. When omitted a random seed is sampled.
+    diagnostics:
+        Optional diagnostic metadata to embed in the manifest.
     """
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
-    return {
+    manifest = {
         "code_hash": _code_hash(),
+        "config_hash": _config_hash(config),
         "inputs": dict(config),
         "random_seeds": {"python": int(seed)},
     }
+    if diagnostics is not None:
+        manifest["diagnostics"] = dict(diagnostics)
+    return manifest
 
 
 def generate_manifest_bundle(
     configs: Sequence[Mapping[str, object]],
     *,
     seeds: Sequence[int] | None = None,
+    diagnostics: Sequence[Mapping[str, object]] | None = None,
 ) -> list[dict[str, object]]:
     """Generate manifests for a batch of configurations."""
     bundle: list[dict[str, object]] = []
     for idx, cfg in enumerate(configs):
         seed = seeds[idx] if seeds and idx < len(seeds) else None
-        bundle.append(generate_manifest(cfg, seed=seed))
+        diag = diagnostics[idx] if diagnostics and idx < len(diagnostics) else None
+        bundle.append(generate_manifest(cfg, seed=seed, diagnostics=diag))
     return bundle
 
 
@@ -47,6 +64,7 @@ def export_manifest_bundle(
     output: str | Path,
     *,
     seeds: Sequence[int] | None = None,
+    diagnostics: Sequence[Mapping[str, object]] | None = None,
 ) -> Path:
     """Write a zip bundle containing inputs and manifests for each run.
 
@@ -63,8 +81,10 @@ def export_manifest_bundle(
         Path to the zip file that should be written.
     seeds:
         Optional sequence of RNG seeds corresponding to ``configs``.
+    diagnostics:
+        Optional sequence of diagnostic metadata matching ``configs``.
     """
-    manifests = generate_manifest_bundle(configs, seeds=seeds)
+    manifests = generate_manifest_bundle(configs, seeds=seeds, diagnostics=diagnostics)
     out_path = Path(output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     index: list[dict[str, str]] = []
