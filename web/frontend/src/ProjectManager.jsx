@@ -70,6 +70,19 @@ export default function ProjectManager({ projects = [] }) {
     }
   };
 
+  const importConfig = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const cfg = JSON.parse(text);
+      const id = cfg.id || `import-${Date.now()}`;
+      setConfigSets((c) => [...c, { id, config: cfg }]);
+    } catch {
+      setError('Invalid configuration file');
+    }
+  };
+
   const exportConfig = (project) => {
     if (!project?.config) return;
     const blob = new Blob([JSON.stringify(project.config, null, 2)], {
@@ -174,6 +187,21 @@ export default function ProjectManager({ projects = [] }) {
         </details>
 
       </form>
+
+      <div>
+        <h4>Import Configuration Set</h4>
+        <input
+          type="file"
+          accept="application/json"
+          onChange={importConfig}
+          title="Load a configuration set from JSON"
+        />
+        <details>
+          <summary>What is this?</summary>
+          Import a previously exported configuration to compare or rerun
+          simulations.
+        </details>
+      </div>
 
       {selectedIds.length > 1 && (
         <table className="comparison">
