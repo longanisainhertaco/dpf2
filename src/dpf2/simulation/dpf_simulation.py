@@ -176,11 +176,12 @@ class DPFSimulation:
                     field_manager=self.field_manager,
                 )
 
-            if self.config.materials.components:
+            materials_cfg = getattr(self.config, "materials", None)
+            if materials_cfg and materials_cfg.components:
                 component_states: Dict[str, ComponentMaterialState] = {}
-                for comp, mat_name in self.config.materials.components.items():
-                    mat = MaterialLibrary.get(mat_name)
-                    init = self.config.materials.initial_state.get(comp, {})
+                for comp, mat_ref in materials_cfg.components.items():
+                    mat = MaterialLibrary.get(mat_ref.material_id)
+                    init = materials_cfg.initial_state.get(comp, {})
                     component_states[comp] = ComponentMaterialState(
                         material=mat,
                         erosion=float(init.get("erosion", 0.0)),

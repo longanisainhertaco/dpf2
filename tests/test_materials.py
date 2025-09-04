@@ -1,12 +1,9 @@
 import pytest
 
-import pytest
-
-from dpf2.materials import (
-    MaterialLibrary,
-    ComponentMaterialState,
-    MaterialDamageModel,
-)
+from dpf2.materials.library import MaterialLibrary
+from dpf2.materials.state import ComponentMaterialState
+from dpf2.materials.mdm import MaterialDamageModel
+from dpf2.materials import MaterialRef
 
 
 def test_material_lookup():
@@ -54,6 +51,7 @@ def test_state_serialization_roundtrip():
     assert restored.temperature_history == [300.0, 310.0]
 
 
+
 def test_redeposition_and_film():
     copper = MaterialLibrary.get("copper")
     steel = MaterialLibrary.get("stainless_steel")
@@ -95,3 +93,4 @@ def test_redeposition_and_film():
     # Plasma model should receive negative redeposition and positive evaporation
     assert ("A", -redep) in plasma.calls
     assert ("A", evap) in plasma.calls
+

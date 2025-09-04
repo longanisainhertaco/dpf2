@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 try:  # pragma: no cover - use real pydantic when available
-    from pydantic import BaseModel, root_validator  # type: ignore
+    from pydantic import BaseModel, ConfigDict, Field, root_validator  # type: ignore
 except Exception:  # pragma: no cover - fallback to lightweight stubs
-    from pydantic_stub import BaseModel, root_validator  # type: ignore
+    from pydantic_stub import BaseModel, ConfigDict, Field, root_validator  # type: ignore
 
 
 def model_validator(*, mode: str = "after"):
@@ -73,4 +73,4 @@ if not hasattr(BaseModel, "model_copy"):
 
         BaseModel.model_copy = _copy  # type: ignore[attr-defined]
 
-__all__ = ["model_validator"]
+__all__ = ["BaseModel", "ConfigDict", "Field", "model_validator"]

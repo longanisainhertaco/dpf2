@@ -2,6 +2,8 @@
 from pydantic import BaseModel, validator, Field, root_validator
 from typing import List, Dict, Optional, Any, Tuple
 import numpy as np
+from ..materials.models import MaterialRef
+from ..materials.library import MaterialLibrary
 
 class CircuitConfig(BaseModel):
     """Configuration for the circuit model."""
@@ -196,13 +198,41 @@ class AMRConfig(BaseModel):
 class MaterialConfig(BaseModel):
     """Selection of component materials and initial lifecycle parameters."""
 
-    components: Dict[str, str] = Field(
-        default_factory=dict, description="Mapping of component name to material"
+    components: Dict[str, MaterialRef] = Field(
+        default_factory=dict,
+        description="Mapping of component name to material reference",
     )
     initial_state: Dict[str, Dict[str, float]] = Field(
         default_factory=dict,
         description="Initial state parameters keyed by component",
     )
+
+    @validator("components", pre=True)
+    def _parse_component_materials(cls, v):
+        """Allow legacy mapping of component to material id strings."""
+        if isinstance(v, dict):
+            parsed: Dict[str, MaterialRef] = {}
+            for comp, mat in v.items():
+                if isinstance(mat, MaterialRef):
+                    parsed[comp] = mat
+                elif isinstance(mat, (str, bytes)):
+                    parsed[comp] = MaterialRef(material_id=str(mat))
+                else:
+                    parsed[comp] = MaterialRef.model_validate(mat)
+            return parsed
+        return v
+
+    @validator("components")
+    def _validate_material_ids(cls, v):
+        """Ensure all referenced materials exist in the library."""
+        for comp, ref in v.items():
+            try:
+                MaterialLibrary.get(ref.material_id)
+            except KeyError as exc:
+                raise ValueError(
+                    f"Unknown material '{ref.material_id}' for component '{comp}'"
+                ) from exc
+        return v
 
 class SimulationConfig(BaseModel):
     """Main configuration for the DPF simulation."""
