@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from dpf2.pinch_models import AnalyticPinchModel, SemiAnalyticPinchModel, MHDPinchModel
+from dpf2.physics import LowerHybridDrift
 
 
 def test_analytic_model():
@@ -39,3 +40,15 @@ def test_mhd_model_yield_scaling():
     res2 = model.run(t, I2)
     assert res2.neutron_yield > res1.neutron_yield
     assert res2.neutron_yield == pytest.approx(res1.neutron_yield * 4, rel=0.5)
+
+
+@pytest.mark.skipif(not hasattr(np, "roll"), reason="requires full NumPy")
+def test_mhd_model_resistive_voltage():
+    t = np.linspace(0, 1e-7, 5)
+    I = np.asarray(t) * 0 + 1e4
+    instab = LowerHybridDrift(B=1.0, n_i=1e19)
+    model = MHDPinchModel(grid_shape=(4, 4, 4), resistivity_model=instab)
+    res = model.run(t, I)
+    assert res.voltage is not None
+    assert res.current is not None
+    assert res.voltage.shape == res.current.shape

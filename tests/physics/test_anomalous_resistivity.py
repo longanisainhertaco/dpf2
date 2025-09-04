@@ -1,10 +1,12 @@
 from pathlib import Path
 import numpy as np
+import pytest
 from dpf2.hall_mhd_solver import HallMHDSolver
 from dpf2.validation_suite import load_pinch_dataset
 
 
-def test_voltage_spike_matches_dataset():
+@pytest.mark.parametrize("device", ["PF1000", "LLNL_MJOLNIR"])
+def test_voltage_spike_matches_dataset(device):
     if not hasattr(np, "loadtxt"):
         import csv
 
@@ -16,8 +18,8 @@ def test_voltage_spike_matches_dataset():
 
         np.loadtxt = _loadtxt  # type: ignore[attr-defined]
 
-    bench = load_pinch_dataset(Path("data/benchmarks/NX2"))
-    _, voltage = bench['voltage']
+    bench = load_pinch_dataset(Path(f"data/benchmarks/{device}"))
+    _, voltage = bench["voltage"]
     expected = float(np.max(voltage))
 
     def model(J):
