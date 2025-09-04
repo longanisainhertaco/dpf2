@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import List, Sequence, Tuple
+from typing import Callable, List, Sequence, Tuple
 
 
 def pinhole_image(
@@ -10,6 +10,8 @@ def pinhole_image(
     detector_distance: float,
     detector_pixels: Tuple[int, int],
     pixel_size: float,
+    response_fn: Callable[[float], float] | None = None,
+    noise_fn: Callable[[float], float] | None = None,
 ) -> List[List[float]]:
     """Generate a simple pinhole camera image from point sources.
 
@@ -25,6 +27,11 @@ def pinhole_image(
         Number of pixels ``(nx, ny)`` on the detector plane.
     pixel_size:
         Physical size of each pixel in meters.
+    response_fn, noise_fn:
+        Optional callables applied to each pixel value after accumulation.
+        ``response_fn`` is evaluated first and ``noise_fn`` should return a
+        noise contribution which is then added to the response-corrected
+        pixel value.
 
     Returns
     -------
@@ -50,6 +57,15 @@ def pinhole_image(
         if 0 <= i < nx and 0 <= j < ny:
             r2 = x_det * x_det + y_det * y_det + detector_distance * detector_distance
             image[j][i] += I / (4.0 * math.pi * r2)
+    if response_fn or noise_fn:
+        for j in range(ny):
+            for i in range(nx):
+                val = image[j][i]
+                if response_fn:
+                    val = response_fn(val)
+                if noise_fn:
+                    val += noise_fn(val)
+                image[j][i] = val
     return image
 
 
