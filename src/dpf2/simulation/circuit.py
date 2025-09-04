@@ -26,7 +26,17 @@ except ModuleNotFoundError:  # pragma: no cover
         raise ModuleNotFoundError("scipy not available")
 from typing import Dict, Any, Optional
 from .utils import SimulationState, FieldManager
-from ..core.bases import CouplingState
+try:  # pragma: no cover - allow tests to run without full package
+    from ..core.bases import CouplingState
+except ModuleNotFoundError:  # pragma: no cover
+    class CouplingState:  # type: ignore[override]
+        def __init__(self, Lp: float = 0.0, emf: float = 0.0, current: float = 0.0, voltage: float = 0.0, mutual_inductance: float = 0.0, back_reaction: float = 0.0):
+            self.Lp = Lp
+            self.emf = emf
+            self.current = current
+            self.voltage = voltage
+            self.mutual_inductance = mutual_inductance
+            self.back_reaction = back_reaction
 
 # Physical constants (moved to the top)
 from .constants import e, me, epsilon0
@@ -76,9 +86,18 @@ class SwitchModel:
     """
     A more sophisticated switch model that transitions from high resistance to low resistance based on voltage and current.
     """
-    def __init__(self, initial_resistance: float = 1e6, final_resistance: float = 1e-3,
-                 transition_voltage: float = 1e3, transition_current: float = 1e3,
-                 transition_time: float = 1e-9, voltage_slew_rate: float = 1e12, current_slew_rate: float = 1e12):
+    def __init__(
+        self,
+        initial_resistance: float = 1e6,
+        final_resistance: float = 1e-3,
+        transition_voltage: float = 1e3,
+        transition_current: float = 1e3,
+        transition_time: float = 1e-9,
+        voltage_slew_rate: float = 1e12,
+        current_slew_rate: float = 1e12,
+        jitter_std: float = 0.0,
+        arc_resistance: float = 0.0,
+    ):
         """
         Initializes the SwitchModel.
 
@@ -98,8 +117,12 @@ class SwitchModel:
         self.transition_time = transition_time
         self.voltage_slew_rate = voltage_slew_rate
         self.current_slew_rate = current_slew_rate
+        self.jitter_std = jitter_std
+        self.arc_resistance = arc_resistance
         self.is_closed = False  # Flag to indicate if the switch is closed
         self.start_time = 0.0  # Time when the switch started closing
+        # Random jitter applied once when the switch fires
+        self._jitter = np.random.normal(0.0, jitter_std) if jitter_std > 0 else 0.0
 
     def get_resistance(self, voltage: float, current: float, dt: float) -> float:
         """
@@ -125,12 +148,18 @@ class SwitchModel:
             max_current_change = self.current_slew_rate * dt
 
             # Linear transition from initial to final resistance over transition_time
-            if self.start_time < self.transition_time:
-                resistance = self.initial_resistance - (self.initial_resistance - self.final_resistance) * (self.start_time / self.transition_time)
+            closure_time = max(self.transition_time + self._jitter, 0.0)
+            if self.start_time < closure_time:
+                resistance = self.initial_resistance - (
+                    (self.initial_resistance - self.final_resistance)
+                    * (self.start_time / closure_time)
+                )
                 self.start_time += dt
                 return resistance
             else:
-                return self.final_resistance
+                self.start_time += dt
+                # Arc resistance grows with current magnitude
+                return self.final_resistance + self.arc_resistance * abs(current)
         else:
             return self.initial_resistance
 
@@ -217,13 +246,40 @@ class CircuitModel:
     High-fidelity RLC circuit dynamically coupled to plasma inductance/resistance.
     """
 
-    def __init__(self, C: float, L0: float, R0: float, anode_radius: float, cathode_radius: float, collision_model: Any, field_manager: FieldManager,
-                 V0: float = 0.0, ESR: float = 0.0, ESL: float = 0.0, switch_model: Optional[SwitchModel] = None, transmission_line: bool = False,
-                 initial_Q: Optional[float] = None, initial_I: float = 0.0, parasitic_inductance: float = 0.0, stray_capacitance: float = 0.0,
-                 transmission_line_impedance: float = 50.0, transmission_line_length: float = 1.0, transmission_line_velocity_factor: float = 0.7,
-                 switch_initial_resistance: float = 1e6, switch_final_resistance: float = 1e-3,
-                 switch_transition_voltage: float = 1e3, switch_transition_current: float = 1e3,
-                 switch_transition_time: float = 1e-9, switch_voltage_slew_rate: float = 1e12, switch_current_slew_rate: float = 1e12):
+    def __init__(
+        self,
+        C: float,
+        L0: float,
+        R0: float,
+        anode_radius: float,
+        cathode_radius: float,
+        collision_model: Any,
+        field_manager: FieldManager,
+        V0: float = 0.0,
+        ESR: float = 0.0,
+        ESL: float = 0.0,
+        switch_model: Optional[SwitchModel] = None,
+        transmission_line: bool = False,
+        initial_Q: Optional[float] = None,
+        initial_I: float = 0.0,
+        parasitic_inductance: float = 0.0,
+        stray_capacitance: float = 0.0,
+        transmission_line_impedance: float = 50.0,
+        transmission_line_length: float = 1.0,
+        transmission_line_velocity_factor: float = 0.7,
+        switch_initial_resistance: float = 1e6,
+        switch_final_resistance: float = 1e-3,
+        switch_transition_voltage: float = 1e3,
+        switch_transition_current: float = 1e3,
+        switch_transition_time: float = 1e-9,
+        switch_voltage_slew_rate: float = 1e12,
+        switch_current_slew_rate: float = 1e12,
+        switch_jitter_std: float = 0.0,
+        switch_arc_resistance: float = 0.0,
+        rlc_sections: Optional[list[Dict[str, float]]] = None,
+        blumlein_sections: Optional[list[Dict[str, float]]] = None,
+        crowbar_resistance: Optional[float] = None,
+    ):
         """
         Initializes the CircuitModel.
 
@@ -254,6 +310,11 @@ class CircuitModel:
             switch_transition_time: Time over which the switch transitions from high to low resistance [s].
             switch_voltage_slew_rate: Maximum rate of change of voltage across the switch [V/s].
             switch_current_slew_rate: Maximum rate of change of current through the switch [A/s].
+            switch_jitter_std: Standard deviation of switch timing jitter [s].
+            switch_arc_resistance: Coefficient for arc resistance added after closure [Ω/A].
+            rlc_sections: Optional list of additional driver sections, each a dict with keys 'R', 'L', and 'C'.
+            blumlein_sections: Optional list of Blumlein transmission line sections (treated like RLC sections).
+            crowbar_resistance: Optional resistance of a crowbar stage that engages when voltage reverses [Ω].
         """
         if not all(isinstance(x, (int, float)) and x >= 0 for x in [C, L0, R0, anode_radius, cathode_radius, V0, ESR, ESL, parasitic_inductance, stray_capacitance, transmission_line_impedance, transmission_line_length, transmission_line_velocity_factor, switch_initial_resistance, switch_final_resistance, switch_transition_voltage, switch_transition_current, switch_transition_time, switch_voltage_slew_rate, switch_current_slew_rate]):
             raise ValueError("Capacitance, inductance, resistance, radii, and initial voltage must be non-negative numbers.")
@@ -274,13 +335,43 @@ class CircuitModel:
         self.Ls = parasitic_inductance
         self.Cs = stray_capacitance
 
+        # Additional driver sections
+        self.sections = rlc_sections or []
+        self.blumlein_sections = []
+        if blumlein_sections:
+            self.sections.extend(blumlein_sections)
+            for params in blumlein_sections:
+                self.blumlein_sections.append(
+                    TransmissionLineModel(
+                        params.get("impedance", transmission_line_impedance),
+                        params.get("length", transmission_line_length),
+                        params.get("velocity_factor", transmission_line_velocity_factor),
+                    )
+                )
+        self.section_R = sum(sec.get('R', 0.0) for sec in self.sections)
+        self.section_L = sum(sec.get('L', 0.0) for sec in self.sections)
+        self.section_C = sum(sec.get('C', 0.0) for sec in self.sections)
+        if self.section_C:
+            self.C += self.section_C
+        self.crowbar_resistance = crowbar_resistance
+
         # Initial state: Q = C*V0; I = 0
         self.Q = initial_Q if initial_Q is not None else C * V0
         self.I = initial_I
 
         # Switch model
         if switch_model is None:
-            self.switch_model = SwitchModel(switch_initial_resistance, switch_final_resistance, switch_transition_voltage, switch_transition_current, switch_transition_time, switch_voltage_slew_rate, switch_current_slew_rate)
+            self.switch_model = SwitchModel(
+                switch_initial_resistance,
+                switch_final_resistance,
+                switch_transition_voltage,
+                switch_transition_current,
+                switch_transition_time,
+                switch_voltage_slew_rate,
+                switch_current_slew_rate,
+                jitter_std=switch_jitter_std,
+                arc_resistance=switch_arc_resistance,
+            )
         else:
             self.switch_model = switch_model
 
@@ -295,7 +386,14 @@ class CircuitModel:
         else:
             self.transmission_line_model = None
 
+        self._Lp = 0.0
+        self._Rp = 0.0
         logger.info("CircuitModel initialized.")
+
+    def update_plasma_coupling(self, state: SimulationState) -> None:
+        """Update cached plasma inductance and resistance."""
+        self._Lp = self.plasma_inductance(state)
+        self._Rp = self.plasma_resistance(state)
 
     def plasma_inductance(self, state: SimulationState) -> float:
         r"""Compute the inductance of the plasma column.
@@ -383,8 +481,11 @@ class CircuitModel:
         emf = coupling.emf
         M = coupling.mutual_inductance
 
-        R_tot = self.R0 + self.ESR
-        L_tot = self.L0 + self.ESL + self.Ls + Lp
+        R_tot = self.R0 + self.ESR + self.section_R
+        L_tot = self.L0 + self.ESL + self.Ls + Lp + self.section_L
+
+        if self.crowbar_resistance is not None and self.get_voltage() <= 0.0:
+            R_tot += self.crowbar_resistance
 
         if emf != 0.0:
             numerator = -R_tot * current - voltage - emf - back_emf
@@ -428,6 +529,8 @@ class CircuitModel:
         ESL = self.ESL
         Ls = self.Ls
         Cs = self.Cs
+        section_R = self.section_R
+        section_L = self.section_L
 
         # Helper: compute RHS given Q, I
         def rhs(Q, I, R, L, Lp, Rp, Ls, Cs):
@@ -435,14 +538,19 @@ class CircuitModel:
 
         # Compute time-varying L_plasma & R_plasma at current state
         try:
-            Lp = self.plasma_inductance(state)
-            Rp = self.plasma_resistance(state)
+            self.update_plasma_coupling(state)
+            Lp = self._Lp
+            Rp = self._Rp
         except (ValueError, AttributeError) as e:
             raise RuntimeError(f"Error calculating plasma inductance/resistance: {e}")
 
         # Total parameters
-        R_tot = R0 + Rp + ESR
-        L_tot = L0 + Lp + ESL + Ls
+        R_tot = R0 + Rp + ESR + section_R
+        L_tot = L0 + Lp + ESL + Ls + section_L
+
+        # Optional crowbar stage engages when voltage reverses
+        if self.crowbar_resistance is not None and self.get_voltage() <= 0.0:
+            R_tot += self.crowbar_resistance
 
         # Apply switch model (if any)
         if self.switch_model:
@@ -451,9 +559,13 @@ class CircuitModel:
 
         # Apply transmission line model (if any)
         if self.transmission_line_model:
-            reflected_current = self.transmission_line_model.get_reflected_current(self.get_voltage(), self.I, dt)
-            # Adjust the total current based on the reflected current
-            I0 = self.I - reflected_current
+            reflected_current = self.transmission_line_model.get_reflected_current(
+                self.get_voltage(), self.I, dt
+            )
+            self.I -= reflected_current
+        # Additional Blumlein sections behave like extra transmission lines
+        for tl in getattr(self, "blumlein_sections", []):
+            self.I -= tl.get_reflected_current(self.get_voltage(), self.I, dt)
 
         # RK4 for [Q, I]
         Q0, I0 = self.Q, self.I
@@ -494,30 +606,39 @@ class CircuitModel:
             ESL = self.ESL
             Ls = self.Ls
             Cs = self.Cs
+            section_R = self.section_R
+            section_L = self.section_L
 
             # Compute time-varying L_plasma & R_plasma at current state
-            Lp = self.plasma_inductance(state)
-            Rp = self.plasma_resistance(state)
+            self.update_plasma_coupling(state)
+            Lp = self._Lp
+            Rp = self._Rp
 
             # Total parameters
-            R_tot = R0 + Rp + ESR
-            L_tot = L0 + Lp + ESL + Ls
+            R_tot = R0 + Rp + ESR + section_R
+            L_tot = L0 + Lp + ESL + Ls + section_L
+
+            if self.crowbar_resistance is not None and self.get_voltage() <= 0.0:
+                R_tot += self.crowbar_resistance
 
             # Apply switch model (if any)
             if self.switch_model:
-                R_tot += self.switch_model.get_resistance(self.I, dt)
-                L_tot += self.switch_model.get_inductance(self.I, dt)
+                R_tot += self.switch_model.get_resistance(self.get_voltage(), self.I, dt)
+                L_tot += self.switch_model.get_inductance(self.get_voltage(), self.I, dt)
 
             # Apply transmission line model (if any)
             if self.transmission_line_model:
-                reflected_current = self.transmission_line_model.get_reflected_current(self.I, dt)
-                # Adjust the total current based on the reflected current
-                I0 -= reflected_current
+                reflected_current = self.transmission_line_model.get_reflected_current(
+                    self.get_voltage(), self.I, dt
+                )
+                self.I -= reflected_current
+            for tl in getattr(self, "blumlein_sections", []):
+                self.I -= tl.get_reflected_current(self.get_voltage(), self.I, dt)
 
             # trapezoidal
             Q0, I0 = self.Q, self.I
             dIdt = (-R_tot * I0 - Q0 / C) / L_tot
-            self.Q -= dt * (I0 + 0.5*dt*dIdt)
+            self.Q -= dt * (I0 + 0.5 * dt * dIdt)
             self.I += dt * dIdt
 
             # Check for negative voltage
@@ -554,19 +675,24 @@ class CircuitModel:
             Rp = self.plasma_resistance(state)
 
             # Total parameters
-            R_tot = R0 + Rp + ESR
-            L_tot = L0 + Lp + ESL + Ls
+            R_tot = R0 + Rp + ESR + self.section_R
+            L_tot = L0 + Lp + ESL + Ls + self.section_L
+
+            if self.crowbar_resistance is not None and self.get_voltage() <= 0.0:
+                R_tot += self.crowbar_resistance
 
             # Apply switch model (if any)
             if self.switch_model:
-                R_tot += self.switch_model.get_resistance(self.I, dt)
-                L_tot += self.switch_model.get_inductance(self.I, dt)
+                R_tot += self.switch_model.get_resistance(self.get_voltage(), self.I, dt)
+                L_tot += self.switch_model.get_inductance(self.get_voltage(), self.I, dt)
 
             # Apply transmission line model (if any)
             if self.transmission_line_model:
-                reflected_current = self.transmission_line_model.get_reflected_current(self.I, dt)
-                # Adjust the total current based on the reflected current
-                I0 -= reflected_current
+                self.I -= self.transmission_line_model.get_reflected_current(
+                    self.get_voltage(), self.I, dt
+                )
+            for tl in getattr(self, "blumlein_sections", []):
+                self.I -= tl.get_reflected_current(self.get_voltage(), self.I, dt)
 
             # trapezoidal
             Q0, I0 = self.Q, self.I
