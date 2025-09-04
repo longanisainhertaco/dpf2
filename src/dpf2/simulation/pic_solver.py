@@ -19,7 +19,7 @@ import json
 import threading
 import math
 from numba import njit, prange
-from typing import List, Dict, Tuple, Optional, Callable
+from typing import List, Dict, Tuple, Optional, Callable, Any
 from pathlib import Path
 from ..core.bases import CouplingState
 from ..diagnostics import synthetic_signals, IonBeamEDF, compute_beam_target_yield
@@ -557,7 +557,7 @@ class PICSolver(PhysicsModule):
     #-------------------------------------------------------------------------------------
     # Main step
     #-------------------------------------------------------------------------------------
-    def step(self, current: float = 0.0, voltage: float = 0.0, energy_tracker: EnergyTracker | None = None):
+    def step(self, current: float = 0.0, voltage: float = 0.0, energy_tracker: EnergyTracker | None = None, refinement_cb: Optional[Callable[[Dict[str, Any]], Dict[str, int]]] = None):
         """Advances the PIC simulation by one time step."""
         try:
             self.deposit_charge()
@@ -565,6 +565,15 @@ class PICSolver(PhysicsModule):
             self.solve_fields()
             E = self.field_manager.get_E()
             B = self.field_manager.get_B()
+            amr_stats: Dict[str, int] | None = None
+            if refinement_cb is not None:
+                plasma_state = {
+                    "density": self.field_manager.get_rho(),
+                    "current": self.field_manager.get_J(),
+                }
+                amr_stats = refinement_cb(plasma_state)
+                if amr_stats:
+                    logger.info(f"AMR callback stats: {amr_stats}")
             if voltage:
                 E[2] += voltage / (self.nz * self.dz)
                 self.field_manager.update_E(E)
@@ -639,6 +648,9 @@ class PICSolver(PhysicsModule):
                     np.sqrt(PICSolver.epsilon0 * PICSolver.k_B * Te / (ne * e**2))
                     if ne > 0 else float("inf")
                 )
+                amr_level = None
+                if amr_stats is not None:
+                    amr_level = 1 if amr_stats.get("tagged_cells", 0) > 0 else 0
                 self.quality.log(
                     self.step_count,
                     self.dt,
@@ -646,6 +658,7 @@ class PICSolver(PhysicsModule):
                     ppc,
                     cfl,
                     lambda_D,
+                    amr_level=amr_level,
                 )
         except Exception as e:
             logger.error(f"Error during PIC step: {e}")

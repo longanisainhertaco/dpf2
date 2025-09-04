@@ -29,6 +29,7 @@ class QualityDashboard:
         ppc: float,
         cfl: float,
         lambda_D: float,
+        amr_level: int | None = None,
     ) -> None:
         """Record a step's metrics and emit warnings if thresholds violated."""
         entry = {
@@ -39,6 +40,8 @@ class QualityDashboard:
             "cfl": cfl,
             "lambda_D": lambda_D,
         }
+        if amr_level is not None:
+            entry["amr_level"] = amr_level
 
         dt_violation = self.max_dt is not None and dt > self.max_dt
         lambda_violation = lambda_D < cell_size
@@ -93,8 +96,13 @@ class QualityDashboard:
         dts = [h["dt"] for h in self.history]
         lambdas = [h["lambda_D"] for h in self.history]
         cells = [h["cell_size"] for h in self.history]
+        levels = [h.get("amr_level") for h in self.history]
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        has_levels = any(l is not None for l in levels)
+        if has_levels:
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+        else:
+            fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
         ax1.plot(steps, dts, label="Δt")
         if self.max_dt is not None:
             ax1.axhspan(0, self.max_dt, color="lightgreen", alpha=0.3)
@@ -124,8 +132,15 @@ class QualityDashboard:
             alpha=0.3,
         )
         ax2.set_ylabel("λ_D")
-        ax2.set_xlabel("step")
-        ax2.legend()
+        if has_levels:
+            ax2.legend()
+            ax3.step(steps, [l if l is not None else 0 for l in levels], where="post", label="AMR level")
+            ax3.set_ylabel("level")
+            ax3.set_xlabel("step")
+            ax3.legend()
+        else:
+            ax2.set_xlabel("step")
+            ax2.legend()
 
         fig.tight_layout()
         fig.savefig(self.output_dir / "stability.png")
