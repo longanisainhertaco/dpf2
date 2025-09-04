@@ -72,5 +72,7 @@ def test_run_benchmark_cmd(tmp_path):
         ],
     )
     assert result.exit_code == 0
-    assert (tmp_path / "unu_pff.png").exists()
+    case_dir = tmp_path / "unu_pff"
+    assert (case_dir / "overlay.png").exists()
+    assert (case_dir / "metrics.json").exists()
     assert "PASS" in result.output
