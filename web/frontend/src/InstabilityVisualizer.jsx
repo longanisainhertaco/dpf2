@@ -81,6 +81,24 @@ export default function InstabilityVisualizer() {
       />
       <svg ref={svgRef} width="200" height="100">
         <polyline points={pts} stroke="red" fill="none" />
+        {phaseNames.map((name, i) => {
+          const x = (i / phaseNames.length) * 200;
+          return (
+            <g key={name}>
+              <line
+                x1={x}
+                y1={0}
+                x2={x}
+                y2={100}
+                stroke="lightgray"
+                strokeDasharray="4 2"
+              />
+              <text x={x + 2} y={12} fontSize="10" fill="white">
+                {name}
+              </text>
+            </g>
+          );
+        })}
       </svg>
       <div>Phase: {phaseNames[phase]}</div>
       <button

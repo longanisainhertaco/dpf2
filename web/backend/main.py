@@ -7,7 +7,16 @@ from pathlib import Path
 import asyncio
 from typing import Any, Dict, List
 
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
@@ -18,6 +27,7 @@ from dpf2.diagnostics import RegimePanel
 BASE_DIR = Path(__file__).resolve().parent.parent
 AUDIT_LOG = BASE_DIR / "audit.log"
 UPLOAD_DIR = BASE_DIR / "uploads"
+SNAPSHOT_DIR = BASE_DIR / "snapshots"
 logging.basicConfig(level=logging.INFO, filename=str(AUDIT_LOG), format="%(asctime)s %(message)s")
 logger = logging.getLogger("dpf-web")
 
@@ -76,6 +86,10 @@ class SweepRequest(BaseModel):
     config: Dict[str, Any]
     parameter: str
     values: List[float]
+
+
+class SnapshotRequest(BaseModel):
+    state: Dict[str, Any]
 
 
 async def broadcast_progress(run_id: str, progress: float) -> None:
@@ -194,6 +208,33 @@ def get_results(run_id: str, user=Depends(require_role("admin"))):
 @app.get("/sweep/{run_id}")
 async def get_sweep(run_id: str, user=Depends(get_current_user)):
     return sweep_results.get(run_id, {})
+
+
+@app.post("/snapshot/save")
+async def save_snapshot(req: SnapshotRequest, user=Depends(get_current_user)):
+    """Persist a sandbox state and return a shareable reference."""
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    snap_id = f"snap-{datetime.utcnow().timestamp():.0f}-{len(req.state)}"
+    path = SNAPSHOT_DIR / f"{snap_id}.json"
+    path.write_text(json.dumps(req.state))
+    logger.info("action=save_snapshot user=%s id=%s", user["username"], snap_id)
+    return {"id": snap_id, "url": f"/snapshot/{snap_id}"}
+
+
+@app.get("/snapshot/{snap_id}")
+async def get_snapshot(snap_id: str):
+    path = SNAPSHOT_DIR / f"{snap_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    logger.info("action=get_snapshot id=%s", snap_id)
+    return json.loads(path.read_text())
+
+
+@app.post("/snapshot/upload")
+async def upload_snapshot(file: UploadFile = File(...)):
+    """Load a snapshot from a user-uploaded JSON file."""
+    data = json.loads(await file.read())
+    return data
 
 
 @app.websocket("/ws/progress/{run_id}")
