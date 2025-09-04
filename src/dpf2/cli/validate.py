@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
@@ -26,6 +27,7 @@ from ..dpf_config import DPFConfig
 from ..simulation_engine import SimulationEngine, SimulationResults
 from ..validation_suite import ValidationSuite, score_simulation
 from ..scaling_laws import compare_to_scaling
+from .lab import write_manifest
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +108,13 @@ def _plot_overlays(
 # ---------------------------------------------------------------------------
 # Public API
 
-def run_validation(config: Path, dataset: str, *, outdir: Path = Path("validation")) -> bool:
+def run_validation(
+    config: Path,
+    dataset: str,
+    *,
+    outdir: Path = Path("validation"),
+    lab_mode: bool = False,
+) -> bool:
     """Execute a simulation and validate against experimental data.
 
     Parameters
@@ -117,6 +125,8 @@ def run_validation(config: Path, dataset: str, *, outdir: Path = Path("validatio
         Identifier of the experimental dataset to use.
     outdir:
         Directory where overlay plots will be written.
+    lab_mode:
+        When ``True``, record a reproducibility manifest alongside outputs.
 
     Returns
     -------
@@ -126,6 +136,11 @@ def run_validation(config: Path, dataset: str, *, outdir: Path = Path("validatio
     """
     cfg = DPFConfig.from_file(config)
     engine = SimulationEngine(cfg)
+    if lab_mode:
+        seeds = {
+            "python": random.getstate()[1][0],
+            "numpy": int(np.random.get_state()[1][0]),
+        }
     results = engine.run()
 
     vsuite = _build_validation_suite(dataset)
@@ -162,6 +177,10 @@ def run_validation(config: Path, dataset: str, *, outdir: Path = Path("validatio
         with (outdir / "scaling_report.json").open("w") as fh:
             json.dump(metrics, fh, indent=2)
 
+    if lab_mode:
+        ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
+        write_manifest(outdir, config_paths=[str(config)], ppc=ppc, seeds=seeds)
+
     for name, score in report["scores"].items():
         print(f"{name}: {score:.3f}")
 
@@ -192,8 +211,13 @@ def main(argv: Iterable[str] | None = None) -> None:
         default=Path("validation"),
         help="Directory to store overlay plots",
     )
+    parser.add_argument(
+        "--lab-mode",
+        action="store_true",
+        help="Record a reproducibility manifest alongside outputs",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
-    run_validation(args.config, args.dataset, outdir=args.outdir)
+    run_validation(args.config, args.dataset, outdir=args.outdir, lab_mode=args.lab_mode)
 
 
 if __name__ == "__main__":  # pragma: no cover
