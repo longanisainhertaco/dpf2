@@ -40,6 +40,7 @@ class QualityDashboard:
         lambda_D: float,
         amr_level: int | None = None,
         lower_hybrid_power: float | None = None,
+        lower_hybrid_phase_velocity: float | None = None,
         plasma_impedance: float | None = None,
         divergence_error: float = 0.0,
         energy_drift: float = 0.0,
@@ -61,6 +62,8 @@ class QualityDashboard:
 
         if lower_hybrid_power is not None:
             entry["lower_hybrid_power"] = lower_hybrid_power
+        if lower_hybrid_phase_velocity is not None:
+            entry["lower_hybrid_phase_velocity"] = lower_hybrid_phase_velocity
         if plasma_impedance is not None:
             entry["plasma_impedance"] = plasma_impedance
 
