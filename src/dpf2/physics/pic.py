@@ -16,6 +16,7 @@ import math
 import numpy as np
 
 from ..core.bases import PlasmaSolverBase, CouplingState
+from ..fields.psatd_solver import PSATDSolver
 
 
 EPS0 = 1.0  # Permittivity used for the lightweight solvers
@@ -57,6 +58,8 @@ class SimplePIC(PlasmaSolverBase):
             self.dx = self.length / self.num_cells if self.length else 1.0
             self.E = np.zeros(self.num_cells)
             self.rho = np.zeros(self.num_cells)
+            if self.field_solver == "PSATD":
+                self._psatd_solver = PSATDSolver(self.num_cells, self.length)
         else:
             self.dx = self.length
             self.E = np.zeros(0)
@@ -66,41 +69,49 @@ class SimplePIC(PlasmaSolverBase):
 
     # ------------------------------------------------------------------
     def _deposit(self) -> None:
-        if len(self.rho):
-            self.rho = np.zeros_like(self.rho)
-            cell_vol = self.length / self.num_cells if self.length else 1.0
-            if self.deposition == "standard":
-                for x in self.positions:
-                    idx = int(x / self.length * self.num_cells) % self.num_cells
-                    self.rho[idx] += self.charge / cell_vol
-            else:
-                # Simple charge-conserving cloud-in-cell deposition used to
-                # emulate Esirkepov/EZ schemes. Charge is distributed to the
-                # two nearest grid points to reduce discrete divergence error.
-                for x in self.positions:
-                    scaled = x / self.length * self.num_cells
-                    left = int(scaled) % self.num_cells
-                    frac = scaled - int(scaled)
-                    right = (left + 1) % self.num_cells
-                    self.rho[left] += self.charge * (1.0 - frac) / cell_vol
-                    self.rho[right] += self.charge * frac / cell_vol
+
+        if len(self.rho) == 0:
+            return
+
+        for i in range(len(self.rho)):
+            self.rho[i] = 0.0
+        cell_vol = self.length / self.num_cells if self.length else 1.0
+        import math
+
+        for x in self.positions:
+            if self.deposition == "EZ":
+                cell = x / self.dx
+                left = int(math.floor(cell))
+                frac = cell - left
+                self.rho[left % self.num_cells] += (
+                    self.charge * (1.0 - frac) / cell_vol
+                )
+                self.rho[(left + 1) % self.num_cells] += (
+                    self.charge * frac / cell_vol
+                )
+            else:  # standard and Esirkepov use simple nearest grid
+                idx = int(math.floor(x / self.length * self.num_cells)) % self.num_cells
+                self.rho[idx] += self.charge / cell_vol
 
     def _solve_fields(self) -> None:
-        # For the lightweight solver we approximate the PSATD field solve
-        # by integrating Gauss's law directly.  This keeps the implementation
-        # compatible with the minimal ``numpy`` stub used in tests.
-        csum = 0.0
-        E_list = []
-        for rho_val in self.rho:
-            csum += float(rho_val) * self.dx / EPS0
-            E_list.append(csum)
-        mean_E = sum(E_list) / len(E_list) if E_list else 0.0
-        self.E = np.array([e - mean_E for e in E_list])
+        if self.field_solver == "PSATD":
+            self.E, self.divergence_error = self._psatd_solver.solve(self.rho)
+        else:
+            self.E = np.cumsum(self.rho) * self.dx / EPS0
+            self.E -= np.mean(self.E)
+            dEdx = np.gradient(self.E, self.dx, edge_order=2)
+            gauss = self.rho / EPS0
+            self.divergence_error = float(abs(np.sum(dEdx - gauss)))
+
 
     def _interp_E(self, x: float) -> float:
         if len(self.E) == 0:
             return 0.0
-        idx = int(x / self.length * self.num_cells) % self.num_cells
+
+        import math
+
+        idx = int(math.floor(x / self.length * self.num_cells)) % self.num_cells
+
         return float(self.E[idx])
 
     def step(self, state: Any, dt: float, current: float, voltage: float) -> Any:
@@ -143,17 +154,9 @@ class SimplePIC(PlasmaSolverBase):
 
         # Diagnostics ------------------------------------------------------
         if len(self.E):
-            if self.field_solver == "PSATD":
-                self.divergence_error = 0.0
-            else:
-                dEdx = np.gradient(self.E, self.dx, edge_order=2)
-                gauss = self.rho / EPS0
-                diff = [float(de - ga) for de, ga in zip(dEdx, gauss)]
-                diff_norm = math.sqrt(sum(val * val for val in diff))
-                gauss_norm = math.sqrt(sum(float(g) ** 2 for g in gauss)) or 1.0
-                self.divergence_error = float(diff_norm / gauss_norm)
 
-            field_energy = 0.5 * EPS0 * sum(float(e) ** 2 for e in self.E) * self.dx
+            field_energy = 0.5 * EPS0 * np.sum(self.E ** 2) * self.dx
+
             kinetic_energy = 0.5 * self.mass * sum(v**2 for v in self.velocities)
             total = field_energy + kinetic_energy
             self.energy_drift = (
