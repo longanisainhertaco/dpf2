@@ -1414,5 +1414,7 @@ def run_compare(benchmark_dir: str, output: str) -> None:
         click.echo(row)
 
 
+from .benchmark import match_benchmark
+main.add_command(match_benchmark)
 if __name__ == "__main__":
     main()
