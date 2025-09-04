@@ -208,10 +208,12 @@ class TriggeredSwitch:
     trigger_times: Sequence[float] | None = None
     trigger_time: float | None = None  # backward compatible single trigger
     jitter_std: float = 0.0
+    arc_resistance: float = 0.0
     L_parasitic: float = 0.0
     R_parasitic: float = 0.0
     C_parasitic: float = 0.0
     _next_trigger: int = field(init=False, default=0)
+    _closed_since: float | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         # Allow ``trigger_time`` alias for a single entry
@@ -242,6 +244,8 @@ class TriggeredSwitch:
 
         while self._next_trigger < len(self.trigger_times) and t >= self.trigger_times[self._next_trigger]:
             self.closed = not self.closed
+            # Track time since closure for arc resistance evolution
+            self._closed_since = t if self.closed else None
             self._next_trigger += 1
 
     # ------------------------------------------------------------------
@@ -251,6 +255,8 @@ class TriggeredSwitch:
         if t is not None:
             self.update(t)
         base = self.R_on if self.closed else self.R_off
+        if self.closed and self.arc_resistance > 0.0 and self._closed_since is not None and t is not None:
+            base += self.arc_resistance * max(0.0, t - self._closed_since)
         return base + self.R_parasitic
 
 

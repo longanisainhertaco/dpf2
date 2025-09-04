@@ -127,7 +127,6 @@ def solve_distributed_circuit(
             nodes.add(seg.to_node)
         node_list = sorted(nodes)
         src = node_list[0]
-        ground = node_list[-1]
         node_index = {n: i for i, n in enumerate(node_list)}
         n_nodes = len(node_list)
 
@@ -151,12 +150,16 @@ def solve_distributed_circuit(
             Y[i, j] += Y_off
             Y[j, i] += Y_off
 
-        if Z_load is not None and Z_load != np.inf:
+        if Z_load is None:
+            ZL = segments[-1].characteristic_impedance(frequency)
+        else:
+            ZL = np.inf if Z_load == np.inf else complex(Z_load)
+        if ZL != np.inf:
             load_idx = node_index[segments[-1].to_node]
-            Y[load_idx, load_idx] += 1.0 / complex(Z_load)
+            Y[load_idx, load_idx] += 1.0 / ZL
 
         # Solve for unknown node voltages
-        unknown_nodes = [n for n in node_list if n not in (src, ground)]
+        unknown_nodes = [n for n in node_list if n != src]
         unk_idx = [node_index[n] for n in unknown_nodes]
         if unk_idx:
             Y_mat = [[Y[i][j] for j in unk_idx] for i in unk_idx]
@@ -186,7 +189,6 @@ def solve_distributed_circuit(
 
         V_full = [0j] * n_nodes
         V_full[node_index[src]] = V0
-        V_full[node_index[ground]] = 0.0
         for n, val in zip(unknown_nodes, v_unknown):
             V_full[node_index[n]] = val
 
@@ -216,12 +218,15 @@ def solve_distributed_circuit(
             elif seg.to_node == src:
                 I_src -= I
 
-        # Generate time series from phasors
-        node_voltages = xp.zeros((n_steps, n_nodes))
-        for idx in range(n_nodes):
-            amp = abs(V_full[idx])
-            phase = cmath.phase(V_full[idx])
-            node_voltages[:, idx] = xp.sin(w * t + phase) * amp
+        # Generate time series for source and load nodes
+        load_node = segments[-1].to_node
+        node_voltages = xp.zeros((n_steps, 2))
+        amp_src = abs(V_full[node_index[src]])
+        phase_src = cmath.phase(V_full[node_index[src]])
+        amp_load = abs(V_full[node_index[load_node]])
+        phase_load = cmath.phase(V_full[node_index[load_node]])
+        node_voltages[:, 0] = xp.sin(w * t + phase_src) * amp_src
+        node_voltages[:, 1] = xp.sin(w * t + phase_load) * amp_load
 
         branch_currents = xp.zeros((n_steps, len(branch_phasors)))
         for b, ph in enumerate(branch_phasors):
@@ -251,10 +256,6 @@ def solve_distributed_circuit(
                 branch_currents[idx, :] += fb.back_reaction
 
         # Reflection coefficients for backward compatibility
-        if Z_load is None:
-            ZL = segments[-1].characteristic_impedance(frequency)
-        else:
-            ZL = np.inf if Z_load == np.inf else complex(Z_load)
         reflections: list[complex] = []
         Z_eff = ZL
         for seg in reversed(segments):

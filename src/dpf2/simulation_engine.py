@@ -407,14 +407,14 @@ class SimulationEngine:
                 updated = circuit.step(coupling, 0.0, dt, energy_tracker=tracker)
 
             # Log plasma inductance from solver and inferred from circuit
-            field_lp.append(state.Lp)
+            field_lp.append(coupling.Lp)
             dIdt = (updated.current - current) / dt if dt != 0 else 0.0
             if dIdt != 0.0:
                 num = (
                     circuit.circuit.V0
                     - circuit.circuit.R * current
                     - voltage
-                    - state.emf
+                    - coupling.emf
                 )
                 inferred = num / dIdt - circuit.circuit.L
             else:
