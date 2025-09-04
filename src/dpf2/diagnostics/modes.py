@@ -17,7 +17,12 @@ from itertools import product
 import numpy as np
 from typing import Sequence
 
-__all__ = ["azimuthal_mode_spectrum", "growth_rate"]
+__all__ = [
+    "azimuthal_mode_spectrum",
+    "growth_rate",
+    "lh_azimuthal_power",
+    "log_impedance_ratio",
+]
 
 
 def azimuthal_mode_spectrum(field: np.ndarray, axis: int = -1) -> np.ndarray:
@@ -117,3 +122,41 @@ def growth_rate(previous: Sequence[float], current: Sequence[float], dt: float) 
         else:
             rate.append(0.0)
     return np.asarray(rate)
+
+
+# ---------------------------------------------------------------------------
+def lh_azimuthal_power(field: np.ndarray, omega_lh: float, axis: int = -1) -> float:
+    """Return azimuthal power near the lower-hybrid frequency.
+
+    The function computes the azimuthal mode spectrum of ``field`` and
+    selects the mode whose index most closely matches ``omega_lh``.  The
+    amplitude of this mode serves as a crude proxy for the power contained in
+    lower-hybrid drift waves.
+    """
+
+    spectrum = azimuthal_mode_spectrum(field, axis=axis)
+    if len(spectrum) == 0:
+        return 0.0
+    m = int(round(omega_lh)) % len(spectrum)
+    return float(spectrum[m])
+
+
+def log_impedance_ratio(
+    eta_plasma: np.ndarray,
+    ne: np.ndarray,
+    Te: np.ndarray,
+    Z: float | np.ndarray,
+) -> np.ndarray:
+    """Logarithmic plasma impedance relative to Spitzer prediction.
+
+    ``eta_plasma`` is compared against the classical Spitzer resistivity and
+    the base-10 logarithm of the ratio is returned.  The helper is designed
+    for lightweight diagnostics and therefore accepts array-like inputs for
+    convenience.
+    """
+
+    from dpf2.hall_mhd_solver import spitzer_resistivity
+
+    eta_s = spitzer_resistivity(ne, Te, Z)
+    eta_p = np.asarray(eta_plasma)
+    return np.log10(np.maximum(eta_p, 1e-30) / np.maximum(eta_s, 1e-30))
