@@ -1,7 +1,12 @@
 import json
 import pytest
 
-from dpf2.synthetic_diagnostics import SyntheticDiagnostics, SyntheticInstrument
+from dpf2.synthetic_diagnostics import (
+    SyntheticDiagnostics,
+    SyntheticInstrument,
+    AngularDistribution,
+    generate_tof_spectrum,
+)
 
 try:
     import yaml  # type: ignore
@@ -118,3 +123,16 @@ def test_hash_stability_on_toggle_change():
     assert cfg1.hash_synthetic_diagnostics_config() == cfg2.hash_synthetic_diagnostics_config()
     cfg2 = cfg2.model_copy(update={"synthetic_current_waveform_enabled": False})
     assert cfg1.hash_synthetic_diagnostics_config() != cfg2.hash_synthetic_diagnostics_config()
+
+
+def test_angular_distribution_and_tof_spectrum():
+    ang = AngularDistribution(bins=4)
+    for a in (-45, 45):
+        ang.add(a)
+    dist = ang.distribution()
+    assert pytest.approx(dist.sum()) == 1.0
+
+    energies = [2.45, 2.45, 2.45]
+    times, counts = generate_tof_spectrum(energies, distance_m=1.0, bins=5)
+    assert len(times) == 5
+    assert counts.sum() == len(energies)
