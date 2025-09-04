@@ -1137,39 +1137,37 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
 
     expected = json.loads(expected_path.read_text())
     t_ref = np.array(expected.get("time", []))
-    current_ref = np.array(expected.get("current", []))
-    voltage_ref = np.array(expected.get("voltage", []))
-    neutron_ref = np.array(expected.get("neutron_yield", []))
     tol = expected.get("tolerance", {})
 
-    current_act = np.interp(t_ref, time, current)
-    voltage_act = np.interp(t_ref, time, voltage)
-    neutron_act = np.interp(t_ref, time, neutron)
+    signals = {
+        "current": (current, "A"),
+        "voltage": (voltage, "V"),
+        "neutron_yield": (neutron, "yield"),
+    }
 
-    def _check(actual, ref, key: str) -> tuple[bool, float]:
-        band = float(tol.get(key, 0.0))
-        passed = all(abs(a - r) <= band for a, r in zip(actual, ref))
-        return passed, band
+    results: list[tuple[str, str, np.ndarray, np.ndarray, float, bool]] = []
+    for name, (series, unit) in signals.items():
+        ref = np.array(expected.get(name, []))
+        if len(ref) == 0:
+            continue
+        act = np.interp(t_ref, time, series)
+        band = float(tol.get(name, 0.0))
+        passed = all(abs(a - r) <= band for a, r in zip(act, ref))
+        results.append((name, unit, act, ref, band, passed))
 
-    pass_current, band_current = _check(current_act, current_ref, "current")
-    pass_voltage, band_voltage = _check(voltage_act, voltage_ref, "voltage")
-    pass_neut, band_neut = _check(neutron_act, neutron_ref, "neutron_yield")
+    if not results:
+        raise click.ClickException("No reference signals provided in expected.json")
 
-    fig, axes = plt.subplots(3, 1, figsize=(6, 8))
-    labels = ["current", "voltage", "neutron_yield"]
-    units = ["A", "V", "yield"]
-    actual = [current_act, voltage_act, neutron_act]
-    reference = [current_ref, voltage_ref, neutron_ref]
-    bands = [band_current, band_voltage, band_neut]
-    for ax, key, unit, act, ref, band in zip(
-        axes, labels, units, actual, reference, bands
-    ):
+    fig, axes = plt.subplots(len(results), 1, figsize=(6, 3 * len(results)))
+    if len(results) == 1:
+        axes = [axes]
+    for ax, (name, unit, act, ref, band, _) in zip(axes, results):
         low = ref - band
         high = ref + band
         ax.plot(t_ref, ref, label="expected")
         ax.plot(t_ref, act, label="actual")
         ax.fill_between(t_ref, low, high, color="gray", alpha=0.3, label="expected±tol")
-        ax.set_ylabel(f"{key} ({unit})")
+        ax.set_ylabel(f"{name} ({unit})")
         ax.legend()
     axes[-1].set_xlabel("time (s)")
     fig.tight_layout()
@@ -1178,15 +1176,14 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
     fig.savefig(out_root / f"{case}.png")
     plt.close(fig)
 
-    header = "{:<20} {:<7} {:<7} {:<7}".format(
-        "Benchmark", "Current", "Voltage", "Neutron"
+    header_fields = ["Benchmark"] + [name.title() for name, *_ in results]
+    header = " ".join(
+        f"{field:<20}" if i == 0 else f"{field:<7}" for i, field in enumerate(header_fields)
     )
     click.echo(header)
-    row = "{:<20} {:<7} {:<7} {:<7}".format(
-        case,
-        "PASS" if pass_current else "FAIL",
-        "PASS" if pass_voltage else "FAIL",
-        "PASS" if pass_neut else "FAIL",
+    row_values = [case] + ["PASS" if passed else "FAIL" for *_, passed in results]
+    row = " ".join(
+        f"{val:<20}" if i == 0 else f"{val:<7}" for i, val in enumerate(row_values)
     )
     click.echo(row)
 
