@@ -192,6 +192,12 @@ class ElectrodeGeometry(BaseModel):
     taper_angle: Optional[float] = None
     inner_radius: Optional[float] = None
 
+    @validator("mesh_file")
+    def _check_mesh_file(cls, v: Optional[Path]):
+        if v is not None and not Path(v).exists():
+            raise ValueError(f"mesh_file not found: {v}")
+        return v
+
     @classmethod
     def with_defaults(cls, geometry_preset: Optional[str] = None):
         if geometry_preset == "filippov":
@@ -367,6 +373,27 @@ class DPFConfig(BaseModel):
         gr = values.get("grid_resolution")
         if sc and gr and sc.geometry == "2D_RZ" and gr.ny != 1:
             raise ValueError("ny must be 1 for 2D_RZ geometry")
+
+        amrex = values.get("amrex_settings")
+        if sc and amrex and amrex.electrode_geometry and amrex.electrode_geometry.mesh_file:
+            from .geometry.loaders import load_cad_geometry, load_unstructured_mesh
+
+            p = Path(amrex.electrode_geometry.mesh_file)
+            try:
+                data = load_cad_geometry(p)
+            except ValueError:
+                data = load_unstructured_mesh(p)
+
+            nodes = data.get("nodes") or []
+            if not nodes:
+                raise ValueError("Imported mesh contains no nodes")
+            dim = len(nodes[0])
+            expected = 2 if sc.geometry == "2D_RZ" else 3
+            if dim != expected:
+                raise ValueError(
+                    f"Imported mesh is {dim}D but simulation geometry requires {expected}D"
+                )
+
         return values
 
     @classmethod

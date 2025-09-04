@@ -4,6 +4,11 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List
 
+try:  # pragma: no cover - optional dependency
+    import meshio  # type: ignore
+except Exception:  # pragma: no cover - meshio may not be installed
+    meshio = None
+
 
 def _parse_step_like(lines: List[str]) -> Dict[str, Any]:
     """Parse a tiny subset of STEP/IGES style geometry.
@@ -33,8 +38,10 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
     The loader understands a few simple formats used in tests:
 
     * ``.json`` files containing ``nodes`` and ``elements`` lists.
-    * ``.step``/``.stp`` and ``.iges``/``.igs`` files with lines of the form
-      ``NODE x y z`` and ``TRI i j k``.
+    * ``.step``/``.stp`` and ``.iges``/``.igs`` files.  If :mod:`meshio` is
+      available it is used to parse these files.  Otherwise a tiny custom text
+      format is supported where each line is either ``NODE x y z`` or
+      ``TRI i j k``.
     """
 
     p = Path(path)
@@ -42,6 +49,19 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
     if suffix == ".json":
         return json.loads(p.read_text())
     if suffix in {".step", ".stp", ".iges", ".igs"}:
+        if meshio is not None:
+            try:  # pragma: no cover - exercised when meshio is available
+                m = meshio.read(p)
+                elements: List[List[int]] = []
+                for block in m.cells:
+                    if block.type in {"triangle", "quad"}:
+                        elements.extend(block.data.tolist())
+                if not elements and m.cells:
+                    elements = m.cells[0].data.tolist()
+                return {"nodes": m.points.tolist(), "elements": elements}
+            except Exception:
+                pass
+        # fallback simple text representation
         lines = [ln.strip() for ln in p.read_text().splitlines() if ln.strip()]
         return _parse_step_like(lines)
     raise ValueError(f"Unsupported CAD format: {suffix}")
