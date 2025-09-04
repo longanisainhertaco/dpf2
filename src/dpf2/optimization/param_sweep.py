@@ -91,7 +91,7 @@ def plot_sweep_results(
 def compute_sweep_metrics(
     base_config: DPFConfig, results: Dict[float, SweepResult]
 ) -> Dict[float, Dict[str, float]]:
-    """Compute simple yield and efficiency estimates for sweep results.
+    """Compute simple yield, pinch time and efficiency estimates for sweep results.
 
     Parameters
     ----------
@@ -104,9 +104,10 @@ def compute_sweep_metrics(
     Returns
     -------
     Dict[float, Dict[str, float]]
-        Mapping of parameter value to metrics ``{"yield", "efficiency"}``.
-        Yield is estimated as the peak current, while efficiency is the ratio
-        of the time-integrated ``I*V`` product to the initial stored energy.
+        Mapping of parameter value to metrics ``{"yield", "pinch_time",
+        "efficiency"}``.  Yield is estimated as the peak current, pinch time is
+        the time at which the peak current occurs and efficiency is the ratio of
+        the time-integrated ``I*V`` product to the initial stored energy.
     """
 
     import numpy as np
@@ -121,8 +122,14 @@ def compute_sweep_metrics(
         power = i_arr * v_arr
         energy_out = float(np.trapz(power, t_arr))
         efficiency = energy_out / energy_in if energy_in else 0.0
-        yield_est = float(i_arr.max())
-        metrics[val] = {"yield": yield_est, "efficiency": efficiency}
+        peak_idx = int(i_arr.argmax()) if len(i_arr) else 0
+        yield_est = float(i_arr[peak_idx])
+        pinch_time = float(t_arr[peak_idx]) if len(t_arr) else 0.0
+        metrics[val] = {
+            "yield": yield_est,
+            "efficiency": efficiency,
+            "pinch_time": pinch_time,
+        }
 
     return metrics
 
@@ -132,26 +139,29 @@ def plot_metric_overlay(
     metrics: Dict[float, Dict[str, float]],
     path: str | Path,
 ) -> Path:
-    """Plot yield and efficiency against the swept parameter on shared axes."""
+    """Plot yield, pinch time and efficiency against a swept parameter."""
 
     import matplotlib.pyplot as plt
 
     vals = sorted(metrics.keys())
     yields = [metrics[v]["yield"] for v in vals]
+    pinch = [metrics[v].get("pinch_time", 0.0) for v in vals]
     effs = [metrics[v]["efficiency"] for v in vals]
 
-    fig, ax1 = plt.subplots()
-    color1 = "tab:blue"
-    ax1.set_xlabel(parameter)
-    ax1.set_ylabel("Yield", color=color1)
-    ax1.plot(vals, yields, color=color1, marker="o", label="yield")
-    ax1.tick_params(axis="y", labelcolor=color1)
+    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 9))
 
-    ax2 = ax1.twinx()
-    color2 = "tab:orange"
-    ax2.set_ylabel("Efficiency", color=color2)
-    ax2.plot(vals, effs, color=color2, marker="s", label="efficiency")
-    ax2.tick_params(axis="y", labelcolor=color2)
+    axes[0].plot(vals, yields, marker="o")
+    axes[0].set_ylabel("Yield")
+
+    axes[1].plot(vals, pinch, marker="^")
+    axes[1].set_ylabel("Pinch Time")
+
+    axes[2].plot(vals, effs, marker="s")
+    axes[2].set_ylabel("Efficiency")
+    axes[2].set_xlabel(parameter)
+
+    for ax in axes:
+        ax.grid(True)
 
     fig.tight_layout()
     path = Path(path)
