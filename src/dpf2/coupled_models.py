@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Any
 
 import numpy as np
 
 from .pinch_models import PinchModelBase, PinchResult
 from .prepulse import PrePulseBreakdownModel, PrePulseResult
 from .axial_sheath import AxialSheathModel, SheathResult
+from .neutral.dsmc import DSMC
 
 
 @dataclass
@@ -34,3 +35,38 @@ class CoupledEndToEndModel:
         pinch_current = I[sheath.end_index:]
         pinch = self.pinch.run(pinch_time, pinch_current)
         return EndToEndResult(prepulse=pre, sheath=sheath, pinch=pinch)
+
+
+@dataclass
+class NeutralPlasmaResult:
+    """Result container for neutral/plasma coupled runs."""
+
+    neutral_density: float
+    plasma: Any
+
+
+class NeutralPlasmaCoupler:
+    """Couple a DSMC neutral solver to an arbitrary plasma solver.
+
+    The plasma solver is expected to provide a ``run`` method accepting a
+    ``neutral_density`` keyword argument.  This minimal interface keeps
+    the implementation lightweight while remaining sufficiently flexible
+    for the unit tests.
+    """
+
+    def __init__(self, dsmc: DSMC, plasma_solver: Any) -> None:
+        self.dsmc = dsmc
+        self.plasma_solver = plasma_solver
+
+    def run(self, dt: float) -> NeutralPlasmaResult:
+        nd = self.dsmc.run(dt)
+        plasma = self.plasma_solver.run(neutral_density=nd)
+        return NeutralPlasmaResult(neutral_density=nd, plasma=plasma)
+
+
+__all__ = [
+    "EndToEndResult",
+    "CoupledEndToEndModel",
+    "NeutralPlasmaCoupler",
+    "NeutralPlasmaResult",
+]
