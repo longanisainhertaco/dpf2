@@ -343,6 +343,7 @@ class SimulationEngine:
         voltage = circuit.voltages[-1]
         step = 0
         plasma_state = None
+        coupling = CouplingState(current=current, voltage=voltage)
         diag_list = list(diagnostics or [])
         if neutron_cb is not None:
             diag_list.append(NeutronYieldStreamer(neutron_cb))
@@ -350,41 +351,50 @@ class SimulationEngine:
             diag_list.append(XRayEmissionStreamer(xray_cb))
 
         while circuit.time[-1] < t_end:
-            state = CouplingState(current=current, voltage=voltage)
             if plasma_solver is not None:
-                plasma_state = plasma_solver.step(plasma_state, dt, current, voltage)
-                Lp = 0.0
-                if hasattr(plasma_solver, "compute_plasma_inductance"):
-                    try:
-                        Lp = float(plasma_solver.compute_plasma_inductance(plasma_state, current))
-                    except Exception:
-                        Lp = 0.0
-                elif hasattr(plasma_solver, "plasma_inductance"):
-                    try:
-                        Lp = float(plasma_solver.plasma_inductance(plasma_state))
-                    except Exception:
-                        Lp = 0.0
+                plasma_state = plasma_solver.step(
+                    plasma_state, dt, coupling.current, coupling.voltage
+                )
                 iface = plasma_solver.coupling_interface()
-                iface.Lp = Lp
-                br = iface.back_reaction
+                Lp = getattr(iface, "Lp", 0.0)
+                if Lp == 0.0:
+                    if hasattr(plasma_solver, "compute_plasma_inductance"):
+                        try:
+                            Lp = float(
+                                plasma_solver.compute_plasma_inductance(
+                                    plasma_state, coupling.current
+                                )
+                            )
+                        except Exception:
+                            Lp = 0.0
+                    elif hasattr(plasma_solver, "plasma_inductance"):
+                        try:
+                            Lp = float(plasma_solver.plasma_inductance(plasma_state))
+                        except Exception:
+                            Lp = 0.0
+                coupling.Lp = Lp
+                coupling.emf = getattr(iface, "emf", 0.0)
+                coupling.mutual_inductance = getattr(iface, "mutual_inductance", 0.0)
+                br = getattr(iface, "back_reaction", 0.0)
                 if self.comm is not None and self.comm.size > 1:  # pragma: no cover - MPI
                     br = self.comm.allreduce(br, op=MPI.SUM)
-                state.Lp = Lp
-                state.emf = iface.emf
-                state.mutual_inductance = iface.mutual_inductance
-                state.back_reaction = br
+                coupling.back_reaction = br
 
             # Optional multithreading for circuit stepping
             if self._executor is not None:
                 future = self._executor.submit(
-                    circuit.step, state, 0.0, dt, energy_tracker=tracker
+                    circuit.step, coupling, 0.0, dt, energy_tracker=tracker
                 )
                 updated = future.result()
             else:
-                updated = circuit.step(state, 0.0, dt, energy_tracker=tracker)
+                updated = circuit.step(coupling, 0.0, dt, energy_tracker=tracker)
 
             if self.comm is not None and (self.comm.size > 1):  # pragma: no cover - MPI
                 updated = self.comm.bcast(updated, root=0)
+
+            coupling.current = updated.current
+            coupling.voltage = updated.voltage
+            current, voltage = updated.current, updated.voltage
 
             # Radiation transport coupling (placeholder)
             rad_in = tracker.thermal[-1] if tracker.thermal else 0.0
