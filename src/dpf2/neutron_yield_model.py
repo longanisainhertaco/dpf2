@@ -329,20 +329,49 @@ def partition_yield(
     thermonuclear_rate: Sequence[float],
     beam_target_rate: Sequence[float],
     dt: float,
+    thermonuclear_sigma: Sequence[float] | None = None,
+    beam_target_sigma: Sequence[float] | None = None,
 ) -> Dict[str, Tuple[float, float]]:
-    """Integrate rate histories and return yields with Poisson uncertainties."""
+    """Integrate rate histories and return yields with uncertainties.
+
+    Parameters
+    ----------
+    thermonuclear_rate, beam_target_rate:
+        Rate histories sampled with timestep ``dt``.
+    dt:
+        Time step width in seconds.
+    thermonuclear_sigma, beam_target_sigma:
+        Optional per-sample uncertainties for the provided rates.  When given,
+        the uncertainties are propagated in quadrature and combined with a
+        simple Poisson estimate (``sqrt(N)``) of the counting statistics.
+    """
 
     if dt <= 0:
         raise ValueError("dt must be positive")
     if len(thermonuclear_rate) != len(beam_target_rate):
         raise ValueError("rate histories must have the same length")
+
     th = sum(float(v) for v in thermonuclear_rate) * dt
     bt = sum(float(v) for v in beam_target_rate) * dt
+
+    th_var = th if th > 0 else 0.0
+    bt_var = bt if bt > 0 else 0.0
+    if thermonuclear_sigma is not None:
+        if len(thermonuclear_sigma) != len(thermonuclear_rate):
+            raise ValueError("thermonuclear_sigma must match rate length")
+        th_var += sum((float(s) * dt) ** 2 for s in thermonuclear_sigma)
+    if beam_target_sigma is not None:
+        if len(beam_target_sigma) != len(beam_target_rate):
+            raise ValueError("beam_target_sigma must match rate length")
+        bt_var += sum((float(s) * dt) ** 2 for s in beam_target_sigma)
+
     total = th + bt
+    total_var = th_var + bt_var
+
     return {
-        "thermonuclear": (th, math.sqrt(th) if th > 0 else 0.0),
-        "beam_target": (bt, math.sqrt(bt) if bt > 0 else 0.0),
-        "total": (total, math.sqrt(total) if total > 0 else 0.0),
+        "thermonuclear": (th, math.sqrt(th_var) if th_var > 0 else 0.0),
+        "beam_target": (bt, math.sqrt(bt_var) if bt_var > 0 else 0.0),
+        "total": (total, math.sqrt(total_var) if total_var > 0 else 0.0),
     }
 
 

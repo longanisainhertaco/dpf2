@@ -1,9 +1,22 @@
+"""Lightweight neutron diagnostic helpers."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Sequence, List, Dict, Any
 import json
+
+# Re-export core synthesis utilities from :mod:`neutron_spectra`
+from .neutron_spectra import (
+    Detector,
+    DetectorLayout,
+    synthetic_tof_spectrum,
+    angular_spectrum,
+    anisotropy_metric,
+    forward_radial_backward_counts,
+    anisotropy_ratios,
+    load_detector_layout,
+)
 
 
 def load_response(path: str | Path) -> Dict[str, Any]:
@@ -70,5 +83,44 @@ def apply_response(
 
     return vals
 
-__all__ = ["load_response", "apply_response"]
+
+def anisotropy_report(
+    layout: DetectorLayout,
+    spectra: Dict[str, Sequence[float]],
+) -> Dict[str, Any]:
+    """Aggregate detector counts and compute anisotropy metrics.
+
+    Parameters
+    ----------
+    layout:
+        Detector arrangement used to determine detector orientation.
+    spectra:
+        Mapping of detector name to time-resolved counts.
+
+    Returns
+    -------
+    dict
+        A dictionary with ``"counts"`` holding forward/radial/backward totals,
+        ``"ratios"`` with simple anisotropy ratios and ``"metric"`` providing a
+        ``(max-min)/mean`` style anisotropy measure.
+    """
+
+    counts = forward_radial_backward_counts(layout, spectra)
+    ratios = anisotropy_ratios(counts)
+    metric = anisotropy_metric(list(counts.values()))
+    return {"counts": counts, "ratios": ratios, "metric": metric}
+
+__all__ = [
+    "Detector",
+    "DetectorLayout",
+    "synthetic_tof_spectrum",
+    "angular_spectrum",
+    "anisotropy_metric",
+    "forward_radial_backward_counts",
+    "anisotropy_ratios",
+    "load_detector_layout",
+    "load_response",
+    "apply_response",
+    "anisotropy_report",
+]
 
