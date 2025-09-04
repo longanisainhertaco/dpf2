@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Tuple
 from typing import Protocol
 
+import logging
 import numpy as np
 try:  # pragma: no cover - allow running without SciPy
     from scipy.constants import mu_0
@@ -30,6 +31,9 @@ from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase, CouplingState
 from .eos import EOSBase, IdealGasEOS
 from .boundary_conditions import KineticSheath
 from .physics.energy import EnergyTracker
+from .diagnostics.quality_dashboard import QualityDashboard
+
+logger = logging.getLogger(__name__)
 
 class ChemistryModule(Protocol):
     """Minimal interface for chemistry plugins."""
@@ -337,6 +341,8 @@ class HallMHDSolver(PlasmaSolverBase):
     last_opacity: np.ndarray | None = field(init=False, default=None)
     last_emissivity: np.ndarray | None = field(init=False, default=None)
     cart_comm: Any | None = field(init=False, default=None)
+    quality: QualityDashboard | None = None
+    step_count: int = 0
 
     def __post_init__(self) -> None:
         """Initialise MPI cartesian communicator for domain decomposition."""
@@ -710,6 +716,34 @@ class HallMHDSolver(PlasmaSolverBase):
                 thermal=float(np.sum(thermal_final)),
                 magnetic=float(np.sum(magnetic_final)),
                 radiative=rad,
+            )
+
+        if self.quality is not None:
+            self.step_count += 1
+            dx = getattr(self.mesh, "dx", 1.0)
+            dy = getattr(self.mesh, "dy", dx)
+            dz = getattr(self.mesh, "dz", dx)
+            cell_size = min(dx, dy, dz)
+            cell_volume = dx * dy * dz
+            max_speed = float(np.max(np.linalg.norm(v_final, axis=-1)))
+            cfl = max_speed * dt / cell_size if cell_size > 0 else 0.0
+            ion_mass = getattr(self, "ion_mass", getattr(self.sheath, "ion_mass", 1.6726219e-27))
+            ne = rho * np.maximum(zbar, 1e-30) / ion_mass
+            try:
+                from scipy.constants import e, epsilon_0, k
+            except Exception:  # pragma: no cover
+                e = 1.602176634e-19
+                epsilon_0 = 8.8541878128e-12
+                k = 1.380649e-23
+            lambda_D = np.sqrt(epsilon_0 * k * T / (ne * e**2))
+            ppc = float(np.mean(ne) * cell_volume)
+            self.quality.log(
+                self.step_count,
+                dt,
+                cell_size,
+                ppc,
+                cfl,
+                float(np.mean(lambda_D)),
             )
 
         return new_state
