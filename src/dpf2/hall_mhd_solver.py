@@ -22,6 +22,13 @@ try:  # pragma: no cover - allow running without SciPy
 except Exception:  # pragma: no cover
     mu_0 = 4e-7 * np.pi
 
+try:  # pragma: no cover - physical constants
+    from scipy.constants import e as q_e, m_e, m_p
+except Exception:  # pragma: no cover
+    q_e = 1.602176634e-19
+    m_e = 9.1093837015e-31
+    m_p = 1.67262192369e-27
+
 try:  # pragma: no cover - MPI is optional
     from mpi4py import MPI  # type: ignore
 except Exception:  # pragma: no cover
@@ -325,6 +332,10 @@ class HallMHDSolver(PlasmaSolverBase):
     comm: Any | None = None  # MPI communicator for domain decomposition
     amr: Any | None = None  # Optional AMReX mesh object
     braginskii: Callable[[np.ndarray, np.ndarray, np.ndarray], Tuple[float, float]] | None = None
+    electron_inertia: float = 0.0
+    hall_threshold: float = 1.0
+    ei_threshold: float = 0.1
+    scale_length: float = 1.0
     current: float = 0.0
     inductance: float = 0.0
     back_emf: float = 0.0
@@ -344,6 +355,10 @@ class HallMHDSolver(PlasmaSolverBase):
     last_E_anom: np.ndarray | None = field(init=False, default=None)
     last_opacity: np.ndarray | None = field(init=False, default=None)
     last_emissivity: np.ndarray | None = field(init=False, default=None)
+    hall_active: bool = field(init=False, default=False)
+    electron_inertia_active: bool = field(init=False, default=False)
+    last_wce_tau_e: float = field(init=False, default=0.0)
+    last_di_over_L: float = field(init=False, default=0.0)
     cart_comm: Any | None = field(init=False, default=None)
     quality: QualityDashboard | None = None
     step_count: int = 0
@@ -614,9 +629,25 @@ class HallMHDSolver(PlasmaSolverBase):
         zbar = self.chemistry.ionization_state(rho, T)
         self.last_pressure = p
         self.last_ionization = zbar
-
-        # electron pressure gradient and number density for Ohm's law
+        # electron number density
         ne = rho * np.maximum(zbar, 1e-30)
+
+        # --- Runtime activation checks ---
+        eta_local = (
+            eta_field if isinstance(eta_field, np.ndarray) else np.full(rho.shape, float(eta_field))
+        )
+        w_ce = q_e * np.sqrt(B2) / m_e
+        tau_e = m_e / (ne * q_e**2 * np.maximum(eta_local, 1e-30))
+        wce_tau_e = w_ce * tau_e
+        self.last_wce_tau_e = float(np.max(wce_tau_e))
+        self.hall_active = self.last_wce_tau_e > self.hall_threshold
+
+        ni = rho
+        d_i = np.sqrt(m_p / (mu_0 * ni * q_e**2))
+        self.last_di_over_L = float(np.max(d_i) / max(self.scale_length, 1e-30))
+        self.electron_inertia_active = self.last_di_over_L > self.ei_threshold
+
+        # electron pressure gradient for Ohm's law
         pe = p * zbar / (1.0 + np.maximum(zbar, 1e-30))
         grad_pe = [_dd(pe, i) for i in range(dims)]
         while len(grad_pe) < 3:
@@ -635,8 +666,14 @@ class HallMHDSolver(PlasmaSolverBase):
         E = -np.cross(v, B) + eta_total[..., None] * J - grad_pe_vec / ne[..., None]
         if self.last_E_anom is not None:
             E += self.last_E_anom
-        if self.hall_coeff != 0.0:
-            E += self.hall_coeff * np.cross(J, B) / ne[..., None]
+        if self.hall_active:
+            coeff_hall = self.hall_coeff if self.hall_coeff != 0.0 else 1.0
+            E += coeff_hall * np.cross(J, B) / ne[..., None]
+        if self.electron_inertia_active:
+            coeff_ei = self.electron_inertia
+            if coeff_ei == 0.0:
+                coeff_ei = m_e / (q_e**2 * ne)
+            E += coeff_ei[..., None] * J
         B -= dt * _curl(E)
 
         # --- Divergence cleaning (hyperbolic/parabolic) ---
