@@ -1,0 +1,18 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%post
+    apt-get update && apt-get install -y --no-install-recommends build-essential git \ 
+        openmpi-bin libopenmpi-dev libhdf5-openmpi-dev python3 python3-pip && rm -rf /var/lib/apt/lists/*
+    python3 -m pip install -r /app/requirements.txt
+    python3 -m pip install /app
+
+%files
+    .. /app
+
+%environment
+    export OMPI_MCA_btl="^openib"
+    export HDF5_USE_FILE_LOCKING=FALSE
+
+%runscript
+    exec dpf2 "$@"

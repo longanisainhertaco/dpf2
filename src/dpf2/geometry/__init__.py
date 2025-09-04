@@ -12,6 +12,10 @@ from .parameterized import (
     HollowGeometry,
     ReentrantGeometry,
 )
+from .triple_junction import (
+    triple_junction_field,
+    set_triple_junction_field_map,
+)
 
 __all__ = [
     "coaxial_inductance",
@@ -23,4 +27,6 @@ __all__ = [
     "TaperedGeometry",
     "HollowGeometry",
     "ReentrantGeometry",
+    "triple_junction_field",
+    "set_triple_junction_field_map",
 ]

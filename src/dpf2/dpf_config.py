@@ -47,10 +47,22 @@ class SimulationControl(BaseModel):
 
 
 class BreakdownModel(BaseModel):
-    type: Literal["field_threshold", "hot_seed", "stochastic_delay", "beta_preionization"]
+    type: Literal[
+        "field_threshold",
+        "hot_seed",
+        "stochastic_delay",
+        "beta_preionization",
+        "flashover",
+    ]
     field_threshold: Optional[float] = None
     breakdown_delay: Optional[float] = None
     stochastic_seed: Optional[int] = None
+    seea_sigma: Optional[float] = Field(
+        default=None, description="Log-normal sigma for SEEA delay model"
+    )
+    conditioning_alpha: Optional[float] = Field(
+        default=None, description="Exponent for flashover conditioning curve"
+    )
     doc: Optional[str] = None
 
     @classmethod
