@@ -228,6 +228,66 @@ def emcee_calibrate_mass_current(
 
 
 # ---------------------------------------------------------------------------
+def dynesty_calibrate_mass_current(
+    current_sim: np.ndarray,
+    current_data: np.ndarray,
+    tof_sim: np.ndarray,
+    tof_data: np.ndarray,
+    bounds: Bounds | None = None,
+    n_live: int = 50,
+    n_iter: int = 500,
+    sigma_current: float = 1.0,
+    sigma_tof: float = 1.0,
+    seed: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Estimate mass and current factors using :mod:`dynesty` nested sampling.
+
+    Parameters mirror :func:`emcee_calibrate_mass_current` but employ a
+    nested sampler that can better explore multi-modal posteriors.
+    """
+
+    try:  # pragma: no cover - dependency may be optional
+        import dynesty  # type: ignore
+    except Exception as exc:  # pragma: no cover - import error path
+        raise RuntimeError(
+            "dynesty is required for dynesty_calibrate_mass_current"
+        ) from exc
+
+    if bounds is None:
+        bounds = {"mass_factor": (0.5, 1.5), "current_factor": (0.5, 1.5)}
+
+    names = ["mass_factor", "current_factor"]
+    lower = np.array([bounds[n][0] for n in names])
+    upper = np.array([bounds[n][1] for n in names])
+
+    current_sim = np.asarray(current_sim, dtype=float)
+    current_data = np.asarray(current_data, dtype=float)
+    tof_sim = np.asarray(tof_sim, dtype=float)
+    tof_data = np.asarray(tof_data, dtype=float)
+
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        return lower + u * (upper - lower)
+
+    def log_like(theta: np.ndarray) -> float:
+        mass_factor, current_factor = theta
+        curr_pred = current_factor * current_sim
+        tof_pred = mass_factor * tof_sim
+        resid_current = (current_data - curr_pred) / sigma_current
+        resid_tof = (tof_data - tof_pred) / sigma_tof
+        return -0.5 * (
+            np.dot(resid_current, resid_current)
+            + np.dot(resid_tof, resid_tof)
+        )
+
+    sampler = dynesty.NestedSampler(
+        log_like, prior_transform, len(names), nlive=n_live, seed=seed
+    )
+    sampler.run_nested(maxiter=n_iter, print_progress=False)
+    res = sampler.results
+    return {name: res.samples[:, idx] for idx, name in enumerate(names)}
+
+
+# ---------------------------------------------------------------------------
 def emcee_calibrate_waveform(
     time_sim: np.ndarray,
     current_sim: np.ndarray,
@@ -285,10 +345,67 @@ def emcee_calibrate_waveform(
     return {name: chain[:, idx] for idx, name in enumerate(names)}
 
 
+# ---------------------------------------------------------------------------
+def dynesty_calibrate_waveform(
+    time_sim: np.ndarray,
+    current_sim: np.ndarray,
+    time_data: np.ndarray,
+    current_data: np.ndarray,
+    bounds: Bounds | None = None,
+    n_live: int = 50,
+    n_iter: int = 500,
+    sigma: float = 1.0,
+    seed: int | None = None,
+) -> Dict[str, np.ndarray]:
+    """Calibrate waveform scaling factors using :mod:`dynesty`.
+
+    This mirrors :func:`emcee_calibrate_waveform` but with nested sampling.
+    """
+
+    try:  # pragma: no cover - dependency may be optional
+        import dynesty  # type: ignore
+    except Exception as exc:  # pragma: no cover - import error path
+        raise RuntimeError(
+            "dynesty is required for dynesty_calibrate_waveform"
+        ) from exc
+
+    if bounds is None:
+        bounds = {"mass_factor": (0.5, 1.5), "current_factor": (0.5, 1.5)}
+
+    names = ["mass_factor", "current_factor"]
+    lower = np.array([bounds[n][0] for n in names])
+    upper = np.array([bounds[n][1] for n in names])
+
+    time_sim = np.asarray(time_sim, dtype=float)
+    current_sim = np.asarray(current_sim, dtype=float)
+    time_data = np.asarray(time_data, dtype=float)
+    current_data = np.asarray(current_data, dtype=float)
+
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        return lower + u * (upper - lower)
+
+    def log_like(theta: np.ndarray) -> float:
+        mass_factor, current_factor = theta
+        scaled_time = mass_factor * time_sim
+        sim_interp = np.interp(time_data, scaled_time, current_sim, left=0.0, right=0.0)
+        pred = current_factor * sim_interp
+        resid = (current_data - pred) / sigma
+        return -0.5 * np.dot(resid, resid)
+
+    sampler = dynesty.NestedSampler(
+        log_like, prior_transform, len(names), nlive=n_live, seed=seed
+    )
+    sampler.run_nested(maxiter=n_iter, print_progress=False)
+    res = sampler.results
+    return {name: res.samples[:, idx] for idx, name in enumerate(names)}
+
+
 __all__ = [
     "bayesian_calibration",
     "nested_calibration",
     "emcee_calibrate_mass_current",
+    "dynesty_calibrate_mass_current",
     "emcee_calibrate_waveform",
+    "dynesty_calibrate_waveform",
 ]
 
