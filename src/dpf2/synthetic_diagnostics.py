@@ -3,7 +3,15 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Literal, Sequence
+
+from typing import Any, ClassVar, Dict, List, Optional, Literal, Iterable, Sequence
+
+import csv
+try:  # pragma: no cover - h5py may be optional
+    import h5py  # type: ignore
+except Exception:  # pragma: no cover
+    import h5py_stub as h5py  # type: ignore
+
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,6 +21,15 @@ from .utils.pydantic_compat import model_validator
 
 from .core_schema import ConfigSectionBase, to_camel_case
 from .units_settings import UnitsSettings
+from .core.bases import CouplingState
+from .diagnostics.synthetic_signals import (
+    current_waveform,
+    voltage_waveform,
+    coupled_current_waveform,
+    coupled_voltage_waveform,
+    rogowski_signal,
+    bdot_signal,
+)
 
 
 class AngularDistribution:
@@ -149,6 +166,12 @@ class SyntheticDiagnostics(ConfigSectionBase):
     def with_defaults(cls) -> "SyntheticDiagnostics":
         return cls(apply_time_response=False, apply_energy_filter=False)
 
+    def model_copy(self, update: Optional[Dict[str, Any]] = None, **kwargs: Any) -> "SyntheticDiagnostics":  # type: ignore[override]
+        data = self.model_dump()
+        if update:
+            data.update(update)
+        return SyntheticDiagnostics(**data)
+
     def resolve_defaults(self) -> "SyntheticDiagnostics":
         data = self.model_dump()
         return self.model_validate(data)
@@ -255,9 +278,117 @@ class SyntheticDiagnostics(ConfigSectionBase):
         return values
 
 
+
+def run_diagnostic_calculations(
+    history: Iterable[CouplingState],
+    cfg: "SyntheticDiagnostics",
+    dt: float,
+    bdot_radius: float = 0.01,
+) -> Dict[str, List[float]]:
+    """Compute enabled synthetic diagnostic signals.
+
+    Parameters
+    ----------
+    history:
+        Iterable of :class:`~dpf2.core.bases.CouplingState` objects.
+    cfg:
+        Diagnostic configuration controlling which calculators run.
+    dt:
+        Time step between successive states in seconds.
+    bdot_radius:
+        Probe radius used for ``bdot`` calculations.
+
+    Returns
+    -------
+    dict
+        Mapping of diagnostic name to generated data sequence.
+    """
+
+    hist = list(history)
+    outputs: Dict[str, List[float]] = {}
+    if cfg.synthetic_current_waveform_enabled:
+        outputs["current"] = current_waveform(hist)
+    if cfg.synthetic_voltage_waveform_enabled:
+        outputs["voltage"] = voltage_waveform(hist)
+    if cfg.synthetic_coupled_current_waveform_enabled:
+        outputs["coupled_current"] = coupled_current_waveform(hist)
+    if cfg.synthetic_coupled_voltage_waveform_enabled:
+        outputs["coupled_voltage"] = coupled_voltage_waveform(hist)
+    if cfg.synthetic_rogowski_signal_enabled:
+        outputs["rogowski"] = rogowski_signal(hist, dt)
+    if cfg.synthetic_bdot_signal_enabled:
+        outputs["bdot"] = bdot_signal(hist, bdot_radius, dt)
+    return outputs
+
+
+def _export_csv(path: Path, data: Sequence[Any], kind: str) -> None:
+    with path.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        if kind == "time_series":
+            writer.writerow(["index", "value"])
+            for i, val in enumerate(data):
+                writer.writerow([i, val])
+        else:
+            for row in data:
+                writer.writerow(list(row))
+
+
+def _export_hdf5(path: Path, name: str, data: Sequence[Any]) -> None:
+    with h5py.File(path, "w") as fh:
+        fh.create_dataset(name, data=data)
+
+
+def export_diagnostic_data(
+    data: Dict[str, Sequence[Any]],
+    cfg: "SyntheticDiagnostics",
+    output_dir: Path | str,
+) -> List[Path]:
+    """Write diagnostic ``data`` to ``output_dir`` according to ``cfg``."""
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written: List[Path] = []
+    dtype = cfg.diagnostic_output_type or {}
+    for name, values in data.items():
+        kind = dtype.get(name, "time_series")
+        if cfg.output_format == "csv":
+            file_path = out_dir / f"{name}.csv"
+            _export_csv(file_path, values, kind)
+        elif cfg.output_format == "hdf5":
+            file_path = out_dir / f"{name}.h5"
+            _export_hdf5(file_path, name, values)
+        else:
+            file_path = out_dir / f"{name}.txt"
+            if kind == "time_series":
+                file_path.write_text("\n".join(str(v) for v in values))
+            else:
+                file_path.write_text("\n".join(",".join(str(v) for v in row) for row in values))
+        written.append(file_path)
+    return written
+
+
+def _sd_model_validate(cls, data: Any, *args: Any, **kwargs: Any) -> "SyntheticDiagnostics":
+    if isinstance(data, dict):
+        annotations = getattr(cls, "__annotations__", {})
+        mapping = {to_camel_case(name): name for name in annotations}
+        data = {mapping.get(k, k): v for k, v in data.items()}
+    obj = BaseModel.model_validate.__func__(cls, data, *args, **kwargs)
+    # Manually invoke validation hook when running with the lightweight stub
+    if hasattr(cls, "check_rules"):
+        try:
+            obj = cls.check_rules(cls, obj)  # type: ignore[arg-type]
+        except Exception as exc:
+            raise exc
+    return obj
+
+
+SyntheticDiagnostics.model_validate = classmethod(_sd_model_validate)  # type: ignore[assignment]
+
+
 __all__ = [
     "SyntheticDiagnostics",
     "SyntheticInstrument",
-    "AngularDistribution",
-    "generate_tof_spectrum",
+    "run_diagnostic_calculations",
+    "export_diagnostic_data",
+
 ]
