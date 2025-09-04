@@ -7,4 +7,5 @@ def test_regime_dashboard_websocket_subscription():
     assert "/ws/regime" in content
     for key in ["S", "beta", "M_A", "R_m", "K_n", "omega_ce_tau_e"]:
         assert key in content
+    assert "violations" in content
 

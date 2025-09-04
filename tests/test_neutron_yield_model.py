@@ -1,5 +1,6 @@
 import json
 import pytest
+from pydantic import ValidationError
 
 from dpf2.neutron_yield_model import NeutronYieldModel
 
@@ -19,7 +20,17 @@ def test_requires_temp_density_for_analytic_thermal_model():
     data["reactivitySource"] = "analytic"
     data.pop("averageIonTemperatureKeV", None)
     data.pop("averageIonDensityCm3", None)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
+        NeutronYieldModel.model_validate(data)
+
+
+def test_requires_temperature_for_analytic_thermal_model():
+    data = {
+        "beamIonSpecies": "D+",
+        "reactivitySource": "analytic",
+        "averageIonDensityCm3": 1e21,
+    }
+    with pytest.raises(ValidationError):
         NeutronYieldModel.model_validate(data)
 
 
@@ -27,17 +38,17 @@ def test_missing_response_file_when_enabled():
     data = base_data()
     data["applyDetectorResponseFunction"] = True
     data["detectorResponseFile"] = None
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         NeutronYieldModel.model_validate(data)
 
 
 def test_branching_ratio_bounds():
     data = base_data()
     data["ddBranchingRatio"] = 1.5
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         NeutronYieldModel.model_validate(data)
     data["ddBranchingRatio"] = -0.1
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         NeutronYieldModel.model_validate(data)
 
 
@@ -103,7 +114,7 @@ def test_missing_reactivity_table_path_for_lookup():
     data = base_data()
     data["reactivitySource"] = "look-up"
     data["reactivityTablePath"] = None
-    with pytest.raises(ValueError, match="reactivity_table_path required"):
+    with pytest.raises(ValidationError, match="reactivity_table_path required"):
         NeutronYieldModel.model_validate(data)
 
 
@@ -111,21 +122,21 @@ def test_cross_section_table_required_for_tabulated():
     data = base_data()
     data["fusionCrossSectionModel"] = "tabulated"
     data["crossSectionTablePath"] = None
-    with pytest.raises(ValueError, match="cross_section_table_path required"):
+    with pytest.raises(ValidationError, match="cross_section_table_path required"):
         NeutronYieldModel.model_validate(data)
 
 
 def test_invalid_spectrum_bin_order():
     data = base_data()
     data["spectrumEnergyBinsMeV"] = [2.0, 1.0]
-    with pytest.raises(ValueError, match="monotonically increasing"):
+    with pytest.raises(ValidationError, match="monotonically increasing"):
         NeutronYieldModel.model_validate(data)
 
 
 def test_invalid_integration_window():
     data = base_data()
     data["yieldIntegrationWindowUs"] = [1.0, 0.5]
-    with pytest.raises(ValueError, match="start < end"):
+    with pytest.raises(ValidationError, match="start < end"):
         NeutronYieldModel.model_validate(data)
 
 
@@ -133,5 +144,5 @@ def test_anisotropic_requires_hdf5():
     data = base_data()
     data["anisotropicSpectrum"] = True
     data["spectrumOutputFormat"] = "csv"
-    with pytest.raises(ValueError, match="anisotropic_spectrum requires"):
+    with pytest.raises(ValidationError, match="anisotropic_spectrum requires"):
         NeutronYieldModel.model_validate(data)

@@ -18,17 +18,20 @@ import json
 import warnings
 import base64
 import io
+import numpy as np
 
 from .project_manager import ProjectManager
 from ..core.config import DPFConfig
 from ..device_profiles import DeviceProfiles
 from ..optimization import OptimizationWarning
+from ..visualization.sheath import jxb_field
 
 try:  # pragma: no cover - optional dependency
     import dash
-    from dash import Dash, dcc, html, Input, Output, State
+    from dash import Dash, dcc, html, Input, Output, State, no_update
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
+    import plotly.figure_factory as ff
 except Exception:  # pragma: no cover - allow import without dash
     Dash = None  # type: ignore[misc]
 
@@ -222,7 +225,12 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                 id="export_overlay",
                 style={} if not simplified else {"display": "none"},
             ),
+            html.Button("Save Scene", id="save_scene"),
+            dcc.Upload(id="load_scene", children=html.Button("Load Scene"), multiple=False),
+            dcc.Download(id="download_scene"),
             dcc.Graph(id="metrics_plot"),
+            html.H2("Sheath Overlay"),
+            dcc.Graph(id="sheath_overlay"),
             html.Hr(),
             html.H2("Geometry"),
             dcc.Upload(
@@ -279,14 +287,66 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
         cfg.electrode_length = (length or 0.0) * 0.01
         return cfg
 
+    def _overlay_figure() -> go.Figure:
+        fig = make_subplots(
+            rows=1,
+            cols=3,
+            subplot_titles=("Yield", "Pinch Time", "Efficiency"),
+        )
+        params = {pm.params.get(lbl, "") for lbl in pm.metrics}
+        x_label = params.pop() if len(params) == 1 else "parameter"
+        for label, metrics in pm.metrics.items():
+            vals = sorted(metrics.keys())
+            fig.add_trace(
+                go.Scatter(
+                    x=vals,
+                    y=[metrics[v]["yield"] for v in vals],
+                    mode="lines+markers",
+                    name=f"{label} yield",
+                ),
+                row=1,
+                col=1,
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=vals,
+                    y=[metrics[v].get("pinch_time", 0.0) for v in vals],
+                    mode="lines+markers",
+                    name=f"{label} pinch",
+                ),
+                row=1,
+                col=2,
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=vals,
+                    y=[metrics[v]["efficiency"] for v in vals],
+                    mode="lines+markers",
+                    name=f"{label} eff",
+                ),
+                row=1,
+                col=3,
+            )
+        fig.update_xaxes(title_text=x_label, row=1, col=1)
+        fig.update_xaxes(title_text=x_label, row=1, col=2)
+        fig.update_xaxes(title_text=x_label, row=1, col=3)
+        fig.update_yaxes(title_text="Yield", row=1, col=1)
+        fig.update_yaxes(title_text="Pinch Time", row=1, col=2)
+        fig.update_yaxes(title_text="Efficiency", row=1, col=3)
+        return fig
+
     @app.callback(
         Output("metrics_plot", "figure"),
+        Output("download_scene", "data"),
         Input("sweep_voltage", "n_clicks"),
         Input("sweep_pressure", "n_clicks"),
         Input("overlay_runs", "n_clicks"),
         Input("pareto", "n_clicks"),
         Input("export", "n_clicks"),
         Input("export_overlay", "n_clicks"),
+        Input("save_scene", "n_clicks"),
+        Input("load_scene", "contents"),
+        State("load_scene", "filename"),
         State("preset", "value"),
         State("pressure", "value"),
         State("voltage", "value"),
@@ -302,6 +362,9 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
         pa_clicks: int,
         e_clicks: int,
         eo_clicks: int,
+        s_clicks: int,
+        load_contents: str | None,
+        load_name: str | None,
         preset: str | None,
         pressure: float,
         voltage: float,
@@ -311,64 +374,35 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
     ):
         ctx = dash.callback_context
         if not ctx.triggered:
-            return go.Figure()
+            return go.Figure(), no_update
         button_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
         if button_id == "export":
             pm.export_metrics(Path("metrics.csv"))
-            return go.Figure()
+            return go.Figure(), no_update
 
         if button_id == "export_overlay":
             pm.overlay_metrics(Path("overlay.png"))
-            return go.Figure()
+            return go.Figure(), no_update
+
+        if button_id == "save_scene":
+            data = pm.export_scene(Path("scene.json")).read_text()
+            return go.Figure(), dict(content=data, filename="scene.json")
+
+        if button_id == "load_scene":
+            if load_contents and load_name:
+                decoded = base64.b64decode(load_contents.split(",", 1)[1]).decode()
+                tmp = Path("uploads") / load_name
+                tmp.parent.mkdir(parents=True, exist_ok=True)
+                tmp.write_text(decoded)
+                pm.import_scene(tmp)
+                fig = _overlay_figure()
+                return fig, no_update
+            return go.Figure(), no_update
 
         if button_id == "overlay_runs":
-            fig = make_subplots(
-                rows=1,
-                cols=3,
-                subplot_titles=("Yield", "Pinch Time", "Efficiency"),
-            )
-            params = {pm.params.get(lbl, "") for lbl in pm.metrics}
-            x_label = params.pop() if len(params) == 1 else "parameter"
-            for label, metrics in pm.metrics.items():
-                vals = sorted(metrics.keys())
-                fig.add_trace(
-                    go.Scatter(
-                        x=vals,
-                        y=[metrics[v]["yield"] for v in vals],
-                        mode="lines+markers",
-                        name=f"{label} yield",
-                    ),
-                    row=1,
-                    col=1,
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=vals,
-                        y=[metrics[v].get("pinch_time", 0.0) for v in vals],
-                        mode="lines+markers",
-                        name=f"{label} pinch",
-                    ),
-                    row=1,
-                    col=2,
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=vals,
-                        y=[metrics[v]["efficiency"] for v in vals],
-                        mode="lines+markers",
-                        name=f"{label} eff",
-                    ),
-                    row=1,
-                    col=3,
-                )
-            fig.update_xaxes(title_text=x_label, row=1, col=1)
-            fig.update_xaxes(title_text=x_label, row=1, col=2)
-            fig.update_xaxes(title_text=x_label, row=1, col=3)
-            fig.update_yaxes(title_text="Yield", row=1, col=1)
-            fig.update_yaxes(title_text="Pinch Time", row=1, col=2)
-            fig.update_yaxes(title_text="Efficiency", row=1, col=3)
-            return fig
+            fig = _overlay_figure()
+            return fig, no_update
 
         if button_id == "pareto":
             cfg = _make_config(preset, pressure, voltage, anode, cathode, length)
@@ -386,7 +420,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
             )
             fig.update_xaxes(title_text="Spot Size")
             fig.update_yaxes(title_text="Yield")
-            return fig
+            return fig, no_update
 
         cfg = _make_config(preset, pressure, voltage, anode, cathode, length)
 
@@ -403,12 +437,10 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
 
         s_vals = [metrics[v].get("S", 0.0) for v in sorted(metrics)]
         y_vals = [metrics[v]["yield"] for v in sorted(metrics)]
-        fig = go.Figure(
-            go.Scatter(x=s_vals, y=y_vals, mode="lines+markers")
-        )
+        fig = go.Figure(go.Scatter(x=s_vals, y=y_vals, mode="lines+markers"))
         fig.update_xaxes(title_text="S")
         fig.update_yaxes(title_text="Yield")
-        return fig
+        return fig, no_update
 
     @app.callback(
         Output("geometry_view", "figure"),
@@ -439,6 +471,32 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
         if lbl in pm.geometries:
             return pm.geometry_figure(lbl)
         return go.Figure()
+
+    @app.callback(
+        Output("sheath_overlay", "figure"),
+        Input("voltage", "value"),
+        Input("pressure", "value"),
+    )
+    def _update_sheath_overlay(voltage, pressure):
+        field = jxb_field(voltage, pressure, 0.0)
+        fig = ff.create_quiver(
+            field.x.ravel(),
+            field.y.ravel(),
+            field.u.ravel(),
+            field.v.ravel(),
+            scale=0.2,
+        )
+        v_norm = voltage / 30_000.0
+        radius = 0.2 + v_norm * 0.6
+        theta = np.linspace(0, 2 * np.pi, 100)
+        fig.add_trace(
+            go.Scatter(x=radius * np.cos(theta), y=radius * np.sin(theta), mode="lines")
+        )
+        fig.update_layout(
+            xaxis=dict(scaleanchor="y", range=[-1, 1]),
+            yaxis=dict(range=[-1, 1]),
+        )
+        return fig
 
     @app.callback(
         Output("circuit_view", "figure"),

@@ -15,7 +15,12 @@ metrics evaluated every time step:
 The most recent values of these quantities together with boolean flags
 indicating whether the corrections were applied are exposed through the solver
 attributes `last_wce_tau_e`, `last_di_over_L`, `hall_active` and
-`electron_inertia_active`.
+`electron_inertia_active`.  When a
+`~dpf2.diagnostics.quality_dashboard.QualityDashboard` instance is attached via
+``HallMHDSolver(quality=...)`` these values along with the activation
+thresholds `hall_threshold` and `ei_threshold` are written to the diagnostic
+history so that post‑processing scripts can examine which terms were active at
+each time step.
 
 A Braginskii transport closure may be provided via the ``braginskii``
 callable.  The helper :func:`dpf2.physics.hall_mhd.nrl_braginskii` implements a

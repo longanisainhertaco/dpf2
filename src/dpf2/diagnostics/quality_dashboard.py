@@ -31,7 +31,9 @@ class QualityDashboard:
 
     max_l1_error: float | None = None
     max_divB_norm: float | None = None
+
     max_divE_norm: float | None = None
+
     max_energy_drift: float | None = None
     numerics_history: list[dict[str, float]] = field(default_factory=list)
 
@@ -46,12 +48,28 @@ class QualityDashboard:
         lambda_D: float,
         amr_level: int | None = None,
         lower_hybrid_power: float | None = None,
+        lower_hybrid_phase_velocity: float | None = None,
         plasma_impedance: float | None = None,
         divergence_error: float = 0.0,
         energy_drift: float = 0.0,
+        hall_active: bool | None = None,
+        electron_inertia_active: bool | None = None,
+        wce_tau_e: float | None = None,
+        di_over_L: float | None = None,
+        hall_threshold: float | None = None,
+        ei_threshold: float | None = None,
 
     ) -> None:
-        """Record a step's metrics and emit warnings if thresholds violated."""
+        """Record a step's metrics and emit warnings if thresholds violated.
+
+        Parameters
+        ----------
+        amr_level:
+            Current refinement level, if adaptive mesh refinement is enabled.
+            When provided the level is stored and visualised in the stability
+            plot, allowing users to correlate mesh changes with other quality
+            metrics.
+        """
         entry = {
             "step": step,
             "dt": dt,
@@ -67,8 +85,22 @@ class QualityDashboard:
 
         if lower_hybrid_power is not None:
             entry["lower_hybrid_power"] = lower_hybrid_power
+        if lower_hybrid_phase_velocity is not None:
+            entry["lower_hybrid_phase_velocity"] = lower_hybrid_phase_velocity
         if plasma_impedance is not None:
             entry["plasma_impedance"] = plasma_impedance
+        if hall_active is not None:
+            entry["hall_active"] = hall_active
+        if electron_inertia_active is not None:
+            entry["electron_inertia_active"] = electron_inertia_active
+        if wce_tau_e is not None:
+            entry["wce_tau_e"] = wce_tau_e
+        if di_over_L is not None:
+            entry["di_over_L"] = di_over_L
+        if hall_threshold is not None:
+            entry["hall_threshold"] = hall_threshold
+        if ei_threshold is not None:
+            entry["ei_threshold"] = ei_threshold
 
         dt_violation = self.max_dt is not None and dt > self.max_dt
         lambda_violation = lambda_D < cell_size
@@ -128,30 +160,56 @@ class QualityDashboard:
             "omega_ce_tau_e": omega_ce_tau_e,
         }
 
-        self.regime_history.append(entry)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.output_dir / "regime.json", "w", encoding="utf-8") as fh:
-            json.dump(self.regime_history, fh, indent=2)
-
         def _warn_or_abort(msg: str) -> None:
             logger.warning(msg)
             if self.abort_on_violation:
                 raise RuntimeError(msg)
 
-        if self.min_S is not None and S < self.min_S:
-            _warn_or_abort(f"Lundquist number below threshold: {S:g} < {self.min_S:g}")
-        if self.max_beta is not None and beta > self.max_beta:
-            _warn_or_abort(f"Plasma beta above threshold: {beta:g} > {self.max_beta:g}")
-        if self.max_M_A is not None and M_A > self.max_M_A:
-            _warn_or_abort(f"Alfvén Mach number above threshold: {M_A:g} > {self.max_M_A:g}")
-        if self.min_R_m is not None and R_m < self.min_R_m:
-            _warn_or_abort(f"Magnetic Reynolds number below threshold: {R_m:g} < {self.min_R_m:g}")
-        if self.max_K_n is not None and K_n > self.max_K_n:
-            _warn_or_abort(f"Knudsen number above threshold: {K_n:g} > {self.max_K_n:g}")
-        if self.min_omega_ce_tau_e is not None and omega_ce_tau_e < self.min_omega_ce_tau_e:
-            _warn_or_abort(
-                f"Cyclotron frequency–collision time below threshold: {omega_ce_tau_e:g} < {self.min_omega_ce_tau_e:g}"
-            )
+        violations = {
+            "S": self.min_S is not None and S < self.min_S,
+            "beta": self.max_beta is not None and beta > self.max_beta,
+            "M_A": self.max_M_A is not None and M_A > self.max_M_A,
+            "R_m": self.min_R_m is not None and R_m < self.min_R_m,
+            "K_n": self.max_K_n is not None and K_n > self.max_K_n,
+            "omega_ce_tau_e": self.min_omega_ce_tau_e is not None
+            and omega_ce_tau_e < self.min_omega_ce_tau_e,
+        }
+
+        for key, violated in violations.items():
+            if not violated:
+                continue
+            if key == "S":
+                _warn_or_abort(
+                    f"Lundquist number below threshold: {S:g} < {self.min_S:g}"
+                )
+            elif key == "beta":
+                _warn_or_abort(
+                    f"Plasma beta above threshold: {beta:g} > {self.max_beta:g}"
+                )
+            elif key == "M_A":
+                _warn_or_abort(
+                    f"Alfvén Mach number above threshold: {M_A:g} > {self.max_M_A:g}"
+                )
+            elif key == "R_m":
+                _warn_or_abort(
+                    f"Magnetic Reynolds number below threshold: {R_m:g} < {self.min_R_m:g}"
+                )
+            elif key == "K_n":
+                _warn_or_abort(
+                    f"Knudsen number above threshold: {K_n:g} > {self.max_K_n:g}"
+                )
+            elif key == "omega_ce_tau_e":
+                _warn_or_abort(
+                    "Cyclotron frequency–collision time below threshold: "
+                    f"{omega_ce_tau_e:g} < {self.min_omega_ce_tau_e:g}"
+                )
+
+        entry["violations"] = violations
+
+        self.regime_history.append(entry)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.output_dir / "regime.json", "w", encoding="utf-8") as fh:
+            json.dump(self.regime_history, fh, indent=2)
 
         self._update_regime_plot()
 
