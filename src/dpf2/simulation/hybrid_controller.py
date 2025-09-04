@@ -159,6 +159,10 @@ class HybridController(PhysicsModule):
             self.coupling_tol = config.coupling.coupling_tol
             self.target_vol_frac = config.coupling.target_vol_frac
 
+            # Diagnostic histories
+            self.transition_history: List[Dict[str, float]] = []
+            self.energy_history: List[Dict[str, float]] = []
+
             logger.info(f"HybridController initialized with buffer={self.buffer}, blend={self.blend_width}")
 
         except Exception as e:
@@ -189,6 +193,10 @@ class HybridController(PhysicsModule):
                 )
                 regions = self._select_regions(mask)
 
+                # Record transition diagnostics
+                vol_frac = float(mask.sum()) / mask.size if mask.size else 0.0
+                self.transition_history.append({'vol_frac': vol_frac, 'n_regions': len(regions)})
+
             # 3. Hybrid coupling
             with caliper.annotate('hybrid_coupling'):
                 if not regions:
@@ -197,6 +205,13 @@ class HybridController(PhysicsModule):
                 else:
                     # Hybrid step
                     self.hybrid_step(state, regions, dt)
+
+            # Record energy partition after the step
+            fluid_E = self.fluid.get_total_energy() if hasattr(self.fluid, 'get_total_energy') else 0.0
+            pic_E = self.pic.get_total_energy() if hasattr(self.pic, 'get_total_energy') else 0.0
+            self.energy_history.append({'fluid': float(fluid_E),
+                                        'pic': float(pic_E),
+                                        'total': float(fluid_E + pic_E)})
 
             # 4. Auto-tune threshold
             with caliper.annotate('post_step'):

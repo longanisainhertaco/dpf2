@@ -197,6 +197,9 @@ class FluidSolverHighOrder:
 
     def step(self, dt):
         try:
+            # Track total energy for conservation diagnostics
+            E_before = self.get_total_energy()
+
             self.sheath.apply(self.state['density'], self.state['momentum'])
             U0    = self._cons_to_prim()
             rhs   = self._compute_rhs(U0, dt)
@@ -204,6 +207,11 @@ class FluidSolverHighOrder:
             self._advection_step(U_star, dt)
             U_np1 = self._imex_solve(U_star, dt)
             self._prim_to_cons(U_np1)
+
+            # Optional transport and stabilization hooks
+            self._apply_transport_models(dt)
+            self._apply_numerical_stabilization()
+
             self._ct_update(dt)
             self._dedner_clean(dt)
             if self.do_amr:
@@ -214,6 +222,9 @@ class FluidSolverHighOrder:
             # Apply turbulence model
             if self.turbulence_model:
                 self.turbulence_model.apply(self.state, dt)
+
+            E_after = self.get_total_energy()
+            self._check_energy_conservation(E_before, E_after)
 
             recon = self._reconnection_rate()
             self.state['reconnection_rate'] = MultiFab(self.state['density'].boxArray(),
@@ -250,6 +261,54 @@ class FluidSolverHighOrder:
         except Exception as e:
             logger.error(f"Error converting primitive to conserved variables: {e}")
             raise
+
+    #-------------------------------------------------------------
+    # Numerical stabilization and transport models
+    #-------------------------------------------------------------
+    def _apply_numerical_stabilization(self):
+        """Simple Kreiss-Oliger–type smoothing used for stabilization.
+
+        The implementation is intentionally lightweight to keep the test
+        environment inexpensive; it provides a knob for unit tests and
+        regression comparisons without attempting to be physically
+        complete."""
+        try:
+            alpha = self.config.get('ko_alpha', 0.0)
+            if alpha <= 0:
+                return
+            for key in ['density', 'momentum', 'energy_i', 'energy_e']:
+                arr = self.state[key].array()
+                lap = sum(
+                    np.roll(arr, 1, axis=i) - 2 * arr + np.roll(arr, -1, axis=i)
+                    for i in range(arr.ndim - (1 if key == 'momentum' else 0))
+                )
+                arr[:] += alpha * lap
+        except Exception as e:
+            logger.error(f"Error applying numerical stabilization: {e}")
+
+    def _apply_transport_models(self, dt):
+        """Very simple isotropic diffusion model for energy transport."""
+        try:
+            coeff = self.config.get('transport_coeff', 0.0)
+            if coeff <= 0:
+                return
+            for key in ['energy_i', 'energy_e']:
+                arr = self.state[key].array()
+                lap = sum(
+                    np.roll(arr, 1, axis=i) - 2 * arr + np.roll(arr, -1, axis=i)
+                    for i in range(3)
+                )
+                arr[:] += coeff * dt * lap
+        except Exception as e:
+            logger.error(f"Error applying transport model: {e}")
+
+    def _check_energy_conservation(self, E0, E1):
+        """Checks total energy conservation and raises if outside tolerance."""
+        tol = self.config.get('energy_tol', 1e-6)
+        if abs(E1 - E0) > tol:
+            raise RuntimeError(
+                f"Energy not conserved: before={E0:.6e} after={E1:.6e} tol={tol:.2e}"
+            )
 
     def _compute_explicit_rhs(self, U):
         try:            
@@ -441,9 +500,10 @@ class FluidSolverHighOrder:
             if np.any(np.isnan(ne)) or np.any(np.isnan(Te)):
                 raise ValueError("NaN values detected in density or temperature.")
 
-            J = np.zeros_like(rho) # Initialize current density array
-            curl(B[...,0], B[...,1], B[...,2], self.dx, self.dy, self.dz, J[...,0], J[...,1], J[...,2])
-            Jmag = np.linalg.norm(J, axis=3) # Compute magnitude of current density
+            J = np.zeros(rho.shape + (3,))
+            curl(B[...,0], B[...,1], B[...,2], self.dx, self.dy, self.dz,
+                 J[...,0], J[...,1], J[...,2])
+            Jmag = np.linalg.norm(J, axis=3)
             grad_rho = np.gradient(rho, self.dx, axis=0) # Compute density gradient
             grad_p = np.gradient(pi + pe, self.dx, axis=0) # Compute pressure gradient
             grad_B = np.gradient(B, self.dx, axis=0) # Compute magnetic field gradient
@@ -585,3 +645,24 @@ class FluidSolverHighOrder:
         except Exception as e:
             logger.error(f"Error writing checkpoint: {e}")
             raise
+
+    #-------------------------------------------------------------
+    # Energy accounting helpers
+    #-------------------------------------------------------------
+    def get_total_energy(self):
+        """Returns an estimate of the total fluid and magnetic energy."""
+        rho = self.state['density'].array()
+        mom = self.state['momentum'].array()
+        Ei = self.state['energy_i'].array()
+        Ee = self.state['energy_e'].array()
+        B = self.field_manager.get_B() if self.field_manager else 0.0
+        kinetic = 0.5 * np.sum(mom**2 / (rho[..., None] + 1e-30))
+        internal = np.sum(Ei + Ee)
+        magnetic = 0.5 / mu0 * np.sum(B**2)
+        return float(kinetic + internal + magnetic)
+
+    def increment_internal_energy(self, delta):
+        """Uniformly increments the internal energy reservoirs."""
+        for key in ['energy_i', 'energy_e']:
+            arr = self.state[key].array()
+            arr[:] += delta

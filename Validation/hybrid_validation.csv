@@ -1,0 +1,4 @@
+mode,peak_density,total_energy
+fluid,1.0,10.0
+pic,1.1,9.5
+hybrid,1.05,9.8
