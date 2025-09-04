@@ -330,7 +330,11 @@ class HallMHDSolver(PlasmaSolverBase):
     back_emf: float = 0.0
     circuit_feedback: CouplingState | None = field(init=False, default=None)
     anomalous_resistivity: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
+    lower_hybrid_drift: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
+    m0_instability: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
     voltage_spikes: list[float] = field(default_factory=list)
+    impedance_growth: list[float] = field(default_factory=list)
+    last_voltage_spike: float = field(init=False, default=0.0)
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
     last_rad_loss: np.ndarray | None = field(init=False, default=None)
@@ -360,31 +364,53 @@ class HallMHDSolver(PlasmaSolverBase):
             self.bc(state)
 
     def compute_anomalous_resistivity(self, J: np.ndarray) -> np.ndarray:
-        """Evaluate anomalous resistivity model and record voltage spikes.
+        """Evaluate anomalous resistivity models and record voltage spikes.
 
-        The ``anomalous_resistivity`` callback may return either just an
-        anomalous resistivity field or a tuple ``(eta, E)`` containing an
-        additional electric field contribution.  The resistivity component is
-        always returned while the electric field is stored on
-        ``last_E_anom`` for use by :meth:`step`.
+        In addition to the base ``anomalous_resistivity`` callback, optional
+        ``lower_hybrid_drift`` and ``m0_instability`` modules may contribute to
+        the resistivity and supply axial electric-field components.  All
+        electric-field contributions are stored on ``last_E_anom`` for use by
+        :meth:`step` while the combined resistivity is returned.
         """
 
-        if self.anomalous_resistivity is None:
-            eta = np.zeros(J.shape[:-1])
-            E = np.zeros_like(J)
-        else:
-            result = self.anomalous_resistivity(J)
+        eta = np.zeros(J.shape[:-1])
+        E = np.zeros_like(J)
+
+        def _accumulate(result: np.ndarray | tuple[np.ndarray, np.ndarray], *, axial: bool = False) -> None:
+            nonlocal eta, E
             if isinstance(result, tuple):
-                eta, E = result
+                e_eta, e_E = result
             else:
-                eta, E = result, np.zeros_like(J)
+                e_eta, e_E = result, np.zeros(J.shape[:-1])
+            eta += e_eta
+            if e_E.ndim == E.ndim - 1:
+                if axial:
+                    E[..., 2] += e_E
+                else:
+                    E += e_E[..., None]
+            else:
+                E += e_E
+
+        if self.anomalous_resistivity is not None:
+            _accumulate(self.anomalous_resistivity(J))
+        if self.lower_hybrid_drift is not None:
+            _accumulate(self.lower_hybrid_drift(J), axial=True)
+        if self.m0_instability is not None:
+            _accumulate(self.m0_instability(J), axial=True)
+
         if hasattr(np, "abs"):
             mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
         else:  # pragma: no cover - very small stub fallback
             mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
-        spike = float(np.max(eta * mag))
+        spike = float(
+            max(
+                np.max(eta * mag),
+                np.max(np.abs(E[..., 2]))
+            )
+        )
         if spike != 0.0:
             self.voltage_spikes.append(spike)
+        self.last_voltage_spike = spike
         self.last_E_anom = E
         return eta
 
@@ -694,11 +720,15 @@ class HallMHDSolver(PlasmaSolverBase):
         )
 
         if self.circuit is not None:
-            updated = self.circuit.step(self.circuit_feedback, 0.0, dt)
+            updated = self.circuit.step(self.circuit_feedback, self.last_voltage_spike, dt)
             self.current = updated.current
             self.back_emf = updated.voltage
         else:
             self.current = current
+
+        self.impedance_growth.append(
+            self.last_voltage_spike / (abs(self.current) + 1e-30)
+        )
 
         if energy_tracker is not None:
             v_final = mom / rho[..., None]
