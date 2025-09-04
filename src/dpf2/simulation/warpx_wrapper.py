@@ -1,17 +1,14 @@
 # warpx_wrapper.py
 
-"""
-Lightweight WarpX wrapper providing grid construction, Maxwell solver setup,
-and basic particle management with optional collision handling.
+"""Lightweight WarpX wrapper.
 
-Future Work:
-- Advanced diagnostics (particle energy spectra, phase-space plots)
-- Improved fluid coupling with interpolation schemes
-- Enhanced collision control for regions and species pairs
-- Additional boundary condition types
-- Dynamic runtime parameter control
-- Relativistic, quantum, and time-dependent models
-- More comprehensive error handling, logging, and testing
+This module provides grid construction, solver setup and particle management
+with optional collision handling.  It also includes particle energy and
+phase‑space diagnostics, simple fluid–PIC interpolation, region- and
+species‑specific collision control and runtime parameter updates.  Additional
+boundary condition types and extensive logging aim to improve robustness of
+the wrapper in minimal environments.  Relativistic, quantum and
+time‑dependent models remain future work.
 """
 
 import os
@@ -50,6 +47,53 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
 from .collision_model import CollisionModel  # Assuming you have this
 from .utils import FieldManager
 from ..core.bases import CouplingState
+
+
+def _resample_array(arr, new_shape, method="linear"):
+    """Resample ``arr`` to ``new_shape`` using a simple separable scheme.
+
+    Parameters
+    ----------
+    arr: :class:`numpy.ndarray`
+        Input array with up to three dimensions.
+    new_shape: tuple
+        Desired output shape.
+    method: str
+        ``"nearest"`` or ``"linear"`` interpolation.  ``"linear"``
+        performs a trilinear interpolation by applying :func:`numpy.interp`
+        sequentially along each axis.
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+        Resampled array.
+    """
+
+    try:
+        if arr.shape == tuple(new_shape):
+            return np.array(arr)
+
+        res = np.array(arr, dtype=float)
+        for axis, n_new in enumerate(new_shape):
+            n_old = res.shape[axis]
+            if n_old == n_new:
+                continue
+            old_grid = np.linspace(0.0, 1.0, n_old)
+            new_grid = np.linspace(0.0, 1.0, n_new)
+            res = np.moveaxis(res, axis, 0)
+            if method == "nearest":
+                idx = np.clip(np.round(new_grid * (n_old - 1)).astype(int), 0, n_old - 1)
+                res = res[idx]
+            else:  # linear
+                tmp = np.empty((n_new,) + res.shape[1:], dtype=res.dtype)
+                for idx in np.ndindex(res.shape[1:]):
+                    tmp[(slice(None),) + idx] = np.interp(new_grid, old_grid, res[(slice(None),) + idx])
+                res = tmp
+            res = np.moveaxis(res, 0, axis)
+        return res
+    except Exception as exc:  # pragma: no cover - defensive programming
+        logger.error(f"Error during array resampling: {exc}")
+        raise
 
 # Configure logger
 logger = logging.getLogger('WarpXWrapper')
@@ -124,6 +168,9 @@ class WarpXWrapper:
         self.pusher_cfl = pic_params.get('pusher_cfl', 0.9)
         self.collision_algorithm = pic_params.get('collision_algorithm', 'Nanbu')
         self.collision_enabled = pic_params.get('collision', False)
+        self.collision_configs = pic_params.get('collisions', [])
+        self.interp_method = pic_params.get('interp_method', 'linear')
+        self.diagnostic_bins = pic_params.get('diagnostic_bins', 50)
 
         # Build grid
         geom_type = pic_params['geometry']
@@ -139,13 +186,28 @@ class WarpXWrapper:
                     is_periodic_z=True
                 )
             elif geom_type == 'cartesian':
+                bc_cfg = pic_params.get('boundary_conditions', {})
+                lower_bc = [
+                    bc_cfg.get('x_lo', 'periodic'),
+                    bc_cfg.get('y_lo', 'periodic'),
+                    bc_cfg.get('z_lo', 'periodic'),
+                ]
+                upper_bc = [
+                    bc_cfg.get('x_hi', 'periodic'),
+                    bc_cfg.get('y_hi', 'periodic'),
+                    bc_cfg.get('z_hi', 'periodic'),
+                ]
+                is_periodic = [
+                    l == 'periodic' and u == 'periodic'
+                    for l, u in zip(lower_bc, upper_bc)
+                ]
                 self.grid = picmi.Cartesian3DGrid(
                     number_of_cells=grid_shape,
                     lower_bound=domain_lower,
                     upper_bound=domain_upper,
-                    lower_boundary_conditions=['periodic'] * 3,
-                    upper_boundary_conditions=['periodic'] * 3,
-                    is_periodic=[True] * 3
+                    lower_boundary_conditions=lower_bc,
+                    upper_boundary_conditions=upper_bc,
+                    is_periodic=is_periodic
                 )
             else:
                 raise ValueError(f"Invalid geometry type: {geom_type}")
@@ -225,9 +287,33 @@ class WarpXWrapper:
                 raise
 
         # Collisions
+        self.collision_models = []
         if self.collision_enabled:
             try:
-                self.warp.enable_collisions(algorithm=self.collision_algorithm, coulomb_log='dynamic')
+                self.warp.enable_collisions(
+                    algorithm=self.collision_algorithm, coulomb_log='dynamic'
+                )
+                for cfg in self.collision_configs:
+                    if not cfg.get('enabled', True):
+                        continue
+                    sp1, sp2 = cfg.get('species', (None, None))
+                    region = cfg.get('region')
+                    if not sp1 or not sp2:
+                        logger.warning(
+                            "Collision config missing species pair: %s", cfg
+                        )
+                        continue
+                    self.warp.add_collision(sp1, sp2, region=region)
+                    model_cfg = cfg.get('model', {})
+                    try:
+                        self.collision_models.append(CollisionModel(model_cfg))
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to initialise CollisionModel for %s-%s: %s",
+                            sp1,
+                            sp2,
+                            exc,
+                        )
             except Exception as e:
                 logger.error(f"Error enabling collisions: {e}")
                 raise
@@ -301,18 +387,36 @@ class WarpXWrapper:
         try:
             bnd = self.fluid_callback().get('boundary_fields', {})
             for comp, fld in bnd.items():
-                self.warp.set_boundary_field(fld.tolist(), comp)
+                arr = _resample_array(
+                    np.array(fld), self.grid_shape, self.interp_method
+                )
+                self.warp.set_boundary_field(arr.tolist(), comp)
         except Exception as e:
             logger.error(f"Error injecting boundary fields: {e}")
 
     def map_pic_to_fluid(self):
-        if not self.fluid_callback:
+        if not self.fluid_callback or not self.field_manager:
             return
         try:
             rho_pic = np.array(self.warp.get_field('rho'))
-            Jz_pic = np.array(self.warp.get_field('Jz'))
-            self.field_manager.deposit_charge(rho_pic)
-            self.field_manager.deposit_current(np.stack([np.zeros_like(Jz_pic), np.zeros_like(Jz_pic), Jz_pic], axis=0))
+            J_pic = np.stack(
+                [np.array(self.warp.get_field(c)) for c in ('Jx', 'Jy', 'Jz')],
+                axis=0,
+            )
+            rho_res = _resample_array(
+                rho_pic, self.field_manager.rho.shape, self.interp_method
+            )
+            J_res = np.stack(
+                [
+                    _resample_array(
+                        J_pic[i], self.field_manager.J.shape[1:], self.interp_method
+                    )
+                    for i in range(3)
+                ],
+                axis=0,
+            )
+            self.field_manager.deposit_charge(rho_res)
+            self.field_manager.deposit_current(J_res)
         except Exception as e:
             logger.error(f"Error mapping PIC data to fluid: {e}")
 
@@ -320,23 +424,50 @@ class WarpXWrapper:
         """Records basic diagnostics from WarpX."""
         try:
             diagnostics = {}
-
-            # Example: Total kinetic energy of each species
             for name, sp in self.species.items():
-                ke = 0.5 * sp['mass'] * np.sum(np.array(self.warp.get_particle_container(name)
-                                                              .get_velocities()) ** 2)
-                diagnostics[f"{name}_kinetic_energy"] = ke
+                cont = self.warp.get_particle_container(name)
+                vel = np.array(cont.get_velocities())
+                pos = np.array(cont.get_positions())
+                mass = sp['mass']
+                energy = 0.5 * mass * np.sum(vel ** 2, axis=1)
+                diagnostics[f"{name}_kinetic_energy"] = float(np.sum(energy))
+                hist, _ = np.histogram(energy, bins=self.diagnostic_bins)
+                diagnostics[f"{name}_energy_hist"] = hist.tolist()
+                phase, _, _ = np.histogram2d(
+                    pos[:, 2], vel[:, 2], bins=self.diagnostic_bins
+                )
+                diagnostics[f"{name}_phase_space"] = phase.tolist()
 
-            # Example: Total field energy
-            E = np.stack([self.warp.get_field(c) for c in ('Ex', 'Ey', 'Ez')], axis=-1)
+            E = np.stack(
+                [self.warp.get_field(c) for c in ('Ex', 'Ey', 'Ez')], axis=-1
+            )
             fe = 0.5 * epsilon0 * np.sum(E ** 2) * self.dx ** 3
-            diagnostics["field_energy"] = fe
-
-            logger.debug(f"Recorded diagnostics: {diagnostics}")
+            diagnostics["field_energy"] = float(fe)
+            logger.debug("Recorded diagnostics: %s", list(diagnostics.keys()))
             return diagnostics
         except Exception as e:
             logger.error(f"Error recording diagnostics: {e}")
             return {}
+
+    def update_runtime_parameters(self, params):
+        """Update runtime parameters for the PIC run.
+
+        Parameters
+        ----------
+        params: dict
+            Mapping of parameter names to new values.  Known keys are stored
+            locally and forwarded to WarpX when possible.
+        """
+
+        for key, value in params.items():
+            try:
+                setattr(self, key, value)
+                self.config[key] = value
+                if hasattr(self.warp, "set_runtime_parameter"):
+                    self.warp.set_runtime_parameter(key, value)
+                logger.info("Runtime parameter %s updated to %s", key, value)
+            except Exception as exc:
+                logger.error("Error updating runtime parameter %s: %s", key, exc)
 
     def step(self, rho, J, E, B, dt):
         try:
