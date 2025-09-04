@@ -1,0 +1,6 @@
+{
+  "charging_voltage": 25000.0,
+  "capacitance": 4e-5,
+  "inductance": 3e-8,
+  "end_time": 1.5e-6
+}
