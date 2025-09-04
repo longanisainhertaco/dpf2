@@ -1,9 +1,12 @@
 """Post-processing helpers for uncertainty quantification."""
 from __future__ import annotations
 
-from typing import Dict, Sequence
+from typing import Callable, Dict, Sequence
 
 import statistics
+from pathlib import Path
+
+import numpy as np
 
 
 def _to_matrix(samples: Sequence[Sequence[float]]) -> list[list[float]]:
@@ -68,4 +71,80 @@ def uncertainty_band(values: Sequence[float], alpha: float = 0.95) -> Dict[str, 
     return {"mean": mean, "std": std, "lower": lower, "upper": upper}
 
 
-__all__ = ["sobol_indices", "uncertainty_band"]
+def propagate_yield_pinch(
+    samples: Sequence[Sequence[float]] | Dict[str, Sequence[float]],
+    model: Callable[[np.ndarray], tuple[float, float]],
+    outdir: str | Path = "validation",
+    alpha: float = 0.95,
+) -> Dict[str, Dict[str, float]]:
+    """Propagate parameter samples to yield and pinch-time uncertainties.
+
+    Parameters
+    ----------
+    samples:
+        Either an iterable of parameter vectors or a mapping of parameter
+        names to sequences of values representing posterior samples.
+    model:
+        Callable returning ``(yield, pinch_time)`` for a given parameter
+        vector.
+    outdir:
+        Directory where summary plots will be written.  Created if it does
+        not yet exist.
+    alpha:
+        Confidence level used when computing uncertainty bands.
+
+    Returns
+    -------
+    Dict[str, Dict[str, float]]
+        Mapping with ``"neutron_yield"`` and ``"pinch_time"`` entries each
+        containing statistics from :func:`uncertainty_band`.
+    """
+
+    if isinstance(samples, dict):
+        names = list(samples)
+        rows = zip(*(samples[n] for n in names))
+    else:
+        rows = samples
+
+    yields: list[float] = []
+    pinches: list[float] = []
+    for row in rows:
+        yld, pinch = model(np.asarray(row, dtype=float))
+        yields.append(float(yld))
+        pinches.append(float(pinch))
+
+    stats = {
+        "neutron_yield": uncertainty_band(yields, alpha),
+        "pinch_time": uncertainty_band(pinches, alpha),
+    }
+
+    try:  # pragma: no cover - plotting is optional
+        import matplotlib.pyplot as plt  # type: ignore
+
+        out = Path(outdir)
+        out.mkdir(parents=True, exist_ok=True)
+
+        plt.figure()
+        plt.hist(yields, bins=30, color="C0", alpha=0.7)
+        plt.xlabel("Neutron yield")
+        plt.ylabel("Frequency")
+        plt.title("Neutron yield distribution")
+        plt.tight_layout()
+        plt.savefig(out / "neutron_yield.png")
+        plt.close()
+
+        plt.figure()
+        plt.hist(pinches, bins=30, color="C1", alpha=0.7)
+        plt.xlabel("Pinch time")
+        plt.ylabel("Frequency")
+        plt.title("Pinch timing distribution")
+        plt.tight_layout()
+        plt.savefig(out / "pinch_time.png")
+        plt.close()
+    except Exception:
+        pass
+
+    return stats
+
+
+__all__ = ["sobol_indices", "uncertainty_band", "propagate_yield_pinch"]

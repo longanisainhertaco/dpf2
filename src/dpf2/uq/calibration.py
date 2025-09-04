@@ -480,6 +480,34 @@ def dynesty_calibrate_waveform(
     return {name: res.samples[:, idx] for idx, name in enumerate(names)}
 
 
+def calibrate_waveform(
+    time_sim: np.ndarray,
+    current_sim: np.ndarray,
+    time_data: np.ndarray,
+    current_data: np.ndarray,
+    method: str = "emcee",
+    **kwargs,
+) -> Dict[str, np.ndarray]:
+    """Calibrate waveform scaling factors using the chosen sampler.
+
+    Parameters mirror :func:`emcee_calibrate_waveform` and
+    :func:`dynesty_calibrate_waveform` with an additional ``method``
+    argument selecting the backend sampler.  ``method`` may be ``"emcee"``
+    for ensemble MCMC or ``"dynesty"`` for nested sampling.
+    """
+
+    method = method.lower()
+    if method == "emcee":
+        return emcee_calibrate_waveform(
+            time_sim, current_sim, time_data, current_data, **kwargs
+        )
+    if method == "dynesty":
+        return dynesty_calibrate_waveform(
+            time_sim, current_sim, time_data, current_data, **kwargs
+        )
+    raise ValueError(f"Unknown calibration method: {method}")
+
+
 __all__ = [
     "bayesian_calibration",
     "nested_calibration",
@@ -489,5 +517,6 @@ __all__ = [
     "dynesty_calibrate_mass_current",
     "emcee_calibrate_waveform",
     "dynesty_calibrate_waveform",
+    "calibrate_waveform",
 ]
 
