@@ -27,3 +27,13 @@ def test_sheath_widget_returns_widget():
     widget = sheath_widget()
     assert isinstance(widget, ipywidgets.Widget)
 
+
+def test_jxb_field_cross_product():
+    import numpy as np
+    from dpf2.visualization.sheath import _sheath_field, jxb_field
+
+    b = _sheath_field(1.0, 0.2, 0.0)
+    jxb = jxb_field(1.0, 0.2, 0.0)
+    assert np.allclose(jxb.u, -0.2 * b.v)
+    assert np.allclose(jxb.v, 0.2 * b.u)
+
