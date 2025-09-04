@@ -6,6 +6,7 @@ import SheathBeamOverlay from './SheathBeamOverlay.jsx';
 import RegimeDashboard from './RegimeDashboard.jsx';
 
 import QuickStartTutorial from './QuickStartTutorial.jsx';
+import VoltagePressureSliders from './VoltagePressureSliders.jsx';
 
 
 export default function App() {
@@ -219,52 +220,16 @@ export default function App() {
       {runId && (
         <div>
           <p>Submitted run: {runId}</p>
-          <div>
-
-            <label title={help.slider.voltage}>
-
-              Voltage: {voltage.toFixed(2)} kV
-              <input
-                type="range"
-                min="0"
-                max="5"
-                step="0.1"
-                value={voltage}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  setVoltage(v);
-                  updateSimulation(v, pressure);
-                }}
-              />
-            </label>
-            <details>
-              <summary>What is this?</summary>
-              Controls the electric potential driving the sheath evolution.
-            </details>
-          </div>
-          <div>
-
-            <label title={help.slider.pressure}>
-
-              Pressure: {pressure.toFixed(2)} bar
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={pressure}
-                onChange={(e) => {
-                  const p = parseFloat(e.target.value);
-                  setPressure(p);
-                  updateSimulation(voltage, p);
-                }}
-              />
-            </label>
-            <details>
-              <summary>What is this?</summary>
-              Represents ambient gas pressure; higher values damp the sheath faster.
-            </details>
-          </div>
+          <VoltagePressureSliders
+            voltage={voltage}
+            pressure={pressure}
+            setVoltage={setVoltage}
+            setPressure={setPressure}
+            onChange={updateSimulation}
+          />
+          <button type="button" onClick={exportSnapshot}>
+            Share Scene
+          </button>
           <InstabilityVisualizer />
           <SheathBeamOverlay voltage={voltage} pressure={pressure} />
           <RegimeDashboard />
