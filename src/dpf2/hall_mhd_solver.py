@@ -852,9 +852,15 @@ class HallMHDSolver(PlasmaSolverBase):
         )
 
         if self.circuit is not None:
-            updated = self.circuit.step(self.circuit_feedback, self.last_voltage_spike, dt)
+            updated = self.circuit.step(
+                self.circuit_feedback, self.last_voltage_spike, dt
+            )
             self.current = updated.current
             self.back_emf = updated.voltage
+            # Store updated coupling terms so subsequent calls receive
+            # the latest current, voltage and inductance.
+            self.circuit_feedback = updated
+            self.inductance = updated.Lp
         else:
             self.current = current
 

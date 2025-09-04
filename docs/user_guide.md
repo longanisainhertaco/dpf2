@@ -35,8 +35,18 @@ inductance, resistance and capacitance values as well as optional
 time-dependent profiles for these quantities
 (`l_profile`, `r_profile`, `c_profile`).  `SwitchConfig` definitions have
 gained a `trigger_times` list in nanoseconds along with corresponding
-parasitic `l_parasitic`, `r_parasitic` and `c_parasitic` parameters.  The
-`CircuitConfig.build_distributed_model()` helper translates these
+parasitic `l_parasitic`, `r_parasitic` and `c_parasitic` parameters.  Each
+switch may also specify a `jitter_std` (ns) for statistical trigger jitter
+and an `arc_resistance` (mΩ/ns) slope to emulate post-closure arc growth.
+
+For convenience the configuration exposes higher level driver features:
+
+* `rlc_sections` – list of lumped R/L/C blocks that are automatically chained
+  together to build multi‑section transmission lines.
+* `crowbar_stages` – resistive branches that connect the source to return at
+  specified trigger times.  Stages support per‑stage jitter and arc growth.
+
+The `CircuitConfig.build_distributed_model()` helper translates these
 configurations into `TransmissionLineSegment` and `Switch` instances from
 `dpf2.circuit.distributed` for use by network solvers.
 

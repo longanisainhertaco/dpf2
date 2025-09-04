@@ -144,6 +144,54 @@ class SwitchConfig(BaseModel):
         metadata={"units": "ns", "category": "Circuit", "group": "Distributed"},
     )
 
+    jitter_std: float = Field(
+        0.0,
+        alias="jitterStd",
+        metadata={"units": "ns", "category": "Circuit", "group": "Distributed"},
+    )
+    arc_resistance: float = Field(
+        0.0,
+        alias="arcResistance",
+        metadata={"units": "mΩ/ns", "category": "Circuit", "group": "Distributed"},
+    )
+
+
+class RLCSectionConfig(BaseModel):
+    """Configuration for a lumped RLC driver section."""
+
+    L: float = Field(
+        0.0,
+        metadata={"units": "H", "category": "Circuit", "group": "Distributed"},
+    )
+    R: float = Field(
+        0.0,
+        metadata={"units": "Ω", "category": "Circuit", "group": "Distributed"},
+    )
+    C: float = Field(
+        0.0,
+        metadata={"units": "F", "category": "Circuit", "group": "Distributed"},
+    )
+
+
+class CrowbarStageConfig(BaseModel):
+    """Configuration for a resistive crowbar branch."""
+
+    resistance: float = Field(
+        ..., metadata={"units": "Ω", "category": "Circuit", "group": "Distributed"}
+    )
+    trigger: float = Field(
+        ..., metadata={"units": "ns", "category": "Circuit", "group": "Distributed"}
+    )
+    jitter: float = Field(
+        0.0,
+        metadata={"units": "ns", "category": "Circuit", "group": "Distributed"},
+    )
+    arc_resistance: float = Field(
+        0.0,
+        alias="arcResistance",
+        metadata={"units": "mΩ/ns", "category": "Circuit", "group": "Distributed"},
+    )
+
 
 class CircuitConfig(ConfigSectionBase):
     """Validated external circuit configuration."""
@@ -182,6 +230,12 @@ class CircuitConfig(ConfigSectionBase):
     )
     switches: Optional[List[SwitchConfig]] = Field(
         None, metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    rlc_sections: Optional[List[RLCSectionConfig]] = Field(
+        None, alias="rlcSections", metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    crowbar_stages: Optional[List[CrowbarStageConfig]] = Field(
+        None, alias="crowbarStages", metadata={"category": "Circuit", "group": "Distributed"}
     )
 
     # --- Coupling & Plasma Effects ------------------------------------
@@ -343,6 +397,8 @@ class CircuitConfig(ConfigSectionBase):
                         R_parasitic=sw.R_parasitic * 1e-3,
                         C_parasitic=sw.C_parasitic * 1e-6,
                         trigger_times=trig,
+                        jitter_std=sw.jitter_std * 1e-9,
+                        arc_resistance=sw.arc_resistance * 1e6,
                     )
                 )
 
