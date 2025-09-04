@@ -45,6 +45,11 @@ def test_uq_sweep_and_stats(tmp_path, monkeypatch):
     assert res.exit_code == 0, res.output
     assert out_file.exists()
 
+    data = json.loads(out_file.read_text())
+    assert "sobol_indices" in data
+    assert "uncertainty_band" in data
+    assert len(data["results"]) == 2
+
     res2 = runner.invoke(cli_main.main, ["uq-stats", "--input", str(out_file)])
     assert res2.exit_code == 0, res2.output
     stats = json.loads(res2.output.strip())
