@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 from pathlib import Path
+
+import numpy as np
 
 from ..dpf_config import DPFConfig
 
 from ..simulation_engine import SimulationEngine
+from .lab import write_manifest
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,6 +28,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="analytic",
         help="Pinch dynamics model",
     )
+    sim.add_argument(
+        "--lab-mode",
+        action="store_true",
+        help="Record a reproducibility manifest alongside outputs",
+    )
     return parser
 
 
@@ -34,8 +43,22 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "simulate":
         cfg = DPFConfig.from_file(args.config)
         engine = SimulationEngine(cfg)
+        if args.lab_mode:
+            seeds = {
+                "python": random.getstate()[1][0],
+                "numpy": int(np.random.get_state()[1][0]),
+            }
         results = engine.run(method=args.method, pinch_model=args.pinch_model)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(results.to_dict(), indent=2))
+        if args.lab_mode:
+            ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
+            write_manifest(
+                args.output.parent,
+                config_paths=[str(args.config)],
+                ppc=ppc,
+                seeds=seeds,
+            )
     else:
         parser.print_help()
 

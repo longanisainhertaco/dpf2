@@ -1,6 +1,5 @@
 """Utilities for lab-mode reproducibility manifests."""
 from __future__ import annotations
-
 import json
 import subprocess
 import random
@@ -9,8 +8,14 @@ from typing import Sequence, Mapping
 
 import numpy as np
 
+try:  # pragma: no cover - optional dependency
+    import h5py
+except Exception:  # pragma: no cover - h5py may be absent
+    h5py = None  # type: ignore[assignment]
+
 
 MANIFEST_FILENAME = "manifest.json"
+MANIFEST_H5_FILENAME = "manifest.h5"
 
 
 def _code_hash() -> str:
@@ -64,6 +69,18 @@ def write_manifest(
 
     path = out / MANIFEST_FILENAME
     path.write_text(json.dumps(manifest, indent=2))
+
+    if h5py is not None:  # pragma: no cover - only when h5py available
+        h5_path = out / MANIFEST_H5_FILENAME
+        with h5py.File(h5_path, "w") as h5:
+            for key, value in manifest.items():
+                if isinstance(value, (dict, list)):
+                    h5.attrs[key] = json.dumps(value)
+                elif value is None:
+                    h5.attrs[key] = "null"
+                else:
+                    h5.attrs[key] = value
+
     return path
 
-__all__ = ["write_manifest", "MANIFEST_FILENAME"]
+__all__ = ["write_manifest", "MANIFEST_FILENAME", "MANIFEST_H5_FILENAME"]

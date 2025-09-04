@@ -585,13 +585,19 @@ def simulate(
 @click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
 @click.option("--dataset", type=str, required=True)
 @click.option("--outdir", type=click.Path(file_okay=False), default="validation")
-def validate(config: str, dataset: str, outdir: str) -> None:
+@click.pass_context
+def validate(ctx: click.Context, config: str, dataset: str, outdir: str) -> None:
     """Run a validation simulation and compare with experimental data."""
     from .validate import run_validation
     try:
         from .validate import run_validation
 
-        ok = run_validation(Path(config), dataset, outdir=Path(outdir))
+        ok = run_validation(
+            Path(config),
+            dataset,
+            outdir=Path(outdir),
+            lab_mode=ctx.obj.get("lab_mode", False),
+        )
         if not ok:
             raise click.ClickException(format_error("VALIDATION", "Validation failed"))
     except Exception as e:  # pragma: no cover - defensive

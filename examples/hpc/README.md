@@ -11,8 +11,8 @@ paths and particle-per-cell settings for reproducibility.
   directory and launches ``dpf2 simulate`` with ``--lab-mode`` using
   ``srun``. The ``CUDA_VISIBLE_DEVICES`` environment variable may be set by
   the :class:`~dpf2.hpc.JobManager` to pin the job to specific GPUs. A
-  ``manifest.json`` file is written inside the run directory capturing
-  reproducibility metadata.
+  ``manifest.json`` and ``manifest.h5`` files are written inside the run
+  directory capturing reproducibility metadata.
 
 * ``slurm_restart.sh`` – similar to ``slurm_run.sh`` but demonstrates how
   to restart from a checkpoint while still capturing a manifest with
