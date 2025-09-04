@@ -37,3 +37,13 @@ visualization:
 
 After exploring the sandbox, continue learning by running the
 [tutorials](tutorials/quickstart.md) or reading the [user guide](user_guide.md).
+
+## Classroom Walk-Through
+
+1. Complete the [Quickstart tutorial](tutorials/quickstart.md) to run your
+   first simulated shot.
+2. Try the [`run_simulation.py`](../examples/run_simulation.py) example to see
+   how configuration files drive a full run.
+3. Explore the [optimization](tutorials/optimization.md) and
+   [diagnostics](tutorials/diagnostics.md) tutorials for deeper engineering
+   insight.
