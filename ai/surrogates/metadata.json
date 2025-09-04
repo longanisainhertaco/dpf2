@@ -1,0 +1,12 @@
+{
+  "feature_mean": 150.0,
+  "feature_variance": 2066.6666666666665,
+  "yield": {
+    "onnx": "yield_surrogate.onnx",
+    "quantile": 1919354838.7096791
+  },
+  "pinch_time": {
+    "onnx": "pinch_time_surrogate.onnx",
+    "quantile": 0.21935483870967723
+  }
+}
