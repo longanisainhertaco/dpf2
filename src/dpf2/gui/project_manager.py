@@ -69,8 +69,41 @@ class ProjectManager:
 
         return plot_yield_pressure_overlay(self.metrics, path)
 
+    def overlay_metrics(self, parameter: str, path: str | Path) -> Path:
+        """Overlay yield, pinch time and efficiency curves for stored sweeps."""
+
+        import matplotlib.pyplot as plt
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 9))
+
+        for label, metrics in self.metrics.items():
+            vals = sorted(metrics.keys())
+            y = [metrics[v].get("yield", 0.0) for v in vals]
+            p = [metrics[v].get("pinch_time", 0.0) for v in vals]
+            e = [metrics[v].get("efficiency", 0.0) for v in vals]
+            axes[0].plot(vals, y, label=label)
+            axes[1].plot(vals, p, label=label)
+            axes[2].plot(vals, e, label=label)
+
+        axes[0].set_ylabel("Yield")
+        axes[1].set_ylabel("Pinch Time")
+        axes[2].set_ylabel("Efficiency")
+        axes[2].set_xlabel(parameter)
+        for ax in axes:
+            ax.grid(True)
+            ax.legend()
+        fig.tight_layout()
+        fig.savefig(path)
+        plt.close(fig)
+        return path
+
     def export_metrics(self, path: str | Path) -> Path:
         """Export all stored metrics to a CSV file.
+
+        The resulting table contains the sweep label, parameter value and the
+        computed ``yield``, ``pinch_time`` and ``efficiency`` metrics.
 
         Parameters
         ----------
@@ -82,10 +115,16 @@ class ProjectManager:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["label", "parameter", "yield", "efficiency"])
+            writer.writerow(["label", "parameter", "yield", "pinch_time", "efficiency"])
             for label, metrics in self.metrics.items():
                 for param_val, vals in metrics.items():
-                    writer.writerow([label, param_val, vals.get("yield", 0.0), vals.get("efficiency", 0.0)])
+                    writer.writerow([
+                        label,
+                        param_val,
+                        vals.get("yield", 0.0),
+                        vals.get("pinch_time", 0.0),
+                        vals.get("efficiency", 0.0),
+                    ])
         return path
 
 
