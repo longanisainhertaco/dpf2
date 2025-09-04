@@ -1,0 +1,5 @@
+{
+  "current": {"time": [0.0, 1.0e-6, 2.0e-6], "value": [0.0, 1.0e6, 0.0]},
+  "neutron_yield": 1.0e11,
+  "anisotropy": 1.0
+}

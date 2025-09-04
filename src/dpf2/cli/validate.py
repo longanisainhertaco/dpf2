@@ -25,7 +25,11 @@ import numpy as np
 
 from ..dpf_config import DPFConfig
 from ..simulation_engine import SimulationEngine, SimulationResults
-from ..validation_suite import ValidationSuite, score_simulation
+from ..validation_suite import (
+    ValidationSuite,
+    evaluate_benchmark,
+    score_simulation,
+)
 from ..scaling_laws import compare_to_scaling
 from .lab import write_manifest
 
@@ -134,18 +138,32 @@ def run_validation(
         ``True`` if the validation passed according to the
         :class:`ValidationSuite` specification.
     """
+    ds_path = Path(dataset)
+    if ds_path.is_dir():
+        exp = json.loads((ds_path / "expected.json").read_text())
+        sim = json.loads((ds_path / "inputs.json").read_text())
+        report = evaluate_benchmark(sim, exp)
+        outdir.mkdir(parents=True, exist_ok=True)
+        with (outdir / "benchmark_report.json").open("w") as fh:
+            json.dump(report, fh, indent=2)
+        for name, ok in report["checks"].items():
+            status = "PASS" if ok else "FAIL"
+            print(f"{name}: {status}")
+        print("Benchmark passed" if report["passed"] else "Benchmark failed")
+        return report["passed"]
+
     cfg = DPFConfig.from_file(config)
     engine = SimulationEngine(cfg)
     if lab_mode:
-    seeds = {"python": random.getstate()[1][0]}
-    try:
-        seeds["numpy"] = int(np.random.get_state()[1][0])
-    except Exception:
+        seeds = {"python": random.getstate()[1][0]}
         try:
-            rng = np.random.default_rng()
-            seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
+            seeds["numpy"] = int(np.random.get_state()[1][0])
         except Exception:
-            seeds["numpy"] = 0
+            try:
+                rng = np.random.default_rng()
+                seeds["numpy"] = int(rng.bit_generator.state["state"]["state"])
+            except Exception:
+                seeds["numpy"] = 0
     results = engine.run()
 
     vsuite = _build_validation_suite(dataset)
