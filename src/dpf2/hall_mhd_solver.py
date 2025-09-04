@@ -283,7 +283,7 @@ class HallMHDSolver(PlasmaSolverBase):
     inductance: float = 0.0
     back_emf: float = 0.0
     circuit_feedback: CouplingState | None = field(init=False, default=None)
-    anomalous_resistivity: Callable[[np.ndarray], np.ndarray] | None = None
+    anomalous_resistivity: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
     voltage_spikes: list[float] = field(default_factory=list)
     last_pressure: np.ndarray | None = field(init=False, default=None)
     last_ionization: np.ndarray | None = field(init=False, default=None)
@@ -291,6 +291,7 @@ class HallMHDSolver(PlasmaSolverBase):
     last_divB: np.ndarray | None = field(init=False, default=None)
     last_J: np.ndarray | None = field(init=False, default=None)
     last_E: np.ndarray | None = field(init=False, default=None)
+    last_E_anom: np.ndarray | None = field(init=False, default=None)
     last_opacity: np.ndarray | None = field(init=False, default=None)
     last_emissivity: np.ndarray | None = field(init=False, default=None)
     cart_comm: Any | None = field(init=False, default=None)
@@ -311,12 +312,24 @@ class HallMHDSolver(PlasmaSolverBase):
             self.bc(state)
 
     def compute_anomalous_resistivity(self, J: np.ndarray) -> np.ndarray:
-        """Evaluate anomalous resistivity model and record voltage spikes."""
+        """Evaluate anomalous resistivity model and record voltage spikes.
+
+        The ``anomalous_resistivity`` callback may return either just an
+        anomalous resistivity field or a tuple ``(eta, E)`` containing an
+        additional electric field contribution.  The resistivity component is
+        always returned while the electric field is stored on
+        ``last_E_anom`` for use by :meth:`step`.
+        """
 
         if self.anomalous_resistivity is None:
             eta = np.zeros(J.shape[:-1])
+            E = np.zeros_like(J)
         else:
-            eta = self.anomalous_resistivity(J)
+            result = self.anomalous_resistivity(J)
+            if isinstance(result, tuple):
+                eta, E = result
+            else:
+                eta, E = result, np.zeros_like(J)
         if hasattr(np, "abs"):
             mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
         else:  # pragma: no cover - very small stub fallback
@@ -324,6 +337,7 @@ class HallMHDSolver(PlasmaSolverBase):
         spike = float(np.max(eta * mag))
         if spike != 0.0:
             self.voltage_spikes.append(spike)
+        self.last_E_anom = E
         return eta
 
     def amr_refinement(self, state: MHDState) -> None:
@@ -537,6 +551,8 @@ class HallMHDSolver(PlasmaSolverBase):
         eta_anom = self.compute_anomalous_resistivity(J)
         eta_total = eta_local + eta_anom
         E = -np.cross(v, B) + eta_total[..., None] * J
+        if self.last_E_anom is not None:
+            E += self.last_E_anom
         if self.hall_coeff != 0.0:
             ne = rho * np.maximum(zbar, 1e-30)
             E += self.hall_coeff * np.cross(J, B) / ne[..., None]
