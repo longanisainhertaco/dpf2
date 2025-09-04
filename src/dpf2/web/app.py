@@ -18,7 +18,10 @@ from ..optimization.param_sweep import (
     run_parametric_sweep,
     compute_sweep_metrics,
     plot_metric_overlay,
+    plot_yield_pressure_overlay,
 )
+from .plots import plot_current_voltage, plot_vector_field_overlay
+import numpy as np
 from ..physics.axial_rundown import shock_parameter, plot_shock_parameter
 
 # HTML templates rendered with simple ``render_template_string`` calls.  The
@@ -57,6 +60,9 @@ DIAG_HTML = """
 {% if plot %}<img src="{{ plot }}" alt="sweep plot"><br>{% endif %}
 {% if metrics_plot %}<img src="{{ metrics_plot }}" alt="metrics plot"><br>{% endif %}
 {% if shock_plot %}<img src="{{ shock_plot }}" alt="shock parameter"><br>{% endif %}
+{% if yield_pressure_plot %}<img src="{{ yield_pressure_plot }}" alt="yield vs pressure"><br>{% endif %}
+{% if current_plot %}<img src="{{ current_plot }}" alt="current/voltage"><br>{% endif %}
+{% if vector_plot %}<img src="{{ vector_plot }}" alt="vector field"><br>{% endif %}
 <ul>
 {% for f in files %}<li>{{ f }}</li>{% endfor %}
 </ul>
@@ -127,9 +133,19 @@ def create_app() -> Flask:
                         plot_sweep_results(param, results, Path(output) / "sweep_plot.png")
                         metrics = compute_sweep_metrics(cfg, results)
                         plot_metric_overlay(param, metrics, Path(output) / "sweep_metrics.png")
+                        if "pressure" in param:
+                            plot_yield_pressure_overlay({"sweep": metrics}, Path(output) / "yield_pressure.png")
                 else:
                     sim = DPFSimulation(cfg)
-                    t, i, _v = sim.run(output_dir=output)
+                    t, i, v = sim.run(output_dir=output)
+                    plot_current_voltage(t, i, v, Path(output) / "current_voltage.png")
+                    x = np.linspace(-1.0, 1.0, 20)
+                    y = np.linspace(-1.0, 1.0, 20)
+                    X, Y = np.meshgrid(x, y)
+                    scale = float(max(i)) if i else 0.0
+                    U = -Y * scale
+                    V = X * scale
+                    plot_vector_field_overlay(X, Y, U, V, Path(output) / "vector_field.png")
                     try:
                         S = shock_parameter(i, cfg.anode_radius, cfg.initial_pressure)
                         plot_shock_parameter(t, S, Path(output) / "shock_trend.png")
@@ -160,12 +176,27 @@ def create_app() -> Flask:
         shock_path = Path(output) / "shock_trend.png"
         if shock_path.exists():
             shock_plot = "data:image/png;base64," + base64.b64encode(shock_path.read_bytes()).decode("ascii")
+        yield_pressure_plot = None
+        yp_path = Path(output) / "yield_pressure.png"
+        if yp_path.exists():
+            yield_pressure_plot = "data:image/png;base64," + base64.b64encode(yp_path.read_bytes()).decode("ascii")
+        current_plot = None
+        cv_path = Path(output) / "current_voltage.png"
+        if cv_path.exists():
+            current_plot = "data:image/png;base64," + base64.b64encode(cv_path.read_bytes()).decode("ascii")
+        vector_plot = None
+        vf_path = Path(output) / "vector_field.png"
+        if vf_path.exists():
+            vector_plot = "data:image/png;base64," + base64.b64encode(vf_path.read_bytes()).decode("ascii")
         return render_template_string(
             DIAG_HTML,
             files=files,
             plot=plot,
             metrics_plot=metrics_plot,
             shock_plot=shock_plot,
+            yield_pressure_plot=yield_pressure_plot,
+            current_plot=current_plot,
+            vector_plot=vector_plot,
         )
 
     @app.route("/projects", methods=["GET", "POST"])
