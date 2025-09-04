@@ -59,3 +59,14 @@ def test_hash_changes_on_geometry_change():
     data["devices"]["PF1000"]["anodeLengthCm"] = cfg.devices["PF1000"].anode_length_cm * 2
     cfg2 = DeviceProfiles.model_validate(data)
     assert base_hash != cfg2.device_profiles_config_hash
+
+
+def test_insulator_material_is_materialref():
+    cfg = DeviceProfiles.with_defaults()
+    sleeve = cfg.devices["PF1000"].insulator_sleeve
+    assert cfg.devices["PF1000"].insulator_material is not None
+    assert (
+        cfg.devices["PF1000"].insulator_material.material_id == "alumina"
+    )
+    assert sleeve is not None and sleeve.material is not None
+    assert sleeve.material.material_id == "alumina"

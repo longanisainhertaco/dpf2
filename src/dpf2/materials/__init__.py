@@ -1,12 +1,7 @@
-"""Material definition and lifecycle tracking utilities."""
 
-from .library import Material, MaterialLibrary
-from .state import ComponentMaterialState
-from .mdm import MaterialDamageModel
+"""Material-related models and helpers."""
 
-__all__ = [
-    "Material",
-    "MaterialLibrary",
-    "ComponentMaterialState",
-    "MaterialDamageModel",
-]
+from .models import MaterialRef
+
+__all__ = ["MaterialRef"]
+

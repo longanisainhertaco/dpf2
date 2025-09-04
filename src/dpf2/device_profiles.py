@@ -28,7 +28,7 @@ def model_validator(*, mode: str = "after"):
 
 
 if not hasattr(BaseModel, "model_validate"):
-    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+    BaseModel.model_validate = classmethod(lambda cls, d, **_: cls(**d))
 if not hasattr(BaseModel, "model_dump"):
     BaseModel.model_dump = BaseModel.dict
 if not hasattr(BaseModel, "model_dump_json"):
@@ -37,6 +37,7 @@ if not hasattr(BaseModel, "model_copy"):
     BaseModel.model_copy = BaseModel.copy
 
 from .core_schema import ConfigSectionBase, to_camel_case
+from .materials import MaterialRef
 
 
 class InsulatorSleeve(BaseModel):
@@ -45,7 +46,7 @@ class InsulatorSleeve(BaseModel):
     inner_radius_cm: float = Field(..., alias="innerRadiusCm", ge=0.0)
     thickness_cm: float = Field(..., alias="thicknessCm", ge=0.0)
     length_cm: float = Field(..., alias="lengthCm", ge=0.0)
-    material: Optional[str] = Field(None, alias="material")
+    material: Optional[MaterialRef] = Field(None, alias="material")
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
@@ -67,7 +68,7 @@ class DeviceEntry(BaseModel):
     cathode_radius_cm: float = Field(..., alias="cathodeRadiusCm", ge=0.0)
     anode_length_cm: float = Field(..., alias="anodeLengthCm", ge=0.0)
     insulator_length_cm: float = Field(..., alias="insulatorLengthCm", ge=0.0)
-    insulator_material: Optional[str] = Field(None, alias="insulatorMaterial")
+    insulator_material: Optional[MaterialRef] = Field(None, alias="insulatorMaterial")
     insulator_sleeve: Optional[InsulatorSleeve] = Field(
         None, alias="insulatorSleeve"
     )
@@ -154,12 +155,12 @@ class DeviceProfiles(ConfigSectionBase):
                     "cathodeRadiusCm": 6.0,
                     "anodeLengthCm": 16.0,
                     "insulatorLengthCm": 5.0,
-                    "insulatorMaterial": "alumina",
+                    "insulatorMaterial": {"materialId": "alumina"},
                     "insulatorSleeve": {
                         "innerRadiusCm": 2.5,
                         "thicknessCm": 0.5,
                         "lengthCm": 5.0,
-                        "material": "alumina",
+                        "material": {"materialId": "alumina"},
                     },
                     "breakdownVoltageKV": 25.0,
                     "fuelMixture": {"D": 0.9, "Ar": 0.1},
