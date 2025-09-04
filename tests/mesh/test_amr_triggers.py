@@ -23,8 +23,7 @@ def test_ion_inertial_length_trigger():
 def test_pressure_gradient_trigger():
     p = np.array([[1.0, 1.0], [2.0, 4.0]])
     mask = pressure_gradient_refinement(p, 1.0)
-    data = mask.data if hasattr(mask, "data") else mask
-    assert any(any(row) for row in data)
+    assert np.any(mask)
 
 
 def test_current_density_trigger():
@@ -39,5 +38,6 @@ def test_amrmesh_combines_triggers():
     ld = np.array([[0.1, 0.6], [0.4, 0.2]])
     J = np.array([[[0.0, 0.0, 0.0], [3.0, 4.0, 0.0]],
                   [[0.0, 0.0, 0.0], [0.0, 0.0, 6.0]]])
-    mesh.refine({"lambda_D": ld, "current": J})
+    stats = mesh.refine({"lambda_D": ld, "current": J})
+    assert stats["tagged_cells"] == 4
     assert mesh.tagging_stats()["tagged_cells"] == 4

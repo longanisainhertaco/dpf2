@@ -3,12 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
 
+import logging
 import numpy as np
 
 try:  # pragma: no cover - optional dependency
     import pyamrex  # type: ignore
 except Exception:  # pragma: no cover - gracefully degrade if backend missing
     pyamrex = None  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -45,22 +48,14 @@ def plasma_gradient_refinement(field: np.ndarray, threshold: float) -> np.ndarra
 
 def debye_length_refinement(lambda_D: np.ndarray, threshold: float) -> np.ndarray:
     """Return mask where the Debye length ``lambda_D`` falls below ``threshold``."""
-    arr = lambda_D.data if hasattr(lambda_D, "data") else lambda_D
-    def _walk(a):
-        if isinstance(a, list):
-            return [_walk(x) for x in a]
-        return bool(a < threshold)
-    return np.array(_walk(arr))
+    arr = np.asarray(lambda_D)
+    return arr < threshold
 
 
 def ion_inertial_length_refinement(d_i: np.ndarray, threshold: float) -> np.ndarray:
     """Return mask where the ion inertial length ``d_i`` falls below ``threshold``."""
-    arr = d_i.data if hasattr(d_i, "data") else d_i
-    def _walk(a):
-        if isinstance(a, list):
-            return [_walk(x) for x in a]
-        return bool(a < threshold)
-    return np.array(_walk(arr))
+    arr = np.asarray(d_i)
+    return arr < threshold
 
 
 def pressure_gradient_refinement(pressure: np.ndarray, threshold: float) -> np.ndarray:
@@ -70,17 +65,11 @@ def pressure_gradient_refinement(pressure: np.ndarray, threshold: float) -> np.n
 
 def current_density_refinement(current: np.ndarray, threshold: float) -> np.ndarray:
     """Return mask where the current density magnitude exceeds ``threshold``."""
-    arr = current.data if hasattr(current, "data") else current
-    def _walk(a):
-        if isinstance(a, list) and a and not isinstance(a[0], list):
-            if len(a) != 3:
-                raise ValueError("current vectors must have three components")
-            mag = (a[0]**2 + a[1]**2 + a[2]**2) ** 0.5
-            return mag > threshold
-        if isinstance(a, list):
-            return [_walk(x) for x in a]
-        raise ValueError("current must be an array of vectors")
-    return np.array(_walk(arr))
+    arr = np.asarray(current)
+    if arr.shape[-1] != 3:
+        raise ValueError("current vectors must have three components")
+    mag = np.sqrt(np.sum(arr**2, axis=-1))
+    return mag > threshold
 
 
 def wavefront_refinement(field: np.ndarray, prev_field: np.ndarray, threshold: float) -> np.ndarray:
@@ -120,10 +109,26 @@ class AMRMesh:
         self,
         plasma_state: Optional[Dict[str, Any]] = None,
         prev_field: Optional[np.ndarray] = None,
-    ) -> None:
-        """Apply refinement criteria and notify the backend."""
+    ) -> Dict[str, int]:
+        """Apply refinement criteria and notify the backend.
+
+        Parameters
+        ----------
+        plasma_state:
+            Mapping of field names to arrays.  Recognised keys include
+            ``density``, ``field``, ``lambda_D``, ``d_i``, ``pressure`` and
+            ``current``.
+        prev_field:
+            Optional previous field for wavefront detection.
+
+        Returns
+        -------
+        dict
+            Statistics about tagged cells for each criterion along with the
+            total number of tagged cells.
+        """
         if plasma_state is None:
-            return
+            return {}
 
         density = plasma_state.get("density")
         field = plasma_state.get("field")
@@ -132,50 +137,70 @@ class AMRMesh:
         pressure = plasma_state.get("pressure")
         current = plasma_state.get("current")
 
-        def _init_mask(shape):
-            if isinstance(shape, int):
-                return [False] * shape
-            if isinstance(shape, tuple):
-                return [_init_mask(s) for s in shape]
-            raise TypeError("shape must be int or tuple")
-
-        def _or(a, b):
-            if isinstance(a, list):
-                return [_or(x, y) for x, y in zip(a, b)]
-            return bool(a) or bool(b)
-
-        mask = _init_mask(self.shape)
+        mask = np.zeros(self.shape, dtype=bool)
+        stats: Dict[str, int] = {}
 
         grad_thresh = self.criteria.get("gradient_threshold")
         if density is not None and grad_thresh is not None:
-            mask = _or(mask, plasma_gradient_refinement(density, grad_thresh).data)
+            gmask = plasma_gradient_refinement(density, grad_thresh)
+            stats["gradient"] = int(np.sum(gmask))
+            mask |= gmask
+            if stats["gradient"]:
+                logger.info("AMR gradient trigger tagged %d cells", stats["gradient"])
 
         wave_thresh = self.criteria.get("wavefront_threshold")
         if field is not None and prev_field is not None and wave_thresh is not None:
-            mask = _or(mask, wavefront_refinement(field, prev_field, wave_thresh).data)
+            wmask = wavefront_refinement(field, prev_field, wave_thresh)
+            stats["wavefront"] = int(np.sum(wmask))
+            mask |= wmask
+            if stats["wavefront"]:
+                logger.info("AMR wavefront trigger tagged %d cells", stats["wavefront"])
 
         ld_thresh = self.criteria.get("lambda_D_threshold")
         if lambda_D is not None and ld_thresh is not None:
-            mask = _or(mask, debye_length_refinement(lambda_D, ld_thresh).data)
+            ldmask = debye_length_refinement(lambda_D, ld_thresh)
+            stats["lambda_D"] = int(np.sum(ldmask))
+            mask |= ldmask
+            if stats["lambda_D"]:
+                logger.info("AMR λ_D trigger tagged %d cells", stats["lambda_D"])
 
         di_thresh = self.criteria.get("d_i_threshold")
         if d_i is not None and di_thresh is not None:
-            mask = _or(mask, ion_inertial_length_refinement(d_i, di_thresh).data)
+            dimask = ion_inertial_length_refinement(d_i, di_thresh)
+            stats["d_i"] = int(np.sum(dimask))
+            mask |= dimask
+            if stats["d_i"]:
+                logger.info("AMR d_i trigger tagged %d cells", stats["d_i"])
 
         gradp_thresh = self.criteria.get("pressure_gradient_threshold")
         if pressure is not None and gradp_thresh is not None:
-            mask = _or(mask, pressure_gradient_refinement(pressure, gradp_thresh).data)
+            pmask = pressure_gradient_refinement(pressure, gradp_thresh)
+            stats["pressure_gradient"] = int(np.sum(pmask))
+            mask |= pmask
+            if stats["pressure_gradient"]:
+                logger.info(
+                    "AMR |∇p| trigger tagged %d cells", stats["pressure_gradient"]
+                )
 
         J_thresh = self.criteria.get("current_density_threshold")
         if current is not None and J_thresh is not None:
-            mask = _or(mask, current_density_refinement(current, J_thresh).data)
+            jmask = current_density_refinement(current, J_thresh)
+            stats["current_density"] = int(np.sum(jmask))
+            mask |= jmask
+            if stats["current_density"]:
+                logger.info(
+                    "AMR |J| trigger tagged %d cells", stats["current_density"]
+                )
 
         self._last_mask = np.array(mask)
+        stats["tagged_cells"] = int(np.sum(self._last_mask))
 
         if self._backend and hasattr(self._backend, "amr"):
-            self._backend.amr.tag_cells(mask.astype(np.int8))
+            self._backend.amr.tag_cells(self._last_mask.astype(np.int8))
             if hasattr(self._backend, "warpx"):
                 self._backend.warpx.regrid()
+
+        return stats
 
     # ------------------------------------------------------------------
     def tagging_stats(self) -> Dict[str, int]:
