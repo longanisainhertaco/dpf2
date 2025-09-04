@@ -50,6 +50,9 @@ def model_validator(*, mode: str = "after"):
 
     return decorator
 
+if not hasattr(BaseModel, "parse_obj"):
+    BaseModel.parse_obj = classmethod(lambda cls, d: cls(**d))
+
 if not hasattr(BaseModel, "model_validate"):
     BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
 if not hasattr(BaseModel, "model_dump"):
@@ -75,6 +78,9 @@ if True:  # replace ``model_copy`` with lightweight implementation
         return new
 
     BaseModel.model_copy = _copy
+
+if not hasattr(BaseModel, "model_rebuild"):
+    BaseModel.model_rebuild = classmethod(lambda cls, *_, **__: None)
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -274,6 +280,17 @@ class ConfigSectionBase(BaseModel):
 # Radiation configuration
 
 
+class MaterialOpacity(BaseModel):
+    """Per-material opacity definition across radiation groups."""
+
+    material_id: str = Field(..., alias="materialId")
+    group_opacities: List[float] = Field(
+        ..., alias="groupOpacities"
+    )
+
+    model_config = ConfigDict(alias_generator=to_camel_case, populate_by_name=True)
+
+
 class RadiationSettings(ConfigSectionBase):
     """Basic radiation configuration including group counts and opacities."""
 
@@ -299,8 +316,8 @@ class RadiationSettings(ConfigSectionBase):
         },
     )
 
-    material_opacities: Dict[str, List[float]] = Field(
-        default_factory=dict,
+    material_opacities: List[MaterialOpacity] = Field(
+        default_factory=list,
         alias="materialOpacities",
         metadata={
             "units": "1/m",
@@ -309,23 +326,34 @@ class RadiationSettings(ConfigSectionBase):
         },
     )
 
+    @model_validator(mode="before")
+    def _dict_to_material_list(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        mos = values.get("material_opacities")
+        if isinstance(mos, dict):
+            values["material_opacities"] = [
+                {"material_id": k, "group_opacities": v} for k, v in mos.items()
+            ]
+        return values
+
     @model_validator(mode="after")
     def _validate_groups(cls, values: Self) -> Self:
         """Ensure opacity lists match the configured group count."""
         if values.group_opacities and len(values.group_opacities) != values.group_count:
             raise ValueError("group_opacities must match group_count")
-        for mat, vals in values.material_opacities.items():
-            if len(vals) != values.group_count:
+        for mo in values.material_opacities:
+            if len(mo.group_opacities) != values.group_count:
                 raise ValueError(
-                    f"material_opacities for {mat} must match group_count"
+                    f"material_opacities for {mo.material_id} must match group_count"
                 )
         return values
 
     def opacity_for(self, material: str | None = None) -> List[float]:
         """Return opacities for ``material`` or default group values."""
 
-        if material and material in self.material_opacities:
-            return self.material_opacities[material]
+        if material:
+            for mo in self.material_opacities:
+                if mo.material_id == material:
+                    return mo.group_opacities
         return self.group_opacities
 # ---------------------------------------------------------------------------
 # Root configuration model
@@ -619,6 +647,7 @@ __all__ = [
     "ConfigSectionBase",
     "DPFConfig",
     "RadiationSettings",
+    "MaterialOpacity",
     "TimeVoltageProfile",
     "DetectorConfig",
     "ConfigOverride",

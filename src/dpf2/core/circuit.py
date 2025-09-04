@@ -4,8 +4,10 @@ from __future__ import annotations
 
 The solver advances a simple series RLC circuit while allowing optional
 coupling to a plasma model through time‑dependent inductance and mutual
-inductance terms.  A minimal explicit Euler update is employed which is
-sufficient for regression tests and examples.
+inductance terms.  A second‑order Runge–Kutta (mid‑point) update is used in
+place of the original explicit Euler step for improved stability.  The update
+enforces a Courant–Friedrichs–Lewy (CFL) condition of ``dt/sqrt(LC) < 0.5`` to
+guard against unstable integrations.
 
 The class exposes ``time``, ``currents`` and ``voltages`` attributes storing
 history arrays that may be inspected after a simulation run.
@@ -84,30 +86,39 @@ class RLCCircuitSolver(CircuitSolverBase):
         Ltot = self.L_ext + Lp
         V_mutual = -M * dIm_dt
 
-        if emf != 0.0:
-            numerator = (
-                self.V0
-                + V_mutual
-                - self.R_ext * current
-                - voltage
-                - emf
-                - back_emf
+        # CFL condition based on LC time scale
+        cfl = dt / (Ltot * self.C_ext) ** 0.5
+        if cfl >= 0.5:
+            raise ValueError(
+                f"CFL condition violated (dt/sqrt(LC)={cfl:.3f} >= 0.5). Reduce dt."
             )
-        else:
-            numerator = (
-                self.V0
-                + V_mutual
-                - self.R_ext * current
-                - voltage
-                - back_emf
-            )
-        dIdt = numerator / Ltot
 
-        # Capacitor voltage evolution
-        dVdt = -current / self.C_ext
+        def rhs(I: float, V: float) -> tuple[float, float]:
+            if emf != 0.0:
+                numerator = (
+                    self.V0
+                    + V_mutual
+                    - self.R_ext * I
+                    - V
+                    - emf
+                    - back_emf
+                )
+            else:
+                numerator = (
+                    self.V0 + V_mutual - self.R_ext * I - V - back_emf
+                )
+            dIdt = numerator / Ltot
+            dVdt = -I / self.C_ext
+            return dIdt, dVdt
 
-        new_current = current + dIdt * dt
-        new_voltage = voltage + dVdt * dt
+        # Second-order Runge--Kutta (mid-point) integration
+        dI1, dV1 = rhs(current, voltage)
+        I_mid = current + 0.5 * dI1 * dt
+        V_mid = voltage + 0.5 * dV1 * dt
+        dI2, dV2 = rhs(I_mid, V_mid)
+
+        new_current = current + dI2 * dt
+        new_voltage = voltage + dV2 * dt
 
         self.time.append(t + dt)
         self.currents.append(new_current)

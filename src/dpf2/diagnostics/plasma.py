@@ -1,9 +1,70 @@
 from __future__ import annotations
 
+from math import pi, sqrt
 from pathlib import Path
 from typing import Callable, Sequence
 
 import h5py_stub as h5py  # type: ignore
+
+try:  # pragma: no cover - SciPy optional
+    from scipy.constants import mu_0, k as k_B, m_p
+except Exception:  # pragma: no cover - fallback values
+    mu_0 = 4e-7 * pi
+    k_B = 1.380649e-23
+    m_p = 1.67262192369e-27
+
+
+def bennett_radius(I: float, n: float, T: float) -> float:
+    """Return the Bennett pinch radius.
+
+    Parameters
+    ----------
+    I:
+        Pinch current in amperes.
+    n:
+        Number density in m^-3.
+    T:
+        Plasma temperature in kelvin.
+    """
+
+    if n <= 0 or T <= 0:
+        raise ValueError("n and T must be positive")
+    return sqrt(2 * k_B * T / (mu_0 * n)) / abs(I)
+
+
+def plasma_beta(n: float, T: float, B: float) -> float:
+    """Compute plasma beta for a cell."""
+
+    if B == 0:
+        raise ValueError("B must be non-zero")
+    pressure = n * k_B * T
+    return 2 * mu_0 * pressure / (B * B)
+
+
+def alfven_mach_number(v: float, B: float, n: float) -> float:
+    """Return the Alfven Mach number for a cell."""
+
+    rho = n * m_p
+    v_a = B / sqrt(mu_0 * rho)
+    if v_a == 0:
+        raise ValueError("v_A is zero")
+    return v / v_a
+
+
+def magnetic_reynolds_number(v: float, L: float, sigma: float) -> float:
+    """Compute the magnetic Reynolds number."""
+
+    if sigma <= 0:
+        raise ValueError("sigma must be positive")
+    return mu_0 * sigma * v * L
+
+
+def lundquist_number(B: float, n: float, L: float, sigma: float) -> float:
+    """Compute the Lundquist number."""
+
+    rho = n * m_p
+    v_a = B / sqrt(mu_0 * rho)
+    return mu_0 * sigma * v_a * L
 
 
 def save_density_temperature_map_hdf5(
@@ -134,6 +195,11 @@ def save_eedf_hdf5(
 
 
 __all__ = [
+    "bennett_radius",
+    "plasma_beta",
+    "alfven_mach_number",
+    "magnetic_reynolds_number",
+    "lundquist_number",
     "save_density_temperature_map_hdf5",
     "compute_eedf",
     "save_eedf_hdf5",

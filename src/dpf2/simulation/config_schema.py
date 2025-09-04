@@ -33,11 +33,21 @@ class CollisionConfig(BaseModel):
     charge_exchange_enabled: bool = Field(False, description="Enable charge exchange collisions")
     charge_exchange_cross_section: float = Field(1e-19, gt=0, description="Charge exchange cross-section [m^2]")
 
+class MaterialOpacity(BaseModel):
+    """Per-material opacity definition across radiation groups."""
+
+    material_id: str = Field(..., description="Material identifier")
+    group_opacities: List[float] = Field(
+        ..., description="Opacities for each radiation group"
+    )
+
+
 class RadiationConfig(BaseModel):
     """Configuration for the radiation model."""
+
     num_groups: int = Field(1, description="Number of radiation energy groups")
-    material_opacities: Dict[str, List[float]] = Field(
-        default_factory=dict,
+    material_opacities: List[MaterialOpacity] = Field(
+        default_factory=list,
         description="Material-specific opacities for each group",
     )
     use_line_radiation: bool = Field(False, description="Enable line radiation")
@@ -66,6 +76,15 @@ class RadiationConfig(BaseModel):
     photon_emission_enabled: bool = Field(False, description="Enable photon emission")
     photon_transport_enabled: bool = Field(False, description="Enable photon transport")
     # Add other parameters as needed
+
+    @validator("material_opacities", pre=True)
+    def _convert_material_opacities(cls, v):
+        """Allow legacy dict-based format for material opacities."""
+        if isinstance(v, dict):
+            return [
+                {"material_id": k, "group_opacities": val} for k, val in v.items()
+            ]
+        return v
 
 class PICConfig(BaseModel):
     """Configuration for the Particle-in-Cell (PIC) model."""
@@ -157,6 +176,18 @@ class AMRConfig(BaseModel):
         10, ge=1, description="Interval for dumping AMR diagnostics"
     )
 
+
+class MaterialConfig(BaseModel):
+    """Selection of component materials and initial lifecycle parameters."""
+
+    components: Dict[str, str] = Field(
+        default_factory=dict, description="Mapping of component name to material"
+    )
+    initial_state: Dict[str, Dict[str, float]] = Field(
+        default_factory=dict,
+        description="Initial state parameters keyed by component",
+    )
+
 class SimulationConfig(BaseModel):
     """Main configuration for the DPF simulation."""
     grid_shape: List[int] = Field(..., min_items=3, max_items=3, description="Number of grid points (nx, ny, nz)")
@@ -175,6 +206,9 @@ class SimulationConfig(BaseModel):
     geometry: Optional[GeometryConfig] = None
     field_manager: FieldManagerConfig = Field(default_factory=FieldManagerConfig, description="Configuration for the FieldManager.")
     amr: AMRConfig = Field(default_factory=AMRConfig, description="Adaptive mesh refinement settings")
+    materials: MaterialConfig = Field(
+        default_factory=MaterialConfig, description="Material selection and initial state"
+    )
     provenance: Optional[Dict[str, Any]] = None
     telemetry: Optional[Dict[str, Any]] = None
     io: Optional[Dict[str, Any]] = None
