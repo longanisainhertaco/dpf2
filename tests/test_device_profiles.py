@@ -2,6 +2,8 @@ import warnings
 import pytest
 from dpf2.device_profiles import DeviceProfiles
 
+from dpf2.cli.main import simulate
+
 try:
     import yaml  # type: ignore
     YAML_AVAILABLE = True
@@ -12,6 +14,12 @@ except Exception:
 def test_default_device_key_exists():
     cfg = DeviceProfiles.with_defaults()
     assert cfg.default_device_id in cfg.devices
+
+
+def test_additional_presets_available():
+    cfg = DeviceProfiles.with_defaults()
+    assert "EDU1K" in cfg.devices
+    assert "IND20K" in cfg.devices
 
 
 def test_fuel_fractions_sum_to_one():
@@ -70,3 +78,7 @@ def test_insulator_material_is_materialref():
     )
     assert sleeve is not None and sleeve.material is not None
     assert sleeve.material.material_id == "alumina"
+
+
+def test_cli_has_device_option():
+    assert any("--device" in opt.opts for opt in simulate.params)

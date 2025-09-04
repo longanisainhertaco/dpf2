@@ -1,0 +1,14 @@
+{
+  "deviceLabel": "EDU1K",
+  "deviceDescription": "1 kJ class educational Mather-type DPF",
+  "energyKJ": 1.0,
+  "workingGas": "D",
+  "capacitorBank": {"C": 30e-6, "L": 25e-9, "R": 0.02},
+  "anodeRadiusCm": 0.5,
+  "cathodeRadiusCm": 1.5,
+  "anodeLengthCm": 7.0,
+  "insulatorLengthCm": 2.0,
+  "insulatorMaterial": {"materialId": "alumina"},
+  "breakdownVoltageKV": 10.0,
+  "regimeCategory": "low_energy"
+}

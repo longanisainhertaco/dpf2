@@ -60,7 +60,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050) -> None:
             dcc.Dropdown(
                 id="preset",
                 options=preset_options,
-                placeholder="Geometry preset",
+                placeholder="Device preset",
             ),
             html.Div(
                 [

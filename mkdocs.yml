@@ -16,6 +16,7 @@ nav:
       - PIC Collision: ../examples/pic_collision_example.py
   - GUI Features:  # persona: student
       - Sandbox Walk-Through: student_intro.md
+  - Device Presets: device_presets.md
   - API Reference: api_reference.md
   - Benchmarks: benchmarks.md
   - Run & Compare: run_compare.md
