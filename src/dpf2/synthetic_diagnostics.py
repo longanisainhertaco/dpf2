@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Literal, Iterable, Sequence
 
 import csv
+import math
 try:  # pragma: no cover - h5py may be optional
     import h5py  # type: ignore
 except Exception:  # pragma: no cover
@@ -91,6 +92,125 @@ def generate_tof_spectrum(
                 counts[idx] += 1.0
     centers = 0.5 * (edges[:-1] + edges[1:])
     return centers, counts
+
+
+def beam_target_angular_spectrum(
+    beam_energy_keV: float,
+    n_beam: float,
+    n_target: float,
+    angles_deg: Sequence[float],
+) -> np.ndarray:
+    """Convenience wrapper exposing :func:`dd_beam_target_angular_spectrum`.
+
+    Parameters
+    ----------
+    beam_energy_keV:
+        Incident deuteron energy.
+    n_beam, n_target:
+        Beam and target densities in m^-3.
+    angles_deg:
+        Sequence of angles spanning ``-180`` to ``180`` degrees.
+    """
+
+    return dd_beam_target_angular_spectrum(beam_energy_keV, n_beam, n_target, angles_deg)
+
+
+def directional_yields(
+    beam_energy_keV: float,
+    n_beam: float,
+    n_target: float,
+    bins: int = 360,
+) -> Dict[str, float]:
+    """Return forward, radial and backward yield components.
+
+    This simply forwards to :func:`fusion.dd_directional_yields` to expose the
+    calculation through the :mod:`synthetic_diagnostics` namespace.
+    """
+
+    return dd_directional_yields(beam_energy_keV, n_beam, n_target, bins=bins)
+
+
+def export_directional_yields(path: Path | str, totals: Dict[str, float]) -> Path:
+    """Write directional yield ``totals`` to ``path`` in JSON format."""
+
+    out_path = Path(path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(totals))
+    return out_path
+
+
+def synthetic_tof_trace(
+    history: Sequence[CouplingState],
+    dt: float,
+    distance_m: float,
+    energies_mev: Sequence[float],
+) -> tuple[List[float], List[float]]:
+    """Generate a synthetic time-of-flight trace from a history of states."""
+
+    hist = list(history)
+    if not hist or not energies_mev:
+        return [], []
+
+    m_n = 1.67492749804e-27  # neutron mass (kg)
+    # Maximum time-of-flight determines padding length
+    tofs = []
+    for e in energies_mev:
+        e_j = float(e) * 1.602176634e-13
+        v = (2.0 * e_j / m_n) ** 0.5
+        tofs.append(distance_m / v)
+    max_tof = max(tofs)
+    extra = int(math.ceil(max_tof / dt)) + 1
+    total = len(hist) + extra
+    counts = [0.0] * total
+    for i, state in enumerate(hist):
+        amp = abs(state.current)
+        for tof in tofs:
+            idx = i + int(round(tof / dt))
+            if idx < total:
+                counts[idx] += amp
+    times = [i * dt for i in range(total)]
+    return times, counts
+
+
+def autocorrelated_tof_iv_report(
+    history: Sequence[CouplingState],
+    dt: float,
+    distance_m: float,
+    energies_mev: Sequence[float],
+    output_dir: Path | str = Path("diagnostics/anisotropy"),
+) -> Path:
+    """Export an auto-correlated ToF versus I–V spike report.
+
+    The correlation is performed between the synthetic ToF trace and the
+    instantaneous ``I*V`` product representing power spikes.
+    """
+
+    times, counts = synthetic_tof_trace(history, dt, distance_m, energies_mev)
+    power = [abs(s.current * s.voltage) for s in history]
+    padded_power = power + [0.0] * (len(counts) - len(power))
+    mean_counts = sum(counts) / len(counts) if counts else 0.0
+    mean_power = sum(padded_power) / len(padded_power) if padded_power else 0.0
+    n = len(counts)
+    corr = []
+    lags = []
+    for lag in range(-n + 1, n):
+        val = 0.0
+        for i in range(n):
+            j = i - lag
+            if 0 <= j < n:
+                val += (counts[i] - mean_counts) * (padded_power[j] - mean_power)
+        corr.append(val)
+        lags.append(lag * dt)
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "tof_iv_autocorrelation.csv"
+    with path.open("w", newline="") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(["lag_s", "correlation"])
+        for lag, val in zip(lags, corr):
+            writer.writerow([lag, val])
+    return path
 
 
 
@@ -482,6 +602,8 @@ __all__ = [
     "export_diagnostic_data",
     "generate_tof_spectrum",
     "beam_target_angular_spectrum",
+    "directional_yields",
     "synthetic_tof_trace",
     "export_directional_yields",
+    "autocorrelated_tof_iv_report",
 ]
