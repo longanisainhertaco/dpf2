@@ -142,6 +142,10 @@ class SXRModel(BaseModel):
 
     name: str
     position: Tuple[float, float, float]
+    response_file: Path | None = None
+    gate: Tuple[float, float] | None = Field(None, metadata={"units": "ns"})
+    dead_time_ns: float | None = Field(None, metadata={"units": "ns"})
+    dispersion: List[float] | None = None
 
 
 class TOFModel(BaseModel):
@@ -149,6 +153,10 @@ class TOFModel(BaseModel):
 
     name: str
     position: Tuple[float, float, float]
+    response_file: Path | None = None
+    gate: Tuple[float, float] | None = Field(None, metadata={"units": "ns"})
+    dead_time_ns: float | None = Field(None, metadata={"units": "ns"})
+    dispersion: List[float] | None = None
 
 
 class OutputField(str, Enum):

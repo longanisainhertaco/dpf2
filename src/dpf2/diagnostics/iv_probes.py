@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,12 +6,9 @@ import json
 
 
 def load_response(path: str | Path) -> Dict[str, Any]:
-    """Load a neutron detector response description from *path*.
+    """Load an I-V probe response description from *path*.
 
-    The file is expected to contain JSON with optional keys ``gating``,
-    ``dead_time`` and ``dispersion``. ``gating`` should be a mapping with
-    ``start`` and ``end`` times.  ``dispersion`` is interpreted as a kernel for
-    a simple discrete convolution applied after gating and dead time.
+    The file shares the same JSON structure as other detector responses.
     """
     with open(Path(path), "r", encoding="utf-8") as fh:
         return json.load(fh)
@@ -23,13 +19,7 @@ def apply_response(
     signal: Sequence[float],
     response: Dict[str, Any],
 ) -> List[float]:
-    """Apply detector response effects to *signal* sampled at *times*.
-
-    Gating removes samples outside the time window.  Dead time suppresses
-    subsequent non-zero samples that occur within the specified interval after
-    a non-zero sample.  Dispersion convolves the signal with the provided
-    kernel.
-    """
+    """Apply the configured probe response effects to the input *signal*."""
     if len(times) != len(signal):
         raise ValueError("times and signal must be the same length")
 
@@ -59,7 +49,6 @@ def apply_response(
     dispersion = response.get("dispersion")
     if dispersion:
         kernel = [float(k) for k in dispersion]
-        klen = len(kernel)
         conv = [0.0 for _ in vals]
         for i, v in enumerate(vals):
             for j, k in enumerate(kernel):
@@ -71,4 +60,3 @@ def apply_response(
     return vals
 
 __all__ = ["load_response", "apply_response"]
-

@@ -1,0 +1,5 @@
+{
+  "gating": {"start": 1.0, "end": 3.0},
+  "dead_time": 0.0,
+  "dispersion": [1.0]
+}
