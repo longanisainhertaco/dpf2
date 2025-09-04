@@ -11,6 +11,8 @@ Recent additions include:
 - Pluggable mesh adaptivity
 """
 
+from __future__ import annotations
+
 import numpy as np
 import logging
 import json
@@ -18,6 +20,9 @@ import threading
 import math
 from numba import njit, prange
 from typing import List, Dict, Tuple, Optional, Callable
+from pathlib import Path
+from ..core.bases import CouplingState
+from ..diagnostics import synthetic_signals
 from .config_schema import PICConfig
 from .models import PhysicsModule
 from .utils import FieldManager, SimulationState
@@ -37,6 +42,37 @@ logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(ch)
+
+#-----------------------------------------------------------------------------------------
+# Instability and resistivity models
+#-----------------------------------------------------------------------------------------
+class MZeroInstability:
+    """Simple exponential m=0 instability growth model."""
+
+    def __init__(self, growth_rate: float = 0.0):
+        self.growth_rate = growth_rate
+
+    def apply(self, Ez: "np.ndarray", dt: float) -> "np.ndarray":
+        if self.growth_rate == 0.0:
+            return Ez
+        return Ez * np.exp(self.growth_rate * dt)
+
+
+class AnomalousResistivity:
+    """Mechanism-based anomalous resistivity model."""
+
+    def __init__(self, eta: float = 0.0, j_crit: float = 1.0):
+        self.eta = eta
+        self.j_crit = j_crit
+
+    def apply(self, E: "np.ndarray", J: "np.ndarray") -> "np.ndarray":
+        if self.eta == 0.0:
+            return E
+        magJ = np.linalg.norm(J, axis=0)
+        mask = magJ > self.j_crit
+        if np.any(mask):
+            E[:, mask] -= self.eta * J[:, mask]
+        return E
 
 #-----------------------------------------------------------------------------------------
 # PIC Solver Class
@@ -116,6 +152,10 @@ class PICSolver(PhysicsModule):
             PICSolver.maxwell_order, PICSolver.default_shape, self,
             enable_amr=config.amr
         ) if config.use_warpx else None
+        self.coupling_state = CouplingState()
+        self.history: List[CouplingState] = []
+        self.m0_instability_model: Optional[MZeroInstability] = None
+        self.anomalous_resistivity_model: Optional[AnomalousResistivity] = None
         logger.info('PIC solver initialized')
 
     def add_species(self, name, charge, mass, positions, velocities):
@@ -129,6 +169,14 @@ class PICSolver(PhysicsModule):
             logger.info(f"Added species {name} N={pos.shape[0]}")
         except Exception as e:
             logger.error(f"Error adding species {name}: {e}")
+
+    def set_m0_instability(self, growth_rate: float):
+        """Enable a simple m=0 instability growth model."""
+        self.m0_instability_model = MZeroInstability(growth_rate)
+
+    def set_anomalous_resistivity(self, eta: float, j_crit: float = 1.0):
+        """Enable mechanism-based anomalous resistivity."""
+        self.anomalous_resistivity_model = AnomalousResistivity(eta, j_crit)
 
     #-------------------------------------------------------------------------------------
     # Boris pusher
@@ -329,6 +377,10 @@ class PICSolver(PhysicsModule):
             J = self.field_manager.get_J()
             if self.warpx:
                 E, B = self.warpx.step(rho, J, E, B, self.dt)
+                if self.anomalous_resistivity_model:
+                    E = self.anomalous_resistivity_model.apply(E, J)
+                if self.m0_instability_model:
+                    E[2] = self.m0_instability_model.apply(E[2], self.dt)
             else:
                 # FDTD update
                 curlE = np.array([(np.roll(E[2], -1, 1) - E[2]) / self.dy - (np.roll(E[1], -1, 2) - E[1]) / self.dz,
@@ -339,6 +391,10 @@ class PICSolver(PhysicsModule):
                                   (np.roll(B[0], -1, 2) - B[0]) / self.dz - (np.roll(B[2], -1, 0) - B[2]) / self.dx,
                                   (np.roll(B[1], -1, 0) - B[1]) / self.dx - (np.roll(E[0], -1, 1) - E[0]) / self.dy])
                 E += self.dt * (PICSolver.c**2 * curlB - J / PICSolver.epsilon0)
+                if self.anomalous_resistivity_model:
+                    E = self.anomalous_resistivity_model.apply(E, J)
+                if self.m0_instability_model:
+                    E[2] = self.m0_instability_model.apply(E[2], self.dt)
                 self._apply_pml()  # Apply PML damping
             self.field_manager.update_E(E)
             self.field_manager.update_B(B)
@@ -434,13 +490,16 @@ class PICSolver(PhysicsModule):
     #-------------------------------------------------------------------------------------
     # Main step
     #-------------------------------------------------------------------------------------
-    def step(self):
+    def step(self, current: float = 0.0, voltage: float = 0.0):
         """Advances the PIC simulation by one time step."""
         try:
             self.deposit_charge()
             self.deposit_current()
             self.solve_fields()
             E = self.field_manager.get_E()
+            if voltage:
+                E[2] += voltage / (self.nz * self.dz)
+                self.field_manager.update_E(E)
             B = self.field_manager.get_B()
             for name, spc in self.species.items():  # Loop over species
                 self.boris_push_numba(spc['pos'], spc['vel'], spc['q'], spc['m'], self.dt,
@@ -457,6 +516,11 @@ class PICSolver(PhysicsModule):
             if self.mesh_adapter:
                 self.mesh_adapter()
             self.stream_to_unity()
+            axial_E = float(np.mean(E[2]))
+            length = self.nz * self.dz
+            emf = axial_E * length
+            self.coupling_state = CouplingState(emf=emf, current=current, voltage=voltage, back_reaction=emf)
+            self.history.append(self.coupling_state)
         except Exception as e:
             logger.error(f"Error during PIC step: {e}")
 
@@ -508,6 +572,10 @@ class PICSolver(PhysicsModule):
         except Exception as e:
             logger.error(f"Error computing total energy: {e}")
             return 0.0
+
+    def coupling_interface(self) -> CouplingState:
+        """Return coupling information for circuit solvers."""
+        return self.coupling_state
 
     #-------------------------------------------------------------------------------------
     # Diagnostics
@@ -578,6 +646,33 @@ class PICSolver(PhysicsModule):
                 time.sleep(1)
         except Exception as e:
             logger.error(f"Error in Unity heartbeat: {e}")
+
+    #-------------------------------------------------------------------------------------
+    # Validation utilities
+    #-------------------------------------------------------------------------------------
+    def _load_reference_current(self, device: str, data_dir: Optional[Path] = None) -> np.ndarray:
+        base = Path(data_dir) if data_dir else Path('data/validation') / device
+        data = np.loadtxt(base / 'current.csv', delimiter=',', skiprows=1)
+        return data[:, 1]
+
+    def validate_spike(self, device: str, data_dir: Optional[Path] = None) -> float:
+        """Return RMSE between synthetic current and reference spike data."""
+        ref = self._load_reference_current(device, data_dir)
+        sim = synthetic_signals.current_waveform(self.history)
+        n = min(len(ref), len(sim))
+        if n == 0:
+            return float('inf')
+        return float(np.sqrt(np.mean((np.array(sim[:n]) - ref[:n]) ** 2)))
+
+    def validate_pf1000_and_mjolnir(self) -> Dict[str, float]:
+        """Validate against PF-1000 and MJOLNIR spike data using synthetic diagnostics."""
+        results: Dict[str, float] = {}
+        for dev in ('PF1000', 'MJOLNIR'):
+            try:
+                results[dev] = self.validate_spike(dev)
+            except Exception:
+                results[dev] = float('inf')
+        return results
 
     #-------------------------------------------------------------------------------------
     # UQ & V&V
