@@ -1,0 +1,33 @@
+{
+  "login": {
+    "username": "Your sandbox username",
+    "password": "Your sandbox password",
+    "submit": "Authenticate with the server"
+  },
+  "config": {
+    "textarea": "Paste a JSON configuration for the simulation",
+    "import": "Import a configuration snapshot",
+    "export": "Export the current configuration snapshot",
+    "run": "Start the simulation run"
+  },
+  "sliders": {
+    "voltage": "Adjust the driving voltage applied to the plasma sheath.",
+    "voltageDetails": "Controls the electric potential driving the sheath evolution.",
+    "pressure": "Set the background gas pressure used in the simulation.",
+    "pressureDetails": "Represents ambient gas pressure; higher values damp the sheath faster."
+  },
+  "quickstart": {
+    "container": "Step-by-step exploration of discharge phases",
+    "button": "Configure parameters for the {name} phase",
+    "share": "Export your tutorial progress for sharing",
+    "next": "Advance to the next tutorial step",
+    "prev": "Return to the previous tutorial step",
+    "submit": "Submit your answer for this step"
+  },
+  "project": {
+    "export": "Download this configuration for sharing",
+    "geometryFile": "Optional CAD file for custom geometry",
+    "add": "Upload the configuration set",
+    "import": "Load a configuration set from JSON"
+  }
+}
