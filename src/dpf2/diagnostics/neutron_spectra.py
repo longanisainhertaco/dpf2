@@ -195,6 +195,44 @@ def time_resolved_spectra(
     return spectra
 
 
+def directional_time_resolved_spectra(
+    layout: DetectorLayout,
+    energies: Sequence[float],
+    flux: Sequence[float],
+    time_bins: Sequence[float],
+    base_yield: float = 1.0,
+    anisotropy: float = 0.0,
+) -> Dict[str, List[float]]:
+    """Return forward, radial and backward time-resolved spectra.
+
+    This convenience wrapper combines :func:`time_resolved_spectra` with
+    directional aggregation so that the resulting histograms are grouped by
+    detector orientation.  The returned dictionary contains keys
+    ``"forward"``, ``"radial"`` and ``"backward"`` with values describing the
+    counts in each time bin for detectors in that group.
+    """
+
+    per_det = time_resolved_spectra(
+        layout, energies, flux, time_bins, base_yield=base_yield, anisotropy=anisotropy
+    )
+    grouped: Dict[str, List[float]] = {
+        "forward": [0.0] * (len(time_bins) - 1),
+        "radial": [0.0] * (len(time_bins) - 1),
+        "backward": [0.0] * (len(time_bins) - 1),
+    }
+    for det in layout.detectors:
+        ang = det.angle_deg % 360.0
+        if ang <= 45.0 or ang >= 315.0:
+            group = "forward"
+        elif 135.0 <= ang <= 225.0:
+            group = "backward"
+        else:
+            group = "radial"
+        hist = per_det.get(det.name, [0.0] * (len(time_bins) - 1))
+        grouped[group] = [g + h for g, h in zip(grouped[group], hist)]
+    return grouped
+
+
 def forward_radial_backward_counts(
     layout: DetectorLayout, spectra: Dict[str, Sequence[float]]
 ) -> Dict[str, float]:
@@ -211,6 +249,23 @@ def forward_radial_backward_counts(
         else:
             totals["radial"] += count
     return totals
+
+
+def directional_counts_from_geometry(
+    geometry: str | Path,
+    energies: Sequence[float],
+    flux: Sequence[float],
+    time_bins: Sequence[float],
+    base_yield: float = 1.0,
+    anisotropy: float = 0.0,
+) -> Dict[str, float]:
+    """Load a geometry file and return forward/radial/backward totals."""
+
+    layout = load_detector_layout(geometry)
+    spectra = time_resolved_spectra(
+        layout, energies, flux, time_bins, base_yield=base_yield, anisotropy=anisotropy
+    )
+    return forward_radial_backward_counts(layout, spectra)
 
 
 def anisotropy_ratios(counts: Dict[str, float]) -> Dict[str, float]:
@@ -260,6 +315,41 @@ def cross_correlate_tof_with_circuit(
     return lags, list(corr), max_lag
 
 
+def correlate_tof_peaks_with_circuit_iv(
+    time_bins: Sequence[float],
+    counts: Sequence[float],
+    circuit_time: Sequence[float],
+    current: Sequence[float],
+    voltage: Sequence[float],
+) -> Tuple[List[Tuple[float, float]], List[float], List[float], float]:
+    """Correlate ToF peaks with circuit power derived from ``I`` and ``V``.
+
+    The instantaneous power trace (``I * V``) is interpolated onto the
+    midpoints of the ToF histogram and cross-correlated with the counts.  In
+    addition, local maxima in the ToF spectrum are paired with the
+    corresponding circuit power to provide a direct comparison of peak
+    features.
+    """
+
+    power = np.asarray(current) * np.asarray(voltage)
+    lags, corr, max_lag = cross_correlate_tof_with_circuit(
+        time_bins, counts, circuit_time, power
+    )
+    if len(time_bins) < 2:
+        raise ValueError("time_bins must have at least two entries")
+    mid = 0.5 * (np.asarray(time_bins[:-1]) + np.asarray(time_bins[1:]))
+    counts_arr = np.asarray(counts)
+    peak_idx = [
+        i
+        for i in range(1, len(counts_arr) - 1)
+        if counts_arr[i] > counts_arr[i - 1] and counts_arr[i] > counts_arr[i + 1]
+    ]
+    peak_times = [float(mid[i]) for i in peak_idx]
+    peak_power = np.interp(peak_times, np.asarray(circuit_time), power)
+    peaks = [(t, float(p)) for t, p in zip(peak_times, peak_power)]
+    return peaks, lags, corr, max_lag
+
+
 __all__ = [
     "Detector",
     "DetectorLayout",
@@ -268,7 +358,10 @@ __all__ = [
     "anisotropy_metric",
     "load_detector_layout",
     "time_resolved_spectra",
+    "directional_time_resolved_spectra",
     "forward_radial_backward_counts",
+    "directional_counts_from_geometry",
     "anisotropy_ratios",
     "cross_correlate_tof_with_circuit",
+    "correlate_tof_peaks_with_circuit_iv",
 ]

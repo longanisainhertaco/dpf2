@@ -6,8 +6,11 @@ from dpf2.diagnostics.neutron_spectra import (
     load_detector_layout,
     time_resolved_spectra,
     forward_radial_backward_counts,
+    directional_time_resolved_spectra,
+    directional_counts_from_geometry,
     anisotropy_ratios,
     cross_correlate_tof_with_circuit,
+    correlate_tof_peaks_with_circuit_iv,
 )
 
 
@@ -56,6 +59,34 @@ def test_time_resolved_geometry_and_anisotropy(tmp_path):
     assert ratios["forward_backward"] == 1.0
 
 
+def test_directional_helpers(tmp_path):
+    import json
+
+    layout_data = {
+        "distance_m": 1.0,
+        "detectors": [
+            {"angle_deg": 0.0, "name": "f"},
+            {"angle_deg": 90.0, "name": "r"},
+            {"angle_deg": 180.0, "name": "b"},
+        ],
+    }
+    layout_path = tmp_path / "layout.json"
+    layout_path.write_text(json.dumps(layout_data))
+    layout = load_detector_layout(layout_path)
+    energies = [1.0, 2.0]
+    flux = [1.0, 1.0]
+    time_bins = [0.0, 1.0, 2.0]
+    grouped = directional_time_resolved_spectra(layout, energies, flux, time_bins)
+    assert set(grouped.keys()) == {"forward", "radial", "backward"}
+    assert grouped["forward"] == grouped["radial"] == grouped["backward"]
+    counts = directional_counts_from_geometry(
+        layout_path, energies, flux, time_bins
+    )
+    assert counts["forward"] == sum(grouped["forward"])
+    assert counts["radial"] == sum(grouped["radial"])
+    assert counts["backward"] == sum(grouped["backward"])
+
+
 def test_cross_correlation():
     time_bins = [0.0, 1.0, 2.0, 3.0]
     counts = [0.0, 1.0, 0.0]
@@ -65,4 +96,17 @@ def test_cross_correlation():
         time_bins, counts, circuit_time, circuit_signal
     )
     assert len(lags) == len(corr) == 2 * len(counts) - 1
+    assert max_lag == 0.0
+
+
+def test_correlate_tof_peaks_with_circuit_iv():
+    time_bins = [0.0, 1.0, 2.0, 3.0]
+    counts = [0.0, 1.0, 0.0]
+    circuit_time = [0.0, 1.0, 2.0, 3.0]
+    current = [0.0, 1.0, 0.0, 0.0]
+    voltage = [0.0, 2.0, 0.0, 0.0]
+    peaks, lags, corr, max_lag = correlate_tof_peaks_with_circuit_iv(
+        time_bins, counts, circuit_time, current, voltage
+    )
+    assert peaks == [(1.5, 1.0)]
     assert max_lag == 0.0
