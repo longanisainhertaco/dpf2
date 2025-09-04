@@ -7,8 +7,7 @@ simulation infrastructure.
 
 ## Frozen regression suite
 
-Predefined projects live under `Reference/Benchmarks/`.  Each project
-contains two files:
+Predefined projects live under `benchmarks/`.  Each project contains two files:
 
 - `inputs.json` – configuration passed to the simulator
 - `expected.json` – reference time histories with tolerance bands
@@ -16,18 +15,18 @@ contains two files:
 Run a single case and produce a pass/fail dashboard plus a PNG overlay using:
 
 ```bash
-dpf2 run-benchmark unu_pff --benchmark-dir Reference/Benchmarks --output results
+dpf2 run-benchmark unu_pff
 ```
 
 To execute the entire suite at once:
 
 ```bash
-dpf2 run-compare --benchmark-dir Reference/Benchmarks --output results
+dpf2 run-compare
 ```
 
 Both commands write plots showing the simulation output overlaid on grey
 tolerance bands and print a summary of whether current, voltage and neutron
-yield fall within their respective thresholds.
+yield fall within their respective thresholds. Plots are written to `Validation/` by default.
 
 ## Analytic plasma expansion
 

@@ -66,7 +66,7 @@ def test_run_benchmark_cmd(tmp_path):
             "run-benchmark",
             "unu_pff",
             "--benchmark-dir",
-            str(Path("Reference/Benchmarks")),
+            str(Path("benchmarks")),
             "--output",
             str(tmp_path),
         ],
