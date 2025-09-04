@@ -1,6 +1,7 @@
 """Surrogate model interfaces for AI integration."""
 
 from .surrogate import SurrogateModel, TorchSurrogateModel, ONNXSurrogateModel
+from ..exceptions import OutOfDomainError
 from .training import load_numpy_dataset, train_torch_model
 from .simple_surrogates import (
     LinearSurrogate,
@@ -13,6 +14,7 @@ __all__ = [
     "SurrogateModel",
     "TorchSurrogateModel",
     "ONNXSurrogateModel",
+    "OutOfDomainError",
     "load_numpy_dataset",
     "train_torch_model",
     "LinearSurrogate",

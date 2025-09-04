@@ -33,6 +33,9 @@ class ConfigurationError(DPFError):
 class SimulationRuntimeError(DPFError):
     """Raised for runtime errors occurring during simulation execution."""
 
+class OutOfDomainError(DPFError):
+    """Raised when model inputs are outside the training domain."""
+
 class ServerError(DPFError):
     """Base class for server-related errors."""
 
