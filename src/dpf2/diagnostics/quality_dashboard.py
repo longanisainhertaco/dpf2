@@ -29,6 +29,11 @@ class QualityDashboard:
     min_omega_ce_tau_e: float | None = None
     regime_history: list[dict[str, float]] = field(default_factory=list)
 
+    max_l1_error: float | None = None
+    max_divB_norm: float | None = None
+    max_energy_drift: float | None = None
+    numerics_history: list[dict[str, float]] = field(default_factory=list)
+
 
     def log(
         self,
