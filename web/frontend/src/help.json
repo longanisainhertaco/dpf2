@@ -1,0 +1,22 @@
+{
+  "login": {
+    "username": "Name used to sign into the control panel.",
+    "token": "Authentication token supplied by the DPF server."
+  },
+  "config": {
+    "hardware": "Select which hardware profile to load for the simulation.",
+    "export": "Download the current configuration as a JSON file."
+  },
+  "sliders": {
+    "gain": "Change the amplifier gain to tune the device response.",
+    "threshold": "Minimum signal level before a count is registered."
+  },
+  "quickstart": {
+    "intro": "Launch a demo project with sample data and defaults.",
+    "docs": "Open the online documentation for deeper guidance."
+  },
+  "project": {
+    "save": "Persist the project to your browser storage for later editing.",
+    "share": "Generate a shareable URL with the current project state."
+  }
+}
