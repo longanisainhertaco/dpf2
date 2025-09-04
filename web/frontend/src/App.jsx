@@ -4,6 +4,7 @@ import ProjectManager from './ProjectManager.jsx';
 import InstabilityVisualizer from './InstabilityVisualizer.jsx';
 import SheathBeamOverlay from './SheathBeamOverlay.jsx';
 import RegimeDashboard from './RegimeDashboard.jsx';
+import DatasetSwap from './DatasetSwap.jsx';
 
 import QuickStartTutorial from './QuickStartTutorial.jsx';
 import VoltagePressureSliders from './VoltagePressureSliders.jsx';
@@ -233,7 +234,7 @@ export default function App() {
           <InstabilityVisualizer />
           <SheathBeamOverlay voltage={voltage} pressure={pressure} />
           <RegimeDashboard />
-
+          <DatasetSwap />
           <QuickStartTutorial
             setVoltage={setVoltage}
             setPressure={setPressure}
