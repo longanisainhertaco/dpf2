@@ -51,8 +51,10 @@ def _validate_cross_sections(table: np.ndarray) -> None:
     # perform the checks using pure Python constructs.
     energies = [row[0] for row in table]
     sigmas = [row[1] for row in table]
+    if any(e < 0 for e in energies):
+        raise ValueError("energies must be non-negative")
     if any(s < 0 for s in sigmas):
-        raise ValueError("cross sections must be non‑negative")
+        raise ValueError("cross sections must be non-negative")
     if any(b <= a for a, b in zip(energies, energies[1:])):
         raise ValueError("energy grid must be strictly increasing")
 
