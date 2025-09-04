@@ -432,13 +432,19 @@ def score_simulation(
 
     ref = load_validation_dataset(device)
     scores: Dict[str, float] = {}
+    rmse_metrics: Dict[str, float] = {}
+    l2_metrics: Dict[str, float] = {}
     for name, ref_profile in ref.items():
         if name not in sim_outputs:
             continue
         ref_t, ref_v = ref_profile
         sim_t, sim_v = sim_outputs[name]
         sim_rs = resample_profile((sim_t, sim_v), ref_t, method=resample_method)
-        rmse = float(np.sqrt(np.mean((sim_rs - ref_v) ** 2)))
+        diff = sim_rs - ref_v
+        rmse = float(np.sqrt(np.mean(diff**2)))
+        l2 = float(np.sqrt(np.sum(diff**2)))
+        rmse_metrics[name] = rmse
+        l2_metrics[name] = l2
         norm = np.max(np.abs(ref_v)) or 1.0
         tol = tolerances.get(name, 1.0)
         scores[name] = max(0.0, 1.0 - rmse / (norm * tol))
@@ -454,7 +460,13 @@ def score_simulation(
             )
         else:
             overall = sum(scores.values()) / len(scores)
-    return {"scores": scores, "overall": overall, "passed": overall >= pass_threshold}
+    return {
+        "scores": scores,
+        "rmse": rmse_metrics,
+        "l2": l2_metrics,
+        "overall": overall,
+        "passed": overall >= pass_threshold,
+    }
 
 
 __all__ = [

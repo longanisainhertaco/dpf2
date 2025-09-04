@@ -28,6 +28,8 @@ def test_score_simulation_pass(tmp_path):
     )
     assert res["passed"]
     assert res["overall"] == pytest.approx(1.0)
+    assert res["rmse"]["current"] == pytest.approx(0.0)
+    assert res["l2"]["current"] == pytest.approx(0.0)
 
 
 def test_weighted_rmse_changes_overall(tmp_path):
@@ -49,6 +51,8 @@ def test_weighted_rmse_changes_overall(tmp_path):
         {"current": 0.1, "voltage": 0.1, "neutron_yield": 0.2},
         weights=bias_weights,
     )
+    assert res_eq["rmse"]["voltage"] > 0.0
+    assert res_eq["l2"]["voltage"] > 0.0
     assert res_bias["overall"] > res_eq["overall"]
 
 
