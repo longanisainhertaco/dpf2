@@ -45,6 +45,7 @@ from dpf2.optimization.param_sweep import (
 
 from dpf2.scaling_laws import sweep_yield_scaling
 from dpf2.uq.sampling import latin_hypercube, sobol_sample
+from dpf2.uq.analysis import sobol_indices, uncertainty_band
 
 from .errors import format_error
 from .lab import write_manifest
@@ -798,13 +799,23 @@ def uq_sweep_cmd(
         sample = sampler(bounds, samples)
         results: list[dict[str, Any]] = []
         names = list(bounds)
+        peak_currents: list[float] = []
         for row in sample:
             params = {n: float(v) for n, v in zip(names, row)}
             cfg_i = dataclasses.replace(cfg, **params)
             sim = DPFSimulation(cfg_i)
             _, currents, _ = sim.run()
-            results.append({"params": params, "peak_current": max(currents)})
-        Path(output).write_text(json.dumps(results, indent=2))
+            peak = max(currents)
+            peak_currents.append(peak)
+            results.append({"params": params, "peak_current": peak})
+        sobol = sobol_indices(sample, peak_currents, names)
+        band = uncertainty_band(peak_currents)
+        Path(output).write_text(
+            json.dumps(
+                {"results": results, "sobol_indices": sobol, "uncertainty_band": band},
+                indent=2,
+            )
+        )
     except Exception as e:
         raise click.ClickException(format_error("UQ", str(e)))
 
@@ -872,7 +883,8 @@ def uq_stats_cmd(input: str) -> None:
 
     try:
         data = json.loads(Path(input).read_text())
-        currents = [r["peak_current"] for r in data]
+        rows = data if isinstance(data, list) else data.get("results", [])
+        currents = [r["peak_current"] for r in rows]
         stats = {
             "mean_peak_current": statistics.mean(currents),
             "std_peak_current": statistics.pstdev(currents),
