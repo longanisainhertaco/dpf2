@@ -2,11 +2,28 @@ Bootstrap: docker
 From: python:3.12-slim
 
 %post
-    pip install -r /app/requirements.txt
+    apt-get update && \
+        apt-get install -y --no-install-recommends git libhdf5-dev && \
+        rm -rf /var/lib/apt/lists/*
+    pip install numpy==1.26.4 scipy==1.11.4 pydantic==2.6.2 \
+        matplotlib==3.8.2 flask==3.0.0 h5py==3.10.0 \
+        numba==0.58.1 sympy==1.12 werkzeug==3.0.1 \
+        tqdm==4.66.1 fastapi==0.109.0 uvicorn==0.25.0 \
+        python-multipart==0.0.6
     pip install /app
+    cat <<'EOF' >/entrypoint.sh
+#!/bin/bash
+set -e
+CODE_HASH=$(cd /app && git rev-parse HEAD 2>/dev/null || echo unknown)
+echo "Code hash: $CODE_HASH"
+echo "Python: $(python --version)"
+echo "Platform: $(uname -a)"
+exec dpf2 "$@"
+EOF
+    chmod +x /entrypoint.sh
 
 %files
     .. /app
 
 %runscript
-    exec dpf2 "$@"
+    exec /entrypoint.sh "$@"

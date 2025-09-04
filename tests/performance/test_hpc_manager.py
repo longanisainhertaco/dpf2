@@ -146,3 +146,32 @@ def test_default_manifest_staged(tmp_path, monkeypatch):
     jm.submit(str(script))
     assert called["stage_out"]["run_manifest.json"] == "run_manifest.json"
 
+
+def test_hdf5_manifest_written(tmp_path, monkeypatch):
+    script = tmp_path / "job.sh"
+    script.write_text("#!/bin/bash\n")
+    jm = JobManager("slurm")
+
+    monkeypatch.setattr(JobManager, "_wrap_staging", lambda self, js, si, so: js)
+    monkeypatch.setattr(
+        "subprocess.run", lambda *a, **kw: type("R", (), {})()
+    )
+
+    manifest_h5 = tmp_path / "run_manifest.h5"
+    cfg = {"x": 1}
+
+    import h5py_stub as h5py, json
+
+    jm.submit(
+        str(script),
+        manifest_h5=str(manifest_h5),
+        config=cfg,
+        container_hash="abc123",
+    )
+
+    with h5py.File(manifest_h5, "r") as h5:
+        grp = h5["manifest"]
+        assert grp.attrs["container_hash"] == "abc123"
+        assert json.loads(grp.attrs["config"]) == cfg
+        assert "git_commit" in grp.attrs
+

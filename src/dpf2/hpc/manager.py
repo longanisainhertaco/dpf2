@@ -9,6 +9,7 @@ underlying schedulers.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 import subprocess
 import tempfile
@@ -20,6 +21,32 @@ class JobManager:
     """Dispatch simulation jobs to different backends."""
 
     scheduler: str = "slurm"
+
+    def _write_hdf5_manifest(
+        self,
+        path: str,
+        config: Mapping[str, Any] | None,
+        container_hash: str | None,
+    ) -> None:
+        """Write a minimal HDF5 manifest capturing run metadata."""
+
+        try:
+            import h5py  # type: ignore
+        except Exception:  # pragma: no cover - optional dependency
+            return
+        try:
+            commit = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], text=True
+            ).strip()
+        except Exception:  # pragma: no cover - git may be unavailable
+            commit = "unknown"
+        with h5py.File(path, "w") as h5:
+            manifest = h5.require_group("manifest")
+            manifest.attrs["git_commit"] = commit
+            if config is not None:
+                manifest.attrs["config"] = json.dumps(config)
+            if container_hash is not None:
+                manifest.attrs["container_hash"] = container_hash
 
     def _extend_cmd(self, cmd: list[str], opts: Dict[str, Any], flag_map: Dict[str, Iterable[str]]) -> None:
         """Append CLI options from ``opts`` to ``cmd`` using ``flag_map``.
@@ -87,7 +114,16 @@ class JobManager:
         os.chmod(path, 0o755)
         return path
 
-    def submit(self, job_script: str, *, manifest: str | None = None, **kwargs: Any) -> Any:
+    def submit(
+        self,
+        job_script: str,
+        *,
+        manifest: str | None = None,
+        manifest_h5: str | None = None,
+        config: Mapping[str, Any] | None = None,
+        container_hash: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
         """Submit ``job_script`` to the configured scheduler.
 
         Parameters
@@ -98,6 +134,15 @@ class JobManager:
             Optional path to a ``run_manifest.json`` that should be staged with
             other outputs. If omitted, ``"run_manifest.json"`` is used and will
             always be copied alongside job results.
+        manifest_h5:
+            Path to the ``run_manifest.h5`` file to generate. Defaults to
+            ``"run_manifest.h5"``.
+        config:
+            Configuration dictionary describing the run. When provided along
+            with ``container_hash`` an HDF5 manifest capturing this metadata is
+            written before submission.
+        container_hash:
+            Digest of the container image used for the run.
         **kwargs:
             Additional scheduler specific keyword arguments. ``restart`` may
             reference a manifest path to resume a previous run.
@@ -112,16 +157,19 @@ class JobManager:
         stage_out: Mapping[str, str] | None = kwargs.pop("stage_out", None)
         restart = kwargs.get("restart")
 
-        # Always copy the run manifest with other outputs so metadata is
-        # preserved. When ``manifest`` is not supplied we fall back to the
-        # conventional ``run_manifest.json`` name.
         manifest_path = manifest or "run_manifest.json"
+        manifest_h5_path = manifest_h5 or "run_manifest.h5"
+
+        if config is not None or container_hash is not None:
+            self._write_hdf5_manifest(manifest_h5_path, config, container_hash)
+
         stage_out = dict(stage_out or {})
         stage_out[manifest_path] = manifest_path
+        stage_out[manifest_h5_path] = manifest_h5_path
 
         # ``--restart`` may reference a previously generated manifest. Stage it
         # in so the job can resume using the recorded metadata.
-        if restart is not None and str(restart).endswith(".json"):
+        if restart is not None and (str(restart).endswith(".json") or str(restart).endswith(".h5")):
             stage_in = dict(stage_in or {})
             stage_in[str(restart)] = str(restart)
 
