@@ -46,6 +46,8 @@ def compute_beam_target_yield(
     distance: float,
     time_bins: Sequence[float],
     m_n: float = 1.674e-27,
+    response_fn: Callable[[float], float] | None = None,
+    noise_fn: Callable[[float], float] | None = None,
 ) -> tuple[list[float], list[list[float]]]:
     """Integrate EDF×σ(E) and compute TOF histograms for each angle.
 
@@ -63,6 +65,10 @@ def compute_beam_target_yield(
         Monotonic sequence of time bin edges in seconds.
     m_n:
         Neutron mass used for flight time calculation in kg.
+    response_fn, noise_fn:
+        Optional callables applied to the integrated yield and TOF histogram.
+        ``response_fn`` is evaluated first and ``noise_fn`` should return a
+        noise contribution for the response-corrected value.
 
     Returns
     -------
@@ -100,7 +106,23 @@ def compute_beam_target_yield(
             idx = bisect_right(time_bins, t) - 1
             if 0 <= idx < len(hist):
                 hist[idx] += contrib
-        yields.append(integ)
+        if response_fn or noise_fn:
+            hist_processed: list[float] = []
+            for val in hist:
+                if response_fn:
+                    val = response_fn(val)
+                if noise_fn:
+                    val += noise_fn(val)
+                hist_processed.append(val)
+            hist = hist_processed
+            yield_val = integ
+            if response_fn:
+                yield_val = response_fn(yield_val)
+            if noise_fn:
+                yield_val += noise_fn(yield_val)
+        else:
+            yield_val = integ
+        yields.append(yield_val)
         tofs.append(hist)
     return yields, tofs
 

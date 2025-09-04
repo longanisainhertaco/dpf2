@@ -147,10 +147,33 @@ def plot_metric_overlay(
     return path
 
 
+def plot_yield_pressure_overlay(
+    metric_sets: Dict[str, Dict[float, Dict[str, float]]],
+    path: str | Path,
+) -> Path:
+    """Overlay yield vs. pressure curves for multiple sweeps."""
+
+    import matplotlib.pyplot as plt
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    for label, metrics in metric_sets.items():
+        pressures = sorted(metrics.keys())
+        yields = [metrics[p]["yield"] for p in pressures]
+        plt.plot(pressures, yields, marker="o", label=label)
+    plt.xlabel("Pressure")
+    plt.ylabel("Yield")
+    plt.legend()
+    plt.savefig(path)
+    plt.close()
+    return path
+
+
 __all__ = [
     "run_parametric_sweep",
     "plot_sweep_results",
     "compute_sweep_metrics",
     "plot_metric_overlay",
+    "plot_yield_pressure_overlay",
     "SweepResult",
 ]
