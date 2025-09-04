@@ -1279,15 +1279,18 @@ def run_benchmark(case: str, benchmark_dir: str, output: str) -> None:
     fig.savefig(out_root / "overlay.png")
     plt.close(fig)
 
-    # Write metrics alongside the plot
-    metrics = {
-        name: {
+    # Write metrics alongside the plot.  In addition to the maximum absolute
+    # error, record an RMS error for a slightly more informative scorecard.
+    metrics = {}
+    for name, _, act, ref, band, passed in results:
+        err = np.abs(act - ref)
+        metrics[name] = {
             "passed": passed,
             "tolerance": band,
-            "max_error": float(np.max(np.abs(act - ref))),
+            "max_error": float(np.max(err)),
+            "rms_error": float(np.sqrt(np.mean(err ** 2))),
         }
-        for name, _, act, ref, band, passed in results
-    }
+
     metrics["overall_passed"] = all(m["passed"] for m in metrics.values())
     (out_root / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
