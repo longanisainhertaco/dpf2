@@ -31,6 +31,7 @@ class HallMHD(ResistiveMHD):
     hall_coeff: float = 0.0
     current: float = 0.0
     back_emf: float = 0.0
+    beam_velocity: float = 0.0
 
     # plasma inductance state (Henries)
     inductance: float = 0.0
@@ -77,6 +78,7 @@ class HallMHD(ResistiveMHD):
         voltage: float = 0.0,
         *,
         circuit: Any | None = None,
+        instability_amp: np.ndarray | float = 0.0,
     ) -> np.ndarray:
         """Update circuit coupling information.
 
@@ -112,6 +114,13 @@ class HallMHD(ResistiveMHD):
 
         dIdt = (current - prev_I) / max(dt, 1.0e-30)
         emf = Lp * dIdt + current * dLpdt
+        amp = instability_amp
+        if isinstance(amp, (list, tuple)):
+            amp_sum = sum(amp)
+        else:
+            amp_sum = float(amp)
+        emf += amp_sum
+        self.beam_velocity = abs(amp_sum)
 
         # Store plasma feedback for the circuit solver.  The induced EMF is
         # recorded on ``back_emf`` while the external circuit is advanced with
