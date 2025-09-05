@@ -29,6 +29,21 @@ export default function App() {
 
   // load snapshot on startup
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const snapId = params.get('snap');
+    if (snapId) {
+      axios.get(`/snapshot/${snapId}`).then(({ data }) => {
+        if (data.config) setConfig(JSON.stringify(data.config));
+        if (data.voltage !== undefined) setVoltage(data.voltage);
+        if (data.pressure !== undefined) setPressure(data.pressure);
+        if (data.jitter) {
+          setUseJitter(true);
+          setPressureJitter(data.jitter.pressure_jitter_pct || 0);
+          setSwitchJitter(data.jitter.trigger_jitter_ns || 0);
+        }
+      });
+      return;
+    }
     const saved = localStorage.getItem('dpfSnapshot');
     if (saved) {
       try {
@@ -114,6 +129,29 @@ export default function App() {
     a.download = 'snapshot.json';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const shareSnapshot = async () => {
+    const snapshot = {
+      config: JSON.parse(config),
+      voltage,
+      pressure,
+      jitter: useJitter
+        ? { pressure_jitter_pct: pressureJitter, trigger_jitter_ns: switchJitter }
+        : undefined,
+    };
+    const { data } = await axios.post(
+      '/snapshot/save',
+      { state: snapshot },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const link = `${window.location.origin}?snap=${data.id}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      alert('Snapshot link copied to clipboard');
+    } catch {
+      alert(link);
+    }
   };
 
   const importSnapshot = (e) => {
@@ -228,7 +266,7 @@ export default function App() {
             setPressure={setPressure}
             onChange={updateSimulation}
           />
-          <button type="button" onClick={exportSnapshot}>
+          <button type="button" onClick={shareSnapshot}>
             Share Scene
           </button>
           <InstabilityVisualizer />

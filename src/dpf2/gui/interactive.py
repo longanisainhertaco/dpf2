@@ -24,7 +24,7 @@ from .project_manager import ProjectManager
 from ..core.config import DPFConfig
 from ..device_profiles import DeviceProfiles
 from ..optimization import OptimizationWarning
-from ..visualization.sheath import jxb_field
+from ..visualization.sheath import jxb_field, sheath_velocity_field
 
 try:  # pragma: no cover - optional dependency
     import dash
@@ -478,14 +478,28 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
         Input("pressure", "value"),
     )
     def _update_sheath_overlay(voltage, pressure):
-        field = jxb_field(voltage, pressure, 0.0)
+        force = jxb_field(voltage, pressure, 0.0)
+        vel = sheath_velocity_field(voltage, pressure, 0.0)
         fig = ff.create_quiver(
-            field.x.ravel(),
-            field.y.ravel(),
-            field.u.ravel(),
-            field.v.ravel(),
+            vel.x.ravel(),
+            vel.y.ravel(),
+            vel.u.ravel(),
+            vel.v.ravel(),
             scale=0.2,
+            name="velocity",
         )
+        fig.data[0].line.color = "blue"
+        force_fig = ff.create_quiver(
+            force.x.ravel(),
+            force.y.ravel(),
+            force.u.ravel(),
+            force.v.ravel(),
+            scale=0.2,
+            name="J×B force",
+        )
+        for tr in force_fig.data:
+            tr.line.color = "green"
+            fig.add_trace(tr)
         v_norm = voltage / 30_000.0
         radius = 0.2 + v_norm * 0.6
         theta = np.linspace(0, 2 * np.pi, 100)
@@ -495,6 +509,7 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
         fig.update_layout(
             xaxis=dict(scaleanchor="y", range=[-1, 1]),
             yaxis=dict(range=[-1, 1]),
+            showlegend=True,
         )
         return fig
 

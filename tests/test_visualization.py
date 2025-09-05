@@ -37,3 +37,13 @@ def test_jxb_field_cross_product():
     assert np.allclose(jxb.u, -0.2 * b.v)
     assert np.allclose(jxb.v, 0.2 * b.u)
 
+
+def test_sheath_velocity_field_matches_internal():
+    import numpy as np
+    from dpf2.visualization.sheath import _sheath_field, sheath_velocity_field
+
+    b = _sheath_field(1.0, 0.2, 0.0)
+    vel = sheath_velocity_field(1.0, 0.2, 0.0)
+    assert np.allclose(vel.u, b.u)
+    assert np.allclose(vel.v, b.v)
+

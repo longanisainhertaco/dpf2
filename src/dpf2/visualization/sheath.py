@@ -72,6 +72,16 @@ def _sheath_field(voltage: float, pressure: float, t: float) -> SheathField:
     return SheathField(x, y, u, v)
 
 
+def sheath_velocity_field(voltage: float, pressure: float, t: float) -> SheathField:
+    """Return the synthetic sheath velocity field.
+
+    This is a thin public wrapper around :func:`_sheath_field` so that other
+    modules (e.g. the web sandbox) can overlay the nominal sheath velocities
+    without relying on the private helper."""
+
+    return _sheath_field(voltage, pressure, t)
+
+
 def jxb_field(voltage: float, pressure: float, t: float) -> SheathField:
     """Compute the J×B drift field for the toy sheath.
 
@@ -211,5 +221,10 @@ def animate_discharge_phases(
     )
 
 
-__all__ = ["animate_sheath", "animate_discharge_phases", "jxb_field"]
+__all__ = [
+    "animate_sheath",
+    "animate_discharge_phases",
+    "jxb_field",
+    "sheath_velocity_field",
+]
 

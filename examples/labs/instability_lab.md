@@ -6,7 +6,7 @@ This exercise guides you through interpreting the Instability Visualizer.
    vectors.
 2. Note how phase annotations divide the timeline into breakdown, rundown,
    pinch, and afterglow segments.
-3. Capture a snapshot via **Save & Share** and reload it from the shared link or
-   by uploading the snapshot JSON file.
+3. Capture a snapshot via **Save & Share** and reload it from the shared URL
+   (``?snap=<id>``) or by uploading the snapshot JSON file.
 4. Discuss how the vector field evolves between phases and how it relates to the
    amplitude trace.
