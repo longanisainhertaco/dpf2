@@ -17,9 +17,33 @@ import numpy as np
 
 from ..core.bases import PlasmaSolverBase, CouplingState
 from ..fields.psatd_solver import PSATDSolver
+from ..diagnostics.quality_dashboard import QualityDashboard
 
 
 EPS0 = 1.0  # Permittivity used for the lightweight solvers
+
+
+def lhdi_resistivity(
+    n: np.ndarray, B: np.ndarray, dx: float, coeff: float = 1.0
+) -> np.ndarray:
+    """Return a simple lower-hybrid drift resistivity estimate.
+
+    The model mirrors the implementation used in the full PIC solver by
+    taking the magnitude of the density and magnetic-field gradients and
+    returning ``coeff * |∇n| * |∇B|``.  The helper is intentionally lightweight
+    so that unit tests can exercise LHDI-driven resistivity without pulling in
+    heavier solver components.
+    """
+
+    if len(n) == 0 or len(B) == 0:
+        return np.zeros_like(n)
+    try:
+        grad_n = np.gradient(n, dx)
+        grad_B = np.gradient(B, dx)
+        eta = coeff * np.abs(grad_n) * np.abs(grad_B)
+    except Exception:  # pragma: no cover - minimal numpy stubs
+        eta = np.zeros_like(n)
+    return eta
 
 
 @dataclass
@@ -47,10 +71,16 @@ class SimplePIC(PlasmaSolverBase):
     field_solver: str = "circuit"
     deposition: str = "standard"
     num_cells: int = 64
+    quality: QualityDashboard | None = None
     circuit_feedback: CouplingState = field(init=False, default_factory=CouplingState)
     divergence_error: float = field(init=False, default=0.0)
     energy_drift: float = field(init=False, default=0.0)
+    wave_power: float = field(init=False, default=0.0)
+    wave_spectrum: np.ndarray | None = field(init=False, default=None)
+    axial_field: float = field(init=False, default=0.0)
+    last_eta: np.ndarray | None = field(init=False, default=None)
     _prev_energy: float = field(init=False, default=0.0)
+    _step_count: int = field(init=False, default=0)
 
     def __post_init__(self) -> None:
         if self.field_solver != "circuit":
@@ -154,9 +184,7 @@ class SimplePIC(PlasmaSolverBase):
 
         # Diagnostics ------------------------------------------------------
         if len(self.E):
-
             field_energy = 0.5 * EPS0 * np.sum(self.E ** 2) * self.dx
-
             kinetic_energy = 0.5 * self.mass * sum(v**2 for v in self.velocities)
             total = field_energy + kinetic_energy
             self.energy_drift = (
@@ -165,6 +193,45 @@ class SimplePIC(PlasmaSolverBase):
                 else 0.0
             )
             self._prev_energy = total
+
+            try:
+                spectrum = np.abs(np.fft.rfft(self.E))
+            except Exception:  # pragma: no cover - ``numpy`` stub fallback
+                spectrum = np.zeros(0)
+            self.wave_spectrum = spectrum
+            self.wave_power = float(np.sum(spectrum ** 2)) if len(spectrum) else 0.0
+            self.axial_field = float(np.mean(self.E))
+            self.last_eta = lhdi_resistivity(np.abs(self.rho), np.abs(self.E), self.dx)
+        else:
+            self.wave_spectrum = None
+            self.wave_power = 0.0
+            self.axial_field = voltage / self.length if self.length else 0.0
+            self.last_eta = None
+
+        if self.quality is not None:
+            self._step_count += 1
+            cell_size = self.dx if self.field_solver != "circuit" else self.length
+            total_particles = len(self.positions)
+            ppc = total_particles / self.num_cells if self.num_cells else 0.0
+            max_v = max(abs(v) for v in self.velocities) if self.velocities else 0.0
+            cfl = max_v * dt / cell_size if cell_size else 0.0
+            lambda_D = cell_size  # placeholder for Debye length estimate
+            plasma_impedance = (
+                float(np.mean(self.last_eta)) if self.last_eta is not None else 0.0
+            )
+            self.quality.log(
+                self._step_count,
+                dt,
+                cell_size,
+                ppc,
+                cfl,
+                lambda_D,
+                lower_hybrid_power=self.wave_power,
+                plasma_impedance=plasma_impedance,
+                divergence_error=self.divergence_error,
+                energy_drift=self.energy_drift,
+            )
+
         return state
 
     def coupling_interface(self) -> CouplingState:  # pragma: no cover - simple
@@ -195,4 +262,4 @@ class HybridPIC(SimplePIC):
         return state
 
 
-__all__ = ["SimplePIC", "HybridPIC"]
+__all__ = ["SimplePIC", "HybridPIC", "lhdi_resistivity"]
