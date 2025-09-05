@@ -417,11 +417,64 @@ def partition_yield(
     }
 
 
+def directional_counts(
+    forward_rate: Sequence[float],
+    radial_rate: Sequence[float],
+    backward_rate: Sequence[float],
+    dt: float,
+    forward_sigma: Sequence[float] | None = None,
+    radial_sigma: Sequence[float] | None = None,
+    backward_sigma: Sequence[float] | None = None,
+) -> Dict[str, Tuple[float, float]]:
+    """Integrate directional rates and return counts with uncertainties.
+
+    Parameters
+    ----------
+    forward_rate, radial_rate, backward_rate:
+        Time histories of neutron production rates for the forward, radial and
+        backward directions respectively.
+    dt:
+        Time step width in seconds.
+    forward_sigma, radial_sigma, backward_sigma:
+        Optional per-sample uncertainties for each rate history.  When
+        provided, uncertainties are propagated in quadrature and combined with
+        Poisson counting statistics (``sqrt(N)``).
+    """
+
+    if dt <= 0:
+        raise ValueError("dt must be positive")
+    n = len(forward_rate)
+    if not (len(radial_rate) == len(backward_rate) == n):
+        raise ValueError("rate histories must have the same length")
+
+    def _integrate(rate: Sequence[float], sigma: Sequence[float] | None) -> Tuple[float, float]:
+        count = sum(float(v) for v in rate) * dt
+        var = count if count > 0 else 0.0
+        if sigma is not None:
+            if len(sigma) != len(rate):
+                raise ValueError("sigma length must match rate length")
+            var += sum((float(s) * dt) ** 2 for s in sigma)
+        return count, math.sqrt(var) if var > 0 else 0.0
+
+    fwd = _integrate(forward_rate, forward_sigma)
+    rad = _integrate(radial_rate, radial_sigma)
+    back = _integrate(backward_rate, backward_sigma)
+    total = fwd[0] + rad[0] + back[0]
+    total_var = fwd[1] ** 2 + rad[1] ** 2 + back[1] ** 2
+    return {
+        "forward": fwd,
+        "radial": rad,
+        "backward": back,
+        "total": (total, math.sqrt(total_var) if total_var > 0 else 0.0),
+    }
+
+
 __all__ = [
     "NeutronYieldModel",
     "TabulatedIonEDF",
     "compute_directional_spectrum",
     "partition_yield",
+    "directional_counts",
     "load_endf_b_viii",
     "compute_angular_spectra",
 ]

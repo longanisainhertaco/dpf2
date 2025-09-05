@@ -1,6 +1,8 @@
 import math
 
-from dpf2.neutron_yield_model import partition_yield
+import math
+
+from dpf2.neutron_yield_model import partition_yield, directional_counts
 from dpf2.fusion import dd_yield_components
 
 
@@ -44,3 +46,30 @@ def test_dd_yield_components_zero_beam():
     )
     assert res["beam_target"][0] == 0.0
     assert math.isclose(res["total"][0], res["thermonuclear"][0])
+
+
+def test_directional_counts_components():
+    fwd = [1.0, 1.0]
+    rad = [2.0, 2.0]
+    back = [3.0, 3.0]
+    res = directional_counts(fwd, rad, back, dt=1.0)
+    assert math.isclose(res["forward"][0], 2.0)
+    assert math.isclose(res["radial"][0], 4.0)
+    assert math.isclose(res["backward"][0], 6.0)
+    assert math.isclose(res["total"][0], 12.0)
+    assert math.isclose(res["forward"][1], math.sqrt(2.0))
+
+
+def test_directional_counts_uncertainty():
+    fwd = [1.0, 1.0]
+    rad = [2.0, 2.0]
+    back = [3.0, 3.0]
+    fwd_s = [0.1, 0.1]
+    rad_s = [0.2, 0.2]
+    back_s = [0.3, 0.3]
+    res = directional_counts(fwd, rad, back, dt=1.0, forward_sigma=fwd_s, radial_sigma=rad_s, backward_sigma=back_s)
+    def _expected(count, sigs):
+        return math.sqrt(count + sum(s ** 2 for s in sigs))
+    assert math.isclose(res["forward"][1], _expected(2.0, fwd_s))
+    assert math.isclose(res["radial"][1], _expected(4.0, rad_s))
+    assert math.isclose(res["backward"][1], _expected(6.0, back_s))

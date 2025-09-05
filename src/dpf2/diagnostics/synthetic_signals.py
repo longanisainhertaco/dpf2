@@ -17,6 +17,11 @@ import math
 import numpy as np
 import h5py
 
+try:
+    from ..dpf_config import DPFConfig  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    DPFConfig = None  # type: ignore
+
 from ..core.bases import CouplingState
 
 
@@ -131,10 +136,33 @@ def _apply_instrument_response(
     return [float(v) for v in conv]
 
 
+def _cfg_calibration(cfg: "DPFConfig | None", attr: str) -> Path | None:
+    """Return calibration path for ``attr`` from :class:`DPFConfig`.
+
+    Parameters
+    ----------
+    cfg:
+        Optional configuration object providing a ``diagnostics`` section.
+    attr:
+        Attribute name on ``cfg.diagnostics`` holding the calibration path.
+    """
+
+    if cfg is None or DPFConfig is None:
+        return None
+    diag = getattr(cfg, "diagnostics", None)
+    if diag is None:
+        return None
+    path = getattr(diag, attr, None)
+    if path is None:
+        return None
+    return Path(path)
+
+
 def rogowski_signal(
     history: Iterable[CouplingState],
     dt: float,
     *,
+    cfg: "DPFConfig | None" = None,
     calibration_file: str | Path | None = None,
     response_fn: Callable[[float], float] | None = None,
     noise_fn: Callable[[float], float] | None = None,
@@ -155,6 +183,8 @@ def rogowski_signal(
     else:
         deriv = [(currents[i + 1] - currents[i]) / dt for i in range(len(currents) - 1)]
         deriv.append(deriv[-1])
+    if calibration_file is None:
+        calibration_file = _cfg_calibration(cfg, "rogowski_calibration_path")
     if calibration_file is not None:
         t, r = _load_calibration_curve(calibration_file, "rogowski")
         deriv = _apply_instrument_response(deriv, dt, t, r)
@@ -166,6 +196,7 @@ def bdot_signal(
     radius: float,
     dt: float,
     *,
+    cfg: "DPFConfig | None" = None,
     calibration_file: str | Path | None = None,
     response_fn: Callable[[float], float] | None = None,
     noise_fn: Callable[[float], float] | None = None,
@@ -182,6 +213,8 @@ def bdot_signal(
     else:
         deriv = [(B[i + 1] - B[i]) / dt for i in range(len(B) - 1)]
         deriv.append(deriv[-1])
+    if calibration_file is None:
+        calibration_file = _cfg_calibration(cfg, "bdot_calibration_path")
     if calibration_file is not None:
         t, r = _load_calibration_curve(calibration_file, "bdot")
         deriv = _apply_instrument_response(deriv, dt, t, r)
@@ -192,6 +225,7 @@ def sxr_diode_signal(
     signal: Sequence[float],
     dt: float,
     *,
+    cfg: "DPFConfig | None" = None,
     calibration_file: str | Path | None = None,
     response_fn: Callable[[float], float] | None = None,
     noise_fn: Callable[[float], float] | None = None,
@@ -199,6 +233,8 @@ def sxr_diode_signal(
     """Apply soft X-ray diode filter response to a signal history."""
 
     data = [float(v) for v in signal]
+    if calibration_file is None:
+        calibration_file = _cfg_calibration(cfg, "sxr_calibration_path")
     if calibration_file is not None:
         t, r = _load_calibration_curve(calibration_file, "sxr")
         data = _apply_instrument_response(data, dt, t, r)
@@ -211,6 +247,7 @@ def neutron_tof_signal(
     flight_path_m: float,
     time_bins_s: Sequence[float],
     *,
+    cfg: "DPFConfig | None" = None,
     calibration_file: str | Path | None = None,
     response_fn: Callable[[float], float] | None = None,
     noise_fn: Callable[[float], float] | None = None,
@@ -237,11 +274,30 @@ def neutron_tof_signal(
         if 0 <= idx < len(hist):
             hist[idx] += float(count)
 
+    if calibration_file is None:
+        calibration_file = _cfg_calibration(cfg, "neutron_tof_calibration_path")
     if calibration_file is not None:
         dt = time_bins_s[1] - time_bins_s[0] if len(time_bins_s) > 1 else 1.0
         t_resp, r_resp = _load_calibration_curve(calibration_file, "tof")
         hist = _apply_instrument_response(hist, dt, t_resp, r_resp)
     return _apply(hist, response_fn, noise_fn)
+
+
+def angular_neutron_spectrum(
+    angles_deg: Sequence[float],
+    base_yield: float,
+    anisotropy: float = 0.0,
+) -> List[float]:
+    """Return a cosine-based angular neutron spectrum.
+
+    This helper mirrors :func:`dpf2.diagnostics.neutron_spectra.angular_spectrum`
+    but is provided here for lightweight synthetic diagnostics.
+    """
+
+    return [
+        float(base_yield * (1.0 + anisotropy * math.cos(math.radians(a))))
+        for a in angles_deg
+    ]
 
 
 __all__ = [
@@ -253,5 +309,6 @@ __all__ = [
     "bdot_signal",
     "sxr_diode_signal",
     "neutron_tof_signal",
+    "angular_neutron_spectrum",
 ]
 
