@@ -350,24 +350,35 @@ class QualityDashboard:
     # ------------------------------------------------------------------
     def convergence_sweep(self) -> None:
         """Generate a simple convergence summary of recorded metrics."""
-        if not self.history:
+        summary = self.convergence_dashboard()
+        if not summary:
             logger.info("No history available for convergence sweep")
             return
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.output_dir / "convergence.json", "w", encoding="utf-8") as fh:
+            json.dump(summary, fh, indent=2)
+        logger.info(
+            "Convergence sweep written to %s", self.output_dir / "convergence.json"
+        )
+
+    def convergence_dashboard(self) -> dict[str, float]:
+        """Return aggregate statistics for Δt, Δx and particles per cell."""
+        if not self.history:
+            return {}
         dts = np.array([h["dt"] for h in self.history])
         dxs = np.array([h["cell_size"] for h in self.history])
         ppcs = np.array([h["ppc"] for h in self.history])
-        sweep = {
+        return {
             "dt_min": float(dts.min()),
             "dt_max": float(dts.max()),
+            "dt_mean": float(dts.mean()),
             "dx_min": float(dxs.min()),
             "dx_max": float(dxs.max()),
+            "dx_mean": float(dxs.mean()),
             "ppc_min": float(ppcs.min()),
             "ppc_max": float(ppcs.max()),
+            "ppc_mean": float(ppcs.mean()),
         }
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.output_dir / "convergence.json", "w", encoding="utf-8") as fh:
-            json.dump(sweep, fh, indent=2)
-        logger.info("Convergence sweep written to %s", self.output_dir / "convergence.json")
 
 
 def _main() -> None:  # pragma: no cover - CLI helper

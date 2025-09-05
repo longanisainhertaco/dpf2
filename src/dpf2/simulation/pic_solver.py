@@ -26,6 +26,7 @@ from ..diagnostics import synthetic_signals, IonBeamEDF, compute_beam_target_yie
 from ..diagnostics.quality_dashboard import QualityDashboard
 from ..fusion import bosch_hale_dd
 from ..physics import EnergyTracker
+from ..physics.pic_driver import PicDriver
 from dpf2.hall_mhd_solver import spitzer_resistivity
 from .config_schema import PICConfig
 from .models import PhysicsModule
@@ -154,7 +155,13 @@ class PICSolver(PhysicsModule):
     # Miscellaneous constants
     ionization_energy = 13.6     # eV, used for Bethe-Bloch stopping
 
-    def __init__(self, config: PICConfig, field_manager: FieldManager, quality: QualityDashboard | None = None):
+    def __init__(
+        self,
+        config: PICConfig,
+        field_manager: FieldManager,
+        quality: QualityDashboard | None = None,
+        driver: PicDriver | None = None,
+    ):
         """
         Initializes the PICSolver with configuration parameters.
 
@@ -190,6 +197,10 @@ class PICSolver(PhysicsModule):
         self.species = {}
         self.vdf = {}
         self.field_manager = field_manager
+        # Optional external PIC driver (e.g. WarpX). When provided, field
+        # evolution and particle pushing can be delegated to the driver
+        # which allows coupling to Hall‑MHD solvers.
+        self.pic_driver = driver
         self.collisions: List[CollisionProcess] = []
         self.collisions.extend([
             BetheBlochStopping('ion', Z_eff=1, I_mean_ev=PICSolver.ionization_energy),
@@ -607,6 +618,35 @@ class PICSolver(PhysicsModule):
                         ppc = npart / (self.nx * self.ny * self.nz)
                     except Exception:
                         pass
+                    self.quality.log(self.step_count, self.dt, cell_size, ppc, 0.0, 0.0)
+                return
+            elif self.pic_driver is not None:
+                # Delegate field evolution to the external PIC driver.
+                rho = self.field_manager.get_rho()
+                J = self.field_manager.get_J()
+                E, B = self.field_manager.get_E(), self.field_manager.get_B()
+                try:
+                    self.pic_driver.push_fields(E, B)
+                    self.pic_driver.deposit_current(J)
+                    # Advance the driver; diagnostics such as current are
+                    # derived from the deposited array so we simply provide a
+                    # total current estimate.
+                    total_current = float(np.sum(J[2]))
+                    self.pic_driver.step(None, total_current, self.dt)  # type: ignore[arg-type]
+                    E_t, B_t = self.pic_driver.exchange_fields()
+                    self.field_manager.update_E(np.stack(E_t, axis=0))
+                    self.field_manager.update_B(np.stack(B_t, axis=0))
+                except Exception as exc:
+                    logger.error(f"Error communicating with PIC driver: {exc}")
+                if self.quality:
+                    self.step_count += 1
+                    cell_size = min(self.dx, self.dy, self.dz)
+                    positions, _ = self.pic_driver.exchange_particles()
+                    ppc = (
+                        positions.shape[0] / (self.nx * self.ny * self.nz)
+                        if positions.size
+                        else 0.0
+                    )
                     self.quality.log(self.step_count, self.dt, cell_size, ppc, 0.0, 0.0)
                 return
             self.deposit_charge()
