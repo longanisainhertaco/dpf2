@@ -345,7 +345,11 @@ class CircuitConfig(ConfigSectionBase):
         :class:`dpf2.circuit.distributed.TransmissionLineSegment`.
         """
 
-        from .circuit.distributed import TransmissionLineSegment, TriggeredSwitch
+        from .circuit.distributed import (
+            TransmissionLineSegment,
+            TriggeredSwitch,
+            CrowbarStage,
+        )
 
         def _convert_profile(
             prof: Optional[TimeVoltageProfile], scale_val: float
@@ -380,12 +384,29 @@ class CircuitConfig(ConfigSectionBase):
                     )
                 )
 
+        # Optional lumped driver sections approximating a multi‑section line
+        if self.rlc_sections:
+            node = 0
+            for sec in self.rlc_sections:
+                segments.append(
+                    TransmissionLineSegment(
+                        from_node=node,
+                        to_node=node + 1,
+                        length=1.0,
+                        L_per_m=sec.L,
+                        R_per_m=sec.R,
+                        C_per_m=sec.C,
+                    )
+                )
+                node += 1
+
         switches: List[TriggeredSwitch] = []
         if self.switches:
             for sw in self.switches:
                 trig = None
                 if sw.trigger_times:
                     trig = [tt * 1e-9 for tt in sw.trigger_times]
+                jitter = sw.jitter_std if sw.jitter_std else self.trigger_jitter_stddev
                 switches.append(
                     TriggeredSwitch(
                         from_node=sw.from_node,
@@ -397,10 +418,30 @@ class CircuitConfig(ConfigSectionBase):
                         R_parasitic=sw.R_parasitic * 1e-3,
                         C_parasitic=sw.C_parasitic * 1e-6,
                         trigger_times=trig,
-                        jitter_std=sw.jitter_std * 1e-9,
+                        jitter_std=jitter * 1e-9,
                         arc_resistance=sw.arc_resistance * 1e6,
                     )
                 )
+
+        # Optional crowbar stages tying the source to the return path
+        if self.crowbar_stages:
+            if segments:
+                src_node = segments[0].from_node
+                last_node = segments[-1].to_node
+            else:
+                src_node, last_node = 0, 1
+            for cb in self.crowbar_stages:
+                jitter = cb.jitter if cb.jitter else self.trigger_jitter_stddev
+                sw = CrowbarStage(
+                    src_node,
+                    last_node,
+                    cb.resistance,
+                    cb.trigger * 1e-9,
+                    jitter_std=jitter * 1e-9,
+                )
+                if cb.arc_resistance:
+                    sw.arc_resistance = cb.arc_resistance * 1e6
+                switches.append(sw)
 
         return segments, switches
 

@@ -37,6 +37,7 @@ __all__ = [
     "TriggeredSwitch",
     "CrowbarStage",
     "BlumleinSection",
+    "MultiSectionLine",
     "PlasmaInductance",
     "assemble_matrices",
 ]
@@ -245,6 +246,25 @@ class BlumleinSection:
 
 
 @dataclass
+class MultiSectionLine:
+    """Container representing a chain of transmission line segments.
+
+    Realistic drivers are often approximated by several lumped sections.  The
+    solver itself operates purely on individual ``TransmissionLineSegment``
+    objects; this helper merely groups a number of segments so they can be
+    passed around as a single object before being expanded by
+    :func:`assemble_matrices`.
+    """
+
+    sections: Sequence[TransmissionLineSegment]
+
+    def components(self) -> list[TransmissionLineSegment]:
+        """Return the contained segments as a list."""
+
+        return list(self.sections)
+
+
+@dataclass
 class PlasmaInductance:
     """Dynamic inductive branch sourced from an external plasma solver."""
 
@@ -273,7 +293,7 @@ class PlasmaInductance:
 
 
 def assemble_matrices(
-    segments: Sequence[TransmissionLineSegment],
+    segments: Sequence[Any],
     switches: Sequence[TriggeredSwitch] | None = None,
     t: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -295,7 +315,21 @@ def assemble_matrices(
     tests.
     """
 
-    switches = list(switches or [])
+    # Expand composite helpers into raw segments and switches
+    seg_list: list[TransmissionLineSegment] = []
+    sw_list: list[TriggeredSwitch] = list(switches or [])
+    for item in segments:
+        if isinstance(item, BlumleinSection):
+            seg, trig = item.components()
+            seg_list.append(seg)
+            sw_list.append(trig)
+        elif isinstance(item, MultiSectionLine):
+            seg_list.extend(item.components())
+        else:
+            seg_list.append(item)  # type: ignore[arg-type]
+
+    segments = seg_list
+    switches = sw_list
 
     # Determine mapping from node identifiers to matrix indices
     nodes = set()

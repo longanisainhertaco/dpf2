@@ -343,68 +343,15 @@ def run_circuit_simulation(
 
     # ------------------------------------------------------------------
     # Distributed multi‑section circuit handling
-    if getattr(cfg, "segments", None) or getattr(cfg, "rlc_sections", None) or getattr(cfg, "crowbar_stages", None):
-        segments: list[TransmissionLineSegment] = []
-        switches: list[CrowbarStage | TriggeredSwitch] = []
-
-        # Existing transmission line segments defined via configuration
-        if getattr(cfg, "segments", None) or getattr(cfg, "switches", None):
-            segs, sws = cfg.build_distributed_model()
-            segments.extend(segs)
-            switches.extend(sws)
-        if switches and getattr(cfg, "trigger_jitter_stddev", 0.0):
-            jitter = cfg.trigger_jitter_stddev * 1e-9
-            for sw in switches:
-                # Respect per-switch jitter specified at construction time
-                if getattr(sw, "jitter_std", 0.0) > 0.0:
-                    continue
-                if getattr(sw, "trigger_times", None):
-                    sw.trigger_times = [tt + _gauss(0.0, jitter) for tt in sw.trigger_times]
-                    sw.trigger_times.sort()
-                    sw._next_trigger = 0
-
-        # Optional multi‑section lumped elements
-        secs = getattr(cfg, "rlc_sections", None)
-        if secs:
-            node = 0
-            for sec in secs:
-                L = sec.get("L", 0.0)
-                R = sec.get("R", 0.0)
-                C = sec.get("C", 0.0)
-                segments.append(
-                    TransmissionLineSegment(
-                        from_node=node,
-                        to_node=node + 1,
-                        length=1.0,
-                        L_per_m=L,
-                        R_per_m=R,
-                        C_per_m=C,
-                    )
-                )
-                node += 1
-
-        # Optional crowbar stages connecting source to return
-        cbs = getattr(cfg, "crowbar_stages", None)
-        if cbs:
-            if segments:
-                src_node = segments[0].from_node
-                last_node = segments[-1].to_node
-            else:
-                src_node, last_node = 0, 1
-            for stage in cbs:
-                res = stage.get("resistance", 0.0)
-                trig = stage.get("trigger", 0.0) * 1e-9
-                jitter = stage.get(
-                    "jitter", getattr(cfg, "trigger_jitter_stddev", 0.0)
-                ) * 1e-9
-                arc = stage.get("arc_resistance", 0.0) * 1e6
-                cb = CrowbarStage(
-                    src_node, last_node, res, trig, jitter_std=jitter
-                )
-                if arc:
-                    cb.arc_resistance = arc
-                switches.append(cb)
-
+    if (
+        getattr(cfg, "segments", None)
+        or getattr(cfg, "rlc_sections", None)
+        or getattr(cfg, "crowbar_stages", None)
+        or getattr(cfg, "switches", None)
+    ):
+        # ``build_distributed_model`` now handles optional multi‑section
+        # elements, crowbar branches and per‑switch jitter.
+        segments, switches = cfg.build_distributed_model()
         dt = t_end * 1e-6 / (num_points - 1)
         sol = solve_distributed_circuit(
             segments,
