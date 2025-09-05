@@ -1,3 +1,4 @@
+
 import sys
 import pathlib
 import csv
@@ -55,3 +56,4 @@ def test_spitzer_floor_enforced():
     eta = solver.compute_anomalous_resistivity(J)
     assert np.isclose(float(eta[0]), floor)
     assert np.isclose(solver.last_voltage_spike, floor * mag)
+

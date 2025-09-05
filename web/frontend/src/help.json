@@ -6,5 +6,9 @@
     "geometryFile": "Optional CAD file for custom geometry",
     "import": "Load a configuration set from JSON"
 
+  },
+  "diagnostics": {
+    "rogowskiCal": "Optional HDF5 calibration file for Rogowski coil; ideal response used if omitted",
+    "bdotCal": "Optional HDF5 calibration file for B-dot probe; ideal response used if omitted"
   }
 }
