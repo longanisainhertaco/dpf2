@@ -49,7 +49,11 @@ class WarpXSettings(ConfigSectionBase):
     )
 
     field_solver: Literal["Yee", "PSATD", "PSTD", "FDTD", "LDS"] = Field(
-        "Yee", alias="fieldSolver"
+        "Yee",
+        alias="fieldSolver",
+        json_schema_extra={
+            "description": "Maxwell solver choice.  PSATD and LDS provide low-dispersion options mitigating numerical Cherenkov instability.",
+        },
     )
     interpolation_order: int = Field(2, ge=1, le=5, alias="interpolationOrder")
     particle_shape: Literal["linear", "quadratic", "cubic"] = Field(
@@ -214,6 +218,15 @@ class WarpXSettings(ConfigSectionBase):
             f"Mitigation: {', '.join(extra)}" if extra else "Mitigation: none"
         )
         return "\n".join([solver, adapt, species_line, current_line, extra_line])
+
+    @property
+    def mitigation_enabled(self) -> bool:
+        """Return ``True`` when any NCI mitigation feature is active."""
+        return (
+            self.spectral_filtering
+            or self.randomized_particle_loading
+            or self.field_solver in {"PSATD", "LDS"}
+        )
 
     def hash_warpx_config(self) -> str:
         data = self.model_dump(exclude={"warpx_config_hash"}, by_alias=True, exclude_none=True)

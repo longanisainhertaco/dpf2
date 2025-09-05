@@ -36,7 +36,11 @@ def plasma_beta(n: float, T: float, B: float) -> float:
     """Compute plasma beta for a cell."""
 
     if B == 0:
-        raise ValueError("B must be non-zero")
+        # In very early phases of a simulation the magnetic field can be zero
+        # which would otherwise raise an exception and halt diagnostics.  In
+        # that regime the beta parameter is formally infinite, so we return a
+        # large value instead of raising.
+        return float("inf")
     pressure = n * k_B * T
     return 2 * mu_0 * pressure / (B * B)
 
@@ -47,7 +51,7 @@ def alfven_mach_number(v: float, B: float, n: float) -> float:
     rho = n * m_p
     v_a = B / sqrt(mu_0 * rho)
     if v_a == 0:
-        raise ValueError("v_A is zero")
+        return float("inf")
     return v / v_a
 
 
