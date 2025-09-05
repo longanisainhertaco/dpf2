@@ -86,3 +86,15 @@ dpf2 uq-sweep --config config.json --parameters '{"capacitance":[1e-6,5e-6]}' --
 
 Execute a sweep across the sampled configurations and record peak current
 for each case in ``uq_results.json``.
+
+## HPC Workflow Example
+
+The CLI can be combined with batch systems for parallel runs. For example, a four-rank job under SLURM can be launched with:
+
+```bash
+srun -n 4 dpf2 simulate -c config.json -o output --lab-mode
+```
+
+This executes the solver across multiple tasks while capturing a manifest for reproducibility. Performance characteristics on a reference cluster are shown below.
+
+![Strong scaling](images/strong_scaling.png)

@@ -52,3 +52,23 @@ python -m dpf2.cli --lab-mode simulate \
     --restart run/run_manifest.json
 ```
 
+## Performance Scaling
+
+Strong and weak scaling studies highlight how the solver performs on large clusters.
+
+![Strong scaling](images/strong_scaling.png)
+![Weak scaling](images/weak_scaling.png)
+
+To reproduce these measurements on SLURM:
+
+```bash
+srun -n 8 python scripts/scaling_tests.py --strong --sizes 1 2 4 8
+```
+
+## HPC CLI Example
+
+The command line interface can be launched directly with `srun` to distribute a run:
+
+```bash
+srun -n 4 dpf2 simulate -c config.json -o run --lab-mode
+```
