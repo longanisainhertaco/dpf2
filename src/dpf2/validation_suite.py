@@ -483,14 +483,19 @@ def evaluate_benchmark(
         Simulation results containing ``current`` time series, ``neutron_yield``
         and ``anisotropy`` entries.
     expected:
-        Mapping with the same structure providing the reference values.
+        Mapping with the same structure providing the reference values.  May
+        contain a ``tolerance`` mapping with relative error bands for each
+        quantity.
     tolerances:
-        Optional relative tolerances for ``current``, ``neutron_yield`` and
-        ``anisotropy``.  Defaults to ``0.1`` for the current trace and ``0.05``
-        for the scalar metrics.
+        Optional override for the relative tolerances of ``current``,
+        ``neutron_yield`` and ``anisotropy``.  Defaults to the ``tolerance``
+        entry in ``expected`` or ``0.1`` for the current trace and ``0.05`` for
+        the scalar metrics when no tolerance is supplied.
     """
 
-    tol = {"current": 0.1, "neutron_yield": 0.05, "anisotropy": 0.05}
+    tol = expected.get(
+        "tolerance", {"current": 0.1, "neutron_yield": 0.05, "anisotropy": 0.05}
+    )
     if tolerances:
         tol.update(tolerances)
 
@@ -503,11 +508,14 @@ def evaluate_benchmark(
     v_sim = np.array(sim_cur.get("value", []))
     if len(t_exp) and len(t_sim):
         v_interp = np.interp(t_exp, t_sim, v_sim)
-        cur_rmse = float(np.sqrt(np.mean((v_interp - v_exp) ** 2)))
+        diff = v_interp - v_exp
+        cur_rmse = float(np.sqrt(np.mean(diff ** 2)))
+        cur_max_err = float(np.max(np.abs(diff)))
         norm = np.max(np.abs(v_exp)) or 1.0
-        cur_pass = cur_rmse <= norm * tol["current"]
+        cur_pass = cur_max_err <= norm * tol.get("current", 0.0)
     else:  # pragma: no cover - defensive
         cur_rmse = float("inf")
+        cur_max_err = float("inf")
         cur_pass = False
 
     # --- Scalar metrics ----------------------------------------------------
@@ -525,6 +533,7 @@ def evaluate_benchmark(
     passed = cur_pass and y_pass and a_pass
     return {
         "current_rmse": cur_rmse,
+        "current_max_error": cur_max_err,
         "neutron_yield_error": y_err,
         "anisotropy_error": a_err,
         "passed": passed,

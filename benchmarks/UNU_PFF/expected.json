@@ -7,12 +7,12 @@
     ],
     "value": [
       0.0,
-      1000000.0,
+      500000.0,
       0.0
     ]
   },
-  "neutron_yield": 100000000000.0,
-  "anisotropy": 1.0,
+  "neutron_yield": 5000000000.0,
+  "anisotropy": 0.9,
   "tolerance": {
     "current": 0.1,
     "neutron_yield": 0.05,
