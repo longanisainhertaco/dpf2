@@ -379,6 +379,7 @@ def _faraday_eedf(history: Sequence[CouplingState], bins: int = 50) -> List[floa
 class SyntheticInstrument(BaseModel):
     """Per-instrument overrides for synthetic diagnostics."""
 
+    calibration_file: Optional[Path] = None
     response_file: Optional[Path] = None
     noise_model: Optional[str] = None
     geometry: Optional[str] = None
@@ -622,6 +623,14 @@ def run_diagnostic_calculations(
 
     hist = list(history)
     outputs: Dict[str, List[float]] = {}
+    overrides = cfg.instrument_overrides or {}
+
+    def _cal_path(name: str) -> Path | None:
+        inst = overrides.get(name)
+        if inst and inst.calibration_file is not None:
+            return inst.calibration_file
+        return None
+
     if cfg.synthetic_current_waveform_enabled:
         outputs["current"] = current_waveform(hist)
     if cfg.synthetic_voltage_waveform_enabled:
@@ -631,9 +640,9 @@ def run_diagnostic_calculations(
     if cfg.synthetic_coupled_voltage_waveform_enabled:
         outputs["coupled_voltage"] = coupled_voltage_waveform(hist)
     if cfg.synthetic_rogowski_signal_enabled:
-        outputs["rogowski"] = rogowski_signal(hist, dt)
+        outputs["rogowski"] = rogowski_signal(hist, dt, calibration_file=_cal_path("rogowski"))
     if cfg.synthetic_bdot_signal_enabled:
-        outputs["bdot"] = bdot_signal(hist, bdot_radius, dt)
+        outputs["bdot"] = bdot_signal(hist, bdot_radius, dt, calibration_file=_cal_path("bdot"))
 
     if cfg.synthetic_cr39_image_enabled:
         outputs["cr39_image"] = _cr39_image(hist)
