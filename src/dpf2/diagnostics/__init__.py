@@ -285,6 +285,23 @@ class Diagnostics(ConfigSectionBase):
     enable_neutron_tof_detectors: bool = False
     sxr_detector_models: List[SXRModel] = Field(default_factory=list)
     neutron_tof_detectors: List[TOFModel] = Field(default_factory=list)
+    # -- Calibration files -------------------------------------------------
+    rogowski_calibration_path: str | None = Field(
+        default=None,
+        description="HDF5 file containing Rogowski coil impulse response",
+    )
+    bdot_calibration_path: str | None = Field(
+        default=None,
+        description="HDF5 file containing B-dot probe impulse response",
+    )
+    sxr_calibration_path: str | None = Field(
+        default=None,
+        description="HDF5 file containing soft X-ray diode response",
+    )
+    neutron_tof_calibration_path: str | None = Field(
+        default=None,
+        description="HDF5 file containing neutron TOF detector response",
+    )
     wall_probe_array_config: Optional[List[DetectorConfig]] = None
     detector_config_hash: Optional[str] = None
     max_detector_count: int = 32
