@@ -7,7 +7,7 @@ from typing import Sequence, List, Dict, Any, Mapping
 import json
 
 # Re-export core synthesis utilities from :mod:`neutron_spectra`
-from .neutron_spectra import (
+from ..neutron_spectra import (
     Detector,
     DetectorLayout,
     synthetic_tof_spectrum,
@@ -18,6 +18,12 @@ from .neutron_spectra import (
     load_detector_layout,
     time_resolved_spectra,
     directional_time_resolved_spectra,
+)
+
+from .angular_distribution import (
+    per_angle_yield,
+    forward_radial_backward_totals,
+    directional_yield,
 )
 
 
@@ -137,6 +143,9 @@ __all__ = [
     "load_detector_layout",
     "time_resolved_spectra",
     "directional_time_resolved_spectra",
+    "per_angle_yield",
+    "forward_radial_backward_totals",
+    "directional_yield",
     "load_response",
     "apply_response",
     "anisotropy_report",
