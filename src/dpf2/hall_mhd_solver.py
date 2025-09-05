@@ -42,8 +42,8 @@ from .boundary_conditions import KineticSheath
 from .physics.energy import EnergyTracker
 from .diagnostics.quality_dashboard import QualityDashboard
 from .diagnostics.modes import azimuthal_mode_spectrum
-from .physics.anomalous_resistivity import SpectralResistivity
 from .physics.lower_hybrid_drift import LowerHybridDrift
+from .physics.hall_mhd import LHDIResistivity
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +182,14 @@ def _project_div_free(B: np.ndarray) -> np.ndarray:
 
 def _minmod(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """Minmod limiter used for MUSCL reconstruction."""
-    return 0.5 * (np.sign(a) + np.sign(b)) * np.minimum(np.abs(a), np.abs(b))
+    sign_sum = np.sign(a) + np.sign(b)
+    abs_a = np.abs(a)
+    abs_b = np.abs(b)
+    if hasattr(np, "minimum"):
+        m = np.minimum(abs_a, abs_b)
+    else:  # pragma: no cover - numpy stub fallback
+        m = (abs_a < abs_b) * abs_a + (abs_a >= abs_b) * abs_b
+    return 0.5 * sign_sum * m
 
 
 def _hll_flux(
@@ -357,6 +364,9 @@ class HallMHDSolver(PlasmaSolverBase):
     last_voltage_spike: float = field(init=False, default=0.0)
     last_lh_power: float = field(init=False, default=0.0)
     last_lh_phase_velocity: float = field(init=False, default=0.0)
+    last_lh_spectrum: np.ndarray | None = field(init=False, default=None)
+    lh_spectrum_history: list[np.ndarray] = field(init=False, default_factory=list)
+    last_ez_surge: float = field(init=False, default=0.0)
     last_eta_anom_mean: float = field(init=False, default=0.0)
     last_eta_total_mean: float = field(init=False, default=0.0)
     last_pressure: np.ndarray | None = field(init=False, default=None)
@@ -392,13 +402,13 @@ class HallMHDSolver(PlasmaSolverBase):
             self.bc(state)
 
     # ------------------------------------------------------------------
-    def enable_spectral_resistivity(
+    def enable_lhdi_resistivity(
         self,
         lhd: LowerHybridDrift,
         scale: float = 1.0,
         floor: float = 0.0,
     ) -> None:
-        """Enable lower-hybrid drift spectral anomalous resistivity.
+        """Enable lower-hybrid drift instability (LHDI) resistivity.
 
         Parameters
         ----------
@@ -414,7 +424,14 @@ class HallMHDSolver(PlasmaSolverBase):
         automatically included by :meth:`compute_anomalous_resistivity`.
         """
 
-        self.lower_hybrid_drift = SpectralResistivity(lhd, scale=scale, floor=floor)
+        self.lower_hybrid_drift = LHDIResistivity(lhd, scale=scale, floor=floor)
+
+    # Backwards compatibility ------------------------------------------------
+    enable_spectral_resistivity = enable_lhdi_resistivity
+
+    def disable_lhdi_resistivity(self) -> None:
+        """Remove any active LHDI resistivity model."""
+        self.lower_hybrid_drift = None
 
     def compute_anomalous_resistivity(self, J: np.ndarray) -> np.ndarray:
         """Evaluate anomalous resistivity models and record voltage spikes.
@@ -430,6 +447,8 @@ class HallMHDSolver(PlasmaSolverBase):
         E = np.zeros_like(J)
         s_eta = np.zeros(J.shape[:-1])
         s_E = np.zeros_like(J)
+        self.last_lh_spectrum = None
+        self.last_ez_surge = 0.0
 
         if hasattr(np, "abs"):
             mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
@@ -472,6 +491,13 @@ class HallMHDSolver(PlasmaSolverBase):
                 s_E[..., 2] += e_E
             else:
                 s_E += e_E
+            try:
+                magJ = np.linalg.norm(J, axis=-1)
+                spectrum = azimuthal_mode_spectrum(magJ, axis=-1)
+                self.last_lh_spectrum = spectrum.copy()
+                self.lh_spectrum_history.append(spectrum.copy())
+            except Exception:  # pragma: no cover - optional
+                self.last_lh_spectrum = None
             if hasattr(source, "power"):
                 try:
                     self.last_lh_power = float(np.max(source.power()))
@@ -497,6 +523,7 @@ class HallMHDSolver(PlasmaSolverBase):
         else:
             self.last_lh_power = 0.0
             self.last_lh_phase_velocity = 0.0
+            self.last_lh_spectrum = None
 
 
         if self.instability_thresholds:
@@ -507,10 +534,11 @@ class HallMHDSolver(PlasmaSolverBase):
         else:  # pragma: no cover - very small stub fallback
             mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
 
+        self.last_ez_surge = float(np.max(np.abs(s_E[..., 2])))
         spike = float(
             max(
                 np.max(s_eta * mag),
-                np.max(np.abs(s_E[..., 2]))
+                self.last_ez_surge
             )
         )
         if spike != 0.0:

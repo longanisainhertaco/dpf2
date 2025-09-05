@@ -14,6 +14,7 @@ except Exception:  # pragma: no cover
     mu_0 = 4e-7 * np.pi
 
 from .mhd import ResistiveMHD
+from .anomalous_resistivity import SpectralResistivity as LHDIResistivity
 from ..mesh import Mesh2D, Mesh3D
 from ..core.bases import CouplingState
 
@@ -430,6 +431,7 @@ def hall_shock_speed(B: float, ne: float, L: float) -> float:
 
 __all__ = [
     "HallMHD",
+    "LHDIResistivity",
     "nrl_braginskii",
     "electron_collision_time",
     "hall_parameters",
