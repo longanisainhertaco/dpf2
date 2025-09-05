@@ -30,6 +30,7 @@ class SurrogateModel(ABC):
         self._feature_mean: list[float] | None = None
         self._inv_cov: list[list[float]] | None = None
         self._mahalanobis_threshold: float | None = None
+        self._quantile: float | None = None
         if metadata_path.exists():
             with metadata_path.open() as fh:
                 metadata = json.load(fh)
@@ -37,6 +38,13 @@ class SurrogateModel(ABC):
             cov_inv = metadata.get("feature_cov_inv")
             cov = metadata.get("feature_cov")
             threshold = metadata.get("mahalanobis_threshold")
+            # Extract per-model quantile if present
+            for info in metadata.values():
+                if isinstance(info, dict) and info.get("onnx") == self.model_path.name:
+                    q = info.get("quantile")
+                    if q is not None:
+                        self._quantile = float(q)
+                        break
             if mean is not None and threshold is not None:
                 self._feature_mean = list(mean)
                 inv = None
@@ -47,7 +55,16 @@ class SurrogateModel(ABC):
                         import numpy as _np  # type: ignore
                         inv = _np.linalg.inv(_np.asarray(cov)).tolist()
                     except Exception:
-                        inv = None
+                        if (
+                            isinstance(cov, list)
+                            and len(cov) == 1
+                            and isinstance(cov[0], list)
+                            and len(cov[0]) == 1
+                            and cov[0][0] != 0
+                        ):
+                            inv = [[1.0 / float(cov[0][0])]]
+                        else:
+                            inv = None
                 if inv is not None:
                     self._inv_cov = inv
                     self._mahalanobis_threshold = float(threshold)
@@ -63,6 +80,26 @@ class SurrogateModel(ABC):
         inputs_iter = [inputs] if getattr(inputs, "ndim", 1) == 1 else inputs
         self._check_domain(inputs_iter)
         return self._predict(inputs)
+
+    def predict_with_uncertainty(
+        self, inputs: Any
+    ) -> tuple[float, tuple[float, float]] | list[tuple[float, tuple[float, float]]]:
+        """Return prediction and conformal uncertainty band for ``inputs``."""
+
+        if isinstance(inputs, (list, tuple)):
+            arr = np.array([[float(v)] for v in inputs])
+            preds = self.predict(arr)
+            preds_list = [float(p[0]) if hasattr(p, "__getitem__") else float(p) for p in preds]
+            dists = [self._mahalanobis_distance([float(v)]) for v in inputs]
+            bands = [0.0 if self._quantile is None else self._quantile * (1.0 + d) for d in dists]
+            return [(p, (p - b, p + b)) for p, b in zip(preds_list, bands)]
+        else:
+            val = float(inputs)
+            arr = np.array([[val]])
+            pred = float(self.predict(arr)[0][0])
+            dist = self._mahalanobis_distance([val])
+            band = 0.0 if self._quantile is None else self._quantile * (1.0 + dist)
+            return pred, (pred - band, pred + band)
 
     def _mahalanobis_distance(self, x: Any) -> float:
         if self._feature_mean is None or self._inv_cov is None:

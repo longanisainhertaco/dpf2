@@ -7,5 +7,9 @@
     90.0,
     200.0
   ],
-  "error": 0.15770609318996462
+  "error": 0.21935483870967723,
+  "onnx": "pinch_time_model.onnx",
+  "mean": 150.0,
+  "covariance": 2066.6666666666665,
+  "ood_threshold": 2.0
 }
