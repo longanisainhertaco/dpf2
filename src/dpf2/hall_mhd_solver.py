@@ -968,8 +968,21 @@ class HallMHDSolver(PlasmaSolverBase):
         )
 
         if self.circuit is not None:
+            # Recompute the plasma inductance using the prospective current so
+            # the circuit solver receives a self‑consistent ``Lp`` for this
+            # timestep.
+            def _refresh(I: float, V: float) -> CouplingState:
+                try:
+                    Lp = float(self.compute_plasma_inductance(new_state, I))
+                except Exception:
+                    Lp = self.inductance
+                return CouplingState(Lp=Lp, emf=self.back_emf, current=I, voltage=V)
+
             updated = self.circuit.step(
-                self.circuit_feedback, self.last_voltage_spike, dt
+                self.circuit_feedback,
+                self.last_voltage_spike,
+                dt,
+                update_coupling=_refresh,
             )
             self.current = updated.current
             self.back_emf = updated.voltage
