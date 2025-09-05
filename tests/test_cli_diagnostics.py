@@ -3,6 +3,7 @@ try:  # pragma: no cover - prefer real h5py
     import h5py  # type: ignore
 except Exception:  # pragma: no cover
     import h5py_stub as h5py  # type: ignore
+import json
 from click.testing import CliRunner
 
 from dpf2.cli.main import diagnostics
@@ -44,8 +45,12 @@ def test_cli_accepts_calibration_files(tmp_path):
     _write_history(hist_path)
     rog_cal = tmp_path / "rog.h5"
     bdot_cal = tmp_path / "bdot.h5"
+    sxr_cal = tmp_path / "sxr.h5"
+    tof_cal = tmp_path / "tof.h5"
     _write_calibration(rog_cal, "rogowski")
     _write_calibration(bdot_cal, "bdot")
+    _write_calibration(sxr_cal, "sxr")
+    _write_calibration(tof_cal, "tof")
 
     runner = CliRunner()
     result = runner.invoke(
@@ -57,6 +62,10 @@ def test_cli_accepts_calibration_files(tmp_path):
             str(rog_cal),
             "--bdot-cal",
             str(bdot_cal),
+            "--sxr-cal",
+            str(sxr_cal),
+            "--tof-cal",
+            str(tof_cal),
         ],
     )
     assert result.exit_code == 0, result.output
@@ -83,4 +92,20 @@ def test_cli_help_shows_calibration_options():
     result = runner.invoke(diagnostics, ["--help"])
     assert "--rogowski-cal" in result.output
     assert "--bdot-cal" in result.output
+    assert "--sxr-cal" in result.output
+    assert "--tof-cal" in result.output
+    assert "--anisotropy-plot" in result.output
+
+
+def test_cli_anisotropy_plot(tmp_path):
+    hist_path = tmp_path / "history.json"
+    _write_history(hist_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        diagnostics,
+        ["--history", str(hist_path), "--anisotropy-plot"],
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert "anisotropy" in data
 

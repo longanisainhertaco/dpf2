@@ -28,6 +28,7 @@ from dpf2.diagnostics.synthetic_signals import (
     coupled_voltage_waveform,
     rogowski_signal,
     bdot_signal,
+    angular_neutron_spectrum,
 )
 from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
@@ -1143,6 +1144,21 @@ def make_surrogate(data: str, outdir: str) -> None:
     type=click.Path(exists=True, dir_okay=False),
     help="Optional B-dot calibration file",
 )
+@click.option(
+    "--sxr-cal",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Optional SXR calibration file",
+)
+@click.option(
+    "--tof-cal",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Optional neutron TOF calibration file",
+)
+@click.option(
+    "--anisotropy-plot",
+    is_flag=True,
+    help="Output simple angular neutron spectrum",
+)
 @click.option("--dt", type=float, default=1e-9, help="Time step for derivatives [s]")
 @click.option(
     "--radius", type=float, default=0.01, help="Probe radius for B-dot signal [m]"
@@ -1156,6 +1172,9 @@ def diagnostics(
     bdot: bool,
     rogowski_cal: str | None,
     bdot_cal: str | None,
+    sxr_cal: str | None,
+    tof_cal: str | None,
+    anisotropy_plot: bool,
     dt: float,
     radius: float,
 ) -> None:
@@ -1194,6 +1213,10 @@ def diagnostics(
             outputs["bdot"] = bdot_signal(
                 states, radius, dt, calibration_file=bdot_cal
             )
+
+        if anisotropy_plot:
+            angles = [0.0, 90.0, 180.0]
+            outputs["anisotropy"] = angular_neutron_spectrum(angles, 1.0, 0.0)
 
         click.echo(json.dumps(outputs))
     except Exception as e:

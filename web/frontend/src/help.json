@@ -9,6 +9,9 @@
   },
   "diagnostics": {
     "rogowskiCal": "Optional HDF5 calibration file for Rogowski coil; ideal response used if omitted",
-    "bdotCal": "Optional HDF5 calibration file for B-dot probe; ideal response used if omitted"
+    "bdotCal": "Optional HDF5 calibration file for B-dot probe; ideal response used if omitted",
+    "sxrCal": "Optional HDF5 calibration file for soft X-ray diode",
+    "tofCal": "Optional HDF5 calibration file for neutron TOF detector",
+    "anisotropyPlot": "Display simple forward/radial/backward anisotropy"
   }
 }
