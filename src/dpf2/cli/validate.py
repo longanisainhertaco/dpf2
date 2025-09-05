@@ -142,7 +142,7 @@ def run_validation(
     if ds_path.is_dir():
         exp = json.loads((ds_path / "expected.json").read_text())
         sim = json.loads((ds_path / "inputs.json").read_text())
-        report = evaluate_benchmark(sim, exp)
+        report = evaluate_benchmark(sim, exp, tolerances=exp.get("tolerance"))
         outdir.mkdir(parents=True, exist_ok=True)
         with (outdir / "benchmark_report.json").open("w") as fh:
             json.dump(report, fh, indent=2)

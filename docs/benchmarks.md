@@ -12,7 +12,8 @@ read‑only directory containing three JSON files and a CSV file:
 
 - `deck.json` – minimal simulation configuration for the reference shot
 - `inputs.json` – waveform and scalar outputs produced by the simulator
-- `expected.json` – published reference data used for validation
+- `expected.json` – published reference data and relative tolerance bands used
+  for validation
 - `reference.csv` – raw time histories used by the legacy ``benchmark run``
   CLI
 
@@ -27,7 +28,8 @@ python -m dpf2.cli.main validate \
 
 The command compares the current trace, neutron yield, and anisotropy against
 ``expected.json`` and writes a ``benchmark_report.json`` summarising pass/fail
-status for each metric.
+status for each metric.  Each ``expected.json`` includes a ``tolerance`` section
+specifying the acceptable relative error for the three quantities.
 
 ### Overlay comparisons
 
@@ -51,9 +53,15 @@ Results are written to ``Validation/<case>/`` containing an ``overlay.png`` and
 
 ### Reference devices
 
-- `PF1000` – PF‑1000 facility [Sadowski 1992]
-- `UNU` – UNU/ICTP Plasma Focus Facility [Lee 2014]
-- `MJOLNIR` – LLNL MJOLNIR dense plasma focus [Eddleman 2020]
+- `PF1000` – PF‑1000 facility [Sadowski 1997](https://doi.org/10.1109/PLASMA.1997.604825)
+- `UNU_PFF` – UNU/ICTP Plasma Focus Facility [Lee 2014](https://doi.org/10.1007/s10894-014-9683-8)
+- `MJOLNIR` – LLNL MJOLNIR dense plasma focus [Eddleman 2020](https://doi.org/10.2172/1665938)
+
+## References
+
+- M. J. Sadowski et al., "Dense plasma-focus research in Poland," *IEEE Transactions on Plasma Science* **26**, 1998. [doi:10.1109/PLASMA.1997.604825](https://doi.org/10.1109/PLASMA.1997.604825)
+- S. Lee, "Plasma Focus Radiative Model: Review of the Lee Model Code," *Journal of Fusion Energy* **33**, 2014. [doi:10.1007/s10894-014-9683-8](https://doi.org/10.1007/s10894-014-9683-8)
+- J. Eddleman et al., "MJOLNIR dense plasma focus facility," LLNL Technical Report, 2020. [doi:10.2172/1665938](https://doi.org/10.2172/1665938)
 
 ## Analytic plasma expansion
 
