@@ -426,6 +426,33 @@ class ProjectManager:
             except Exception as exc:  # pragma: no cover
                 raise RuntimeError("Geometry translation not supported") from exc
 
+    def rotate_geometry(
+        self, label: str, rotation: Tuple[float, float, float]
+    ) -> None:
+        """Rotate a stored geometry by ``(rx, ry, rz)`` degrees."""
+
+        geom = self.geometries.get(label)
+        if geom is None:
+            raise KeyError(label)
+        rx, ry, rz = rotation
+        try:  # pragma: no cover - depends on optional trimesh
+            import numpy as np
+            import trimesh
+
+            mat = trimesh.transformations.euler_matrix(
+                np.deg2rad(rx), np.deg2rad(ry), np.deg2rad(rz), "sxyz"
+            )
+            geom.apply_transform(mat)  # type: ignore[attr-defined]
+            return
+        except Exception:
+            pass
+        try:  # pragma: no cover - depends on optional pyvista
+            geom.rotate_x(rx, inplace=True)  # type: ignore[attr-defined]
+            geom.rotate_y(ry, inplace=True)  # type: ignore[attr-defined]
+            geom.rotate_z(rz, inplace=True)  # type: ignore[attr-defined]
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeError("Geometry rotation not supported") from exc
+
     def geometry_figure(self, label: str):  # pragma: no cover - simple wrapper
         """Return a Plotly figure visualising a stored geometry."""
 
