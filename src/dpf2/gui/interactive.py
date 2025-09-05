@@ -248,6 +248,15 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                 ],
                 style={"display": "flex", "gap": "0.5em"},
             ),
+            html.Div(
+                [
+                    dcc.Input(id="geom_rx", type="number", placeholder="rx"),
+                    dcc.Input(id="geom_ry", type="number", placeholder="ry"),
+                    dcc.Input(id="geom_rz", type="number", placeholder="rz"),
+                    html.Button("Rotate", id="geom_rotate"),
+                ],
+                style={"display": "flex", "gap": "0.5em"},
+            ),
             dcc.Graph(id="geometry_view"),
             html.H2("Circuit"),
             html.Div(
@@ -446,14 +455,18 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
         Output("geometry_view", "figure"),
         Input("geom_upload", "contents"),
         Input("geom_translate", "n_clicks"),
+        Input("geom_rotate", "n_clicks"),
         State("geom_upload", "filename"),
         State("geom_label", "value"),
         State("geom_dx", "value"),
         State("geom_dy", "value"),
         State("geom_dz", "value"),
+        State("geom_rx", "value"),
+        State("geom_ry", "value"),
+        State("geom_rz", "value"),
         prevent_initial_call=True,
     )
-    def _update_geometry(contents, n_clicks, filename, label, dx, dy, dz):
+    def _update_geometry(contents, _t_clicks, _r_clicks, filename, label, dx, dy, dz, rx, ry, rz):
         ctx = dash.callback_context
         if not ctx.triggered:
             return go.Figure()
@@ -468,6 +481,8 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
             pm.import_geometry(lbl, tmp)
         elif trigger == "geom_translate" and lbl in pm.geometries:
             pm.transform_geometry(lbl, (dx or 0.0, dy or 0.0, dz or 0.0))
+        elif trigger == "geom_rotate" and lbl in pm.geometries:
+            pm.rotate_geometry(lbl, (rx or 0.0, ry or 0.0, rz or 0.0))
         if lbl in pm.geometries:
             return pm.geometry_figure(lbl)
         return go.Figure()

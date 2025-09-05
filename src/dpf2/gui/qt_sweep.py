@@ -125,6 +125,34 @@ def plot_yield_vs_param(
     return path
 
 
+class SweepPanel(QWidget):
+    """Simple widget displaying overlays of sweep metrics."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.fig, self.ax = plt.subplots()
+        self.canvas = FigureCanvas(self.fig)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.canvas)
+
+    def overlay(self, managers: Dict[str, ProjectManager], metric: str = "yield") -> None:
+        """Overlay ``metric`` versus parameter for all managed sweeps."""
+
+        self.ax.clear()
+        x_label = "parameter"
+        for proj, pm in managers.items():
+            for label, metrics in pm.metrics.items():
+                vals = sorted(metrics.keys())
+                y = [metrics[v].get(metric, 0.0) for v in vals]
+                self.ax.plot(vals, y, label=f"{proj}:{label}")
+                if pm.params.get(label):
+                    x_label = pm.params[label]
+        self.ax.set_xlabel(x_label)
+        self.ax.set_ylabel(metric.replace("_", " ").title())
+        self.ax.legend()
+        self.canvas.draw_idle()
+
+
 class _SweepWindow(QWidget):
     """Main window for the sweep GUI."""
 
@@ -224,10 +252,9 @@ class _SweepWindow(QWidget):
         # Managers for each project
         self.managers: Dict[str, ProjectManager] = {}
 
-        # Embedded plotting canvas for overlays
-        self.fig, self.ax = plt.subplots()
-        self.canvas = FigureCanvas(self.fig)
-        layout.addWidget(self.canvas)
+        # Embedded panel for overlay plots
+        self.panel = SweepPanel()
+        layout.addWidget(self.panel)
 
         # Connect callbacks
         self.btn_sweep_v.clicked.connect(self._sweep_voltage)
@@ -310,19 +337,7 @@ class _SweepWindow(QWidget):
         self._overlay_runs()
 
     def _overlay_runs(self) -> None:
-        self.ax.clear()
-        x_label = "parameter"
-        for proj, pm in self.managers.items():
-            for label, metrics in pm.metrics.items():
-                vals = sorted(metrics.keys())
-                y = [metrics[v].get("yield", 0.0) for v in vals]
-                self.ax.plot(vals, y, label=f"{proj}:{label}")
-                if pm.params.get(label):
-                    x_label = pm.params[label]
-        self.ax.set_xlabel(x_label)
-        self.ax.set_ylabel("Yield")
-        self.ax.legend()
-        self.canvas.draw_idle()
+        self.panel.overlay(self.managers)
 
     def _export_metrics(self) -> None:
         pm = self._pm()
