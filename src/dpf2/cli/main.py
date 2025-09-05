@@ -1133,6 +1133,16 @@ def make_surrogate(data: str, outdir: str) -> None:
 @click.option("--voltage", is_flag=True, help="Output voltage waveform")
 @click.option("--rogowski", is_flag=True, help="Output Rogowski signal")
 @click.option("--bdot", is_flag=True, help="Output B-dot signal")
+@click.option(
+    "--rogowski-cal",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Optional Rogowski calibration file",
+)
+@click.option(
+    "--bdot-cal",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Optional B-dot calibration file",
+)
 @click.option("--dt", type=float, default=1e-9, help="Time step for derivatives [s]")
 @click.option(
     "--radius", type=float, default=0.01, help="Probe radius for B-dot signal [m]"
@@ -1144,6 +1154,8 @@ def diagnostics(
     voltage: bool,
     rogowski: bool,
     bdot: bool,
+    rogowski_cal: str | None,
+    bdot_cal: str | None,
     dt: float,
     radius: float,
 ) -> None:
@@ -1162,18 +1174,26 @@ def diagnostics(
             if cfg.synthetic_voltage_waveform_enabled:
                 outputs["voltage"] = voltage_waveform(states)
             if cfg.synthetic_rogowski_signal_enabled:
-                outputs["rogowski"] = rogowski_signal(states, dt)
+                outputs["rogowski"] = rogowski_signal(
+                    states, dt, calibration_file=rogowski_cal
+                )
             if cfg.synthetic_bdot_signal_enabled:
-                outputs["bdot"] = bdot_signal(states, radius, dt)
+                outputs["bdot"] = bdot_signal(
+                    states, radius, dt, calibration_file=bdot_cal
+                )
 
         if current:
             outputs["current"] = current_waveform(states)
         if voltage:
             outputs["voltage"] = voltage_waveform(states)
         if rogowski:
-            outputs["rogowski"] = rogowski_signal(states, dt)
+            outputs["rogowski"] = rogowski_signal(
+                states, dt, calibration_file=rogowski_cal
+            )
         if bdot:
-            outputs["bdot"] = bdot_signal(states, radius, dt)
+            outputs["bdot"] = bdot_signal(
+                states, radius, dt, calibration_file=bdot_cal
+            )
 
         click.echo(json.dumps(outputs))
     except Exception as e:
