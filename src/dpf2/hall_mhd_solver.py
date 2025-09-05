@@ -498,6 +498,22 @@ class HallMHDSolver(PlasmaSolverBase):
             self.last_lh_power = 0.0
             self.last_lh_phase_velocity = 0.0
 
+        if self.m0_instability is not None:
+            model = self.m0_instability
+            if callable(model):
+                res = model(J)
+            elif hasattr(model, "anomalous_resistivity"):
+                res = model.anomalous_resistivity(J)
+            else:  # pragma: no cover - unexpected type
+                res = model(J)  # type: ignore[misc]
+            e_eta, e_E = _process(res)
+            _accumulate(e_eta, e_E, axial=True)
+            s_eta += e_eta
+            if e_E.ndim == E.ndim - 1:
+                s_E[..., 2] += e_E
+            else:
+                s_E += e_E
+
 
         if self.instability_thresholds:
             self._check_instability_onset(J)
@@ -808,7 +824,24 @@ class HallMHDSolver(PlasmaSolverBase):
             else np.full(rho.shape, float(eta_field))
         )
         eta_anom = self.compute_anomalous_resistivity(J)
-        eta_total = eta_local + eta_anom
+        try:  # pragma: no cover - allow stub numpy without vector ops
+            eta_spitzer_scalar = float(
+                spitzer_resistivity(float(np.max(ne)), float(np.max(T)), 1.0)
+            )
+        except Exception:  # fallback constants
+            eta_spitzer_scalar = float(spitzer_resistivity(1.0, 1.0, 1.0))
+        eta_spitzer = np.full_like(eta_local, eta_spitzer_scalar)
+        eta_eff = eta_local + eta_anom
+        eta_total = np.maximum(eta_eff, eta_spitzer)
+        if (
+            (self.anomalous_resistivity is not None
+             or self.lower_hybrid_drift is not None
+             or self.m0_instability is not None)
+            and np.all(eta_eff <= eta_spitzer)
+        ):
+            msg = "No anomalous resistivity above Spitzer floor"
+            logger.error(msg)
+            raise RuntimeError(msg)
         try:
             self.last_eta_total_mean = float(np.mean(eta_total))
         except Exception:
