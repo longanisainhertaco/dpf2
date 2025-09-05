@@ -36,3 +36,7 @@ solver = HallMHDSolver(braginskii=nrl_braginskii)
 solver.step(state, dt)
 print(solver.hall_active, solver.electron_inertia_active)
 ```
+
+## References
+1. E. Priest and T. Forbes, *Magnetic Reconnection*, Cambridge University Press, 2000.
+2. P. A. Davidson, *An Introduction to Magnetohydrodynamics*, Cambridge University Press, 2001.
