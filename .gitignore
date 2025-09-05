@@ -15,3 +15,7 @@ web/frontend/dist/
 # Web runtime logs and uploads
 web/audit.log
 web/uploads/
+
+# Benchmark artifacts
+docs/performance/*.png
+docs/performance/run_manifest.json
