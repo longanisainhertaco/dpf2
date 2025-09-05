@@ -71,29 +71,33 @@ def run_parametric_sweep(
         (p, (lo, hi))}``.
     """
 
-    from ..ai.simple_surrogates import (
-        LinearSurrogate,
-        load_pinch_time_surrogate,
-        load_yield_surrogate,
-    )
-    try:  # pragma: no cover - prefer surrogate-defined error if available
-        from ..ai.simple_surrogates import OutOfDomainError as _OOD
-    except Exception:  # pragma: no cover
-        _OOD = OutOfDomainError
-    else:
-        global OutOfDomainError
+    model_dir = Path(__file__).resolve().parents[2] / "ai" / "surrogates"
+    try:  # pragma: no cover - optional dependency
+        from ..ai.surrogate import ONNXSurrogateModel, OutOfDomainError as _OOD
+
+        y_path = Path(yield_model) if yield_model else model_dir / "yield_model.onnx"
+        p_path = Path(pinch_model) if pinch_model else model_dir / "pinch_time_model.onnx"
+        y_model = ONNXSurrogateModel.load(y_path)
+        p_model = ONNXSurrogateModel.load(p_path)
         OutOfDomainError = _OOD
+    except Exception:  # pragma: no cover - fallback to simple models
+        from ..ai.simple_surrogates import (
+            LinearSurrogate,
+            load_pinch_time_surrogate,
+            load_yield_surrogate,
+            OutOfDomainError as _OOD,
+        )
 
-    # Load surrogate models -------------------------------------------------
-    if yield_model:
-        y_model = LinearSurrogate.load(Path(yield_model))
-    else:
-        y_model = load_yield_surrogate()
+        if yield_model:
+            y_model = LinearSurrogate.load(Path(yield_model))
+        else:
+            y_model = load_yield_surrogate()
 
-    if pinch_model:
-        p_model = LinearSurrogate.load(Path(pinch_model))
-    else:
-        p_model = load_pinch_time_surrogate()
+        if pinch_model:
+            p_model = LinearSurrogate.load(Path(pinch_model))
+        else:
+            p_model = load_pinch_time_surrogate()
+        OutOfDomainError = _OOD
 
     # Ensure the output directory exists for compatibility with older APIs
     Path(output_dir).mkdir(parents=True, exist_ok=True)

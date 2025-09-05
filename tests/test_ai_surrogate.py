@@ -59,6 +59,22 @@ def test_out_of_domain(tmp_path):
         model.predict(outside)
 
 
+def test_predict_with_uncertainty(tmp_path):
+    model_path = tmp_path / "model.pkl"
+    meta = {
+        "feature_mean": [0.0],
+        "feature_cov": [[1.0]],
+        "mahalanobis_threshold": 5.0,
+        "toy": {"onnx": model_path.name, "quantile": 0.5},
+    }
+    (tmp_path / "metadata.json").write_text(json.dumps(meta))
+    model = SimpleSurrogate(model_path, scale=1.0)
+    pred, (lo, hi) = model.predict_with_uncertainty(1.0)
+    assert pred == pytest.approx(1.0)
+    assert lo == pytest.approx(0.0)
+    assert hi == pytest.approx(2.0)
+
+
 def test_torch_surrogate_import_error(tmp_path):
     path = tmp_path / "model.pt"
     path.write_text("dummy")

@@ -7,6 +7,9 @@
     90.0,
     200.0
   ],
-  "error": 1379928315.4121861,
-  "onnx": "yield_model.onnx"
+  "error": 1919354838.7096791,
+  "onnx": "yield_model.onnx",
+  "mean": 150.0,
+  "covariance": 2066.6666666666665,
+  "ood_threshold": 2.0
 }

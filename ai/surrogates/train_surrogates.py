@@ -111,7 +111,10 @@ def _export_onnx(model: "torch.nn.Module", path: Path) -> None:
 def main() -> None:
     x, y, p = _prepare_data()
     feature_mean = float(x.mean())
-    feature_var = float(x.var())
+    feature_cov = float(x.var())
+    distances = ((x - feature_mean) ** 2) / feature_cov
+    mahalanobis_threshold = float(np.quantile(distances, 0.99))
+    domain = [float(x.min()), float(x.max())]
 
     if torch is None:
         raise RuntimeError("PyTorch is required to train surrogates")
@@ -123,14 +126,47 @@ def main() -> None:
     q_p = _conformal_quantile(pinch_model, x, p)
 
     HERE.mkdir(parents=True, exist_ok=True)
-    _export_onnx(yield_model, HERE / "yield_surrogate.onnx")
-    _export_onnx(pinch_model, HERE / "pinch_time_surrogate.onnx")
+    y_onnx = HERE / "yield_model.onnx"
+    p_onnx = HERE / "pinch_time_model.onnx"
+    _export_onnx(yield_model, y_onnx)
+    _export_onnx(pinch_model, p_onnx)
+
+    # Extract linear coefficients for JSON models
+    a_y = float(yield_model.weight.detach().cpu().numpy()[0, 0])
+    b_y = float(yield_model.bias.detach().cpu().numpy()[0])
+    a_p = float(pinch_model.weight.detach().cpu().numpy()[0, 0])
+    b_p = float(pinch_model.bias.detach().cpu().numpy()[0])
+
+    yield_meta = {
+        "coeffs": [a_y, b_y],
+        "training_domain": domain,
+        "error": q_y,
+        "onnx": y_onnx.name,
+        "mean": feature_mean,
+        "covariance": feature_cov,
+        "ood_threshold": mahalanobis_threshold,
+    }
+    pinch_meta = {
+        "coeffs": [a_p, b_p],
+        "training_domain": domain,
+        "error": q_p,
+        "onnx": p_onnx.name,
+        "mean": feature_mean,
+        "covariance": feature_cov,
+        "ood_threshold": mahalanobis_threshold,
+    }
+
+    with (HERE / "yield_model.json").open("w") as fh:
+        json.dump(yield_meta, fh, indent=2)
+    with (HERE / "pinch_time_model.json").open("w") as fh:
+        json.dump(pinch_meta, fh, indent=2)
 
     metadata = {
-        "feature_mean": feature_mean,
-        "feature_variance": feature_var,
-        "yield": {"onnx": "yield_surrogate.onnx", "quantile": q_y},
-        "pinch_time": {"onnx": "pinch_time_surrogate.onnx", "quantile": q_p},
+        "feature_mean": [feature_mean],
+        "feature_cov": [[feature_cov]],
+        "mahalanobis_threshold": mahalanobis_threshold,
+        "yield": {"onnx": y_onnx.name, "quantile": q_y},
+        "pinch_time": {"onnx": p_onnx.name, "quantile": q_p},
     }
     with (HERE / "metadata.json").open("w") as fh:
         json.dump(metadata, fh, indent=2)
