@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Callable, Iterable, List, Sequence
 from pathlib import Path
 from bisect import bisect_right
+import json
 import math
 
 import numpy as np
@@ -79,16 +80,21 @@ def coupled_voltage_waveform(
     return _apply(data, response_fn, noise_fn)
 
 
-def _load_calibration_hdf5(
+def _load_calibration_curve(
     path: str | Path, dataset: str
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Load ``(time, response)`` arrays from an HDF5 calibration file."""
+    """Load ``(time, response)`` arrays from a calibration file."""
 
-    with h5py.File(path, "r") as fh:
-        grp = fh[dataset]
-        times = np.array(grp["time"], dtype=float)
-        resp = np.array(grp["response"], dtype=float)
-    return times, resp
+    p = Path(path)
+    if p.suffix.lower() in {".h5", ".hdf5"}:
+        with h5py.File(p, "r") as fh:
+            grp = fh[dataset]
+            times = np.array(grp["time"], dtype=float)
+            resp = np.array(grp["response"], dtype=float)
+        return times, resp
+    data = json.loads(p.read_text())
+    scale = float(data.get("scale", 1.0))
+    return np.array([0.0]), np.array([scale])
 
 
 def _apply_instrument_response(
@@ -100,8 +106,28 @@ def _apply_instrument_response(
     """Convolve ``values`` with an impulse response defined by ``resp_t``/``resp_v``."""
 
     t_grid = np.arange(len(values)) * dt
-    impulse = np.interp(t_grid, resp_t, resp_v, left=0.0, right=0.0)
-    conv = np.convolve(values, impulse, mode="same")
+    try:
+        impulse = np.interp(t_grid, resp_t, resp_v, left=0.0, right=0.0)
+    except TypeError:  # pragma: no cover - for minimal numpy stubs
+        impulse = []
+        for t in t_grid:
+            if t < resp_t[0] or t > resp_t[-1]:
+                impulse.append(0.0)
+            elif len(resp_t) == 1:
+                impulse.append(resp_v[0])
+            else:  # fallback interpolation without bounds
+                impulse.append(np.interp(t, resp_t, resp_v))
+    try:
+        conv = np.convolve(values, impulse, mode="same")
+    except AttributeError:  # pragma: no cover - for minimal numpy stubs
+        n = len(values)
+        m = len(impulse)
+        full = [0.0] * (n + m - 1)
+        for i, a in enumerate(values):
+            for j, b in enumerate(impulse):
+                full[i + j] += a * b
+        start = (m - 1) // 2
+        conv = full[start:start + n]
     return [float(v) for v in conv]
 
 
@@ -130,7 +156,7 @@ def rogowski_signal(
         deriv = [(currents[i + 1] - currents[i]) / dt for i in range(len(currents) - 1)]
         deriv.append(deriv[-1])
     if calibration_file is not None:
-        t, r = _load_calibration_hdf5(calibration_file, "rogowski")
+        t, r = _load_calibration_curve(calibration_file, "rogowski")
         deriv = _apply_instrument_response(deriv, dt, t, r)
     return _apply(deriv, response_fn, noise_fn)
 
@@ -157,7 +183,7 @@ def bdot_signal(
         deriv = [(B[i + 1] - B[i]) / dt for i in range(len(B) - 1)]
         deriv.append(deriv[-1])
     if calibration_file is not None:
-        t, r = _load_calibration_hdf5(calibration_file, "bdot")
+        t, r = _load_calibration_curve(calibration_file, "bdot")
         deriv = _apply_instrument_response(deriv, dt, t, r)
     return _apply(deriv, response_fn, noise_fn)
 
@@ -174,7 +200,7 @@ def sxr_diode_signal(
 
     data = [float(v) for v in signal]
     if calibration_file is not None:
-        t, r = _load_calibration_hdf5(calibration_file, "sxr")
+        t, r = _load_calibration_curve(calibration_file, "sxr")
         data = _apply_instrument_response(data, dt, t, r)
     return _apply(data, response_fn, noise_fn)
 
@@ -213,7 +239,7 @@ def neutron_tof_signal(
 
     if calibration_file is not None:
         dt = time_bins_s[1] - time_bins_s[0] if len(time_bins_s) > 1 else 1.0
-        t_resp, r_resp = _load_calibration_hdf5(calibration_file, "tof")
+        t_resp, r_resp = _load_calibration_curve(calibration_file, "tof")
         hist = _apply_instrument_response(hist, dt, t_resp, r_resp)
     return _apply(hist, response_fn, noise_fn)
 
