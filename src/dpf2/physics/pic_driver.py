@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Protocol, Tuple
 
 import numpy as np
 
+from .pic import lhdi_resistivity
+
 if TYPE_CHECKING:  # pragma: no cover - for typing only
     from ..hall_mhd_solver import MHDState
     from .pic import SimplePIC
@@ -50,23 +52,47 @@ class PhysicalPICDriver:
     last_E: np.ndarray | None = None
     last_B: np.ndarray | None = None
     last_J: np.ndarray | None = None
+    last_eta: np.ndarray | None = None
+    last_spectrum: np.ndarray | None = None
+    last_wave_power: float = 0.0
+    last_axial_E: float = 0.0
 
     def __post_init__(self) -> None:
         self.last_E = np.zeros((1, 1, 1, 3))
         self.last_B = np.zeros((1, 1, 1, 3))
         self.last_J = np.zeros((1, 1, 1, 3))
+        self.last_eta = np.zeros((1,))
+        self.last_spectrum = np.zeros(0)
 
     def step(self, state: "MHDState", current: float, dt: float) -> Tuple[float, float, float]:
         voltage = current * self.field_coeff
         self.pic.step(state, dt, current, voltage)
         pos = np.asarray(self.pic.positions)
         vel = np.asarray(self.pic.velocities)
-        radius = float(np.sqrt(np.mean(pos**2))) if pos.size else 0.0
+        radius = float(np.sqrt(np.mean(pos**2))) if len(pos) else 0.0
         energy = float(0.5 * self.pic.mass * np.sum(vel**2))
         Ez = voltage / self.pic.length if self.pic.length else 0.0
         By = self.B_coeff * current / (2 * np.pi * max(radius, 1e-6))
         self.last_E[0, 0, 0] = [0.0, 0.0, Ez]
         self.last_B[0, 0, 0] = [0.0, By, 0.0]
+        if len(self.pic.E):
+            self.last_eta = lhdi_resistivity(
+                np.abs(self.pic.rho), np.abs(self.pic.E), self.pic.dx
+            )
+            try:
+                spectrum = np.abs(np.fft.rfft(self.pic.E))
+            except Exception:  # pragma: no cover - optional FFT
+                spectrum = np.zeros(0)
+            self.last_spectrum = spectrum
+            self.last_wave_power = (
+                float(np.sum(spectrum ** 2)) if len(spectrum) else 0.0
+            )
+            self.last_axial_E = float(np.mean(self.pic.E))
+        else:
+            self.last_eta = None
+            self.last_spectrum = None
+            self.last_wave_power = 0.0
+            self.last_axial_E = Ez
         return radius, energy, current
 
     def exchange_fields(
@@ -82,7 +108,7 @@ class PhysicalPICDriver:
     def exchange_particles(self) -> Tuple[np.ndarray, np.ndarray]:
         positions = np.zeros((len(self.pic.positions), 3))
         velocities = np.zeros((len(self.pic.velocities), 3))
-        if positions.size:
+        if len(positions):
             positions[:, 2] = np.asarray(self.pic.positions)
             velocities[:, 2] = np.asarray(self.pic.velocities)
         return positions, velocities
