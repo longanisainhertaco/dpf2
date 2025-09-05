@@ -7,6 +7,7 @@ from .radiation import RadiationTransport
 from .pic_driver import PicDriver, PhysicalPICDriver, WarpXPICDriver
 from .lower_hybrid_drift import LowerHybridDrift
 from .m0_instability import MZeroInstability
+from .lhdi_resistivity import compute_effective_eta
 
 from .material_interactions import (
     Species,
@@ -53,6 +54,7 @@ __all__ = [
     "LowerHybridDrift",
     "MZeroInstability",
     "GVFront",
+    "compute_effective_eta",
 
     "Species",
     "sigmund_yield",
