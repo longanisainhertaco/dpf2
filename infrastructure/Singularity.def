@@ -1,3 +1,6 @@
+# Singularity definition for a minimal DPF2 runtime environment.
+# Dependencies are pinned to exact versions for reproducibility and the
+# entrypoint prints basic diagnostics before launching the ``dpf2`` CLI.
 Bootstrap: docker
 From: python:3.12-slim
 

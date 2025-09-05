@@ -24,6 +24,10 @@ commit, run configuration and container image hash.  When no hash is supplied
 explicitly, the manager looks for a `SINGULARITY_CONTAINER` environment variable
 and records the SHA256 digest of that image for later auditing.
 
+The manifest is created regardless of whether configuration details or a
+container hash are provided so that every run leaves an auditable record of the
+code revision and runtime environment.
+
 ```python
 from dpf2.hpc import JobManager
 

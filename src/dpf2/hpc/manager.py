@@ -165,11 +165,13 @@ class JobManager:
             Path to the ``run_manifest.h5`` file to generate. Defaults to
             ``"run_manifest.h5"``.
         config:
-            Configuration dictionary describing the run. When provided along
-            with ``container_hash`` an HDF5 manifest capturing this metadata is
-            written before submission.
+            Optional configuration dictionary describing the run.  The provided
+            mapping is serialized into ``run_manifest.h5`` to aid reproducibility
+            even when no other metadata is supplied.
         container_hash:
-            Digest of the container image used for the run.
+            Digest of the container image used for the run.  If omitted the
+            runtime is inspected for a Singularity image and its SHA256 digest is
+            recorded instead.
         **kwargs:
             Additional scheduler specific keyword arguments. ``restart`` may
             reference a manifest path to resume a previous run.
@@ -186,14 +188,13 @@ class JobManager:
 
         manifest_path = manifest or "run_manifest.json"
         manifest_h5_path = manifest_h5 or "run_manifest.h5"
-        # Always write an HDF5 manifest.  ``_write_hdf5_manifest`` will fill in
-        # empty defaults and attempt to derive the container hash from the
-        # runtime environment when not supplied.
-        self._write_hdf5_manifest(
-            manifest_h5_path,
-            config or {},
-            container_hash or None,
-        )
+
+        # Always write an HDF5 manifest to accompany staged results.  Supplying
+        # empty defaults ensures metadata is recorded even when the caller does
+        # not pass configuration information or a container digest.
+        manifest_config = config or {}
+        manifest_hash = container_hash or None
+        self._write_hdf5_manifest(manifest_h5_path, manifest_config, manifest_hash)
 
         stage_out = dict(stage_out or {})
         stage_out[manifest_path] = manifest_path
