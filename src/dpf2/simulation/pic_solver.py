@@ -26,6 +26,7 @@ from ..diagnostics import synthetic_signals, IonBeamEDF, compute_beam_target_yie
 from ..diagnostics.quality_dashboard import QualityDashboard
 from ..fusion import bosch_hale_dd
 from ..physics import EnergyTracker
+from dpf2.hall_mhd_solver import spitzer_resistivity
 from .config_schema import PICConfig
 from .models import PhysicsModule
 from .utils import FieldManager, SimulationState
@@ -67,12 +68,17 @@ class AnomalousResistivity:
     def __init__(self, eta: float = 0.0, j_crit: float = 1.0):
         self.eta = eta
         self.j_crit = j_crit
+        self.last_eta: "np.ndarray | None" = None
 
     def apply(self, E: "np.ndarray", J: "np.ndarray") -> "np.ndarray":
         if self.eta == 0.0:
+            self.last_eta = np.zeros(J.shape[1:])
             return E
         magJ = np.linalg.norm(J, axis=0)
         mask = magJ > self.j_crit
+        eta = np.zeros_like(magJ)
+        eta[mask] = self.eta
+        self.last_eta = eta
         if np.any(mask):
             E[:, mask] -= self.eta * J[:, mask]
         return E
@@ -88,6 +94,7 @@ class LHDIResistivity:
     def __init__(self, coeff: float = 1.0):
         self.coeff = coeff
         self.spikes: List[float] = []
+        self.last_eta: "np.ndarray | None" = None
 
     def compute_eta(
         self,
@@ -112,6 +119,7 @@ class LHDIResistivity:
         spacing: Tuple[float, float, float],
     ) -> "np.ndarray":
         eta = self.compute_eta(n, B, spacing)
+        self.last_eta = eta
         E = E - eta[np.newaxis, ...] * J
         magJ = np.linalg.norm(J, axis=0)
         spike = float(np.max(eta * magJ))
@@ -176,6 +184,7 @@ class PICSolver(PhysicsModule):
         self.subgrid_resolution = config.subgrid_resolution
         self.amr = config.amr
         self.density_threshold = config.density_threshold
+        self.electron_temperature = getattr(config, 'electron_temperature', 1e6)
         self.levels = [{'grid_shape': tuple(config.grid_shape), 'grid_spacing': tuple(config.grid_spacing), 'offset': (0, 0, 0)}]
         self.heating_grid = 0.0
         self.species = {}
@@ -441,17 +450,11 @@ class PICSolver(PhysicsModule):
             B = self.field_manager.get_B()
             rho = self.field_manager.get_rho()
             J = self.field_manager.get_J()
+            n = np.abs(rho)
+            eta_spitzer = spitzer_resistivity(n, np.full_like(n, self.electron_temperature), 1.0)
+            eta_anom = np.zeros_like(n)
             if self.warpx:
                 E, B = self.warpx.step(rho, J, E, B, self.dt)
-                if self.anomalous_resistivity_model:
-                    E = self.anomalous_resistivity_model.apply(E, J)
-                if self.lhdi_model:
-                    n = np.abs(rho)
-                    E = self.lhdi_model.apply(E, J, n, B, (self.dx, self.dy, self.dz))
-                    if self.lhdi_model.spikes:
-                        self.voltage_spikes.extend(self.lhdi_model.spikes[-1:])
-                if self.m0_instability_model:
-                    E[2] = self.m0_instability_model.apply(E[2], self.dt)
             else:
                 # FDTD update
                 curlE = np.array([(np.roll(E[2], -1, 1) - E[2]) / self.dy - (np.roll(E[1], -1, 2) - E[1]) / self.dz,
@@ -462,22 +465,37 @@ class PICSolver(PhysicsModule):
                                   (np.roll(B[0], -1, 2) - B[0]) / self.dz - (np.roll(B[2], -1, 0) - B[2]) / self.dx,
                                   (np.roll(B[1], -1, 0) - B[1]) / self.dx - (np.roll(E[0], -1, 1) - E[0]) / self.dy])
                 E += self.dt * (PICSolver.c**2 * curlB - J / PICSolver.epsilon0)
-                if self.anomalous_resistivity_model:
-                    E = self.anomalous_resistivity_model.apply(E, J)
-                if self.lhdi_model:
-                    n = np.abs(rho)
-                    E = self.lhdi_model.apply(E, J, n, B, (self.dx, self.dy, self.dz))
-                    if self.lhdi_model.spikes:
-                        self.voltage_spikes.extend(self.lhdi_model.spikes[-1:])
-                if self.m0_instability_model:
-                    E[2] = self.m0_instability_model.apply(E[2], self.dt)
                 self._apply_pml()  # Apply PML damping
+            if self.anomalous_resistivity_model:
+                E = self.anomalous_resistivity_model.apply(E, J)
+                if self.anomalous_resistivity_model.last_eta is not None:
+                    eta_anom += self.anomalous_resistivity_model.last_eta
+            if self.lhdi_model:
+                E = self.lhdi_model.apply(E, J, n, B, (self.dx, self.dy, self.dz))
+                if self.lhdi_model.last_eta is not None:
+                    eta_anom += self.lhdi_model.last_eta
+                if self.lhdi_model.spikes:
+                    self.voltage_spikes.extend(self.lhdi_model.spikes[-1:])
+            if self.m0_instability_model:
+                E[2] = self.m0_instability_model.apply(E[2], self.dt)
+            eta_needed = np.maximum(eta_spitzer - eta_anom, 0.0)
+            if np.any(eta_needed > 0):
+                E -= eta_needed[np.newaxis, ...] * J
+            if (
+                self.anomalous_resistivity_model is not None
+                or self.lhdi_model is not None
+                or self.m0_instability_model is not None
+            ) and np.all(eta_anom <= eta_spitzer):
+                msg = "No anomalous resistivity above Spitzer floor"
+                logger.error(msg)
+                raise RuntimeError(msg)
             self.field_manager.update_E(E)
             self.field_manager.update_B(B)
             self.filter_current()
             self._clean_divergence()
         except Exception as e:
             logger.error(f"Error solving fields: {e}")
+            raise
 
     #-------------------------------------------------------------------------------------
     # Diagnostics: VDF, moments, spatial diagnostics
