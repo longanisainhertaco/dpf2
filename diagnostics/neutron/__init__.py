@@ -1,17 +1,11 @@
-"""Neutron diagnostic benchmark utilities."""
 
-from .benchmarks import (
-    load_reference,
-    load_pf1000_reference,
-    load_mjolnir_reference,
-    within_pass_band,
-    evaluate_pass_fail,
-)
+"""Neutron diagnostic yield utilities."""
+
+from .thermonuclear import compute_yield as thermonuclear_yield
+from .beam_target import compute_yield as beam_target_yield
 
 __all__ = [
-    "load_reference",
-    "load_pf1000_reference",
-    "load_mjolnir_reference",
-    "within_pass_band",
-    "evaluate_pass_fail",
+    "thermonuclear_yield",
+    "beam_target_yield",
+
 ]
