@@ -44,6 +44,7 @@ from dpf2.optimization.param_sweep import (
 )
 from dpf2.gui.project_manager import ProjectManager
 from dpf2.gui import interactive
+from dpf2.indexing import build_code_index, write_markdown_index
 
 from dpf2.device_profiles import DeviceProfiles
 
@@ -1277,6 +1278,53 @@ def wizard(output: str) -> None:
         json.dump(asdict(cfg), fh, indent=2)
 
     click.echo(f"Configuration saved to {output}")
+
+
+@main.command()
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(dir_okay=False),
+    default="docs/code_index.md",
+    show_default=True,
+    help="Destination Markdown file for the code index.",
+)
+@click.option(
+    "--package",
+    type=str,
+    default="dpf2",
+    show_default=True,
+    help="Python package to index.",
+)
+@click.option(
+    "--source-root",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Override path to the package root.",
+)
+def index(output: str, package: str, source_root: str | None) -> None:
+    """Generate a Markdown index of the code base."""
+
+    try:
+        if source_root is None:
+            root = Path(__file__).resolve().parents[2] / package.replace(".", "/")
+        else:
+            root = Path(source_root)
+
+        if not root.exists():
+            raise click.ClickException(
+                format_error("INDEX", f"Package root {root} does not exist")
+            )
+
+        entries = build_code_index(package, root)
+        write_markdown_index(entries, Path(output))
+        click.echo(
+            f"Indexed {len(entries)} modules from {root} into {output}"
+        )
+    except click.ClickException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive
+        raise click.ClickException(format_error("INDEX", str(exc)))
 
 
 from .benchmark import benchmark, match_benchmark
