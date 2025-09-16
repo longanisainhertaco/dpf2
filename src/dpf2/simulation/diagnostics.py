@@ -451,10 +451,21 @@ class Diagnostics:
             self._last_time = t
             self._last_current = I
 
-            state = fluid.get_state()
-            rho = state.density
-            vel = state.velocity
-            pres = state.pressure
+            state_obj = state
+            if state_obj is None and hasattr(fluid, "get_state"):
+                state_obj = fluid.get_state()
+            if isinstance(fluid, SimulationState) and state_obj is None:
+                state_obj = fluid
+            if state_obj is None:
+                logger.debug("Diagnostics skipping record because no simulation state was provided")
+                return
+
+            rho = getattr(state_obj, "density", None)
+            vel = getattr(state_obj, "velocity", None)
+            pres = getattr(state_obj, "pressure", None)
+            if rho is None or vel is None or pres is None:
+                logger.debug("Diagnostics state missing required fields; skipping record")
+                return
             B = self.field_manager.get_B()
 
             # Energies

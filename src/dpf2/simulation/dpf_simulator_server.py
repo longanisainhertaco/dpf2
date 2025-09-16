@@ -15,17 +15,42 @@ from flask_sock import Sock
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-from .dpf_simulation import DPFSimulation, ConfigurationError as SimConfigurationError
-from .config_schema import ServerConfig, FieldManagerConfig  # Import FieldManagerConfig
-from .utils import FieldManager  # Import FieldManager
+try:
+    from .dpf_simulation import DPFSimulation, ConfigurationError as SimConfigurationError
+    from .config_schema import ServerConfig, FieldManagerConfig  # Import FieldManagerConfig
+    from .utils import FieldManager  # Import FieldManager
 
-# Import custom exception hierarchy
-from ..exceptions import (
-    ConfigurationError,
-    ExportError,
-    ServerError,
-    SimulationRuntimeError,
-)
+    # Import custom exception hierarchy
+    from ..exceptions import (
+        ConfigurationError,
+        ExportError,
+        ServerError,
+        SimulationRuntimeError,
+    )
+except ImportError:  # pragma: no cover - support execution as a script
+    from dpf_simulation import DPFSimulation, ConfigurationError as SimConfigurationError  # type: ignore
+    from config_schema import ServerConfig, FieldManagerConfig  # type: ignore
+    from utils import FieldManager  # type: ignore
+
+    try:  # type: ignore[attr-defined]
+        from dpf2.exceptions import (  # type: ignore
+            ConfigurationError,
+            ExportError,
+            ServerError,
+            SimulationRuntimeError,
+        )
+    except Exception:  # pragma: no cover - minimal fallbacks for tests
+        class SimulationError(Exception):
+            def __str__(self) -> str:  # pragma: no cover - simple formatting
+                message = super().__str__()
+                return f"SimulationError: {message}" if message else "SimulationError"
+
+        class SimulationRuntimeError(SimulationError):
+            pass
+
+        ConfigurationError = SimulationError
+        ExportError = SimulationError
+        ServerError = SimulationError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
