@@ -246,6 +246,26 @@ class SimulationConfig(BaseModel):
     domain_lo: Tuple[float, float, float] = Field(..., description="Lower corner of the domain (x0, y0, z0).")
     sim_time: float = Field(..., gt=0, description="Simulation time [s]")
     dt_init: Optional[float] = Field(None, gt=0, description="Initial time step [s]")
+    solver_backend: str = Field(
+        "pic",
+        description="Physics solver backend identifier (e.g. 'pic' or 'high_order').",
+    )
+    eos_backend: str = Field(
+        "tabulated",
+        description="Equation of state backend to use when constructing the solver.",
+    )
+    table_file: Optional[str] = Field(
+        None,
+        description="Path to the EOS table file when using the tabulated backend.",
+    )
+    enable_eos_mixture: bool = Field(
+        False,
+        description="Enable EOS mixture mode when multiple species tables are provided.",
+    )
+    mixture_fractions: Optional[Dict[str, float] | str] = Field(
+        None,
+        description="Species mixture fractions for the EOS backend.",
+    )
     circuit: CircuitConfig
     collision: Optional[CollisionConfig] = None
     radiation: Optional[RadiationConfig] = None
