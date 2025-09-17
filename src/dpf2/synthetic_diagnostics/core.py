@@ -533,6 +533,7 @@ class SyntheticDiagnostics(ConfigSectionBase):
     include_detector_noise: bool = Field(False, alias="includeDetectorNoise")
     noise_model: Optional[Literal["gaussian", "poisson", "custom"]] = Field(None, alias="noiseModel")
     noise_parameters: Optional[Dict[str, float]] = Field(None, alias="noiseParameters")
+    instrument_response: Optional[Dict[str, Any]] = Field(None, alias="instrumentResponse")
 
     # Per-instrument overrides
     instrument_overrides: Optional[Dict[str, SyntheticInstrument]] = Field(
@@ -737,15 +738,23 @@ def _export_csv(path: Path, data: Sequence[Any], kind: str) -> None:
                 writer.writerow(list(row))
 
 
-def _export_hdf5(path: Path, name: str, data: Sequence[Any]) -> None:
+def _export_hdf5(path: Path, name: str, data: Sequence[Any], metadata: Dict[str, Any] | None = None) -> None:
     with h5py.File(path, "w") as fh:
-        fh.create_dataset(name, data=data)
+        ds = fh.create_dataset(name, data=data)
+        try:  # pragma: no cover - stub compatibility
+            ds.data = list(ds.data)
+        except Exception:
+            pass
+        if metadata:
+            ds.attrs["instrument_response"] = json.dumps(metadata)
 
 
 def export_diagnostic_data(
     data: Dict[str, Sequence[Any]],
     cfg: "SyntheticDiagnostics",
     output_dir: Path | str,
+    *,
+    metadata: Dict[str, Dict[str, Any]] | None = None,
 ) -> List[Path]:
     """Write diagnostic ``data`` to ``output_dir`` according to ``cfg``."""
 
@@ -760,7 +769,10 @@ def export_diagnostic_data(
             _export_csv(file_path, values, kind)
         elif cfg.output_format == "hdf5":
             file_path = out_dir / f"{name}.h5"
-            _export_hdf5(file_path, name, values)
+            meta = cfg.instrument_response
+            if metadata and name in metadata:
+                meta = metadata[name]
+            _export_hdf5(file_path, name, values, meta)
         else:
             file_path = out_dir / f"{name}.txt"
             if kind == "time_series":
