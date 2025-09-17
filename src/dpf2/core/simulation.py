@@ -76,15 +76,16 @@ class DPFSimulation:
         """
 
         end = end_time or self.config.end_time
-        out = output_dir or "output"
         interval = output_interval or end
 
-        Path(out).mkdir(parents=True, exist_ok=True)
-        self.writer = DataWriter(out, config=asdict(self.config), seeds=seeds)
-
-        # Write initial state
-        self.writer.write_hdf5({"current": self.current, "voltage": self.voltage}, time=self.time)
+        out = output_dir
         last_output = self.time
+        if out is not None:
+            Path(out).mkdir(parents=True, exist_ok=True)
+            self.writer = DataWriter(out, config=asdict(self.config), seeds=seeds)
+            self.writer.write_hdf5({"current": self.current, "voltage": self.voltage}, time=self.time)
+        else:
+            self.writer = None
 
         times = [self.time]
         currents = [self.current]
@@ -129,10 +130,11 @@ class DPFSimulation:
                 progress_cb(step, self.time)
 
             if (self.time - last_output) >= interval or self.time >= end:
-                self.writer.write_hdf5(
-                    {"current": self.current, "voltage": self.voltage},
-                    time=self.time,
-                )
+                if self.writer is not None:
+                    self.writer.write_hdf5(
+                        {"current": self.current, "voltage": self.voltage},
+                        time=self.time,
+                    )
                 last_output = self.time
 
         return times, currents, voltages

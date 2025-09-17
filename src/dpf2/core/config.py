@@ -30,6 +30,10 @@ class DPFConfig:
     cfl_number: float = 0.5
     end_time: float = 10e-6
     geometry: Dict[str, Any] | None = None
+    # Hooks for neutral gas puffing and plasma–material interaction
+    nozzle_geometry: Dict[str, Any] | None = None
+    puff_timing: Dict[str, float] | None = None
+    material_surfaces: Dict[str, Any] | None = None
 
     @classmethod
     def from_file(cls, path: str | Path) -> "DPFConfig":

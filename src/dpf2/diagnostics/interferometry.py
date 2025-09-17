@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Mapping, Any
+
+from .detector_models import apply_irf
 
 
 def interferometer_phase_shift(
@@ -9,6 +11,7 @@ def interferometer_phase_shift(
     wavelength: float,
     response_fn: Callable[[float], float] | None = None,
     noise_fn: Callable[[float], float] | None = None,
+    irf: Mapping[str, Any] | None = None,
 ) -> float:
     """Compute optical phase shift from line-integrated electron density.
 
@@ -43,6 +46,8 @@ def interferometer_phase_shift(
         phase = response_fn(phase)
     if noise_fn:
         phase += noise_fn(phase)
+    if irf:
+        phase = apply_irf([0.0], [phase], irf)[0]
     return phase
 
 

@@ -1,5 +1,6 @@
 {
-  "current": {"time": [0.0, 1.0e-6, 2.0e-6], "value": [0.0, 5.0e5, 0.0]},
-  "neutron_yield": 5.0e9,
-  "anisotropy": 0.9
+  "charging_voltage": 15000.0,
+  "capacitance": 2e-5,
+  "inductance": 1e-8,
+  "end_time": 1e-6
 }

@@ -197,6 +197,10 @@ class PICSolver(PhysicsModule):
         self.species = {}
         self.vdf = {}
         self.field_manager = field_manager
+        # Diagnostics modules expect a ``gamma`` attribute similar to the fluid
+        # solver interface.  Default to the ideal monoatomic value when the
+        # configuration does not provide one explicitly.
+        self.gamma = float(getattr(config, "adiabatic_index", 5.0 / 3.0))
         # Optional external PIC driver (e.g. WarpX). When provided, field
         # evolution and particle pushing can be delegated to the driver
         # which allows coupling to Hall‑MHD solvers.
