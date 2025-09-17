@@ -68,6 +68,41 @@ class FieldManager:
         """Returns the current density."""
         return self.J
 
+    def get_rho(self) -> np.ndarray:
+        """Return the charge density field managed by the instance."""
+
+        return self.rho
+
+    def update_rho(self, new_rho: np.ndarray) -> None:
+        """Replace the stored charge density with ``new_rho``.
+
+        Parameters
+        ----------
+        new_rho:
+            Array containing the new charge density values.  The shape must
+            match the ``(nx, ny, nz)`` grid managed by the field manager.
+        """
+
+        if new_rho.shape != self.rho.shape:
+            raise ValueError(
+                f"Invalid shape for rho: expected {self.rho.shape}, got {new_rho.shape}"
+            )
+        self.rho = new_rho
+
+    def deposit_charge(self, delta_rho: np.ndarray) -> None:
+        """Accumulate ``delta_rho`` into the stored charge density.
+
+        This helper mirrors the ``deposit_current`` method used by a number of
+        particle routines, providing a consistent interface for charge updates
+        across the code base.
+        """
+
+        if delta_rho.shape != self.rho.shape:
+            raise ValueError(
+                f"Invalid shape for rho increment: expected {self.rho.shape}, got {delta_rho.shape}"
+            )
+        self.rho += delta_rho
+
     # ------------------------------------------------------------------
     # Finite-difference utilities
     # ------------------------------------------------------------------

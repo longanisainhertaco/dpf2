@@ -44,6 +44,10 @@ from .diagnostics.quality_dashboard import QualityDashboard
 from .diagnostics.modes import azimuthal_mode_spectrum
 from .physics.lower_hybrid_drift import LowerHybridDrift
 from .physics.hall_mhd import LHDIResistivity
+from .physics.inductance import (
+    CoaxialGeometry,
+    dynamic_inductance_with_derivatives,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +355,11 @@ class HallMHDSolver(PlasmaSolverBase):
     current: float = 0.0
     inductance: float = 0.0
     back_emf: float = 0.0
+    geometry: CoaxialGeometry = field(
+        default_factory=lambda: CoaxialGeometry(
+            anode_radius=7.5e-3, cathode_radius=4.0e-2, anode_length=0.18
+        )
+    )
     circuit_feedback: CouplingState | None = field(init=False, default=None)
     anomalous_resistivity: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
     lower_hybrid_drift: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
@@ -385,6 +394,16 @@ class HallMHDSolver(PlasmaSolverBase):
     cart_comm: Any | None = field(init=False, default=None)
     quality: QualityDashboard | None = None
     step_count: int = 0
+    sheath_radius: float = field(init=False, default=0.0)
+    sheath_position: float = field(init=False, default=0.0)
+    sheath_velocity_r: float = field(init=False, default=0.0)
+    sheath_velocity_z: float = field(init=False, default=0.0)
+    _dL_dz: float = field(init=False, default=0.0)
+    _dL_dr: float = field(init=False, default=0.0)
+    _coord_cache: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = field(
+        init=False, default=None
+    )
+    _coord_shape: tuple[int, int, int] | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         """Initialise MPI cartesian communicator for domain decomposition."""
@@ -961,7 +980,9 @@ class HallMHDSolver(PlasmaSolverBase):
         # Expose plasma inductance and induced EMF for circuit coupling
         L_new = self.compute_plasma_inductance(new_state, current)
         self.inductance = L_new
-        emf = 0.0
+        emf = -current * (
+            self._dL_dz * self.sheath_velocity_z + self._dL_dr * self.sheath_velocity_r
+        )
         self.back_emf = emf
         self.circuit_feedback = CouplingState(
             Lp=L_new, emf=emf, current=current, voltage=voltage
@@ -976,7 +997,11 @@ class HallMHDSolver(PlasmaSolverBase):
                     Lp = float(self.compute_plasma_inductance(new_state, I))
                 except Exception:
                     Lp = self.inductance
-                return CouplingState(Lp=Lp, emf=self.back_emf, current=I, voltage=V)
+                emf_candidate = -I * (
+                    self._dL_dz * self.sheath_velocity_z
+                    + self._dL_dr * self.sheath_velocity_r
+                )
+                return CouplingState(Lp=Lp, emf=emf_candidate, current=I, voltage=V)
 
             updated = self.circuit.step(
                 self.circuit_feedback,
@@ -1088,24 +1113,80 @@ class HallMHDSolver(PlasmaSolverBase):
             return self.inductance
 
     def compute_plasma_inductance(self, state: MHDState, current: float, cell_volume: float = 1.0) -> float:
-        """Estimate plasma inductance from magnetic energy.
+        """Return geometry-aware plasma inductance and update sheath metrics."""
 
-        Parameters
-        ----------
-        state : MHDState
-            Current plasma state.
-        current : float
-            Circuit current in amperes.
-        cell_volume : float, optional
-            Volume of a single cell, by default 1.0.
+        if state is None:
+            return self.inductance
 
-        Returns
-        -------
-        float
-            Estimated inductance in henries.
-        """
-        B2 = np.sum(state.B ** 2)
-        magnetic_energy = B2 * cell_volume / (2 * mu_0)
-        if current == 0.0:
-            return 0.0
-        return 2 * magnetic_energy / (current ** 2)
+        r_mean, z_mean, vr_mean, vz_mean = self._estimate_sheath_state(state)
+        L, dL_dz, dL_dr = dynamic_inductance_with_derivatives(
+            z_mean, r_mean, self.geometry
+        )
+        self.sheath_radius = r_mean
+        self.sheath_position = z_mean
+        self.sheath_velocity_r = vr_mean
+        self.sheath_velocity_z = vz_mean
+        self._dL_dz = dL_dz
+        self._dL_dr = dL_dr
+        return L
+
+    # ------------------------------------------------------------------
+    def _ensure_coordinate_cache(
+        self, shape: Tuple[int, int, int]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if self._coord_shape == tuple(shape) and self._coord_cache is not None:
+            return self._coord_cache
+
+        nx, ny, nz = shape
+        r_max = self.geometry.cathode_radius
+        z_max = self.geometry.anode_length
+
+        def _centered(axis_points: int, lo: float, hi: float) -> np.ndarray:
+            if axis_points <= 1:
+                return np.array([(lo + hi) / 2.0])
+            arr = np.linspace(lo, hi, axis_points, endpoint=False)
+            delta = (hi - lo) / axis_points
+            return arr + 0.5 * delta
+
+        x = _centered(nx, -r_max, r_max)
+        y = _centered(ny, -r_max, r_max)
+        z = _centered(nz, 0.0, z_max)
+
+        X, Y, Z = np.meshgrid(x, y, z, indexing="ij")
+        R = np.sqrt(X**2 + Y**2)
+        self._coord_cache = (R, Z, X, Y)
+        self._coord_shape = tuple(shape)
+        return self._coord_cache
+
+    # ------------------------------------------------------------------
+    def _estimate_sheath_state(self, state: MHDState) -> tuple[float, float, float, float]:
+        R, Z, X, Y = self._ensure_coordinate_cache(state.rho.shape)
+        rho = np.asarray(state.rho)
+        weights = np.clip(rho, a_min=0.0, a_max=None)
+        total = float(np.sum(weights))
+        if not np.isfinite(total) or total <= 0.0:
+            r_mean = 0.5 * (self.geometry.anode_radius + self.geometry.cathode_radius)
+            z_mean = 0.0
+            vr_mean = 0.0
+            vz_mean = 0.0
+            return r_mean, z_mean, vr_mean, vz_mean
+
+        r_mean = float(np.sqrt(np.sum(weights * R**2) / total))
+        z_mean = float(np.sum(weights * Z) / total)
+
+        momentum = np.asarray(state.mom)
+        denom = np.maximum(rho, 1e-30)
+        vx = momentum[..., 0] / denom
+        vy = momentum[..., 1] / denom
+        vz = momentum[..., 2] / denom
+
+        radial_speed = np.zeros_like(R)
+        mask = R > 1e-9
+        radial_speed[mask] = (vx[mask] * X[mask] + vy[mask] * Y[mask]) / R[mask]
+        vr_mean = float(np.sum(weights * radial_speed) / total)
+        vz_mean = float(np.sum(weights * vz) / total)
+
+        r_min = 0.2 * self.geometry.anode_radius
+        r_mean = float(np.clip(r_mean, r_min, self.geometry.cathode_radius))
+        z_mean = float(np.clip(z_mean, 0.0, self.geometry.anode_length))
+        return r_mean, z_mean, vr_mean, vz_mean

@@ -1,0 +1,137 @@
+/* Copyright 2013-2024 Axel Huebl, Heiko Burau, Rene Widera, Richard Pausch,
+ *                     Benjamin Worpitz, Sergei Bastrakov, Hannes Troepgen,
+ *                     Masoud Afshari
+ *
+ * This file is part of PIConGPU.
+ *
+ * PIConGPU is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * PIConGPU is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with PIConGPU.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#include <cmath>
+#include "picongpu/plugins/output/images/param.hpp"  // For float_X, DINLINE, pngColorScales.param
+
+namespace picongpu
+{
+{{#output}}
+{{#data}}
+{{#typeID.png}}
+
+/*scale image before write to file, only scale if value is not 1.0*/
+constexpr float_64 scale_image = {{{scale_image}}};
+
+/*if true image is scaled if cellsize is not quadratic, else no scale*/
+
+// Python uses True and False (capitalized), not true and false (lowercase, C++/JavaScript style). We will use Mustache logic to explicitly convert them to true/false.
+constexpr bool scale_to_cellsize = {{#scale_to_cellsize}}true{{/scale_to_cellsize}}{{^scale_to_cellsize}}false{{/scale_to_cellsize}};
+constexpr bool white_box_per_GPU = {{#white_box_per_GPU}}true{{/white_box_per_GPU}}{{^white_box_per_GPU}}false{{/white_box_per_GPU}};
+
+    namespace visPreview
+    {
+        // normalize EM fields to typical laser or plasma quantities
+        //-1: Auto:     enable adaptive scaling for each output
+        // 1: Laser:    [outdated]
+        // 2: Drift:    [outdated]
+        // 3: PlWave:   typical fields calculated out of the plasma freq.,
+        //              assuming the wave moves approx. with c
+        // 4: Thermal:  [outdated]
+        // 5: BlowOut:  [outdated]
+        // 6: Custom:   user-provided normalization factors via customNormalizationSI
+        // 7: Incident: typical fields calculated out of the incident field amplitude,
+        //              uses max amplitude from all enabled incident field profile types ignoring Free
+
+        {{#laser}}
+        #define EM_FIELD_SCALE_CHANNEL1 {{{EM_FIELD_SCALE_CHANNEL1}}}
+        {{/laser}}
+        {{^laser}}
+        #define EM_FIELD_SCALE_CHANNEL1 -1
+        {{/laser}}
+
+        #define EM_FIELD_SCALE_CHANNEL2 {{{EM_FIELD_SCALE_CHANNEL2}}}
+        #define EM_FIELD_SCALE_CHANNEL3 {{{EM_FIELD_SCALE_CHANNEL3}}}
+        constexpr float_X customNormalizationSI[3] = { {{#customNormalizationSI}}{{{value}}}, {{/customNormalizationSI}} };
+
+        constexpr float_X preParticleDens_opacity = {{{preParticleDens_opacity}}};
+        constexpr float_X preChannel1_opacity = {{{preChannel1_opacity}}};
+        constexpr float_X preChannel2_opacity = {{{preChannel2_opacity}}};
+        constexpr float_X preChannel3_opacity = {{{preChannel3_opacity}}};
+
+        namespace preParticleDensCol = colorScales::{{{preParticleDensCol}}};
+        namespace preChannel1Col = colorScales::{{{preChannel1Col}}};
+        namespace preChannel2Col = colorScales::{{{preChannel2Col}}};
+        namespace preChannel3Col = colorScales::{{{preChannel3Col}}};
+
+        DINLINE float_X preChannel1(const float3_X& field_B, const float3_X& field_E, const float3_X& field_Current)
+        {
+            return {{{preChannel1}}};
+        }
+        DINLINE float_X preChannel2(const float3_X& field_B, const float3_X& field_E, const float3_X& field_Current)
+        {
+            return {{{preChannel2}}};
+        }
+        DINLINE float_X preChannel3(const float3_X& field_B, const float3_X& field_E, const float3_X& field_Current)
+        {
+            return {{{preChannel3}}};
+        }
+    } // namespace visPreview
+
+// The implements the algorithm `x = any((plugin is png) for plugin in output)`.
+// In the case where `not x`, we'll need to provide some defaults below.
+#define PNG_PLUGIN_EXISTS
+{{/typeID.png}}
+{{/data}}
+{{/output}}
+
+// Translates into `if not any( (plugin is png) for plugin in output)`
+#ifndef PNG_PLUGIN_EXISTS
+
+    constexpr float_64 scale_image = 1.0;
+    constexpr bool scale_to_cellsize = false;
+    constexpr bool white_box_per_GPU = false;
+
+    namespace visPreview
+    {
+#define EM_FIELD_SCALE_CHANNEL1 -1
+#define EM_FIELD_SCALE_CHANNEL2 -1
+#define EM_FIELD_SCALE_CHANNEL3 -1
+
+        constexpr float_X customNormalizationSI[3] = {1.,1.,1.};
+        constexpr float_X preParticleDens_opacity = 0.0_X;
+        constexpr float_X preChannel1_opacity = 0.0_X;
+        constexpr float_X preChannel2_opacity = 0.0_X;
+        constexpr float_X preChannel3_opacity = 0.0_X;
+        namespace preParticleDensCol = colorScales::none;
+        namespace preChannel1Col = colorScales::none;
+        namespace preChannel2Col = colorScales::none;
+        namespace preChannel3Col = colorScales::none;
+
+        DINLINE float_X preChannel1(const float3_X& field_B, const float3_X& field_E, const float3_X& field_Current)
+        {
+            return 0.;
+        }
+
+        DINLINE float_X preChannel2(const float3_X& field_B, const float3_X& field_E, const float3_X& field_Current)
+        {
+            return 0.;
+        }
+
+        DINLINE float_X preChannel3(const float3_X& field_B, const float3_X& field_E, const float3_X& field_Current)
+        {
+            return 0.;
+        }
+    } // namespace visPreview
+#endif
+} // namespace picongpu

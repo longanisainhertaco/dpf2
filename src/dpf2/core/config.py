@@ -63,7 +63,9 @@ class DPFConfig:
     cfl_number: float = 0.5
     end_time: float = 10e-6
     geometry: Dict[str, Any] | None = None
+
     jitter: JitterConfig = field(default_factory=JitterConfig)
+
 
     @classmethod
     def from_file(cls, path: str | Path) -> "DPFConfig":

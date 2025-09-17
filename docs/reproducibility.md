@@ -27,3 +27,30 @@ encountered during the run.
 
 These files enable auditing of large parameter sweeps or shot ensembles.
 
+## Dataset Provenance
+
+Configuration files may optionally include a ``datasets`` section describing
+the provenance of any atomic, nuclear or material libraries used in a run.
+Each category maps dataset names to a ``path``, ``doi`` and ``version``::
+
+    datasets:
+      atomic:
+        ADAS:
+          path: /path/to/adas.dat
+          doi: 10.1234/example
+          version: "2022-01"
+      nuclear:
+        ENDF:
+          path: /path/to/endf.dat
+          doi: 10.5678/endf
+          version: "VIII"
+      material:
+        MatDB:
+          path: /path/to/material.db
+          doi: 10.9999/matdb
+          version: "1.0"
+
+Hashes of these files along with their DOI and version are embedded in both
+``run_manifest.json`` and ``run_manifest.h5`` so downstream analyses can
+reconstruct the exact datasets referenced by a simulation.
+

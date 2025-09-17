@@ -36,7 +36,7 @@ def run_benchmark(
     case: str,
     benchmark_dir: str = "benchmarks",
     output: str = "Validation",
-    datasets: Mapping[str, Mapping[str, object]] | None = None,
+    datasets: Mapping[str, Mapping[str, Mapping[str, object]]] | None = None,
 ) -> Dict[str, float]:
     """Execute ``case`` and overlay results against tolerance bands.
 

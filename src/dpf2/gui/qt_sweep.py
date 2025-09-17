@@ -97,6 +97,8 @@ def plot_yield_vs_param(
 
     vals = sorted(metrics.keys())
     y_vals = [metrics[v].get("yield", 0.0) for v in vals]
+    y_lo = [metrics[v].get("yield_lo", metrics[v].get("yield", 0.0)) for v in vals]
+    y_hi = [metrics[v].get("yield_hi", metrics[v].get("yield", 0.0)) for v in vals]
     s_vals = [metrics[v].get("S", 0.0) for v in vals]
     colors = ["red" if abs(s - gv_S) > 0.5 else "blue" for s in s_vals]
 
@@ -107,7 +109,8 @@ def plot_yield_vs_param(
     best_S = s_vals[best_idx] if vals else 0.0
 
     plt.figure()
-    plt.scatter(vals, y_vals, c=colors)
+    for x, y, lo, hi, c in zip(vals, y_vals, y_lo, y_hi, colors):
+        plt.errorbar([x], [y], yerr=[[y - lo], [hi - y]], fmt="o", color=c)
     plt.scatter(
         [best_val],
         [best_yield],

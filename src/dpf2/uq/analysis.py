@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Callable, Dict, Sequence
 
 import statistics
+import random
 from pathlib import Path
 
 import numpy as np
@@ -52,6 +53,26 @@ def sobol_indices(
         cov = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y)) / len(x)
         indices[name] = (cov ** 2) / (var_x * var_y)
     return indices
+
+
+def variance_decomposition(
+    samples: Sequence[Sequence[float]],
+    values: Sequence[float],
+    names: Sequence[str],
+) -> Dict[str, float]:
+    """Return variance contributions for each parameter.
+
+    The function builds upon :func:`sobol_indices` and multiplies the
+    resulting first-order indices by the total variance of ``values``.  The
+    output dictionary contains a ``"total_variance"`` entry in addition to the
+    per-parameter contributions.
+    """
+
+    indices = sobol_indices(samples, values, names)
+    var_y = statistics.pvariance(list(values)) if values else 0.0
+    contrib = {name: indices[name] * var_y for name in names}
+    contrib["total_variance"] = var_y
+    return contrib
 
 
 def uncertainty_band(values: Sequence[float], alpha: float = 0.95) -> Dict[str, float]:
@@ -147,4 +168,47 @@ def propagate_yield_pinch(
     return stats
 
 
-__all__ = ["sobol_indices", "uncertainty_band", "propagate_yield_pinch"]
+def propagate_jitter_voltage_pressure(
+    model: Callable[[Sequence[float]], tuple[float, float]],
+    voltage: float,
+    pressure: float,
+    voltage_jitter_pct: float,
+    pressure_jitter_pct: float,
+    n_samples: int = 1000,
+    alpha: float = 0.95,
+    seed: int | None = None,
+) -> Dict[str, Dict[str, float]]:
+    """Propagate bank voltage and gas pressure jitter through ``model``.
+
+    ``model`` is expected to accept a two-element array ``[voltage, pressure]``
+    and return ``(neutron_yield, pinch_time)``.  Voltage and pressure are
+    perturbed with independent Gaussian noise according to the supplied
+    relative jitter percentages.
+    """
+
+    rng = random.Random(seed)
+    v_std = abs(voltage) * voltage_jitter_pct
+    p_std = abs(pressure) * pressure_jitter_pct
+    voltages = [rng.gauss(voltage, v_std) for _ in range(n_samples)]
+    pressures = [rng.gauss(pressure, p_std) for _ in range(n_samples)]
+
+    yields: list[float] = []
+    pinches: list[float] = []
+    for v, p in zip(voltages, pressures):
+        yld, pinch = model([v, p])
+        yields.append(float(yld))
+        pinches.append(float(pinch))
+
+    return {
+        "neutron_yield": uncertainty_band(yields, alpha),
+        "pinch_time": uncertainty_band(pinches, alpha),
+    }
+
+
+__all__ = [
+    "sobol_indices",
+    "variance_decomposition",
+    "uncertainty_band",
+    "propagate_yield_pinch",
+    "propagate_jitter_voltage_pressure",
+]

@@ -67,7 +67,7 @@ def write_manifest(
     ppc: int | None = None,
     seeds: Mapping[str, int] | None = None,
     warnings: Sequence[str] | None = None,
-    datasets: Mapping[str, Mapping[str, object]] | None = None,
+    datasets: Mapping[str, Mapping[str, Mapping[str, object]]] | None = None,
 ) -> Path:
     """Write a JSON manifest capturing reproducibility metadata.
 
@@ -86,9 +86,9 @@ def write_manifest(
         Mapping of RNG seeds (e.g. {"python": int, "numpy": int}). If not
         provided, the current RNG states are sampled.
     datasets:
-        Optional mapping of dataset names to metadata dictionaries containing
-        ``path``, ``doi`` and ``version``. Hashes of these datasets are stored
-        in the manifest.
+        Optional mapping from dataset category to dataset metadata
+        dictionaries containing ``path``, ``doi`` and ``version``. Hashes of
+        these datasets are stored in the manifest.
     """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)

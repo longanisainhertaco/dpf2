@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import math
-from typing import Sequence, List, Tuple
+from typing import Sequence, List, Tuple, Mapping, Any
+
+from ..detector_models import apply_irf
 
 
 def cross_correlate(a: Sequence[float], b: Sequence[float], dt: float) -> Tuple[List[float], List[float]]:
@@ -56,6 +58,7 @@ def synthetic_tof_from_iv(
     *,
     time_offset: float = 0.0,
     align_peaks: bool = False,
+    irf: Mapping[str, Any] | None = None,
 ) -> Tuple[List[float], List[float]]:
     """Generate a synthetic neutron time-of-flight signal from I–V traces.
 
@@ -103,6 +106,9 @@ def synthetic_tof_from_iv(
             if 0 <= idx < total:
                 counts[idx] += amp
     times = [i * dt for i in range(total)]
+
+    if irf:
+        counts = apply_irf(times, counts, irf)
 
     if align_peaks and any(power) and any(counts):
         padded_power = power + [0.0] * (len(counts) - len(power))

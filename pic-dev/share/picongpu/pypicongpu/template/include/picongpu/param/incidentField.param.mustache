@@ -1,0 +1,208 @@
+/* Copyright 2020-2025 Sergei Bastrakov, Rene Widera, Brian Marre, Julian Lenz
+ *
+ * This file is part of PIConGPU.
+ *
+ * PIConGPU is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * PIConGPU is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with PIConGPU.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#include "picongpu/fields/incidentField/profiles/profiles.def"
+
+namespace picongpu::fields::incidentField
+{
+    {{#laser}}
+    {{#laser.data}}
+
+    {{^laser.typeID.fromOpenPMDPulse}}
+    struct PyPIConGPULaserBaseParam : public profiles::BaseParam
+    {
+        static constexpr float_64 WAVE_LENGTH_SI = {{{wave_length_si}}}; // m
+        static constexpr float_64 AMPLITUDE_SI = {{{E0_si}}}; // V/m
+        static constexpr float_64 PULSE_DURATION_SI = {{{pulse_duration_si}}}; // s (1 sigma)
+        static constexpr float_X LASER_PHASE = {{{phase}}}; // unitless
+
+        static constexpr float_64 propagation_direction[3u] = {
+                {{#propagation_direction}}
+                {{{component}}}{{^_last}},{{/_last}}
+                {{/propagation_direction}}
+            };
+        static constexpr float_64 DIRECTION_X = propagation_direction[0];
+        static constexpr float_64 DIRECTION_Y = propagation_direction[1];
+        static constexpr float_64 DIRECTION_Z = propagation_direction[2];
+
+        static constexpr float_64 focus_position[3u] = {
+                {{#focus_pos_si}}
+                {{{component}}}{{^_last}},{{/_last}}
+                {{/focus_pos_si}}
+            };
+        static constexpr float_64 FOCUS_POSITION_X_SI = focus_position[0];
+        static constexpr float_64 FOCUS_POSITION_Y_SI = focus_position[1];
+        static constexpr float_64 FOCUS_POSITION_Z_SI = focus_position[2];
+
+        static constexpr PolarisationType Polarisation = PolarisationType::{{{polarization_type}}};
+
+        static constexpr float_64 polarisation_direction[3u] = {
+                {{#polarization_direction}}
+                {{{component}}}{{^_last}},{{/_last}}
+                {{/polarization_direction}}
+            };
+        static constexpr float_64 POLARISATION_DIRECTION_X = polarisation_direction[0];
+        static constexpr float_64 POLARISATION_DIRECTION_Y = polarisation_direction[1];
+        static constexpr float_64 POLARISATION_DIRECTION_Z = polarisation_direction[2];
+    };
+    {{/laser.typeID.fromOpenPMDPulse}}
+
+    {{#typeID.gaussian}}
+    struct PyPIConGPUGaussianPulseParam : public PyPIConGPULaserBaseParam
+    {
+        static constexpr float_64 W0_SI = {{{waist_si}}};
+        static constexpr float_64 PULSE_INIT = {{{pulse_init}}};
+        static constexpr uint32_t numModes = {{{modenumber}}};
+        static constexpr auto laguerreModes = floatN_X<numModes+1>(
+            {{#laguerre_modes}}
+            {{{single_laguerre_mode}}}{{^_last}},{{/_last}}
+            {{/laguerre_modes}}
+            );
+        static constexpr auto laguerrePhases = floatN_X<numModes+1>(
+            {{#laguerre_phases}}
+            {{{single_laguerre_phase}}}{{^_last}},{{/_last}}
+            {{/laguerre_phases}}
+            );
+    };
+    {{/typeID.gaussian}}
+
+    {{#typeID.planewave}}
+    struct PyPIConGPUPlaneWaveParam : public PyPIConGPULaserBaseParam
+    {
+        static constexpr float_64 RAMP_INIT = {{{pulse_init}}};
+        static constexpr float_64 LASER_NOFOCUS_CONSTANT_SI = {{{laser_nofocus_constant_si}}};
+    };
+    {{/typeID.planewave}}
+
+    {{#typeID.dispersive}}
+    struct PyPIConGPUDispersivePulseParam : public PyPIConGPULaserBaseParam
+    {
+        static constexpr float_64 W0_SI = {{{waist_si}}};
+        static constexpr float_64 PULSE_INIT = {{{pulse_init}}};
+        static constexpr float_X SPECTRAL_SUPPORT = {{{spectral_support}}};
+        static constexpr float_64 SD_SI = {{{sd_si}}};
+        static constexpr float_64 AD_SI = {{{ad_si}}};
+        static constexpr float_64 GDD_SI = {{{gdd_si}}};
+        static constexpr float_64 TOD_SI = {{{tod_si}}};
+    };
+    {{/typeID.dispersive}}
+
+    {{#typeID.fromOpenPMDPulse}}
+    struct PyPIConGPUFromOpenPMDPulseParam
+    {
+        static constexpr char const* filename = "{{{file_path}}}";
+        static constexpr uint32_t iteration = {{{iteration}}};
+        static constexpr char const* datasetEName = "{{{dataset_name}}}";
+
+        using dataType = {{{datatype}}};
+
+        static constexpr char const* polarisationAxisOpenPMD = "{{{polarisationAxisOpenPMD}}}";
+        static constexpr char const* propagationAxisOpenPMD = "{{{propagationAxisOpenPMD}}}";
+
+        static constexpr float_64 propagation_direction[3u] = {
+                {{#propagation_direction}}
+                {{{component}}}{{^_last}},{{/_last}}
+                {{/propagation_direction}}
+            };
+        static constexpr float_64 DIRECTION_X = propagation_direction[0];
+        static constexpr float_64 DIRECTION_Y = propagation_direction[1];
+        static constexpr float_64 DIRECTION_Z = propagation_direction[2];
+
+        static constexpr float_64 polarisation_direction[3u] = {
+                {{#polarization_direction}}
+                {{{component}}}{{^_last}},{{/_last}}
+                {{/polarization_direction}}
+            };
+        static constexpr float_64 POLARISATION_DIRECTION_X = polarisation_direction[0];
+        static constexpr float_64 POLARISATION_DIRECTION_Y = polarisation_direction[1];
+        static constexpr float_64 POLARISATION_DIRECTION_Z = polarisation_direction[2];
+
+        static constexpr float_64 TIME_DELAY_SI = {{{time_offset_si}}};
+    };
+    {{/typeID.fromOpenPMDPulse}}
+
+
+    /** Position in cells of the Huygens surface relative to start of the total domain
+     *
+     * The position is set as an offset, in cells, counted from the start of the total domain.
+     * For the max boundaries, negative position values are allowed.
+     * These negative values are treated as position at (global_domain_size[d] + POSITION[d][1]).
+     * It is also possible to specify the position explicitly as a positive number.
+     * Then it is on a user to make sure the position is correctly calculated wrt the grid size.
+     *
+     * Except moving window simulations, the position must be inside the global domain.
+     * The distance between the Huygens surface and each global domain boundary must be at least
+     * absorber_thickness + (FDTD_spatial_order / 2 - 1). However beware of setting position = direction *
+     * (absorber_thickness + const), as then changing absorber parameters will affect laser positioning.
+     * When all used profiles are None, the check for POSITION validity is skipped.
+     *
+     * For moving window simulations, POSITION for the YMax side can be located outside the initially
+     * simulated volume. In this case, parts of the generation surface outside of the currently simulated
+     * volume is are treated as if they had zero incident field and it is user's responsibility to apply a
+     * source matching such a case.
+     */
+    constexpr int32_t POSITION[3][2] = {
+        {{#huygens_surface_positions}}
+        {{#row_x}}
+            { {{{negative}}}, {{{positive}}} },
+        {{/row_x}}
+        {{#row_y}}
+            { {{{negative}}}, {{{positive}}} },
+        {{/row_y}}
+        {{#row_z}}
+            { {{{negative}}}, {{{positive}}} }
+        {{/row_z}}
+        {{/huygens_surface_positions}}
+    };
+
+    /**@{*/
+    //! Incident field profile types along each boundary, these 6 types (or aliases) are required.
+    {{#typeID.gaussian}}
+    using YMin = profiles::GaussianPulse<PyPIConGPUGaussianPulseParam>;
+    {{/typeID.gaussian}}
+    {{#typeID.planewave}}
+    using YMin = profiles::PlaneWave<PyPIConGPUPlaneWaveParam>;
+    {{/typeID.planewave}}
+    {{#typeID.dispersive}}
+    using YMin = profiles::DispersivePulse<PyPIConGPUDispersivePulseParam>;
+    {{/typeID.dispersive}}
+    {{#typeID.fromOpenPMDPulse}}
+    using YMin = profiles::FromOpenPMDPulse<PyPIConGPUFromOpenPMDPulseParam>;
+    {{/typeID.fromOpenPMDPulse}}
+    {{/laser.data}}
+    {{/laser}}
+    {{^laser}}
+    // no laser defined case
+    constexpr int32_t POSITION[3][2] = {
+                {16, -16}, // x direction [negative, positive]
+                {16, -16}, // y direction [negative, positive]
+                {16, -16} // z direction [negative, positive]
+    };
+
+    using YMin = profiles::None;
+    {{/laser}}
+    using XMin = profiles::None;
+    using XMax = profiles::None;
+    using YMax = profiles::None;
+    using ZMin = profiles::None;
+    using ZMax = profiles::None;
+    /**@}*/
+} // namespace picongpu::fields::incidentField

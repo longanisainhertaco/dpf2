@@ -1,0 +1,37 @@
+"""
+This file is part of PIConGPU.
+Copyright 2021-2025 PIConGPU contributors
+Authors: Hannes Troepgen, Brian Edward Marre, Julian Lenz
+License: GPLv3+
+"""
+
+from .densityprofile import DensityProfile
+from .... import util
+
+import typeguard
+
+
+@typeguard.typechecked
+class Uniform(DensityProfile):
+    """
+    globally constant density
+
+    PIConGPU equivalent is the homogenous profile, but due to spelling
+    ambiguities the PICMI name uniform is followed here.
+    """
+
+    _name = "uniform"
+
+    density_si = util.build_typesafe_property(float)
+    """density at every point in space (kg * m^-3)"""
+
+    def check(self) -> None:
+        if self.density_si <= 0:
+            raise ValueError("density must be >0")
+
+    def _get_serialized(self) -> dict:
+        self.check()
+
+        return {
+            "density_si": self.density_si,
+        }

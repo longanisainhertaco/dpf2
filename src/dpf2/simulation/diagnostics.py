@@ -2,6 +2,7 @@ import numpy as np
 import json
 import logging
 import time
+from typing import Mapping
 try:  # optional dependency
     import h5py
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
@@ -27,6 +28,7 @@ except Exception as exc:  # pragma: no cover - optional dependency
     ) from exc
 from dpf2.core.bases import DiagnosticsBase
 from .utils import FieldManager, SimulationState
+from ..io.manifest import capture_dataset_metadata, write_hdf5_dataset_manifest
 
 # Classical electron radius (m)
 r_e = e ** 2 / (4 * np.pi * epsilon_0 * m_e * c ** 2)
@@ -400,7 +402,19 @@ class ThomsonScattering(Diagnostic):
 
 # --- Main Diagnostics Class ---
 class Diagnostics:
-    def __init__(self, hdf5_filename, config, domain_lo, grid_shape, dx, gamma, field_manager: FieldManager, full_interval=10, adaptive_interval_threshold=0.1):
+    def __init__(
+        self,
+        hdf5_filename,
+        config,
+        domain_lo,
+        grid_shape,
+        dx,
+        gamma,
+        field_manager: FieldManager,
+        full_interval=10,
+        adaptive_interval_threshold=0.1,
+        datasets: Mapping[str, Mapping[str, Mapping[str, object]]] | None = None,
+    ):
         self.hdf5_filename = hdf5_filename
         self.config = config
         self.domain_lo = np.array(domain_lo)
@@ -420,6 +434,7 @@ class Diagnostics:
         self._last_time = None
         self._last_current = None
         self._last_rho_max = 0.0
+        self._datasets = datasets
 
         # Prepare grid coordinates for synthetic operations
         nx, ny, nz = self.grid_shape
@@ -451,10 +466,21 @@ class Diagnostics:
             self._last_time = t
             self._last_current = I
 
-            state = fluid.get_state()
-            rho = state.density
-            vel = state.velocity
-            pres = state.pressure
+            state_obj = state
+            if state_obj is None and hasattr(fluid, "get_state"):
+                state_obj = fluid.get_state()
+            if isinstance(fluid, SimulationState) and state_obj is None:
+                state_obj = fluid
+            if state_obj is None:
+                logger.debug("Diagnostics skipping record because no simulation state was provided")
+                return
+
+            rho = getattr(state_obj, "density", None)
+            vel = getattr(state_obj, "velocity", None)
+            pres = getattr(state_obj, "pressure", None)
+            if rho is None or vel is None or pres is None:
+                logger.debug("Diagnostics state missing required fields; skipping record")
+                return
             B = self.field_manager.get_B()
 
             # Energies
@@ -557,6 +583,9 @@ class Diagnostics:
                 diag_grp.attrs.update({"openPMD": "1.1.0", "openPMDextension": 0})
                 for diagnostic in self.diagnostics:
                     diagnostic.to_hdf5(diag_grp)
+                if self._datasets:
+                    meta = capture_dataset_metadata(self._datasets)
+                    write_hdf5_dataset_manifest(f, meta)
         except Exception as e:
             logger.error(f"Error writing to HDF5: {e}")
 

@@ -1,0 +1,31 @@
+"""
+This file is part of PIConGPU.
+Copyright 2023-2025 PIConGPU contributors
+Authors: Kristin Tippey, Brian Edward Marre, Julian Lenz
+License: GPLv3+
+"""
+
+import typeguard
+
+from .plasmaramp import PlasmaRamp
+
+
+@typeguard.typechecked
+class Exponential(PlasmaRamp):
+    """exponential plasma ramp, either up or down"""
+
+    _name = "exponential"
+
+    def __init__(self, PlasmaLength: float, PlasmaCutoff: float):
+        self.PlasmaLength = PlasmaLength
+        self.PlasmaCutoff = PlasmaCutoff
+
+    def check(self) -> None:
+        if self.PlasmaLength <= 0:
+            raise ValueError("PlasmaLength must be >0")
+        if self.PlasmaCutoff < 0:
+            raise ValueError("PlasmaCutoff must be >=0")
+
+    def _get_serialized(self) -> dict:
+        self.check()
+        return {"PlasmaLength": self.PlasmaLength, "PlasmaCutoff": self.PlasmaCutoff}
