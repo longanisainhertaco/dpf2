@@ -30,6 +30,7 @@ from dpf2.diagnostics.synthetic_signals import (
     bdot_signal,
     angular_neutron_spectrum,
 )
+from dpf2.diagnostics.neutron_yield import simulate_tof_detectors, save_tof_hdf5
 from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
 from dpf2.diagnostics.thresholds import (
@@ -1260,6 +1261,36 @@ def schema() -> None:
         for f in dataclasses.fields(DPFConfig)
     }
     click.echo(json.dumps(fields, indent=2))
+
+
+@main.command("export-neutron-summary")
+@click.option(
+    "--angles",
+    type=str,
+    default="0.0",
+    help="Comma separated detector angles in degrees",
+)
+@click.option("--distance", type=float, default=1.0, help="Detector distance [m]")
+@click.option(
+    "--outfile",
+    type=click.Path(),
+    default="neutron_summary.h5",
+    help="Destination HDF5 file",
+)
+def export_neutron_summary(angles: str, distance: float, outfile: str) -> None:
+    """Export a simple neutron TOF summary for chosen geometry."""
+
+    ang_list = [float(a) for a in angles.split(",") if a]
+
+    class _FlatEDF:
+        def energy_distribution(self, angle_deg: float):  # pragma: no cover - simple stub
+            return [0.0, 1.0], [1.0, 1.0]
+
+    cross_section = lambda e: 1.0
+    time_bins = [0.0, 1e-7, 2e-7]
+    dets = simulate_tof_detectors(_FlatEDF(), cross_section, ang_list, distance, time_bins)
+    save_tof_hdf5(outfile, time_bins, dets)
+    click.echo(f"HDF5 summary written to {outfile}")
 
 
 @main.command()

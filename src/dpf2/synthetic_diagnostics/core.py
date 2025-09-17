@@ -31,6 +31,7 @@ from ..diagnostics.synthetic_signals import (
     rogowski_signal,
     bdot_signal,
 )
+from ..diagnostics.neutron_yield import tof_iv_cross_correlation
 
 
 class AngularDistribution:
@@ -194,6 +195,74 @@ def synthetic_tof_trace(
                 counts[idx] += amp
     times = [i * dt for i in range(total)]
     return times, counts
+
+
+def correlate_tof_with_iv(
+    history: Sequence[CouplingState],
+    dt: float,
+    distance_m: float,
+    energies_mev: Sequence[float],
+) -> Dict[str, float]:
+    """Zero-lag correlation between synthetic ToF and I/V waveforms.
+
+    The helper generates a synthetic time-of-flight trace using
+    :func:`synthetic_tof_trace` and then computes the zero-lag correlation
+    coefficients with the circuit current, voltage and instantaneous power
+    (``I*V``) using :func:`dpf2.diagnostics.neutron_yield.tof_iv_cross_correlation`.
+    """
+
+    _, counts = synthetic_tof_trace(history, dt, distance_m, energies_mev)
+    current = [s.current for s in history] + [0.0] * (len(counts) - len(history))
+    voltage = [s.voltage for s in history] + [0.0] * (len(counts) - len(history))
+    return tof_iv_cross_correlation(counts, current, voltage)
+
+
+def _cross_correlate(a: Sequence[float], b: Sequence[float]) -> tuple[List[int], List[float]]:
+    """Return raw cross-correlation sequence and integer lags."""
+
+    n = len(a)
+    mean_a = sum(a) / n if n else 0.0
+    mean_b = sum(b) / n if n else 0.0
+    lags: List[int] = []
+    corr: List[float] = []
+    for lag in range(-n + 1, n):
+        val = 0.0
+        for i in range(n):
+            j = i - lag
+            if 0 <= j < n:
+                val += (a[i] - mean_a) * (b[j] - mean_b)
+        lags.append(lag)
+        corr.append(val)
+    return lags, corr
+
+
+def tof_iv_lagged_correlation(
+    history: Sequence[CouplingState],
+    dt: float,
+    distance_m: float,
+    energies_mev: Sequence[float],
+) -> Dict[str, List[float]]:
+    """Cross-correlate synthetic ToF counts with I, V and power histories.
+
+    Returns a dictionary with entries ``"lags"`` (time offsets in seconds) and
+    correlation arrays for ``"current"``, ``"voltage"`` and ``"power"``.
+    """
+
+    _, counts = synthetic_tof_trace(history, dt, distance_m, energies_mev)
+    current = [s.current for s in history] + [0.0] * (len(counts) - len(history))
+    voltage = [s.voltage for s in history] + [0.0] * (len(counts) - len(history))
+    power = [i * v for i, v in zip(current, voltage)]
+
+    lags_idx, corr_i = _cross_correlate(counts, current)
+    _, corr_v = _cross_correlate(counts, voltage)
+    _, corr_p = _cross_correlate(counts, power)
+    lags = [lag * dt for lag in lags_idx]
+    return {
+        "lags": lags,
+        "current": corr_i,
+        "voltage": corr_v,
+        "power": corr_p,
+    }
 
 
 def autocorrelated_tof_iv_report(
@@ -729,6 +798,8 @@ __all__ = [
     "beam_target_angular_spectrum",
     "directional_yields",
     "synthetic_tof_trace",
+    "correlate_tof_with_iv",
+    "tof_iv_lagged_correlation",
     "export_directional_yields",
     "autocorrelated_tof_iv_report",
     "anisotropy_report",
