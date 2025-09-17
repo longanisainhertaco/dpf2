@@ -1,11 +1,21 @@
 {
-  "time": [0.0, 1e-6],
-  "current": [0.0, 0.0],
-  "voltage": [15000.0, 15000.0],
-  "neutron_yield": [0.0, 0.0],
+  "current": {
+    "time": [
+      0.0,
+      1e-06,
+      2e-06
+    ],
+    "value": [
+      0.0,
+      500000.0,
+      0.0
+    ]
+  },
+  "neutron_yield": 5000000000.0,
+  "anisotropy": 0.9,
   "tolerance": {
-    "current": 1e-6,
-    "voltage": 1e-6,
-    "neutron_yield": 1e-6
+    "current": 0.1,
+    "neutron_yield": 0.05,
+    "anisotropy": 0.05
   }
 }
