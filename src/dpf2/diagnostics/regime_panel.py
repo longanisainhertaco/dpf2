@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import logging
+import csv
 from typing import Dict
 
 from .plasma import (
@@ -156,5 +157,33 @@ class RegimePanel:
         p.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(p)
         plt.close(fig)
+        return p
+
+    # ------------------------------------------------------------------
+    def to_csv(self, path: str | Path) -> Path:
+        """Export the logged regime history to ``path`` in CSV format."""
+
+        if not self.history:
+            raise ValueError("no regime data logged")
+
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+
+        # Prepare field names: all keys except the nested violation map which is
+        # expanded into ``<metric>_violated`` columns.
+        base_fields = [k for k in self.history[0] if k != "violations"]
+        violation_fields = [f"{k}_violated" for k in self.thresholds]
+        fieldnames = base_fields + violation_fields
+
+        with open(p, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in self.history:
+                out = {k: row.get(k) for k in base_fields}
+                viol = row.get("violations", {})
+                for key in self.thresholds:
+                    out[f"{key}_violated"] = bool(viol.get(key, False))
+                writer.writerow(out)
+
         return p
 

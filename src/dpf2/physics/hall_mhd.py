@@ -169,6 +169,8 @@ class HallMHD(ResistiveMHD):
         *,
         circuit: Any | None = None,
         instability_amp: np.ndarray | float = 0.0,
+        mfp: float = 0.0,
+        tau_e: float = 0.0,
     ) -> np.ndarray:
         """Update circuit coupling information.
 
@@ -250,6 +252,8 @@ class HallMHD(ResistiveMHD):
             self.current = updated.current
             # store the updated coupling terms so diagnostics can access them
             self.circuit_feedback = updated
+
+        self.log_regime(state, mfp, tau_e)
 
         return state
 
