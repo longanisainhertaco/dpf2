@@ -1,7 +1,3 @@
-from __future__ import annotations
-
-"""Helpers for recording dataset provenance in run manifests."""
-
 from pathlib import Path
 import hashlib
 from typing import Mapping
@@ -25,42 +21,49 @@ def _hash_file(path: Path) -> str:
 
 
 def capture_dataset_metadata(
-    datasets: Mapping[str, Mapping[str, object]]
-) -> dict[str, dict[str, str]]:
+    datasets: Mapping[str, Mapping[str, Mapping[str, object]]]
+) -> dict[str, dict[str, dict[str, str]]]:
     """Compute hashes and attach DOI/version for referenced datasets.
 
     Parameters
     ----------
     datasets:
-        Mapping of dataset name to a mapping containing ``path``, ``doi`` and
-        ``version`` entries.
+        Mapping from dataset category ("atomic", "nuclear" or
+        "material") to mappings of dataset name to information containing
+        ``path``, ``doi`` and ``version`` entries.
     """
 
-    result: dict[str, dict[str, str]] = {}
-    for name, info in datasets.items():
-        path = info.get("path")
-        doi = info.get("doi")
-        version = info.get("version")
-        if path is None or doi is None or version is None:
-            raise ValueError(
-                "dataset metadata requires 'path', 'doi' and 'version'"
+    result: dict[str, dict[str, dict[str, str]]] = {}
+    for category, entries in datasets.items():
+        group: dict[str, dict[str, str]] = {}
+        for name, info in entries.items():
+            path = info.get("path")
+            doi = info.get("doi")
+            version = info.get("version")
+            if path is None or doi is None or version is None:
+                raise ValueError("dataset metadata requires 'path', 'doi' and 'version'")
+            p = Path(path)
+            h = _hash_file(p)
+            logger.info(
+                "dataset %s/%s: hash=%s doi=%s version=%s",
+                category,
+                name,
+                h,
+                doi,
+                version,
             )
-        p = Path(path)
-        h = _hash_file(p)
-        logger.info(
-            "dataset %s: hash=%s doi=%s version=%s", name, h, doi, version
-        )
-        result[name] = {
-            "path": str(p),
-            "hash": h,
-            "doi": str(doi),
-            "version": str(version),
-        }
+            group[name] = {
+                "path": str(p),
+                "hash": h,
+                "doi": str(doi),
+                "version": str(version),
+            }
+        result[category] = group
     return result
 
 
 def write_hdf5_dataset_manifest(
-    h5file: "h5py.File", metadata: Mapping[str, Mapping[str, str]]
+    h5file: "h5py.File", metadata: Mapping[str, Mapping[str, Mapping[str, str]]]
 ) -> None:  # pragma: no cover - thin wrapper
     """Embed dataset metadata in an HDF5 ``manifest`` group.
 
@@ -69,16 +72,18 @@ def write_hdf5_dataset_manifest(
     h5file:
         Open HDF5 file handle where the manifest should be written.
     metadata:
-        Mapping of dataset name to a mapping containing ``hash``, ``doi`` and
-        ``version`` entries as produced by :func:`capture_dataset_metadata`.
+        Mapping from dataset category to metadata dictionaries produced by
+        :func:`capture_dataset_metadata`.
     """
 
     manifest = h5file.require_group("manifest")
     dgrp = manifest.require_group("datasets")
-    for name, info in metadata.items():
-        grp = dgrp.require_group(name)
-        for key, value in info.items():
-            grp.attrs[key] = value
+    for category, datasets in metadata.items():
+        cgrp = dgrp.require_group(category)
+        for name, info in datasets.items():
+            grp = cgrp.require_group(name)
+            for key, value in info.items():
+                grp.attrs[key] = value
 
 
 __all__ = ["capture_dataset_metadata", "write_hdf5_dataset_manifest"]
