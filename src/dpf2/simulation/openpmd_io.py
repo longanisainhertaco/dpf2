@@ -5,13 +5,19 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
         "h5py is required; install dpf2[warpx]"
     ) from exc
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Mapping
+
+from ..io.manifest import capture_dataset_metadata, write_hdf5_dataset_manifest
 
 
 class OpenPMDWriter:
     """Minimal openPMD-compliant writer for field and particle data."""
 
-    def __init__(self, filename: str):
+    def __init__(
+        self,
+        filename: str,
+        datasets: Mapping[str, Mapping[str, Mapping[str, object]]] | None = None,
+    ):
         self.filename = str(filename)
         self._file = h5py.File(self.filename, "w")
         self._file.attrs.update(
@@ -23,6 +29,9 @@ class OpenPMDWriter:
                 "software": "dpf-simulator",
             }
         )
+        if datasets:
+            meta = capture_dataset_metadata(datasets)
+            write_hdf5_dataset_manifest(self._file, meta)
 
     def write_fields(self, iteration: int, fields: Dict[str, np.ndarray]):
         grp = self._file.require_group(f"data/{iteration}")

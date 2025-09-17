@@ -2,14 +2,45 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Tuple, Sequence
 
 import math
 import random
+import statistics
 
 import numpy as np
 
 Bounds = Dict[str, Tuple[float, float]]
+
+
+def bayes_factor(log_evidence_a: float, log_evidence_b: float) -> float:
+    """Return the Bayes factor given two log-evidences."""
+
+    return math.exp(log_evidence_a - log_evidence_b)
+
+
+def posterior_summary(
+    samples: Dict[str, Sequence[float]],
+    alpha: float = 0.95,
+) -> Dict[str, Dict[str, float]]:
+    """Compute mean/std and credible interval for each parameter."""
+
+    out: Dict[str, Dict[str, float]] = {}
+    for name, vals in samples.items():
+        seq = [float(v) for v in vals]
+        if not seq:
+            out[name] = {"mean": 0.0, "std": 0.0, "lower": 0.0, "upper": 0.0}
+            continue
+        lower_q = (1 - alpha) / 2
+        upper_q = 1 - lower_q
+        seq_sorted = sorted(seq)
+        n = len(seq_sorted) - 1
+        lower = seq_sorted[int(lower_q * n)]
+        upper = seq_sorted[int(upper_q * n)]
+        mean = statistics.fmean(seq)
+        std = statistics.pstdev(seq) if len(seq) > 1 else 0.0
+        out[name] = {"mean": mean, "std": std, "lower": float(lower), "upper": float(upper)}
+    return out
 
 
 def bayesian_calibration(
@@ -509,6 +540,8 @@ def calibrate_waveform(
 
 
 __all__ = [
+    "bayes_factor",
+    "posterior_summary",
     "bayesian_calibration",
     "nested_calibration",
     "emcee_calibrate",

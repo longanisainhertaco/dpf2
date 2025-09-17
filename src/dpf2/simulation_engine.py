@@ -32,7 +32,9 @@ except Exception:  # pragma: no cover
 
 from .dpf_config import DPFConfig
 from .circuit_config import CircuitConfig
+
 from .experimental_variability import MonteCarloVariability
+
 
 from .circuit_solver import RLCCircuit, CircuitSolver, run_circuit_simulation
 from .core.bases import PlasmaSolverBase, CouplingState, DiagnosticsBase
@@ -195,12 +197,64 @@ class SimulationEngine:
         self.cell_size: float | None = None
         self.particles_per_cell: float | None = None
 
+        # Radiation coupling ------------------------------------------------
+        self._radiation_modes: dict[str, str] = {}
+        self._radiation_warning_emitted = False
+        pm = getattr(self.config, "physics_models", None)
+        if pm is not None:
+            self._register_radiation_mode("model", getattr(pm, "radiation_model", None))
+            self._register_radiation_mode(
+                "transport", getattr(pm, "radiation_transport_model", None)
+            )
+
     # ------------------------------------------------------------------
     def _to_numpy(self, arr: np.ndarray | "cp.ndarray") -> np.ndarray:
         """Convert ``arr`` to a NumPy array regardless of backend."""
         if self.use_gpu and cp is not None:
             return cp.asnumpy(arr)  # type: ignore[no-untyped-call]
         return np.asarray(arr)
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _normalise_enum(value: object) -> str:
+        """Return a stable string representation for enum-like values."""
+
+        if value is None:
+            return "None"
+        if hasattr(value, "value"):
+            return str(getattr(value, "value"))
+        return str(value)
+
+    def _register_radiation_mode(self, key: str, value: object) -> None:
+        """Record requested radiation modes that the engine cannot service."""
+
+        if value is None:
+            return
+        normalised = self._normalise_enum(value)
+        if normalised.lower() == "none":
+            return
+        # Map enums back to canonical names when possible
+        if isinstance(value, RadiationModelEnum):
+            normalised = value.value
+        elif isinstance(value, RadiationTransportModelEnum):
+            normalised = value.value
+        self._radiation_modes[key] = normalised
+
+    def _handle_radiation_coupling(self, tracker: EnergyTracker) -> None:
+        """Emit diagnostics when unsupported radiation coupling is requested."""
+
+        if not self._radiation_modes:
+            return
+        if not self._radiation_warning_emitted:
+            details = ", ".join(f"{k}={v}" for k, v in self._radiation_modes.items())
+            logger.warning(
+                "Radiation coupling requested (%s) but SimulationEngine does not "
+                "implement radiation losses; radiative energy will remain zero.",
+                details,
+            )
+            self._radiation_warning_emitted = True
+        if tracker.radiative:
+            tracker.radiative[-1] = 0.0
 
     # ------------------------------------------------------------------
     def _setup_circuit(self) -> CircuitSolver:
@@ -499,6 +553,7 @@ class SimulationEngine:
             capacitor=_capacitor_energy(circuit.voltages[-1], circuit.circuit.C),
             inductive=0.5 * circuit.circuit.L * circuit.currents[-1] ** 2,
         )
+        self._handle_radiation_coupling(tracker)
 
         current = circuit.currents[-1]
         voltage = circuit.voltages[-1]
@@ -575,10 +630,8 @@ class SimulationEngine:
             coupling.voltage = updated.voltage
             current, voltage = updated.current, updated.voltage
 
-            # Radiation transport coupling (placeholder)
-            rad_in = tracker.thermal[-1] if tracker.thermal else 0.0
-            tracker.thermal[-1] = float(rad_in)
-            tracker.radiative[-1] = 0.0
+            # Radiation transport coupling (not yet implemented for the minimal engine)
+            self._handle_radiation_coupling(tracker)
 
             if diag_list:
                 for diag in diag_list:

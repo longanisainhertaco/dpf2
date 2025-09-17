@@ -9,6 +9,7 @@ import random
 from pathlib import Path
 from typing import Sequence, Mapping
 
+import click
 import numpy as np
 
 try:  # pragma: no cover - optional dependency
@@ -66,7 +67,7 @@ def write_manifest(
     ppc: int | None = None,
     seeds: Mapping[str, int] | None = None,
     warnings: Sequence[str] | None = None,
-    datasets: Mapping[str, Mapping[str, object]] | None = None,
+    datasets: Mapping[str, Mapping[str, Mapping[str, object]]] | None = None,
 ) -> Path:
     """Write a JSON manifest capturing reproducibility metadata.
 
@@ -85,9 +86,9 @@ def write_manifest(
         Mapping of RNG seeds (e.g. {"python": int, "numpy": int}). If not
         provided, the current RNG states are sampled.
     datasets:
-        Optional mapping of dataset names to metadata dictionaries containing
-        ``path``, ``doi`` and ``version``. Hashes of these datasets are stored
-        in the manifest.
+        Optional mapping from dataset category to dataset metadata
+        dictionaries containing ``path``, ``doi`` and ``version``. Hashes of
+        these datasets are stored in the manifest.
     """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -152,4 +153,57 @@ __all__ = [
     "write_manifest",
     "RUN_MANIFEST_FILENAME",
     "RUN_MANIFEST_H5_FILENAME",
+    "lab",
 ]
+
+
+# ---------------------------------------------------------------------------
+# CLI utilities
+# ---------------------------------------------------------------------------
+
+from dataclasses import asdict
+from ..core.config import DPFConfig
+from ..core.simulation import DPFSimulation
+from ..io.manifest import write_batch_manifest
+
+
+@click.group()
+def lab() -> None:
+    """Lab-mode helper commands."""
+
+
+@lab.command(name="run")
+@click.option("--config", type=click.Path(exists=False), help="Path to config file")
+@click.option("--shots", type=int, default=1, show_default=True, help="Number of shots")
+@click.option("--output", type=click.Path(), default="output", help="Output directory")
+def lab_run(config: str | None, shots: int, output: str) -> None:
+    """Run a batch of jittered simulations."""
+
+    cfg = DPFConfig.from_file(config) if config else DPFConfig()
+    runs: list[dict[str, object]] = []
+    for i in range(shots):
+        py_seed = random.randint(0, 2**32 - 1)
+        np_seed = random.randint(0, 2**32 - 1)
+        random.seed(py_seed)
+        rng = np.random.default_rng(np_seed)
+
+        jittered_cfg, jit_vals = cfg.apply_jitter(rng)
+
+        sim = DPFSimulation(jittered_cfg)
+        shot_dir = Path(output) / f"shot_{i:03d}"
+        sim.run(output_dir=shot_dir, seeds={"python": py_seed, "numpy": np_seed})
+        write_manifest(
+            shot_dir,
+            config_paths=[config] if config else None,
+            config=asdict(jittered_cfg),
+            seeds={"python": py_seed, "numpy": np_seed},
+        )
+
+        run_info = {
+            "shot": i,
+            "seeds": {"python": py_seed, "numpy": np_seed},
+            **jit_vals,
+        }
+        runs.append(run_info)
+
+    write_batch_manifest(output, runs)
