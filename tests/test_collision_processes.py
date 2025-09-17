@@ -3,7 +3,9 @@ import pytest
 import sys
 import types
 
-sys.modules.setdefault("h5py", types.SimpleNamespace(File=lambda *a, **k: (_ for _ in ()).throw(OSError())))
+sys.modules.setdefault(
+    "h5py", types.SimpleNamespace(File=lambda *a, **k: (_ for _ in ()).throw(OSError()))
+)
 scipy_interp = types.SimpleNamespace(
     interp1d=lambda *a, **k: (lambda x: np.zeros_like(x)),
     RegularGridInterpolator=lambda *a, **k: (lambda x: np.zeros(1)),
@@ -13,7 +15,9 @@ sys.modules.setdefault("scipy.interpolate", scipy_interp)
 sys.modules.setdefault(
     "numba",
     types.SimpleNamespace(
-        njit=lambda f=None, *a, **k: (lambda *args, **kwargs: f(*args, **kwargs) if f else None),
+        njit=lambda f=None, *a, **k: (
+            lambda *args, **kwargs: f(*args, **kwargs) if f else None
+        ),
         prange=range,
         cuda=types.SimpleNamespace(),
     ),
@@ -59,7 +63,8 @@ def test_electron_ion_collision_velocity_reduction(monkeypatch):
     dt = 0.1
     collision = ElectronIonCollision()
     monkeypatch.setattr(
-        "dpf2.simulation.collision_model.nu_ei_spitzer", lambda ne, Te: np.array([5.0, 5.0])
+        "dpf2.simulation.collision_model.nu_ei_spitzer",
+        lambda ne, Te: np.array([5.0, 5.0]),
     )
     collision.apply(state, dt)
     expected_vel = vel0 - np.array([5.0, 5.0])[:, None] * vel0 * dt

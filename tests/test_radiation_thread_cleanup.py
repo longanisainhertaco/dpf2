@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.modules.setdefault("amrex", types.ModuleType("amrex"))
 sys.modules.setdefault("adios2", types.ModuleType("adios2"))
 import h5py_stub as h5py
+
 sys.modules.setdefault("h5py", h5py)
 
 numba_stub = types.ModuleType("numba")
@@ -55,7 +56,10 @@ def test_radiation_model_thread_cleanup():
     rm.writer = DummyWriter()
 
     dummy_sock = DummySocket()
-    with patch("dpf2.simulation.radiation_model.socket.create_connection", return_value=dummy_sock):
+    with patch(
+        "dpf2.simulation.radiation_model.socket.create_connection",
+        return_value=dummy_sock,
+    ):
         rm._t_thread = threading.Thread(target=rm._telemetry_loop)
         rm._t_thread.daemon = True
         rm._t_thread.start()

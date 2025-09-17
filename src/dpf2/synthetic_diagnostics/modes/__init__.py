@@ -22,8 +22,11 @@ __all__ = [
 ]
 
 
-def plot_growth_rates(times: Sequence[float], spectra: Sequence[Sequence[float]],
-                      outdir: Path | str = Path("synthetic_diagnostics/modes")) -> Path:
+def plot_growth_rates(
+    times: Sequence[float],
+    spectra: Sequence[Sequence[float]],
+    outdir: Path | str = Path("synthetic_diagnostics/modes"),
+) -> Path:
     """Plot modal growth rates and return the path to the figure.
 
     The function expects ``times`` and corresponding mode ``spectra``.  Each
@@ -56,8 +59,11 @@ def plot_growth_rates(times: Sequence[float], spectra: Sequence[Sequence[float]]
     return fig_path
 
 
-def write_growth_rates(times: Sequence[float], spectra: Sequence[Sequence[float]],
-                       outdir: Path | str = Path("synthetic_diagnostics/modes")) -> Path:
+def write_growth_rates(
+    times: Sequence[float],
+    spectra: Sequence[Sequence[float]],
+    outdir: Path | str = Path("synthetic_diagnostics/modes"),
+) -> Path:
     """Compute growth rates and write them to ``outdir``.
 
     The returned file contains one row per interval in ``times`` with the

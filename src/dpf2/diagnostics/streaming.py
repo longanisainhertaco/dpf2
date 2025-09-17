@@ -31,7 +31,7 @@ class NeutronYieldStreamer(DiagnosticsBase):
         self._total = 0.0
 
     def record(self, state: CouplingState, time: float) -> None:
-        rate = 1.0e5 * state.current ** 2
+        rate = 1.0e5 * state.current**2
         self._total += rate
         self.callback(time, rate)
         if self.comparator is not None:
@@ -102,4 +102,3 @@ class RealTimeComparator:
 
 
 __all__ = ["NeutronYieldStreamer", "XRayEmissionStreamer", "RealTimeComparator"]
-

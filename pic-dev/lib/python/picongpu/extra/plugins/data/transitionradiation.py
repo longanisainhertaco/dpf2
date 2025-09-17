@@ -66,10 +66,18 @@ class TransitionRadiationData(DataReader):
             return sim_output_dir
         else:
             data_file_path = os.path.join(
-                sim_output_dir, species + self.data_file_prefix + str(iteration) + self.data_file_suffix
+                sim_output_dir,
+                species
+                + self.data_file_prefix
+                + str(iteration)
+                + self.data_file_suffix,
             )
             if not os.path.isfile(data_file_path):
-                raise IOError("The file {} does not exist.\nDid the simulation already run?".format(data_file_path))
+                raise IOError(
+                    "The file {} does not exist.\nDid the simulation already run?".format(
+                        data_file_path
+                    )
+                )
             return data_file_path
 
     def _get_for_iteration(self, iteration=None, **kwargs):
@@ -94,7 +102,9 @@ class TransitionRadiationData(DataReader):
 
         # Do loading once and store them in ram
         if self.data is None:
-            data_file_path = self.get_data_path(species=kwargs["species"], iteration=iteration)
+            data_file_path = self.get_data_path(
+                species=kwargs["species"], iteration=iteration
+            )
 
             # Actual loading of data
             self.data = np.loadtxt(data_file_path)
@@ -122,7 +132,9 @@ class TransitionRadiationData(DataReader):
                     int(parameters[0 + indexOffset]),
                 )
             elif parameters[1] == "list":
-                self.omegas = np.loadtxt(self.get_data_path() + parameters[0 + indexOffset])
+                self.omegas = np.loadtxt(
+                    self.get_data_path() + parameters[0 + indexOffset]
+                )
                 indexOffset += 2
             self.phis = np.linspace(
                 float(parameters[4 + indexOffset]),
@@ -218,11 +230,17 @@ class TransitionRadiationData(DataReader):
                 theta = np.argmax(self.data[phi :: len(self.phis), :], 0)[0]
             elif theta is not None and phi is None:
                 phi = np.argmax(
-                    self.data[theta * len(self.phis) : (theta + 1) * len(self.phis) :, :],
+                    self.data[
+                        theta * len(self.phis) : (theta + 1) * len(self.phis) :, :
+                    ],
                     0,
                 )[0]
 
-            print("Spectrum is plotted at phi={:.2e} and theta={:.2e}".format(self.phis[phi], self.thetas[theta]))
+            print(
+                "Spectrum is plotted at phi={:.2e} and theta={:.2e}".format(
+                    self.phis[phi], self.thetas[theta]
+                )
+            )
             return self.omegas, self.data[theta * len(self.phis) + phi, :]
         elif type == "sliceovertheta":
             # find phi and omega with maximum intensity if they are not
@@ -276,7 +294,9 @@ class TransitionRadiationData(DataReader):
             return (
                 theta_mesh,
                 phi_mesh,
-                self.data[::, omega].reshape((len(self.thetas), len(self.phis))).transpose(),
+                self.data[::, omega]
+                .reshape((len(self.thetas), len(self.phis)))
+                .transpose(),
             )
         else:
             raise ValueError("Illegal type of figure!")

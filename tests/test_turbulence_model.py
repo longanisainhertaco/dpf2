@@ -33,8 +33,16 @@ def _basic_state(grid_shape=(5, 1, 1), dx=0.01):
     viscosity = np.ones(grid_shape) * 1e-5
     bc = {"x_lo": "wall", "x_hi": "wall"}
     state = SimulationState(
-        grid_shape, dx, dx, dx, (0.0, 0.0, 0.0), bc,
-        density=density, velocity=velocity, viscosity=viscosity, ghost=1
+        grid_shape,
+        dx,
+        dx,
+        dx,
+        (0.0, 0.0, 0.0),
+        bc,
+        density=density,
+        velocity=velocity,
+        viscosity=viscosity,
+        ghost=1,
     )
     return state
 
@@ -50,13 +58,13 @@ def test_log_law_wall_function_adjusts_velocity_and_fields():
     nx = state.velocity.shape[0]
     k0 = model.k[g, 0, 0]
     nu = state.viscosity[g, 0, 0] / state.density[g, 0, 0]
-    u_tau = (model.C_mu ** 0.25) * np.sqrt(k0)
+    u_tau = (model.C_mu**0.25) * np.sqrt(k0)
     y = 0.5 * state.dx
     y_plus = y * u_tau / nu
     u_plus = (1.0 / model.wall_function_kappa) * np.log(model.wall_function_E * y_plus)
     expected_velocity = u_plus * u_tau
-    expected_k = u_tau ** 2 / np.sqrt(model.C_mu)
-    expected_epsilon = (u_tau ** 3) / (model.wall_function_kappa * y)
+    expected_k = u_tau**2 / np.sqrt(model.C_mu)
+    expected_epsilon = (u_tau**3) / (model.wall_function_kappa * y)
 
     model._apply_wall_functions(state)
 
@@ -159,4 +167,3 @@ def test_apply_wall_functions_rejects_unknown_option():
     model.wall_function_type = invalid
     with pytest.raises(ValueError, match="Unsupported wall function type"):
         model._apply_wall_functions(state)
-

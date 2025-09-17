@@ -1,4 +1,5 @@
 """Configuration schema for DPF simulations."""
+
 from __future__ import annotations
 
 import json
@@ -59,12 +60,16 @@ class DPFConfig:
         try:
             raw = file_path.read_text()
         except FileNotFoundError as e:  # pragma: no cover - simple error path
-            raise ConfigurationError(f"Configuration file not found: {file_path}") from e
+            raise ConfigurationError(
+                f"Configuration file not found: {file_path}"
+            ) from e
 
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as e:
-            raise ConfigurationError(f"Error decoding JSON from {file_path}: {e}") from e
+            raise ConfigurationError(
+                f"Error decoding JSON from {file_path}: {e}"
+            ) from e
 
         if not isinstance(data, dict):
             raise ConfigurationError(
@@ -85,7 +90,9 @@ class DPFConfig:
             else:
                 hint_msg = str(e)
             raise ConfigurationError(
-                f"Error validating configuration: {hint_msg}", fields=fields, hints=hints
+                f"Error validating configuration: {hint_msg}",
+                fields=fields,
+                hints=hints,
             ) from e
 
     def to_file(self, path: str | Path) -> Path:

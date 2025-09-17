@@ -7,6 +7,7 @@ from dpf2.warpx_settings import WarpXSettings, SpeciesEntry
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False
@@ -60,7 +61,9 @@ def test_adaptive_step_requires_config():
 
 def test_yaml_round_trip_and_normalization(tmp_path: Path):
     cfg = WarpXSettings.with_defaults("2D_RZ")
-    cfg = WarpXSettings.model_validate(cfg.model_dump(by_alias=True), context={"geometry": "2D_RZ"})
+    cfg = WarpXSettings.model_validate(
+        cfg.model_dump(by_alias=True), context={"geometry": "2D_RZ"}
+    )
     if not YAML_AVAILABLE:
         with pytest.raises(Exception):
             __import__("yaml")
@@ -74,19 +77,21 @@ def test_yaml_round_trip_and_normalization(tmp_path: Path):
 
 def test_summary_output():
     data = make_base()
-    data.update({
-        "fieldSolver": "PSATD",
-        "particleShape": "quadratic",
-        "particleShapeOrder": 2,
-        "timeStepType": "adaptive",
-        "adaptiveTimeStepConfig": {"cfl": 0.8, "dtMin": 1e-12, "dtMax": 1e-9},
-        "ionizationModel": "ADK",
-        "collisionModel": "MonteCarlo",
-        "maxParticlesPerCell": 64,
-        "currentSmoothingEnabled": True,
-        "currentSmoothingKernel": [3, 3, 1],
-        "emissionProfilePath": "profiles/emission_adk.csv",
-    })
+    data.update(
+        {
+            "fieldSolver": "PSATD",
+            "particleShape": "quadratic",
+            "particleShapeOrder": 2,
+            "timeStepType": "adaptive",
+            "adaptiveTimeStepConfig": {"cfl": 0.8, "dtMin": 1e-12, "dtMax": 1e-9},
+            "ionizationModel": "ADK",
+            "collisionModel": "MonteCarlo",
+            "maxParticlesPerCell": 64,
+            "currentSmoothingEnabled": True,
+            "currentSmoothingKernel": [3, 3, 1],
+            "emissionProfilePath": "profiles/emission_adk.csv",
+        }
+    )
     cfg = WarpXSettings.model_validate(data, context={"geometry": "3D_Cartesian"})
     summary = cfg.summarize()
     assert "PSATD solver" in summary

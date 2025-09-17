@@ -10,6 +10,7 @@ from typing import Sequence, Tuple
 try:  # pragma: no cover - exercised when package is present
     from ..radiation.multigroup import MultiGroupDiffusion  # type: ignore
 except Exception:  # pragma: no cover - fallback for stripped environments
+
     class MultiGroupDiffusion:  # type: ignore
         def __init__(self, opacities):
             self.opacities = list(opacities)

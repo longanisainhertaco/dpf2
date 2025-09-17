@@ -12,22 +12,30 @@ def test_invalid_sim_parameters_warn(monkeypatch, caplog):
     """_validate_sim_parameters warns and aborts on bad input."""
     # Stub external modules required for import
     flask_stub = types.ModuleType("flask")
+
     class DummyFlask:
         def __init__(self, *args, **kwargs):
             self.args = args
             self.kwargs = kwargs
             self.config = {}
+
         def route(self, *args, **kwargs):
             def decorator(f):
                 return f
+
             return decorator
+
         def errorhandler(self, *args, **kwargs):
             def decorator(f):
                 return f
+
             return decorator
+
         config = {}
+
     def abort(code, description=None):
         raise RuntimeError(description or str(code))
+
     flask_stub.Flask = DummyFlask
     flask_stub.request = None
     flask_stub.jsonify = lambda *a, **k: {}
@@ -36,21 +44,27 @@ def test_invalid_sim_parameters_warn(monkeypatch, caplog):
     monkeypatch.setitem(sys.modules, "flask", flask_stub)
 
     flask_sock_stub = types.ModuleType("flask_sock")
+
     class Sock:
         def __init__(self, *args, **kwargs):
             self.args = args
             self.kwargs = kwargs
+
         def route(self, *args, **kwargs):
             def decorator(f):
                 return f
+
             return decorator
+
     flask_sock_stub.Sock = Sock
     monkeypatch.setitem(sys.modules, "flask_sock", flask_sock_stub)
 
     dpf_sim_stub = types.ModuleType("dpf_simulation")
     dpf_sim_stub.DPFSimulation = type("DPFSimulation", (), {})
+
     class ConfigError(Exception):
         """Dummy configuration error for testing."""
+
     dpf_sim_stub.ConfigurationError = ConfigError
     monkeypatch.setitem(sys.modules, "dpf_simulation", dpf_sim_stub)
 
@@ -84,7 +98,10 @@ def test_invalid_sim_parameters_warn(monkeypatch, caplog):
     utils_stub.FieldManager = type("FieldManager", (), {})
     monkeypatch.setitem(sys.modules, "utils", utils_stub)
 
-    module_path = Path(__file__).resolve().parent.parent / "src/dpf2/simulation/dpf_simulator_server.py"
+    module_path = (
+        Path(__file__).resolve().parent.parent
+        / "src/dpf2/simulation/dpf_simulator_server.py"
+    )
     spec = importlib.util.spec_from_file_location("server_mod", module_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

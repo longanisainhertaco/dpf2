@@ -22,8 +22,8 @@ def test_shock_propagation():
     model, U_left, U_right = _shock_setup()
     U = np.vstack([U_left, U_right])
     mesh = Mesh3D(0.0, 2.0, 0.0, 1.0, 0.0, 1.0, 2, 1, 1)
-    dt = 0.1 * mesh.dx / max(
-        model.max_speed(U_left, "x"), model.max_speed(U_right, "x")
+    dt = (
+        0.1 * mesh.dx / max(model.max_speed(U_left, "x"), model.max_speed(U_right, "x"))
     )
     for _ in range(5):
         U = model.ctu_update(U, mesh, dt)

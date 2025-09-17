@@ -20,9 +20,7 @@ cli_main = importlib.import_module("dpf2.cli.main")
 main = cli_main.main
 
 if not hasattr(cli_main.SyntheticDiagnostics, "parse_obj"):
-    cli_main.SyntheticDiagnostics.parse_obj = classmethod(
-        lambda cls, d: cls(**d)
-    )
+    cli_main.SyntheticDiagnostics.parse_obj = classmethod(lambda cls, d: cls(**d))
 
 
 def test_simulate_accepts_short_flags(monkeypatch, tmp_path):
@@ -44,11 +42,15 @@ def test_simulate_accepts_short_flags(monkeypatch, tmp_path):
             captured["verbose"] = verbose
             return [0.0], [0.0], [0.0]
 
-    monkeypatch.setattr(cli_main.DPFConfig, "from_file", staticmethod(fake_from_file), raising=False)
+    monkeypatch.setattr(
+        cli_main.DPFConfig, "from_file", staticmethod(fake_from_file), raising=False
+    )
     monkeypatch.setattr(cli_main, "DPFSimulation", DummySim)
 
     runner = CliRunner()
-    result = runner.invoke(main, ["simulate", "-c", str(config_path), "-o", str(output_dir)])
+    result = runner.invoke(
+        main, ["simulate", "-c", str(config_path), "-o", str(output_dir)]
+    )
 
     assert result.exit_code == 0
     assert captured["config"] == str(config_path)

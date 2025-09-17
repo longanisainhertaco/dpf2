@@ -38,7 +38,9 @@ class SimpleWarpX:
         self.volume = 1.0
         self._species = {
             "e": SimpleParticleContainer([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]], mass=1.0),
-            "i": SimpleParticleContainer([[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]], mass=1836.0),
+            "i": SimpleParticleContainer(
+                [[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]], mass=1836.0
+            ),
         }
 
     def get_particle_container(self, name):

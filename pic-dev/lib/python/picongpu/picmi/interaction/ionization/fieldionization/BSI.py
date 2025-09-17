@@ -38,7 +38,9 @@ class BSI(FieldIonization):
             return ionizationmodel.BSI(ionization_current=None_())
 
         if len(self.BSI_extensions) > 1:
-            pypicongpu.util.unsupported("more than one BSI_extension, will use first entry only")
+            pypicongpu.util.unsupported(
+                "more than one BSI_extension, will use first entry only"
+            )
 
         if self.BSI_extensions[0] is BSIExtension.StarkShift:
             return ionizationmodel.BSIStarkShifted(ionization_current=None_())

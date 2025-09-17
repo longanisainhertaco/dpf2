@@ -22,7 +22,9 @@ def read_particles(series_name):
 
 
 def sort_particles(data):
-    return data.groupby(["setup", "impl"]).apply(lambda df: df.sort_values(list(df.columns), axis=0))
+    return data.groupby(["setup", "impl"]).apply(
+        lambda df: df.sort_values(list(df.columns), axis=0)
+    )
 
 
 def compare_particles_per_setup(data):
@@ -44,9 +46,9 @@ def compare_particles_per_setup(data):
 
 
 def compute_densities_per_setup_and_impl(data):
-    return data.groupby(["setup", "impl", "positionOffset_x", "positionOffset_y", "positionOffset_z"])[
-        "weighting"
-    ].sum()
+    return data.groupby(
+        ["setup", "impl", "positionOffset_x", "positionOffset_y", "positionOffset_z"]
+    )["weighting"].sum()
 
 
 def compute_densities_from_particles(series_name):

@@ -8,12 +8,16 @@ import h5py_stub as h5py
 # Load diagnostic functions without importing the package (avoids pydantic dependency)
 ROOT = Path(__file__).resolve().parents[2]
 
+
 def _load(name: str):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"src/dpf2/diagnostics/{name}.py")
+    spec = importlib.util.spec_from_file_location(
+        name, ROOT / f"src/dpf2/diagnostics/{name}.py"
+    )
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
+
 
 compute_neutron_yield = _load("neutron_yield").compute_neutron_yield
 compute_xray_spectrum = _load("xray_spectra").compute_xray_spectrum
@@ -29,9 +33,10 @@ def test_restart_roundtrip(tmp_path: Path) -> None:
     mgr.save(state)
     loaded, meta = mgr.load()
     assert loaded == state
-    assert meta["config_hash"] == hashlib.sha256(
-        json.dumps(cfg, sort_keys=True).encode()
-    ).hexdigest()
+    assert (
+        meta["config_hash"]
+        == hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()
+    )
     assert meta["git_commit"]
 
 

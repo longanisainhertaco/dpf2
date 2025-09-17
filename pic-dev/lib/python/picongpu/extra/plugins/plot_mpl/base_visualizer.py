@@ -140,7 +140,9 @@ class Visualizer(object):
             return run_directories
 
         if isinstance(run_directories[0], str):
-            warn("First element is str. Assuming the same for all other elements. Will use enumeration for labeling!")
+            warn(
+                "First element is str. Assuming the same for all other elements. Will use enumeration for labeling!"
+            )
             run_directories = list(enumerate(run_directories))
 
         return run_directories
@@ -195,10 +197,14 @@ class Visualizer(object):
         # values but visualization is not.
         if "time" in kwargs:
             if isinstance(kwargs["time"], list):
-                raise ValueError("This class only supports single timestep visualization!")
+                raise ValueError(
+                    "This class only supports single timestep visualization!"
+                )
         if "iteration" in kwargs:
             if isinstance(kwargs["iteration"], list):
-                raise ValueError("This class only supports single iteration visualization!")
+                raise ValueError(
+                    "This class only supports single iteration visualization!"
+                )
 
         self.collect_data(**kwargs)
 

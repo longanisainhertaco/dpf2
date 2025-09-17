@@ -5,6 +5,7 @@ from dpf2.units_settings import UnitsSettings
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False
@@ -52,4 +53,3 @@ def test_output_unit_convertibility_check():
     data["preferredOutputUnits"] = {"E": "furlong"}
     with pytest.raises(ValueError):
         UnitsSettings.model_validate(data)
-

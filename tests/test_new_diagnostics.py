@@ -28,7 +28,9 @@ def test_pinhole_image_single_source():
     intensities = [1.0]
     img = pinhole_image(positions, intensities, 1.0, (10, 10), 0.1)
     assert img[5][5] > 0.0
-    assert all(img[j][i] == 0.0 for j in range(10) for i in range(10) if (i, j) != (5, 5))
+    assert all(
+        img[j][i] == 0.0 for j in range(10) for i in range(10) if (i, j) != (5, 5)
+    )
 
 
 def test_noise_and_response_functions():

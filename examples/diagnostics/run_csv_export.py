@@ -1,4 +1,5 @@
 """Example of running synthetic diagnostics and exporting to CSV."""
+
 from pathlib import Path
 
 from dpf2.synthetic_diagnostics import (
@@ -24,6 +25,8 @@ cfg = SyntheticDiagnostics.with_defaults().model_copy(
 
 # Compute diagnostic signals and export them to CSV files in ``output_csv``
 results = run_diagnostic_calculations(history, cfg, dt=1.0)
-export_diagnostic_data(results, cfg.model_copy(update={"output_format": "csv"}), Path("output_csv"))
+export_diagnostic_data(
+    results, cfg.model_copy(update={"output_format": "csv"}), Path("output_csv")
+)
 
 print("Wrote:", [p.name for p in Path("output_csv").glob("*")])

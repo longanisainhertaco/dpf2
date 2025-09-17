@@ -3,7 +3,18 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal, Self, Sequence, Callable
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Literal,
+    Self,
+    Sequence,
+    Callable,
+)
 
 from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator
@@ -87,7 +98,10 @@ class RadiationTransport(ConfigSectionBase):
 
     @classmethod
     def get_field_metadata(cls) -> Dict[str, Dict[str, Any]]:
-        return {n: (f.json_schema_extra or f.metadata or {}) for n, f in cls.model_fields.items()}
+        return {
+            n: (f.json_schema_extra or f.metadata or {})
+            for n, f in cls.model_fields.items()
+        }
 
     def summarize(self) -> str:
         mode = f"{self.transport_model}"
@@ -97,7 +111,9 @@ class RadiationTransport(ConfigSectionBase):
             f"[{', '.join(str(int(g)) for g in groups)}] eV" if groups else "n/a"
         )
         scat = (
-            f"{self.scattering_model} (ON)" if self.include_scattering and self.scattering_model else "OFF"
+            f"{self.scattering_model} (ON)"
+            if self.include_scattering and self.scattering_model
+            else "OFF"
         )
         emiss_parts = []
         if self.include_bremsstrahlung:
@@ -107,7 +123,11 @@ class RadiationTransport(ConfigSectionBase):
         if self.include_recombination:
             emiss_parts.append("Recomb")
         emiss = " + ".join(emiss_parts)
-        hash_short = self.radiation_transport_config_hash[:6] if self.radiation_transport_config_hash else "none"
+        hash_short = (
+            self.radiation_transport_config_hash[:6]
+            if self.radiation_transport_config_hash
+            else "none"
+        )
         return (
             f"Radiation: {mode} ({step}), Closure = {self.closure_method}\n"
             f"Groups: {groups_str} | Scattering: {scat}\n"
@@ -122,17 +142,23 @@ class RadiationTransport(ConfigSectionBase):
             cam = tuple(c * scale for c in self.raytrace_camera_position)
         freq = None
         if self.frequency_group_edges_eV is not None:
-            e_scale = {"eV": 1e-3, "keV": 1.0, "MeV": 1e3}.get(self.xray_energy_units, 1.0)
+            e_scale = {"eV": 1e-3, "keV": 1.0, "MeV": 1e3}.get(
+                self.xray_energy_units, 1.0
+            )
             freq = [f * e_scale for f in self.frequency_group_edges_eV]
-        return self.model_copy(update={
-            "raytrace_camera_position": cam,
-            "frequency_group_edges_eV": freq,
-            "xray_energy_units": "keV",
-        })
+        return self.model_copy(
+            update={
+                "raytrace_camera_position": cam,
+                "frequency_group_edges_eV": freq,
+                "xray_energy_units": "keV",
+            }
+        )
 
     # ------------------------------------------------------------------
     def hash_radiation_transport_config(self) -> str:
-        data = self.model_dump(exclude={"radiation_transport_config_hash"}, by_alias=True)
+        data = self.model_dump(
+            exclude={"radiation_transport_config_hash"}, by_alias=True
+        )
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
 
@@ -140,28 +166,45 @@ class RadiationTransport(ConfigSectionBase):
     @model_validator(mode="after")
     def check_rules(cls, values: "RadiationTransport") -> "RadiationTransport":
         if values.transport_model == "none" and values.closure_method != "none":
-            raise ValueError("closure_method must be 'none' when transport_model is 'none'")
+            raise ValueError(
+                "closure_method must be 'none' when transport_model is 'none'"
+            )
         if values.include_scattering and values.scattering_model is None:
-            raise ValueError("scattering_model must be set when include_scattering is True")
+            raise ValueError(
+                "scattering_model must be set when include_scattering is True"
+            )
         if values.optical_depth_model == "multi-group":
             if not values.frequency_group_edges_eV:
-                raise ValueError("frequency_group_edges_eV must be defined for multi-group model")
-            if sorted(values.frequency_group_edges_eV) != values.frequency_group_edges_eV:
-                raise ValueError("frequency_group_edges_eV must be monotonically increasing")
+                raise ValueError(
+                    "frequency_group_edges_eV must be defined for multi-group model"
+                )
+            if (
+                sorted(values.frequency_group_edges_eV)
+                != values.frequency_group_edges_eV
+            ):
+                raise ValueError(
+                    "frequency_group_edges_eV must be monotonically increasing"
+                )
         if values.opacity_source == "tabulated" and values.opacity_table_path is None:
-            raise ValueError("opacity_table_path required when opacity_source is 'tabulated'")
+            raise ValueError(
+                "opacity_table_path required when opacity_source is 'tabulated'"
+            )
         if values.raytrace_camera_position is not None:
             if len(values.raytrace_camera_position) != 3:
                 raise ValueError("raytrace_camera_position must be a 3-tuple")
             if values.transport_model != "RayTrace":
-                raise ValueError("raytrace_camera_position requires transport_model='RayTrace'")
+                raise ValueError(
+                    "raytrace_camera_position requires transport_model='RayTrace'"
+                )
         if not values.opacity_species:
             raise ValueError("opacity_species must contain at least one species")
         if len(values.opacity_species) != len(set(values.opacity_species)):
             raise ValueError("opacity_species must be unique")
-        values = values.model_copy(update={
-            "radiation_transport_config_hash": values.hash_radiation_transport_config()
-        })
+        values = values.model_copy(
+            update={
+                "radiation_transport_config_hash": values.hash_radiation_transport_config()
+            }
+        )
         return values
 
     # ------------------------------------------------------------------
@@ -181,7 +224,9 @@ def export_mcnp_source(
     a minimal text file that can be included in an MCNP input deck.
     """
 
-    lines = ["c Generated by dpf2",]
+    lines = [
+        "c Generated by dpf2",
+    ]
     for x, y, z, e in sources:
         lines.append(f"SDEF POS={x} {y} {z} ERG={e}")
     Path(path).write_text("\n".join(lines))
@@ -192,10 +237,7 @@ def export_geant4_source(
 ) -> None:
     """Write a JSON particle source for Geant4 applications."""
 
-    data = [
-        {"position": [x, y, z], "energy_MeV": e}
-        for x, y, z, e in particles
-    ]
+    data = [{"position": [x, y, z], "energy_MeV": e} for x, y, z, e in particles]
     Path(path).write_text(json.dumps(data, indent=2))
 
 

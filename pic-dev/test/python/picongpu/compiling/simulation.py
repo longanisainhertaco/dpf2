@@ -38,7 +38,9 @@ class TestSimulation(unittest.TestCase):
             upper_boundary_conditions=["open", "open", "periodic"],
         )
         solver = picmi.ElectromagneticSolver(method="Yee", grid=grid)
-        return picmi.Simulation(time_step_size=1.39e-16, max_steps=int(2048), solver=solver, **kw)
+        return picmi.Simulation(
+            time_step_size=1.39e-16, max_steps=int(2048), solver=solver, **kw
+        )
 
     def _set_up_minimal_sim(self, steps=1):
         sim = pypicongpu.Simulation()
@@ -78,7 +80,10 @@ class TestSimulation(unittest.TestCase):
         runner.run()
 
     def test_moving_window_build(self):
-        picmi_sim = self._set_up_sim(picongpu_moving_window_move_point=0.9, picongpu_moving_window_stop_iteration=1)
+        picmi_sim = self._set_up_sim(
+            picongpu_moving_window_move_point=0.9,
+            picongpu_moving_window_stop_iteration=1,
+        )
         runner = pypicongpu.Runner(picmi_sim)
         runner.generate(printDirToConsole=True)
         runner.build()

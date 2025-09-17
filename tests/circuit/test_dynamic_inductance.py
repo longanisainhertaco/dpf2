@@ -50,8 +50,12 @@ def test_dynamic_inductance_reconstruction():
     # Effective circuit voltage is the drive minus capacitor drop
     v_eff = np.array([V0 - v for v in voltages])
     res = reconstruct_plasma_inductance(
-        times, np.array(currents), v_eff, np.array(energies),
-        resistance=R, external_inductance=L_ext,
+        times,
+        np.array(currents),
+        v_eff,
+        np.array(energies),
+        resistance=R,
+        external_inductance=L_ext,
     )
 
     expected = np.array([lp_func(t) for t in times])

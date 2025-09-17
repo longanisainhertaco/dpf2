@@ -54,13 +54,17 @@ class Grid3D(RenderedObject):
     cell_cnt = util.build_typesafe_property(tuple[int, int, int])
     """total number of cells in each direction"""
 
-    boundary_condition = util.build_typesafe_property(tuple[BoundaryCondition, BoundaryCondition, BoundaryCondition])
+    boundary_condition = util.build_typesafe_property(
+        tuple[BoundaryCondition, BoundaryCondition, BoundaryCondition]
+    )
     """behavior towards particles crossing each boundary"""
 
     n_gpus = util.build_typesafe_property(typing.Tuple[int, int, int])
     """number of GPUs in x y and z direction as 3-integer tuple"""
 
-    grid_dist = util.build_typesafe_property(typing.Tuple[list[int], list[int], list[int]] | None)
+    grid_dist = util.build_typesafe_property(
+        typing.Tuple[list[int], list[int], list[int]] | None
+    )
     """distribution of grid cells to GPUs for each axis"""
 
     super_cell_size = util.build_typesafe_property(typing.Tuple[int, int, int])
@@ -69,16 +73,26 @@ class Grid3D(RenderedObject):
     def _get_serialized(self) -> dict:
         """serialized representation provided for RenderedObject"""
         assert all(x > 0 for x in self.cell_cnt), "cell_cnt must be greater than 0"
-        assert all(x > 0 for x in self.n_gpus), "all n_gpus entries must be greater than 0"
+        assert all(
+            x > 0 for x in self.n_gpus
+        ), "all n_gpus entries must be greater than 0"
         if self.grid_dist is not None:
-            assert sum(self.grid_dist[0]) == self.cell_cnt[0], "sum of grid_dists in x must be equal to number_of_cells"
-            assert sum(self.grid_dist[1]) == self.cell_cnt[1], "sum of grid_dists in y must be equal to number_of_cells"
-            assert sum(self.grid_dist[2]) == self.cell_cnt[2], "sum of grid_dists in z must be equal to number_of_cells"
+            assert (
+                sum(self.grid_dist[0]) == self.cell_cnt[0]
+            ), "sum of grid_dists in x must be equal to number_of_cells"
+            assert (
+                sum(self.grid_dist[1]) == self.cell_cnt[1]
+            ), "sum of grid_dists in y must be equal to number_of_cells"
+            assert (
+                sum(self.grid_dist[2]) == self.cell_cnt[2]
+            ), "sum of grid_dists in z must be equal to number_of_cells"
 
         result_dict = {
             "cell_size": dict(zip("xyz", self.cell_size_si)),
             "cell_cnt": dict(zip("xyz", self.cell_cnt)),
-            "boundary_condition": dict(zip("xyz", map(BoundaryCondition.get_cfg_str, self.boundary_condition))),
+            "boundary_condition": dict(
+                zip("xyz", map(BoundaryCondition.get_cfg_str, self.boundary_condition))
+            ),
             "gpu_cnt": dict(zip("xyz", self.n_gpus)),
             "super_cell_size": dict(zip("xyz", self.super_cell_size)),
         }

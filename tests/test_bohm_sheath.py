@@ -12,12 +12,12 @@ def make_state():
         dz=1.0,
         domain_lo=(0.0, 0.0, 0.0),
         boundary_conditions={
-            'x_lo': 'periodic',
-            'x_hi': 'periodic',
-            'y_lo': 'periodic',
-            'y_hi': 'periodic',
-            'z_lo': 'periodic',
-            'z_hi': 'periodic',
+            "x_lo": "periodic",
+            "x_hi": "periodic",
+            "y_lo": "periodic",
+            "y_hi": "periodic",
+            "z_lo": "periodic",
+            "z_hi": "periodic",
         },
     )
     state = SimulationState(

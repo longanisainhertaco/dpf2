@@ -4,6 +4,7 @@ import pytest
 
 from dpf2.advanced_options import AdvancedOptions
 
+
 def test_disable_validators_requires_reason():
     data = AdvancedOptions.with_defaults().model_dump(by_alias=True)
     data["disableAllValidators"] = True
@@ -30,12 +31,14 @@ def test_summary_contains_hash_and_toggles(tmp_path: Path):
     script = tmp_path / "inject.py"
     script.write_text("pass")
     data = AdvancedOptions.with_defaults().model_dump(by_alias=True)
-    data.update({
-        "enableDiagnosticsMockMode": True,
-        "forceAmrexTileSize": [32, 32, 1],
-        "injectRuntimeScript": script,
-        "amrexDebugLevel": 4,
-    })
+    data.update(
+        {
+            "enableDiagnosticsMockMode": True,
+            "forceAmrexTileSize": [32, 32, 1],
+            "injectRuntimeScript": script,
+            "amrexDebugLevel": 4,
+        }
+    )
     cfg = AdvancedOptions.model_validate(data)
     summary = cfg.summarize()
     assert "diagnostics mocked = True" in summary
@@ -52,7 +55,9 @@ def test_round_trip_serialization():
 
 
 def test_export_diagnostics_stub_toggle(tmp_path: Path):
-    cfg = AdvancedOptions.with_defaults().model_copy(update={"export_diagnostics_stub": True})
+    cfg = AdvancedOptions.with_defaults().model_copy(
+        update={"export_diagnostics_stub": True}
+    )
     created = cfg.export_diagnostics_stub_files(tmp_path)
 
     summary = tmp_path / "summary.json"

@@ -86,7 +86,9 @@ def main():
     if args.plot_main:
         verifier.plot(to_file=True, file_name=args.file, smilei_sim=smilei_sim)
     if args.plot_debug:
-        verifier.plot_debug_values(to_file=True, file_name=args.file_debug, smilei_loader=smilei_sim)
+        verifier.plot_debug_values(
+            to_file=True, file_name=args.file_debug, smilei_loader=smilei_sim
+        )
 
 
 if __name__ == "__main__":

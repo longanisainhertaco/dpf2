@@ -27,12 +27,10 @@ def test_build_distributed_model_parses_connections():
                     closed=True,
                     r_on=1.0,
                     r_off=1000.0,
-
                     trigger_times=[10.0],
                     L_parasitic=0.5,
                     R_parasitic=0.6,
                     C_parasitic=0.7,
-
                 )
             ],
         }
@@ -51,4 +49,3 @@ def test_build_distributed_model_parses_connections():
     assert sw.L_parasitic == 0.5e-6
     assert sw.R_parasitic == 0.6e-3
     assert sw.C_parasitic == 0.7e-6
-

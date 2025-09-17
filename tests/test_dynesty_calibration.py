@@ -14,7 +14,9 @@ def test_dynesty_calibrate_mass_current():
     true_mass = 1.2
     true_current = 0.8
 
-    current_data = true_current * current_sim + rng.normal(0, 0.01, size=current_sim.shape)
+    current_data = true_current * current_sim + rng.normal(
+        0, 0.01, size=current_sim.shape
+    )
     tof_data = true_mass * tof_sim + rng.normal(0, 0.01, size=tof_sim.shape)
 
     samples = dynesty_calibrate_mass_current(

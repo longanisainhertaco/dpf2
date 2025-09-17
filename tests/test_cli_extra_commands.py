@@ -78,13 +78,16 @@ def test_plot_run_cmd(tmp_path):
         fh.create_dataset("voltage", data=2.0)
     runner = CliRunner()
     out_png = tmp_path / "plot.png"
-    result = runner.invoke(main, [
-        "plot-run",
-        "--run-dir",
-        str(tmp_path),
-        "--output",
-        str(out_png),
-    ])
+    result = runner.invoke(
+        main,
+        [
+            "plot-run",
+            "--run-dir",
+            str(tmp_path),
+            "--output",
+            str(out_png),
+        ],
+    )
     assert result.exit_code == 0
     assert out_png.exists()
 
@@ -95,7 +98,9 @@ def test_student_flag_invokes_gui(monkeypatch):
     def fake_launch(*, simplified: bool = False):
         called["simplified"] = simplified
 
-    monkeypatch.setattr(cli_main, "interactive", types.SimpleNamespace(launch=fake_launch))
+    monkeypatch.setattr(
+        cli_main, "interactive", types.SimpleNamespace(launch=fake_launch)
+    )
     runner = CliRunner()
     result = runner.invoke(main, ["--student"])
     assert result.exit_code == 0

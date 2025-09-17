@@ -29,4 +29,3 @@ __all__ = [
     "OptimizationWarning",
     "enable_optimization_warning_as_error",
 ]
-

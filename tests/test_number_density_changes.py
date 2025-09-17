@@ -34,7 +34,11 @@ class DeterministicRandom:
 
 def test_number_density_changes_over_time(monkeypatch):
     # Stub heavy dependencies before import
-    monkeypatch.setitem(sys.modules, "h5py", types.SimpleNamespace(File=lambda *a, **k: (_ for _ in ()).throw(OSError())))
+    monkeypatch.setitem(
+        sys.modules,
+        "h5py",
+        types.SimpleNamespace(File=lambda *a, **k: (_ for _ in ()).throw(OSError())),
+    )
     scipy_interp = types.SimpleNamespace(
         interp1d=lambda *a, **k: (lambda x: np.zeros_like(x)),
         RegularGridInterpolator=lambda *a, **k: (lambda x: np.zeros(1)),
@@ -42,13 +46,21 @@ def test_number_density_changes_over_time(monkeypatch):
     monkeypatch.setitem(sys.modules, "scipy", types.SimpleNamespace())
     monkeypatch.setitem(sys.modules, "scipy.interpolate", scipy_interp)
     numba_stub = types.SimpleNamespace(
-        njit=lambda f=None, *a, **k: (lambda *args, **kwargs: f(*args, **kwargs) if f else None),
+        njit=lambda f=None, *a, **k: (
+            lambda *args, **kwargs: f(*args, **kwargs) if f else None
+        ),
         prange=range,
         cuda=types.SimpleNamespace(),
     )
     monkeypatch.setitem(sys.modules, "numba", numba_stub)
 
-    from dpf2.simulation.collision_model import IonizationProcess, RecombinationProcess, e_charge, m_e, m_p
+    from dpf2.simulation.collision_model import (
+        IonizationProcess,
+        RecombinationProcess,
+        e_charge,
+        m_e,
+        m_p,
+    )
     from dpf2.simulation.utils import SimulationState
 
     dr = DeterministicRandom()
@@ -58,8 +70,18 @@ def test_number_density_changes_over_time(monkeypatch):
     state = SimulationState((1, 1, 1), 1.0, 1.0, 1.0, (0.0, 0.0, 0.0), {})
     state.field_manager = fm
     state.species = {
-        "e": {"q": -e_charge, "m": m_e, "pos": np.zeros((0, 3)), "vel": np.zeros((0, 3))},
-        "ion": {"q": e_charge, "m": m_p, "pos": np.zeros((0, 3)), "vel": np.zeros((0, 3))},
+        "e": {
+            "q": -e_charge,
+            "m": m_e,
+            "pos": np.zeros((0, 3)),
+            "vel": np.zeros((0, 3)),
+        },
+        "ion": {
+            "q": e_charge,
+            "m": m_p,
+            "pos": np.zeros((0, 3)),
+            "vel": np.zeros((0, 3)),
+        },
     }
 
     ion = IonizationProcess()

@@ -154,4 +154,3 @@ def main() -> None:  # pragma: no cover - CLI wrapper
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
     main()
-

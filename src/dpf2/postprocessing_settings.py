@@ -33,18 +33,22 @@ class PostprocessingSettings(ConfigSectionBase):
     enabled: bool = True
     postprocessing_output_dir: str = "postprocessing/"
     file_output_format: Literal["csv", "hdf5", "OpenPMD"] = "OpenPMD"
-    output_frequency: Literal["every_step", "pinch_only", "final_state", "custom"] = "final_state"
+    output_frequency: Literal["every_step", "pinch_only", "final_state", "custom"] = (
+        "final_state"
+    )
     custom_output_times_us: Optional[List[float]] = None
     postprocessing_config_hash: Optional[str] = None
 
     # Pinch detection
-    pinch_detection_method: Optional[Literal["Ti_peak", "Jz_peak", "radius_min"]] = "Ti_peak"
+    pinch_detection_method: Optional[Literal["Ti_peak", "Jz_peak", "radius_min"]] = (
+        "Ti_peak"
+    )
     pinch_detection_threshold: Optional[float] = None
 
     # Task toggles
-    postprocessing_task_types: Optional[List[Literal[
-        "neutron", "xray", "field", "particle", "synthetic"
-    ]]] = ["neutron", "xray", "field"]
+    postprocessing_task_types: Optional[
+        List[Literal["neutron", "xray", "field", "particle", "synthetic"]]
+    ] = ["neutron", "xray", "field"]
 
     generate_synthetic_diagnostics: bool = True
     compute_neutron_yield_breakdown: bool = True
@@ -88,7 +92,10 @@ class PostprocessingSettings(ConfigSectionBase):
 
     @classmethod
     def get_field_metadata(cls) -> Dict[str, Dict[str, Any]]:
-        return {n: (f.json_schema_extra or f.metadata or {}) for n, f in cls.model_fields.items()}
+        return {
+            n: (f.json_schema_extra or f.metadata or {})
+            for n, f in cls.model_fields.items()
+        }
 
     def normalize_units(self, units: UnitsSettings) -> "PostprocessingSettings":
         unit_map = units.normalize_units()
@@ -118,7 +125,11 @@ class PostprocessingSettings(ConfigSectionBase):
         freq = self.output_frequency
         fmt = self.file_output_format
         tasks = ", ".join(self.postprocessing_task_types or [])
-        integ = ", ".join(self.integrate_signal_over_time) if self.integrate_signal_over_time else "None"
+        integ = (
+            ", ".join(self.integrate_signal_over_time)
+            if self.integrate_signal_over_time
+            else "None"
+        )
         slices = ", ".join(self.output_field_slices or [])
         pos = ", ".join(str(p) for p in (self.field_slice_positions_cm or []))
         fourier = "none"
@@ -130,7 +141,11 @@ class PostprocessingSettings(ConfigSectionBase):
                 fw = "full"
             fourier = f"{axes} [{fw} μs]"
         pinch = self.pinch_detection_method or "none"
-        thr = f" > {self.pinch_detection_threshold}" if self.pinch_detection_threshold is not None else ""
+        thr = (
+            f" > {self.pinch_detection_threshold}"
+            if self.pinch_detection_threshold is not None
+            else ""
+        )
         extrema = self.calculate_field_extrema or self.compute_spatial_averages
         ext_str = "ON" if extrema else "OFF"
         return (
@@ -150,7 +165,9 @@ class PostprocessingSettings(ConfigSectionBase):
     def check_rules(cls, values: "PostprocessingSettings") -> "PostprocessingSettings":
         if values.output_frequency == "custom":
             if not values.custom_output_times_us:
-                raise ValueError("custom_output_times_us required when output_frequency is custom")
+                raise ValueError(
+                    "custom_output_times_us required when output_frequency is custom"
+                )
             if values.custom_output_times_us != sorted(values.custom_output_times_us):
                 raise ValueError("custom_output_times_us must be sorted ascending")
             if any(t <= 0 for t in values.custom_output_times_us):
@@ -162,16 +179,28 @@ class PostprocessingSettings(ConfigSectionBase):
             raise ValueError(
                 "pinch_detection_threshold required when output_frequency is 'pinch_only'"
             )
-        if values.external_filter_parameters is not None and values.external_filter_script_path is None:
-            raise ValueError("external_filter_script_path required when external_filter_parameters provided")
+        if (
+            values.external_filter_parameters is not None
+            and values.external_filter_script_path is None
+        ):
+            raise ValueError(
+                "external_filter_script_path required when external_filter_parameters provided"
+            )
         if values.external_filter_script_path is not None:
             p = Path(values.external_filter_script_path)
             if not p.exists():
                 raise ValueError("external_filter_script_path must exist")
-        if values.field_slice_positions_cm is not None and values.output_field_slices is not None:
+        if (
+            values.field_slice_positions_cm is not None
+            and values.output_field_slices is not None
+        ):
             if len(values.field_slice_positions_cm) != len(values.output_field_slices):
-                raise ValueError("field_slice_positions_cm length must match output_field_slices")
-        values = values.model_copy(update={"postprocessing_config_hash": values.hash_postprocessing_config()})
+                raise ValueError(
+                    "field_slice_positions_cm length must match output_field_slices"
+                )
+        values = values.model_copy(
+            update={"postprocessing_config_hash": values.hash_postprocessing_config()}
+        )
         return values
 
 

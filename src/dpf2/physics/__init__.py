@@ -20,7 +20,6 @@ from .material_interactions import (
 )
 
 
-
 # Import optional modules individually so that a failure in one does not
 # prevent access to the others.  This keeps ``HallMHD`` available even when
 # ``pydantic`` or other heavy dependencies required by unrelated modules are
@@ -56,7 +55,6 @@ __all__ = [
     "MZeroInstability",
     "GVFront",
     "compute_effective_eta",
-
     "Species",
     "sigmund_yield",
     "yamamura_yield",
@@ -64,7 +62,6 @@ __all__ = [
     "ImpurityState",
     "MATERIAL_PROPERTIES",
     "get_material_properties",
-
 ]
 
 

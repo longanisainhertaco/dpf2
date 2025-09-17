@@ -15,7 +15,8 @@ def test_neutron_gating_only():
 
 def test_neutron_transfer_function():
     resp = neutron.load_response(
-        DATA_DIR / "neutron_detector.json", overrides={"gating": None, "transfer_function": [0.5, 0.5]}
+        DATA_DIR / "neutron_detector.json",
+        overrides={"gating": None, "transfer_function": [0.5, 0.5]},
     )
     times = [0, 1, 2, 3]
     signal = [1, 0, 0, 0]

@@ -35,7 +35,9 @@ def particle_density(particle):
 def origin_no_guards_check(particle):
     positions = {
         (precision, unit): {
-            origin: np.array(particle.get("position", origin=origin, precision=precision, unit=unit))
+            origin: np.array(
+                particle.get("position", origin=origin, precision=precision, unit=unit)
+            )
             for origin in ALL_ORIGINS_WITHOUT_GUARDS
             if origin != "moving_window" or precision == "sub_cell"
         }
@@ -44,9 +46,15 @@ def origin_no_guards_check(particle):
     }
 
     all_combinations = tuple(
-        x for ps in positions.values() for a in ps.values() for b in ps.values() for x in zip(a, b)
+        x
+        for ps in positions.values()
+        for a in ps.values()
+        for b in ps.values()
+        for x in zip(a, b)
     )
-    return sum(sympy.Piecewise((1, sympy.Eq(*x)), (0, True)) for x in all_combinations) / len(all_combinations)
+    return sum(
+        sympy.Piecewise((1, sympy.Eq(*x)), (0, True)) for x in all_combinations
+    ) / len(all_combinations)
 
 
 def _subtract_guards(position, unit, timestep):
@@ -57,13 +65,17 @@ def _subtract_guards(position, unit, timestep):
         return position - NUMBER_OF_GUARD_CELLS * CELL_SIZE
 
     if unit == "pic":
-        return position - NUMBER_OF_GUARD_CELLS * CELL_SIZE / (timestep * speed_of_light)
+        return position - NUMBER_OF_GUARD_CELLS * CELL_SIZE / (
+            timestep * speed_of_light
+        )
 
 
 def origin_with_guards_check(particle, timestep):
     positions = {
         (precision, unit): {
-            origin: np.array(particle.get("position", origin=origin, precision=precision, unit=unit))
+            origin: np.array(
+                particle.get("position", origin=origin, precision=precision, unit=unit)
+            )
             for origin in ["local_with_guards", "local"]
             if origin != "moving_window" or precision == "sub_cell"
         }
@@ -73,18 +85,27 @@ def origin_with_guards_check(particle, timestep):
 
     all_combinations = sum(
         (
-            tuple(zip(p["local"], _subtract_guards(p["local_with_guards"], unit, timestep)))
+            tuple(
+                zip(
+                    p["local"], _subtract_guards(p["local_with_guards"], unit, timestep)
+                )
+            )
             for (_, unit), p in positions.items()
         ),
         tuple(),
     )
-    return sum(sympy.Piecewise((1, sympy.Eq(*x)), (0, True)) for x in all_combinations) / len(all_combinations)
+    return sum(
+        sympy.Piecewise((1, sympy.Eq(*x)), (0, True)) for x in all_combinations
+    ) / len(all_combinations)
 
 
 def unit_no_guards_check(particle, timestep):
     positions = {
         (precision, origin): {
-            unit: particle.get("position", origin=origin, precision=precision, unit=unit) for unit in ALL_UNITS
+            unit: particle.get(
+                "position", origin=origin, precision=precision, unit=unit
+            )
+            for unit in ALL_UNITS
         }
         for precision in ALL_PRECISIONS
         for origin in ALL_ORIGINS_WITHOUT_GUARDS
@@ -98,7 +119,8 @@ def unit_no_guards_check(particle, timestep):
         + sympy.Piecewise(
             (
                 1,
-                sympy.Abs(ps["pic"][i] * speed_of_light * timestep - ps["si"][i]) < EPSILON,
+                sympy.Abs(ps["pic"][i] * speed_of_light * timestep - ps["si"][i])
+                < EPSILON,
             ),
             (0, True),
         )
@@ -124,7 +146,9 @@ def position_binning_for(species, timestep):
     kwargs = dict(
         axes=[
             BinningAxis(
-                functor=BinningFunctor(name="dummy", functor=lambda x: 0, return_type=float),
+                functor=BinningFunctor(
+                    name="dummy", functor=lambda x: 0, return_type=float
+                ),
                 bin_spec=BinSpec("linear", -0.5, 0.5, 1),
             )
         ],
@@ -170,7 +194,9 @@ POSITION_AXES = [
             # We prefer `partial` over lambda functions in this situation
             # because of lambda's late binding.
             name=f"position{i}",
-            functor=partial(position, i=i, origin="total", precision="cell", unit="cell"),
+            functor=partial(
+                position, i=i, origin="total", precision="cell", unit="cell"
+            ),
             return_type="double",
         ),
         BinSpec("linear", 0, NUMBER_OF_CELLS[i], NUMBER_OF_CELLS[i]),
@@ -197,4 +223,10 @@ def density_binning_for(species):
 
 
 def binning_diagnostics(all_species, timestep):
-    return sum((density_binning_for(species) + position_binning_for(species, timestep) for species in all_species), [])
+    return sum(
+        (
+            density_binning_for(species) + position_binning_for(species, timestep)
+            for species in all_species
+        ),
+        [],
+    )

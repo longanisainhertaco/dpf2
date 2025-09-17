@@ -19,7 +19,9 @@ def test_duplicate_detector_names_fail():
 
 def test_stream_backend_requires_path():
     data = Diagnostics.with_defaults().model_dump()
-    data.update({"streamingBackend": "websocket", "enableRuntimeObservablesStream": True})
+    data.update(
+        {"streamingBackend": "websocket", "enableRuntimeObservablesStream": True}
+    )
     with pytest.raises(ValueError):
         Diagnostics.model_validate(data)
 

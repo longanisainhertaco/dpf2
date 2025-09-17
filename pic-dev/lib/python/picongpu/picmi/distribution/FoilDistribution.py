@@ -41,7 +41,9 @@ class FoilDistribution(picmistandard.PICMI_FoilDistribution):
     def picongpu_get_rms_velocity_si(self) -> typing.Tuple[float, float, float]:
         return tuple(self.rms_velocity)
 
-    def get_as_pypicongpu(self, grid) -> species.operation.densityprofile.DensityProfile:
+    def get_as_pypicongpu(
+        self, grid
+    ) -> species.operation.densityprofile.DensityProfile:
         util.unsupported("fill in", self.fill_in)
         util.unsupported("lower bound", self.lower_bound, (None, None, None))
         util.unsupported("upper bound", self.upper_bound, (None, None, None))
@@ -60,12 +62,16 @@ class FoilDistribution(picmistandard.PICMI_FoilDistribution):
         )
 
         if prePlasma:
-            foilProfile.pre_foil_plasmaRamp = species.operation.densityprofile.plasmaramp.Exponential(
-                self.exponential_pre_plasma_length,
-                self.exponential_pre_plasma_cutoff,
+            foilProfile.pre_foil_plasmaRamp = (
+                species.operation.densityprofile.plasmaramp.Exponential(
+                    self.exponential_pre_plasma_length,
+                    self.exponential_pre_plasma_cutoff,
+                )
             )
         elif explicitlyNoPrePlasma:
-            foilProfile.pre_foil_plasmaRamp = species.operation.densityprofile.plasmaramp.None_()
+            foilProfile.pre_foil_plasmaRamp = (
+                species.operation.densityprofile.plasmaramp.None_()
+            )
         else:
             raise ValueError(
                 "either both exponential_pre_plasma_length and"
@@ -77,17 +83,21 @@ class FoilDistribution(picmistandard.PICMI_FoilDistribution):
         postPlasma: bool = (self.exponential_post_plasma_cutoff is not None) and (
             self.exponential_post_plasma_length is not None
         )
-        explicitlyNoPostPlasma: bool = (self.exponential_post_plasma_cutoff is None) and (
-            self.exponential_post_plasma_length is None
-        )
+        explicitlyNoPostPlasma: bool = (
+            self.exponential_post_plasma_cutoff is None
+        ) and (self.exponential_post_plasma_length is None)
 
         if postPlasma:
-            foilProfile.post_foil_plasmaRamp = species.operation.densityprofile.plasmaramp.Exponential(
-                self.exponential_post_plasma_length,
-                self.exponential_post_plasma_cutoff,
+            foilProfile.post_foil_plasmaRamp = (
+                species.operation.densityprofile.plasmaramp.Exponential(
+                    self.exponential_post_plasma_length,
+                    self.exponential_post_plasma_cutoff,
+                )
             )
         elif explicitlyNoPostPlasma:
-            foilProfile.post_foil_plasmaRamp = species.operation.densityprofile.plasmaramp.None_()
+            foilProfile.post_foil_plasmaRamp = (
+                species.operation.densityprofile.plasmaramp.None_()
+            )
         else:
             raise ValueError(
                 "either both exponential_post_plasma_length and"
@@ -118,10 +128,15 @@ class FoilDistribution(picmistandard.PICMI_FoilDistribution):
             if self.exponential_pre_plasma_length is not None
             else 0.0
         ) + result
-        pre_plasma_mask = (y < self.front) * (y > self.front - self.exponential_pre_plasma_cutoff)
+        pre_plasma_mask = (y < self.front) * (
+            y > self.front - self.exponential_pre_plasma_cutoff
+        )
 
         post_plasma_ramp = (
-            np.exp(((self.front + self.thickness) - y) / self.exponential_post_plasma_length)
+            np.exp(
+                ((self.front + self.thickness) - y)
+                / self.exponential_post_plasma_length
+            )
             if self.exponential_post_plasma_length is not None
             else 0.0
         ) + result

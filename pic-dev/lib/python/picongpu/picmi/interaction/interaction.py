@@ -7,7 +7,10 @@ License: GPLv3+
 
 from ... import pypicongpu
 
-from .ionization.groundstateionizationmodel import GroundStateIonizationModel, IonizationModel
+from .ionization.groundstateionizationmodel import (
+    GroundStateIonizationModel,
+    IonizationModel,
+)
 
 import picmistandard
 
@@ -54,7 +57,9 @@ class Interaction(pydantic.BaseModel):
 
                     if constant != constant_new:
                         # same type of constant but conflicting values
-                        raise ValueError(f"Constants {constant} and {constant_new} conflict with each other.")
+                        raise ValueError(
+                            f"Constants {constant} and {constant_new} conflict with each other."
+                        )
 
             if not exists_already:
                 new_constant_list.append(constant_new)
@@ -67,7 +72,9 @@ class Interaction(pydantic.BaseModel):
         self, picmi_species: picmistandard.PICMI_Species
     ) -> tuple[
         list[pypicongpu.species.constant.Constant],
-        dict[IonizationModel, pypicongpu.species.constant.ionizationmodel.IonizationModel],
+        dict[
+            IonizationModel, pypicongpu.species.constant.ionizationmodel.IonizationModel
+        ],
     ]:
         """get list of all constants required by interactions for the given species"""
 
@@ -94,10 +101,16 @@ class Interaction(pydantic.BaseModel):
 
     def fill_in_ionization_electron_species(
         self,
-        pypicongpu_by_picmi_species: dict[picmistandard.PICMI_Species, pypicongpu.species.Species],
+        pypicongpu_by_picmi_species: dict[
+            picmistandard.PICMI_Species, pypicongpu.species.Species
+        ],
         ionization_model_conversion_by_type_and_species: dict[
             picmistandard.PICMI_Species,
-            None | dict[IonizationModel, pypicongpu.species.constant.ionizationmodel.IonizationModel],
+            None
+            | dict[
+                IonizationModel,
+                pypicongpu.species.constant.ionizationmodel.IonizationModel,
+            ],
         ],
     ) -> None:
         """
@@ -121,20 +134,30 @@ class Interaction(pydantic.BaseModel):
         """
 
         # ground state ionization model
-        for species, ionization_model_conversion in ionization_model_conversion_by_type_and_species.items():
+        for (
+            species,
+            ionization_model_conversion,
+        ) in ionization_model_conversion_by_type_and_species.items():
             if ionization_model_conversion is not None:
-                for picmi_ionization_model, pypicongpu_ionization_model in ionization_model_conversion.items():
+                for (
+                    picmi_ionization_model,
+                    pypicongpu_ionization_model,
+                ) in ionization_model_conversion.items():
                     try:
-                        pypicongpu_ionization_electron_species = pypicongpu_by_picmi_species[
-                            picmi_ionization_model.ionization_electron_species
-                        ]
+                        pypicongpu_ionization_electron_species = (
+                            pypicongpu_by_picmi_species[
+                                picmi_ionization_model.ionization_electron_species
+                            ]
+                        )
                     except KeyError:
                         raise ValueError(
                             f"Ionization electron species of {picmi_ionization_model} not known to simulation.\n"
                             + f"Please add species {picmi_ionization_model.ionization_electron_species.name} to"
                             + " the simulation."
                         )
-                    pypicongpu_ionization_model.ionization_electron_species = pypicongpu_ionization_electron_species
+                    pypicongpu_ionization_model.ionization_electron_species = (
+                        pypicongpu_ionization_electron_species
+                    )
 
     def __has_ground_state_ionization(self, species) -> bool:
         """does at least one ground state ionization model list species as ion species?"""

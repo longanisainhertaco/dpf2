@@ -7,7 +7,14 @@ License: GPLv3+
 
 from ..rendering import RenderedObject
 from .attribute import Attribute, Position, Momentum
-from .constant import Constant, Charge, Mass, DensityRatio, GroundStateIonization, ElementProperties
+from .constant import (
+    Constant,
+    Charge,
+    Mass,
+    DensityRatio,
+    GroundStateIonization,
+    ElementProperties,
+)
 from .. import util
 
 import typeguard
@@ -118,7 +125,9 @@ class Species(RenderedObject):
         non_unique_attributes = set([c for c in attr_names if attr_names.count(c) > 1])
         if 0 != len(non_unique_attributes):
             raise ValueError(
-                "attribute names must be unique per species, offending: {}".format(", ".join(non_unique_attributes))
+                "attribute names must be unique per species, offending: {}".format(
+                    ", ".join(non_unique_attributes)
+                )
             )
 
     def get_constant_by_type(self, needle_type: typing.Type[Constant]) -> Constant:
@@ -139,7 +148,9 @@ class Species(RenderedObject):
             if needle_type == type(const):
                 return const
 
-        raise RuntimeError("no constant of requested type available: {}".format(needle_type))
+        raise RuntimeError(
+            "no constant of requested type available: {}".format(needle_type)
+        )
 
     def has_constant_of_type(self, needle_type: typing.Type[Constant]) -> bool:
         """
@@ -187,13 +198,17 @@ class Species(RenderedObject):
         constants_context = {}
         for constant_name, constant_type in constant_names_by_type.items():
             if self.has_constant_of_type(constant_type):
-                constants_context[constant_name] = self.get_constant_by_type(constant_type).get_rendering_context()
+                constants_context[constant_name] = self.get_constant_by_type(
+                    constant_type
+                ).get_rendering_context()
             else:
                 constants_context[constant_name] = None
 
         return {
             "name": self.name,
             "typename": self.get_cxx_typename(),
-            "attributes": list(map(lambda attr: {"picongpu_name": attr.PICONGPU_NAME}, self.attributes)),
+            "attributes": list(
+                map(lambda attr: {"picongpu_name": attr.PICONGPU_NAME}, self.attributes)
+            ),
             "constants": constants_context,
         }

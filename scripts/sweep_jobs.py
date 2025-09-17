@@ -13,10 +13,18 @@ from dpf2.hpc import JobManager
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True, help="Base configuration file")
-    parser.add_argument("--param", type=str, required=True, help="Parameter name to vary")
     parser.add_argument(
-        "--values", type=float, nargs="+", required=True, help="List of parameter values"
+        "--config", type=Path, required=True, help="Base configuration file"
+    )
+    parser.add_argument(
+        "--param", type=str, required=True, help="Parameter name to vary"
+    )
+    parser.add_argument(
+        "--values",
+        type=float,
+        nargs="+",
+        required=True,
+        help="List of parameter values",
     )
     parser.add_argument(
         "--scheduler",
@@ -26,7 +34,10 @@ def main() -> None:
         help="Job scheduler backend",
     )
     parser.add_argument(
-        "--outdir", type=Path, default=Path("sweep_results"), help="Directory for outputs"
+        "--outdir",
+        type=Path,
+        default=Path("sweep_results"),
+        help="Directory for outputs",
     )
     args = parser.parse_args()
 
@@ -53,4 +64,3 @@ def main() -> None:
 
 if __name__ == "__main__":  # pragma: no cover
     main()
-

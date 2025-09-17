@@ -80,11 +80,17 @@ def train_torch_model(
     feature_cov = np.cov(x_all, rowvar=False) if x_all.size else np.zeros((1, 1))
     cov_inv = np.linalg.pinv(feature_cov) if x_all.size else np.zeros((1, 1))
     diff = x_all - feature_mean
-    distances = np.einsum("ij,jk,ik->i", diff, cov_inv, diff) if x_all.size else np.zeros(1)
+    distances = (
+        np.einsum("ij,jk,ik->i", diff, cov_inv, diff) if x_all.size else np.zeros(1)
+    )
     mahal_threshold = float(np.quantile(distances, 0.99)) if distances.size else 0.0
 
     with torch.no_grad():
-        preds = model(torch.as_tensor(x_all, dtype=torch.float32)) if x_all.size else torch.zeros_like(torch.as_tensor(y_all))
+        preds = (
+            model(torch.as_tensor(x_all, dtype=torch.float32))
+            if x_all.size
+            else torch.zeros_like(torch.as_tensor(y_all))
+        )
     resid = np.abs(y_all - preds.cpu().numpy()) if x_all.size else np.zeros(1)
     quantile = float(np.quantile(resid, 0.95)) if resid.size else 0.0
 
@@ -100,7 +106,9 @@ def train_torch_model(
     metrics = {
         "mse": mse,
         "feature_mean": feature_mean.tolist(),
-        "feature_cov": feature_cov.tolist() if feature_cov.ndim == 2 else [float(feature_cov)],
+        "feature_cov": (
+            feature_cov.tolist() if feature_cov.ndim == 2 else [float(feature_cov)]
+        ),
         "mahalanobis_threshold": mahal_threshold,
         "quantile": quantile,
     }

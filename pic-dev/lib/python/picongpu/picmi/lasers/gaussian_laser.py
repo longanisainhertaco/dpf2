@@ -55,12 +55,12 @@ class GaussianLaser(picmistandard.PICMI_GaussianLaser, BaseLaser):
         if duration <= 0:
             raise ValueError(f"laser pulse duration must be > 0. You gave {duration=}.")
 
-        assert (picongpu_laguerre_modes is None and picongpu_laguerre_phases is None) or (
+        assert (
+            picongpu_laguerre_modes is None and picongpu_laguerre_phases is None
+        ) or (
             picongpu_laguerre_modes is not None and picongpu_laguerre_phases is not None
-        ), (
-            "laguerre_modes and laguerre_phases MUST BE both set or both \
+        ), "laguerre_modes and laguerre_phases MUST BE both set or both \
             unset"
-        )
 
         self.picongpu_polarization_type = picongpu_polarization_type
         self.picongpu_laguerre_modes = picongpu_laguerre_modes or [1.0]
@@ -97,6 +97,6 @@ class GaussianLaser(picmistandard.PICMI_GaussianLaser, BaseLaser):
         # set explicitly, and always warning is bad)
 
         self._validate_common_properties()
-        assert self._propagation_connects_centroid_and_focus(), (
-            "propagation_direction must connect centroid_position and focus_position"
-        )
+        assert (
+            self._propagation_connects_centroid_and_focus()
+        ), "propagation_direction must connect centroid_position and focus_position"

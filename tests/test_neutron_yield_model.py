@@ -6,6 +6,7 @@ from dpf2.neutron_yield_model import NeutronYieldModel
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False
@@ -109,6 +110,7 @@ neutronYield:
     assert cfg == cfg2
     summary = cfg.summarize()
     assert "Beam-target" in summary and "Thermonuclear" in summary
+
 
 def test_missing_reactivity_table_path_for_lookup():
     data = base_data()

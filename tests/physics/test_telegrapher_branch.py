@@ -21,11 +21,19 @@ def _measure_amp_phase(vals, ref, t, freq):
 
 
 def test_branch_phase_delay_matches_nodal_solution():
-    seg1 = TransmissionLineSegment(0, 1, length=1.0, L_per_m=2.5e-7, R_per_m=0.0, C_per_m=1e-10)
-    seg2 = TransmissionLineSegment(1, 2, length=1.0, L_per_m=2.5e-7, R_per_m=0.0, C_per_m=1e-10)
-    seg3 = TransmissionLineSegment(1, 2, length=1.0, L_per_m=2.5e-7, R_per_m=0.0, C_per_m=1e-10)
+    seg1 = TransmissionLineSegment(
+        0, 1, length=1.0, L_per_m=2.5e-7, R_per_m=0.0, C_per_m=1e-10
+    )
+    seg2 = TransmissionLineSegment(
+        1, 2, length=1.0, L_per_m=2.5e-7, R_per_m=0.0, C_per_m=1e-10
+    )
+    seg3 = TransmissionLineSegment(
+        1, 2, length=1.0, L_per_m=2.5e-7, R_per_m=0.0, C_per_m=1e-10
+    )
     freq = 1e7
-    res = solve_distributed_circuit([seg1, seg2, seg3], [], V0=1.0, t_end=2e-6, dt=1e-9, frequency=freq)
+    res = solve_distributed_circuit(
+        [seg1, seg2, seg3], [], V0=1.0, t_end=2e-6, dt=1e-9, frequency=freq
+    )
 
     # Analytic nodal solution
     def seg_Y(seg):
@@ -57,4 +65,3 @@ def test_branch_phase_delay_matches_nodal_solution():
     amp_sol, phase_sol = _measure_amp_phase(node_vals, src_vals, res.t, freq)
     assert np.isclose(amp_sol, amp_exp, rtol=1e-2, atol=1e-6)
     assert np.isclose(phase_sol, phase_exp, rtol=1e-2, atol=1e-6)
-

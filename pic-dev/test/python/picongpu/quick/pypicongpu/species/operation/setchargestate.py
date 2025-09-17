@@ -29,7 +29,12 @@ class TestSetChargeState(unittest.TestCase):
         self.species1.name = "ion"
         self.species1.constants = [
             GroundStateIonization(
-                ionization_model_list=[BSI(ionization_electron_species=self.electron, ionization_current=None_())]
+                ionization_model_list=[
+                    BSI(
+                        ionization_electron_species=self.electron,
+                        ionization_current=None_(),
+                    )
+                ]
             )
         ]
 
@@ -90,7 +95,9 @@ class TestSetChargeState(unittest.TestCase):
         self.assertEqual(1, len(scs.attributes_by_species))
         self.assertTrue(self.species1 in scs.attributes_by_species)
         self.assertEqual(1, len(scs.attributes_by_species[self.species1]))
-        self.assertTrue(isinstance(scs.attributes_by_species[self.species1][0], BoundElectrons))
+        self.assertTrue(
+            isinstance(scs.attributes_by_species[self.species1][0], BoundElectrons)
+        )
 
     def test_ionizers_required(self):
         """ionizers constant must be present"""
@@ -104,7 +111,9 @@ class TestSetChargeState(unittest.TestCase):
 
         # without constants does not pass:
         scs.species.constants = []
-        with self.assertRaisesRegex(AssertionError, ".*BoundElectrons requires GroundStateIonization.*"):
+        with self.assertRaisesRegex(
+            AssertionError, ".*BoundElectrons requires GroundStateIonization.*"
+        ):
             scs.check_preconditions()
 
     def test_values(self):
@@ -135,7 +144,11 @@ class TestSetChargeState(unittest.TestCase):
         ion.name = "ion"
         ion.constants = [
             GroundStateIonization(
-                ionization_model_list=[BSI(ionization_electron_species=electron, ionization_current=None_())]
+                ionization_model_list=[
+                    BSI(
+                        ionization_electron_species=electron, ionization_current=None_()
+                    )
+                ]
             ),
         ]
         ion.attributes = [Position(), Momentum(), BoundElectrons()]

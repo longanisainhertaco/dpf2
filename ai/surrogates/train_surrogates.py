@@ -65,10 +65,10 @@ def _train_torch(x: np.ndarray, y: np.ndarray) -> "torch.nn.Module":
     if torch is None:  # pragma: no cover - environment without torch
         raise RuntimeError("PyTorch is required for training")
     model = nn.Linear(1, 1)
-    dataset = torch.utils.data.TensorDataset(
-        torch.as_tensor(x), torch.as_tensor(y)
+    dataset = torch.utils.data.TensorDataset(torch.as_tensor(x), torch.as_tensor(y))
+    loader = torch.utils.data.DataLoader(
+        dataset, batch_size=min(len(x), 32), shuffle=True
     )
-    loader = torch.utils.data.DataLoader(dataset, batch_size=min(len(x), 32), shuffle=True)
     optim = torch.optim.Adam(model.parameters(), lr=1e-2)
     loss_fn = nn.MSELoss()
     for _ in range(200):

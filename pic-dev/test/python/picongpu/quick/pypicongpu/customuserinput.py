@@ -59,11 +59,15 @@ class TestCustomUserInput(unittest.TestCase):
         tag1 = "tag_1"
         tag2 = "tag_2"
 
-        with self.assertRaisesRegex(ValueError, "custom input must contain at least 1 key"):
+        with self.assertRaisesRegex(
+            ValueError, "custom input must contain at least 1 key"
+        ):
             c.addToCustomInput(empty_data, tag1)
 
         c.addToCustomInput(data1_1, tag1)
-        with self.assertRaisesRegex(ValueError, "Key test_data_1 exist already, and specified values differ."):
+        with self.assertRaisesRegex(
+            ValueError, "Key test_data_1 exist already, and specified values differ."
+        ):
             c.addToCustomInput(data1_2, tag2)
 
         # test same key with same value is allowed

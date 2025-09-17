@@ -49,7 +49,9 @@ def random_pareto_search(
     lower = [bounds[n][0] for n in names]
     upper = [bounds[n][1] for n in names]
 
-    params = [[rng.uniform(l, u) for l, u in zip(lower, upper)] for _ in range(n_samples)]
+    params = [
+        [rng.uniform(l, u) for l, u in zip(lower, upper)] for _ in range(n_samples)
+    ]
     scores = [evaluate(np.array(p)) for p in params]
 
     yields = [s[0] for s in scores]
@@ -71,7 +73,9 @@ def random_pareto_search(
                 break
 
     pareto_params = [p for p, keep in zip(params, pareto_mask) if keep]
-    return [{name: float(p[idx]) for idx, name in enumerate(names)} for p in pareto_params]
+    return [
+        {name: float(p[idx]) for idx, name in enumerate(names)} for p in pareto_params
+    ]
 
 
 @dataclass
@@ -160,7 +164,9 @@ def nsga2(
         fronts.pop()
         return fronts, rank
 
-    def _crowding_distance(objs: List[Tuple[float, float]], front: List[int]) -> Dict[int, float]:
+    def _crowding_distance(
+        objs: List[Tuple[float, float]], front: List[int]
+    ) -> Dict[int, float]:
         distance = {i: 0.0 for i in front}
         if not front:
             return distance
@@ -197,7 +203,11 @@ def nsga2(
                 return population[i]
             if rank[j] < rank[i]:
                 return population[j]
-            return population[i] if crowd.get(i, 0.0) > crowd.get(j, 0.0) else population[j]
+            return (
+                population[i]
+                if crowd.get(i, 0.0) > crowd.get(j, 0.0)
+                else population[j]
+            )
 
         offspring: List[np.ndarray] = []
         while len(offspring) < pop_size:
@@ -251,4 +261,3 @@ def nsga2(
 
 
 __all__ = ["random_pareto_search", "nsga2", "ConvergenceRecord"]
-

@@ -114,7 +114,9 @@ class BinSpec:
         self.nsteps = nsteps
 
     def get_as_pypicongpu(self):
-        return PyPIConGPUBinSpec(self.kind.lower().capitalize(), self.start, self.stop, self.nsteps)
+        return PyPIConGPUBinSpec(
+            self.kind.lower().capitalize(), self.start, self.stop, self.nsteps
+        )
 
 
 @typeguard.typechecked
@@ -172,7 +174,16 @@ class Binning:
         time_step_size,
         num_steps,
     ) -> PyPIConGPUBinning:
-        if len(not_found := [s for s in self.species if s not in dict_species_picmi_to_pypicongpu.keys()]) > 0:
+        if (
+            len(
+                not_found := [
+                    s
+                    for s in self.species
+                    if s not in dict_species_picmi_to_pypicongpu.keys()
+                ]
+            )
+            > 0
+        ):
             raise ValueError(f"Species {not_found} are not known to Simulation")
         pypic_species = list(map(dict_species_picmi_to_pypicongpu.get, self.species))
 

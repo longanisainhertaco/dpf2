@@ -13,8 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator
 
 
-
-
 from .core_schema import ConfigSectionBase, to_camel_case
 from .materials import MaterialRef
 
@@ -50,16 +48,14 @@ class DeviceEntry(BaseModel):
     anode_material: Optional[MaterialRef] = Field(None, alias="anodeMaterial")
     cathode_material: Optional[MaterialRef] = Field(None, alias="cathodeMaterial")
     insulator_material: Optional[MaterialRef] = Field(None, alias="insulatorMaterial")
-    insulator_sleeve: Optional[InsulatorSleeve] = Field(
-        None, alias="insulatorSleeve"
-    )
+    insulator_sleeve: Optional[InsulatorSleeve] = Field(None, alias="insulatorSleeve")
     breakdown_voltage_kV: Optional[float] = Field(
         None, alias="breakdownVoltageKV", ge=0.0
     )
     fuel_mixture: Optional[Dict[str, float]] = Field(None, alias="fuelMixture")
-    regime_category: Optional[Literal["low_energy", "medium_energy", "MJ_scale", "custom"]] = Field(
-        "medium_energy", alias="regimeCategory"
-    )
+    regime_category: Optional[
+        Literal["low_energy", "medium_energy", "MJ_scale", "custom"]
+    ] = Field("medium_energy", alias="regimeCategory")
     reference_shot_ids: Optional[List[str]] = Field(None, alias="referenceShotIds")
     primary_observables: Optional[List[str]] = Field(None, alias="primaryObservables")
     diagnostic_capabilities: Optional[Dict[str, Dict[str, Any]]] = Field(
@@ -110,9 +106,7 @@ class DeviceEntry(BaseModel):
         needing to know the field names used in :class:`DeviceEntry`.
         """
 
-        sleeve_mat = (
-            self.insulator_sleeve.material if self.insulator_sleeve else None
-        )
+        sleeve_mat = self.insulator_sleeve.material if self.insulator_sleeve else None
         return {
             "anode": self.anode_material,
             "cathode": self.cathode_material,
@@ -199,11 +193,7 @@ class DeviceProfiles(ConfigSectionBase):
         if not self.default_device_id or self.default_device_id not in self.devices:
             return "Devices: none"
         d = self.devices[self.default_device_id]
-        mix = (
-            "+".join(d.fuel_mixture.keys())
-            if d.fuel_mixture
-            else d.working_gas
-        )
+        mix = "+".join(d.fuel_mixture.keys()) if d.fuel_mixture else d.working_gas
         refs = ", ".join(d.reference_shot_ids[:2]) if d.reference_shot_ids else "n/a"
         obs = ", ".join(d.primary_observables[:2]) if d.primary_observables else "n/a"
         vbr = d.breakdown_voltage_kV if d.breakdown_voltage_kV is not None else "n/a"

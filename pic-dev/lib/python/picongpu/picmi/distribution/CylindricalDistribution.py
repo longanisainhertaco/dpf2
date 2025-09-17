@@ -83,12 +83,16 @@ class CylindricalDistribution(Distribution):
         )
 
         if prePlasma:
-            profile.pre_plasma_ramp = species.operation.densityprofile.plasmaramp.Exponential(
-                self.exponential_pre_plasma_length,  # type: ignore
-                self.exponential_pre_plasma_cutoff,  # type: ignore
+            profile.pre_plasma_ramp = (
+                species.operation.densityprofile.plasmaramp.Exponential(
+                    self.exponential_pre_plasma_length,  # type: ignore
+                    self.exponential_pre_plasma_cutoff,  # type: ignore
+                )
             )
         elif explicitlyNoPrePlasma:
-            profile.pre_plasma_ramp = species.operation.densityprofile.plasmaramp.None_()
+            profile.pre_plasma_ramp = (
+                species.operation.densityprofile.plasmaramp.None_()
+            )
         else:
             raise ValueError(
                 "either both exponential_pre_plasma_length and"
@@ -131,7 +135,9 @@ class CylindricalDistribution(Distribution):
 
         # Every vector is expressed as a linear combination of basis vectors.
         # This is abstracted away in `_make_vector`.
-        cylinder_axis = np.array(self.cylinder_axis) / np.linalg.norm(self.cylinder_axis)
+        cylinder_axis = np.array(self.cylinder_axis) / np.linalg.norm(
+            self.cylinder_axis
+        )
         args = (x, y, z)
         positions = np.moveaxis(np.broadcast_arrays(x, y, z), 0, -1)
         r = np.linalg.norm(

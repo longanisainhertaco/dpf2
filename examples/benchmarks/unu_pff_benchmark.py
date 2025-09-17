@@ -38,7 +38,13 @@ def run_benchmark() -> dict[str, float]:
         def run(self, time, current):
             t = np.array(list(time))
             zeros = np.array([0.0 for _ in t])
-            return PinchResult(time=t, radius=zeros, temperature=zeros, pressure=zeros, neutron_yield=0.0)
+            return PinchResult(
+                time=t,
+                radius=zeros,
+                temperature=zeros,
+                pressure=zeros,
+                neutron_yield=0.0,
+            )
 
     pinch = _MiniPinch()
     model = CoupledEndToEndModel(pre, sheath, pinch)
@@ -46,7 +52,9 @@ def run_benchmark() -> dict[str, float]:
     peak_idx = max(range(len(current)), key=lambda i: current[i])
     peak_t = time[peak_idx]
     if len(result.pinch.time):
-        min_idx = max(range(len(result.pinch.radius)), key=lambda i: -result.pinch.radius[i])
+        min_idx = max(
+            range(len(result.pinch.radius)), key=lambda i: -result.pinch.radius[i]
+        )
         pinch_t = result.pinch.time[min_idx]
     else:
         pinch_t = time[-1]

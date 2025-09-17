@@ -7,6 +7,7 @@ import sys
 import pytest
 
 import h5py_stub as h5py
+
 sys.modules["h5py"] = h5py
 
 from dpf2.cli.lab import write_manifest

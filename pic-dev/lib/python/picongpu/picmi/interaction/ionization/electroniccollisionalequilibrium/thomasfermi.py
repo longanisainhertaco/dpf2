@@ -17,7 +17,9 @@ class ThomasFermi(GroundStateIonizationModel):
 
     MODEL_NAME: str = "ThomasFermi"
 
-    def get_as_pypicongpu(self) -> pypicongpu.species.constant.ionizationmodel.IonizationModel:
+    def get_as_pypicongpu(
+        self,
+    ) -> pypicongpu.species.constant.ionizationmodel.IonizationModel:
         self.check()
 
         return pypicongpu.species.constant.ionizationmodel.ThomasFermi()

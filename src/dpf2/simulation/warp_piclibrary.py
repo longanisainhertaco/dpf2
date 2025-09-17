@@ -34,6 +34,7 @@ except Exception:  # pragma: no cover - the tests run without pywarpx installed
 
 logger = logging.getLogger(__name__)
 
+
 class PICCollisionHandler:
     """High level interface for Monte Carlo collisions in WarpX.
 
@@ -120,7 +121,11 @@ class PICCollisionHandler:
         # it.  This mirrors the behaviour of ``picmi.MCCCollision``.
         if hasattr(warp_instance, "do_mcc_collisions"):
             warp_instance.do_mcc_collisions(
-                species1_name, species2_name, dt, self.collision_freq_func, **self.kwargs
+                species1_name,
+                species2_name,
+                dt,
+                self.collision_freq_func,
+                **self.kwargs,
             )
             return
 
@@ -177,6 +182,7 @@ class PICCollisionHandler:
 
         k_B = 1.380649e-23  # Boltzmann constant
         m1 = getattr(species1, "mass", 1.0)
+
         def norm(vec):
             return math.sqrt(sum(comp * comp for comp in vec))
 
@@ -222,16 +228,11 @@ class PICCollisionHandler:
                 rel_v = [v1[idx][j] - v2[idx][j] for j in range(3)]
                 rel_speed = norm(rel_v)
                 v_cm = [
-                    (m1 * v1[idx][j] + m2 * v2[idx][j]) / (m1 + m2)
-                    for j in range(3)
+                    (m1 * v1[idx][j] + m2 * v2[idx][j]) / (m1 + m2) for j in range(3)
                 ]
                 new_rel = [dir_rel[j] * rel_speed for j in range(3)]
-                v1[idx] = [
-                    v_cm[j] + (m2 / (m1 + m2)) * new_rel[j] for j in range(3)
-                ]
-                v2[idx] = [
-                    v_cm[j] - (m1 / (m1 + m2)) * new_rel[j] for j in range(3)
-                ]
+                v1[idx] = [v_cm[j] + (m2 / (m1 + m2)) * new_rel[j] for j in range(3)]
+                v2[idx] = [v_cm[j] - (m1 / (m1 + m2)) * new_rel[j] for j in range(3)]
 
         # --- Write updated velocities back ----------------------------------------------
         if not (
@@ -271,18 +272,24 @@ class PICCollisionHandler:
 
                     coll = picmi.MCCCollision(
                         name=f"coll_{sp1}_{sp2}",
-                        species=[warp_instance.species[sp1], warp_instance.species[sp2]],
+                        species=[
+                            warp_instance.species[sp1],
+                            warp_instance.species[sp2],
+                        ],
                         **self.kwargs,
                     )
                     if hasattr(warp_instance, "add_collision"):
                         warp_instance.add_collision(coll)
                     else:
-                        warp_instance.collisions = getattr(warp_instance, "collisions", [])
+                        warp_instance.collisions = getattr(
+                            warp_instance, "collisions", []
+                        )
                         warp_instance.collisions.append(coll)
             except Exception as e:  # pragma: no cover - logging path
                 logger.warning(
                     f"Failed to add WarpX collision between {sp1} and {sp2}: {e}"
                 )
+
 
 # --- Example Usage Pattern (as inferred from collision_model.py) ---
 # Assuming 'ne', 'Te', 'Z' are numpy arrays or floats

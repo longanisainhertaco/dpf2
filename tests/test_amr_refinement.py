@@ -19,7 +19,10 @@ class Density:
         self.data = [[[0 for _ in range(nz)] for _ in range(ny)] for _ in range(nx)]
 
     def __gt__(self, thresh):
-        mask = [[[1 if v > thresh else 0 for v in row2] for row2 in row1] for row1 in self.data]
+        mask = [
+            [[1 if v > thresh else 0 for v in row2] for row2 in row1]
+            for row1 in self.data
+        ]
         return Mask(mask)
 
 
@@ -37,7 +40,9 @@ class DummyState:
 
 
 def _install_pywarpx_stub():
-    warpx_api = types.SimpleNamespace(regrid=lambda: None, write_plotfile=lambda *_: None)
+    warpx_api = types.SimpleNamespace(
+        regrid=lambda: None, write_plotfile=lambda *_: None
+    )
     amr_state = {"tagged": None}
 
     def tag_cells(mask):

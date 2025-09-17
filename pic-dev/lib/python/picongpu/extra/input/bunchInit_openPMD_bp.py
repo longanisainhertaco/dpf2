@@ -77,7 +77,9 @@ class addParticles2Checkpoint:
         if self.verbose:
             print("\t" * self.tabs + string)
 
-    def __init__(self, filename_in, filename_out, speciesName="e", copyRNG=True, verbose=False):
+    def __init__(
+        self, filename_in, filename_out, speciesName="e", copyRNG=True, verbose=False
+    ):
         """
         initialization of manipulation routine
 
@@ -119,18 +121,28 @@ class addParticles2Checkpoint:
         # get cell size per dimension
         # the flip reverses the order of the x,y,z
         # the * unpacks the arguments for x,y,z
-        self.cellSize = vec3D(*(np.flip(tmp_handle.grid_unit_SI * np.array(tmp_handle.grid_spacing))))
+        self.cellSize = vec3D(
+            *(np.flip(tmp_handle.grid_unit_SI * np.array(tmp_handle.grid_spacing)))
+        )
 
         # extract number of cells in each dimension
         tmp_mesh = self.f.iterations[self.timestep].meshes["E"]["x"]
 
-        tmp_handle = self.f.iterations[self.timestep].particles[self.speciesName].particle_patches["offset"]
+        tmp_handle = (
+            self.f.iterations[self.timestep]
+            .particles[self.speciesName]
+            .particle_patches["offset"]
+        )
         off_x = tmp_handle["x"].load()
         off_y = tmp_handle["y"].load()
         off_z = tmp_handle["z"].load()
 
         # get extent of each GPU in cells (per dimension)
-        tmp_handle = self.f.iterations[self.timestep].particles[self.speciesName].particle_patches["extent"]
+        tmp_handle = (
+            self.f.iterations[self.timestep]
+            .particles[self.speciesName]
+            .particle_patches["extent"]
+        )
         ext_x = tmp_handle["x"].load()
         ext_y = tmp_handle["y"].load()
         ext_z = tmp_handle["z"].load()
@@ -160,7 +172,9 @@ class addParticles2Checkpoint:
         # extract number of GPUs used in each dimension
         # use np.unique() to reduce patches offset and len() to get number
         # of GPUs per dimension
-        self.N_gpus = vec3D(len(np.unique(off_x)), len(np.unique(off_y)), len(np.unique(off_z)))
+        self.N_gpus = vec3D(
+            len(np.unique(off_x)), len(np.unique(off_y)), len(np.unique(off_z))
+        )
 
         # get patch offset
         self.offset = vec3D(off_x, off_y, off_z)
@@ -183,7 +197,9 @@ class addParticles2Checkpoint:
             raise NameError("There are particles in the checkpoint")
 
         # extract momentum unit (attributes don't need flushing)
-        tmp_handle = self.f.iterations[self.timestep].particles[self.speciesName]["momentum"]["x"]
+        tmp_handle = self.f.iterations[self.timestep].particles[self.speciesName][
+            "momentum"
+        ]["x"]
         self.unitMomentum = tmp_handle.unit_SI
 
         self.has_probeE = False
@@ -193,26 +209,44 @@ class addParticles2Checkpoint:
         self.has_transitionRadiationMask = False
 
         # extract data type for position
-        self.dtype_position = self.f.iterations[self.timestep].particles[self.speciesName]["position"]["x"].dtype
+        self.dtype_position = (
+            self.f.iterations[self.timestep]
+            .particles[self.speciesName]["position"]["x"]
+            .dtype
+        )
 
         # extract data type for positionOffset
         self.dtype_positionOffset = (
-            self.f.iterations[self.timestep].particles[self.speciesName]["positionOffset"]["x"].dtype
+            self.f.iterations[self.timestep]
+            .particles[self.speciesName]["positionOffset"]["x"]
+            .dtype
         )
 
         # extract data type for momentum
-        self.dtype_momentum = self.f.iterations[self.timestep].particles[self.speciesName]["momentum"]["x"].dtype
+        self.dtype_momentum = (
+            self.f.iterations[self.timestep]
+            .particles[self.speciesName]["momentum"]["x"]
+            .dtype
+        )
 
         if "probeE" in self.f.iterations[self.timestep].particles[self.speciesName]:
             self.has_probeE = True
             # type of E-Field
-            self.dtype_probeE = self.f.iterations[self.timestep].particles[self.speciesName]["probeE"]["x"].dtype
+            self.dtype_probeE = (
+                self.f.iterations[self.timestep]
+                .particles[self.speciesName]["probeE"]["x"]
+                .dtype
+            )
         self.print("contains probeE = {}".format(self.has_probeE))
 
         if "probeB" in self.f.iterations[self.timestep].particles[self.speciesName]:
             self.has_probeB = True
             # type of B-Field
-            self.dtype_probeB = self.f.iterations[self.timestep].particles[self.speciesName]["probeB"]["x"].dtype
+            self.dtype_probeB = (
+                self.f.iterations[self.timestep]
+                .particles[self.speciesName]["probeB"]["x"]
+                .dtype
+            )
         self.print("contains probeB {}".format(self.has_probeB))
 
         # extract data type for weighting
@@ -232,23 +266,37 @@ class addParticles2Checkpoint:
             )
         self.print("contains id =  {}".format(self.has_id))
 
-        if "momentumPrev1" in self.f.iterations[self.timestep].particles[self.speciesName]:
+        if (
+            "momentumPrev1"
+            in self.f.iterations[self.timestep].particles[self.speciesName]
+        ):
             self.has_momentumPrev1 = True
             # type of momentumPrev1
             self.dtype_momentumPrev1 = (
-                self.f.iterations[self.timestep].particles[self.speciesName]["momentumPrev1"]["x"].dtype
+                self.f.iterations[self.timestep]
+                .particles[self.speciesName]["momentumPrev1"]["x"]
+                .dtype
             )
         self.print("contains momentumPrev1 =  {}".format(self.has_momentumPrev1))
 
-        if "transitionRadiationMask" in self.f.iterations[self.timestep].particles[self.speciesName]:
+        if (
+            "transitionRadiationMask"
+            in self.f.iterations[self.timestep].particles[self.speciesName]
+        ):
             self.has_transitionRadiationMask = True
             # type of transitionRadiationMask
             self.dtype_transitionRadiationMask = (
                 self.f.iterations[self.timestep]
-                .particles[self.speciesName]["transitionRadiationMask"][opmd.Mesh_Record_Component.SCALAR]
+                .particles[self.speciesName]["transitionRadiationMask"][
+                    opmd.Mesh_Record_Component.SCALAR
+                ]
                 .dtype
             )
-        self.print("contains transitionRadiationMask =  {}".format(self.has_transitionRadiationMask))
+        self.print(
+            "contains transitionRadiationMask =  {}".format(
+                self.has_transitionRadiationMask
+            )
+        )
 
         del self.f  # close checkpoint file
 
@@ -275,9 +323,15 @@ class addParticles2Checkpoint:
 
         # calculate (in cell) position from given position
         self.position = vec3D(
-            (np.mod(pos.x, self.cellSize.x) / self.cellSize.x).astype(self.dtype_position),
-            (np.mod(pos.y, self.cellSize.y) / self.cellSize.y).astype(self.dtype_position),
-            (np.mod(pos.z, self.cellSize.z) / self.cellSize.z).astype(self.dtype_position),
+            (np.mod(pos.x, self.cellSize.x) / self.cellSize.x).astype(
+                self.dtype_position
+            ),
+            (np.mod(pos.y, self.cellSize.y) / self.cellSize.y).astype(
+                self.dtype_position
+            ),
+            (np.mod(pos.z, self.cellSize.z) / self.cellSize.z).astype(
+                self.dtype_position
+            ),
         )
 
         # calculate momentum in PIC units from given momentum
@@ -311,14 +365,18 @@ class addParticles2Checkpoint:
 
         if self.has_transitionRadiationMask:
             # give every particle a transitionRadiationMask ( used for transition radiation plugin )
-            self.transitionRadiationMask = np.zeros(len(w), dtype=self.dtype_transitionRadiationMask)
+            self.transitionRadiationMask = np.zeros(
+                len(w), dtype=self.dtype_transitionRadiationMask
+            )
 
     def makePatchMask(self):
         """
         calculate particle patches for given particles
         """
         # create empty patch mask (N_GPUs x N_particles)
-        self.patch_mask = np.empty((self.N_gpus.prod(), self.N_particles_input), dtype=bool)
+        self.patch_mask = np.empty(
+            (self.N_gpus.prod(), self.N_particles_input), dtype=bool
+        )
 
         # calculate patch  for each GPU
         for i in np.arange(self.N_gpus.prod()):
@@ -342,7 +400,9 @@ class addParticles2Checkpoint:
         # determine number of particles in all patches
         self.numParticles = np.sum(self.patch_mask, axis=1, dtype=np.uint)
         # calculate number of particles before the patch
-        self.numParticlesOffset = np.cumsum(self.numParticles, dtype=np.uint) - self.numParticles
+        self.numParticlesOffset = (
+            np.cumsum(self.numParticles, dtype=np.uint) - self.numParticles
+        )
         # fix possible negative value for first patch (if number of particles
         # in first patch != 0)
         self.numParticlesOffset[0] = 0
@@ -533,14 +593,18 @@ class pipe:
             opmd.Particle_Patches,
             opmd.Patch_Record,
         ]
-        is_container = any([isinstance(src, container_type) for container_type in container_types])
+        is_container = any(
+            [isinstance(src, container_type) for container_type in container_types]
+        )
 
         if isinstance(src, opmd.Series):
             # main loop: read iterations of src, write to dest
             write_iterations = dest.write_iterations()
             for in_iteration in src.read_iterations():
                 print(
-                    "Iteration {0} contains {1} meshes:".format(in_iteration.iteration_index, len(in_iteration.meshes))
+                    "Iteration {0} contains {1} meshes:".format(
+                        in_iteration.iteration_index, len(in_iteration.meshes)
+                    )
                 )
                 for m in in_iteration.meshes:
                     print("\t {0}".format(m))
@@ -570,18 +634,20 @@ class pipe:
 
                 # overwrite copied shape attribute of mass and charge to
                 # match particle count
-                out_iteration.particles[self.particles.speciesName]["mass"].set_attribute(
-                    "shape", np.uint64(self.particles.N_particles)
-                )
-                out_iteration.particles[self.particles.speciesName]["charge"].set_attribute(
-                    "shape", np.uint64(self.particles.N_particles)
-                )
+                out_iteration.particles[self.particles.speciesName][
+                    "mass"
+                ].set_attribute("shape", np.uint64(self.particles.N_particles))
+                out_iteration.particles[self.particles.speciesName][
+                    "charge"
+                ].set_attribute("shape", np.uint64(self.particles.N_particles))
 
                 out_iteration.close()
                 self.__particle_patches.clear()
                 sys.stdout.flush()
 
-        elif isinstance(src, opmd.Record_Component) and (not is_container or src.scalar):
+        elif isinstance(src, opmd.Record_Component) and (
+            not is_container or src.scalar
+        ):
             # copies record components
             shape = src.shape
             dtype = src.dtype
@@ -604,7 +670,9 @@ class pipe:
                 dest.store_chunk(loaded_buffer, local_chunk.offset, local_chunk.extent)
                 dest.series_flush()
 
-        elif isinstance(src, opmd.Patch_Record_Component) and (not is_container or src.scalar):
+        elif isinstance(src, opmd.Patch_Record_Component) and (
+            not is_container or src.scalar
+        ):
             # copies patch record components
             dest.reset_dataset(opmd.Dataset(src.dtype, src.shape))
             self.__particle_patches.append(particle_patch_load(src.load(), dest))
@@ -619,19 +687,30 @@ class pipe:
         elif is_container:
             for key in src:
                 # writes given particle data instead of copying
-                if isinstance(src[key], opmd.ParticleSpecies) and key == self.particles.speciesName:
+                if (
+                    isinstance(src[key], opmd.ParticleSpecies)
+                    and key == self.particles.speciesName
+                ):
                     self.print("writing new particles data")
                     self.write_particles(src[key], dest[key], current_path + key)
                     self.print("resume to copying")
                 # skips copying of RNGProvider3XorMin field to reduce memory if needed
-                elif not self.particles.copyRNG and isinstance(src[key], opmd.Mesh) and key == "RNGProvider3XorMin":
+                elif (
+                    not self.particles.copyRNG
+                    and isinstance(src[key], opmd.Mesh)
+                    and key == "RNGProvider3XorMin"
+                ):
                     self.print("skipped RNGProvider3XorMin")
                 else:
                     self.__copy(src[key], dest[key], current_path + key + "/")
 
             if isinstance(src, opmd.ParticleSpecies):
                 # copies particle patches of species
-                self.__copy(src.particle_patches, dest.particle_patches, current_path + "particlePatches/")
+                self.__copy(
+                    src.particle_patches,
+                    dest.particle_patches,
+                    current_path + "particlePatches/",
+                )
         else:
             raise RuntimeError("Unknown openPMD class: " + str(src))
 
@@ -783,30 +862,50 @@ class pipe:
 
         # write own particle patches
         self.print("\tcopying patches")
-        temp_src = src.particle_patches["numParticles"][opmd.Mesh_Record_Component.SCALAR]
-        temp_dest = dest.particle_patches["numParticles"][opmd.Mesh_Record_Component.SCALAR]
+        temp_src = src.particle_patches["numParticles"][
+            opmd.Mesh_Record_Component.SCALAR
+        ]
+        temp_dest = dest.particle_patches["numParticles"][
+            opmd.Mesh_Record_Component.SCALAR
+        ]
 
         temp_dest.reset_dataset(opmd.Dataset(temp_src.dtype, temp_src.shape))
-        self.__particle_patches.append(particle_patch_load(self.particles.numParticles, temp_dest))
+        self.__particle_patches.append(
+            particle_patch_load(self.particles.numParticles, temp_dest)
+        )
 
-        temp_src = src.particle_patches["numParticlesOffset"][opmd.Mesh_Record_Component.SCALAR]
-        temp_dest = dest.particle_patches["numParticlesOffset"][opmd.Mesh_Record_Component.SCALAR]
+        temp_src = src.particle_patches["numParticlesOffset"][
+            opmd.Mesh_Record_Component.SCALAR
+        ]
+        temp_dest = dest.particle_patches["numParticlesOffset"][
+            opmd.Mesh_Record_Component.SCALAR
+        ]
 
         temp_dest.reset_dataset(opmd.Dataset(temp_src.dtype, temp_src.shape))
-        self.__particle_patches.append(particle_patch_load(self.particles.numParticles, temp_dest))
+        self.__particle_patches.append(
+            particle_patch_load(self.particles.numParticles, temp_dest)
+        )
 
         # copy offset and extent from old checkpoint
         temp_src = src.particle_patches["offset"]
         temp_dest = dest.particle_patches["offset"]
 
         for keyP in temp_src:
-            self.__copy(temp_src[keyP], temp_dest[keyP], current_path + "/particlePatches/offset/" + keyP + "/")
+            self.__copy(
+                temp_src[keyP],
+                temp_dest[keyP],
+                current_path + "/particlePatches/offset/" + keyP + "/",
+            )
 
         temp_src = src.particle_patches["extent"]
         temp_dest = dest.particle_patches["extent"]
 
         for keyP in temp_src:
-            self.__copy(temp_src[keyP], temp_dest[keyP], current_path + "/particlePatches/extent/" + keyP + "/")
+            self.__copy(
+                temp_src[keyP],
+                temp_dest[keyP],
+                current_path + "/particlePatches/extent/" + keyP + "/",
+            )
 
     def copy_attributes(self, src, dest, iterate=False):
         """
@@ -825,11 +924,18 @@ class pipe:
         # The following attributes are written automatically by openPMD-api
         # and should not be manually overwritten here
         ignored_attributes = {
-            opmd.Series: ["basePath", "iterationEncoding", "iterationFormat", "openPMD"],
+            opmd.Series: [
+                "basePath",
+                "iterationEncoding",
+                "iterationFormat",
+                "openPMD",
+            ],
             opmd.Iteration: ["snapshot"],
-            opmd.Record_Component: ["value", "shape"]
-            if isinstance(src, opmd.Record_Component) and src.constant
-            else [],
+            opmd.Record_Component: (
+                ["value", "shape"]
+                if isinstance(src, opmd.Record_Component) and src.constant
+                else []
+            ),
         }
         for key in src.attributes:
             ignore_this_attribute = False

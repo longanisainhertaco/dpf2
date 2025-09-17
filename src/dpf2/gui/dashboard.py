@@ -1,4 +1,5 @@
 """Utilities for launching the built-in web dashboard and analysis helpers."""
+
 from __future__ import annotations
 
 from typing import Callable, Mapping, Sequence, Tuple, Dict, Any
@@ -85,8 +86,14 @@ def run_sampling(
         ax.plot(range(len(values)), values, marker="o", linestyle="-", label="model")
         lower = [band["lower"]] * len(values)
         upper = [band["upper"]] * len(values)
-        ax.fill_between(range(len(values)), lower, upper, color="C0", alpha=0.2,
-                        label=f"{alpha*100:.0f}% interval")
+        ax.fill_between(
+            range(len(values)),
+            lower,
+            upper,
+            color="C0",
+            alpha=0.2,
+            label=f"{alpha*100:.0f}% interval",
+        )
         ax.axhline(band["mean"], color="C1", linestyle="--", label="mean")
         ax.set_xlabel("sample")
         ax.set_ylabel("model output")
@@ -242,11 +249,21 @@ def plot_kpi_with_domain(
         added = False
         for xv, yv, flag in zip(x, y, ood_flags):
             if flag:
-                ax.scatter([xv], [yv], color="red", marker="x",
-                           label="OOD" if not added else None)
+                ax.scatter(
+                    [xv],
+                    [yv],
+                    color="red",
+                    marker="x",
+                    label="OOD" if not added else None,
+                )
                 added = True
-    ax.axvspan(training_domain[0], training_domain[1], color="grey", alpha=0.1,
-               label="training domain")
+    ax.axvspan(
+        training_domain[0],
+        training_domain[1],
+        color="grey",
+        alpha=0.1,
+        label="training domain",
+    )
     lower = [val - err for val, err in zip(y, y_err)]
     upper = [val + err for val, err in zip(y, y_err)]
     ax.fill_between(x, lower, upper, color="C0", alpha=0.2, label="error band")

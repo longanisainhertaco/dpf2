@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Sequence, Tuple, List
 
 
-def compute_scope_trace(times: Sequence[float], values: Sequence[float]) -> Tuple[List[float], List[float]]:
+def compute_scope_trace(
+    times: Sequence[float], values: Sequence[float]
+) -> Tuple[List[float], List[float]]:
     """Baseline subtract a scope trace.
 
     Parameters

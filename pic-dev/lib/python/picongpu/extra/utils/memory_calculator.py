@@ -78,7 +78,9 @@ class MemoryCalculator(pydantic.BaseModel):
             raise ValueError("unsupported precision {precision}")
 
     @staticmethod
-    def get_predefined_attribute_dict(simulation_dimension: int, precision: int) -> dict[str, int]:
+    def get_predefined_attribute_dict(
+        simulation_dimension: int, precision: int
+    ) -> dict[str, int]:
         """get dictionary describing the size of each predefined attribute in bytes"""
 
         size_float_X = MemoryCalculator.get_value_size(precision)
@@ -104,7 +106,10 @@ class MemoryCalculator(pydantic.BaseModel):
             "transitionIndex": size_uint32,
             "binIndex": size_uint32,
             "accepted": size_bool,
-            "atomicPhysicsIonParticleAttributes": size_float_X + 3 * size_uint32 + size_uint8 + size_bool,
+            "atomicPhysicsIonParticleAttributes": size_float_X
+            + 3 * size_uint32
+            + size_uint8
+            + size_bool,
             "totalCellIdx": simulation_dimension * size_uint32,
         }
 
@@ -115,7 +120,9 @@ class MemoryCalculator(pydantic.BaseModel):
             raise ValueError("cell_extent must be 1D array")
 
         if (cell_extent).shape[0] != self.simulation_dimension:
-            raise ValueError("simulation_dimension and dimension of cell_extent must match.")
+            raise ValueError(
+                "simulation_dimension and dimension of cell_extent must match."
+            )
         if not (np.all(cell_extent > 0)):
             raise ValueError("number cells must be > 0 in all dimensions")
 
@@ -186,9 +193,16 @@ class MemoryCalculator(pydantic.BaseModel):
         # 2 additional scalar fields for each of E and B field component
         number_pml_fields = 2 * 2 * 3
 
-        number_local_cells = int(np.prod(cell_extent + self.super_cell_size * 2 * self.guard_size))
-        number_pml_cells = int(np.prod(cell_extent) - np.prod(cell_extent - np.sum(pml_border_size, axis=1)))
-        number_double_buffer_cells = int(np.prod(cell_extent + self.particle_shape_order) - np.prod(cell_extent))
+        number_local_cells = int(
+            np.prod(cell_extent + self.super_cell_size * 2 * self.guard_size)
+        )
+        number_pml_cells = int(
+            np.prod(cell_extent)
+            - np.prod(cell_extent - np.sum(pml_border_size, axis=1))
+        )
+        number_double_buffer_cells = int(
+            np.prod(cell_extent + self.particle_shape_order) - np.prod(cell_extent)
+        )
 
         size_float_X = MemoryCalculator.get_value_size(self.precision)
 
@@ -234,13 +248,21 @@ class MemoryCalculator(pydantic.BaseModel):
         # bytes
         size_rate_caches = 0
         for number_states in number_atomic_states_by_atomic_physics_ion_species:
-            size_rate_caches += number_states * (size_float_X * number_process_class_groups_in_rate_cache + size_uint32)
+            size_rate_caches += number_states * (
+                size_float_X * number_process_class_groups_in_rate_cache + size_uint32
+            )
 
-        size_rejection_probability_cache_cell = size_float_X * number_cells_per_supercell
-        size_rejection_probability_cache_bin = size_float_X * number_electron_histogram_bins
+        size_rejection_probability_cache_cell = (
+            size_float_X * number_cells_per_supercell
+        )
+        size_rejection_probability_cache_bin = (
+            size_float_X * number_electron_histogram_bins
+        )
         size_field_energy_use_cache = size_float_X * number_cells_per_supercell
 
-        size_electron_histogram = 3 * size_float_X * number_electron_histogram_bins + size_float_X
+        size_electron_histogram = (
+            3 * size_float_X * number_electron_histogram_bins + size_float_X
+        )
         size_shared_ressources_over_subscribed = size_uint32
         size_shared_found_unbound = size_uint32
         size_time_remaining = size_float_X
@@ -338,7 +360,9 @@ class MemoryCalculator(pydantic.BaseModel):
             mem_per_particle += minimum_particle_attributes[attribute]
 
         # byte
-        req_mem = int(np.ceil(number_particle_cells * mem_per_particle * particles_per_cell))
+        req_mem = int(
+            np.ceil(number_particle_cells * mem_per_particle * particles_per_cell)
+        )
 
         return req_mem
 
@@ -386,7 +410,9 @@ class MemoryCalculator(pydantic.BaseModel):
         return req_mem
 
     @typeguard.typechecked
-    def memory_required_by_calorimeter(self, number_energy_bins: int, number_yaw_bins: int, number_pitch_bins: int):
+    def memory_required_by_calorimeter(
+        self, number_energy_bins: int, number_yaw_bins: int, number_pitch_bins: int
+    ):
         """
         Memory required by the particle calorimeter plugin.
 

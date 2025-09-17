@@ -38,12 +38,16 @@ except Exception:  # pragma: no cover - fallback to CPU numpy or a very small st
 
     except Exception:  # pragma: no cover - final pure Python fallback
         xp = types.SimpleNamespace(
-            array=lambda data, dtype=None: [float(x) for x in data]
-            if isinstance(data, (list, tuple))
-            else [float(data)],
-            zeros=lambda shape, dtype=None: [0.0 for _ in range(shape)]
-            if isinstance(shape, int)
-            else [[0.0 for _ in range(shape[1])] for _ in range(shape[0])],
+            array=lambda data, dtype=None: (
+                [float(x) for x in data]
+                if isinstance(data, (list, tuple))
+                else [float(data)]
+            ),
+            zeros=lambda shape, dtype=None: (
+                [0.0 for _ in range(shape)]
+                if isinstance(shape, int)
+                else [[0.0 for _ in range(shape[1])] for _ in range(shape[0])]
+            ),
             sin=math.sin,
             pi=math.pi,
             dot=lambda a, b: sum(x * y for x, y in zip(a, b)),
@@ -73,7 +77,11 @@ def solve_linear(M: Any, b: Any, *, refine: bool = True) -> Any:
         if refine and hasattr(xp, "float64"):
             A64 = xp.array(M, dtype=getattr(xp, "float64", float))
             b64 = xp.array(b, dtype=getattr(xp, "float64", float))
-            x64 = x.astype(getattr(xp, "float64", float)) if hasattr(x, "astype") else [float(v) for v in x]
+            x64 = (
+                x.astype(getattr(xp, "float64", float))
+                if hasattr(x, "astype")
+                else [float(v) for v in x]
+            )
             r = b64 - xp.dot(A64, x64)
             delta = xp.linalg.solve(A64, r)
             x = x64 + delta

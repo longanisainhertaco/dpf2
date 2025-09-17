@@ -22,8 +22,13 @@ class SmileiBeamRelaxation:
             return zip(self.ratios, [path_equal, path_less_ions, path_more_ions])
 
         self.sims = {key: happi.Open(path) for key, path in get_iterator()}
-        self.unit_length = cs.c / self.sims[self.ratios[0]].namelist.Main.reference_angular_frequency_SI
-        self.debug_values = {key: self._load_debug_output(path) for key, path in get_iterator()}
+        self.unit_length = (
+            cs.c
+            / self.sims[self.ratios[0]].namelist.Main.reference_angular_frequency_SI
+        )
+        self.debug_values = {
+            key: self._load_debug_output(path) for key, path in get_iterator()
+        }
 
         def get_times(sim):
             return sim.ParticleBinning(diagNumber=0, units=["fs"]).getTimes()
@@ -37,7 +42,9 @@ class SmileiBeamRelaxation:
             for quantity in self.quantities:
                 self.calculated_data[key][quantity] = {}
                 for ratio in self.ratios:
-                    self.calculated_data[key][quantity][ratio] = np.zeros_like(self.times_dict[ratio], dtype=np.float64)
+                    self.calculated_data[key][quantity][ratio] = np.zeros_like(
+                        self.times_dict[ratio], dtype=np.float64
+                    )
 
     def _calculate_values(self, ratio):
         sim = self.sims[ratio]
@@ -60,7 +67,9 @@ class SmileiBeamRelaxation:
             for quantity in self.quantities:
                 data = local_array_dict[quantity]
                 self.calculated_data["mean"][quantity][ratio][i] = np.average(data)
-                self.calculated_data["std_mean"][quantity][ratio][i] = np.std(data) / np.sqrt(data.size)
+                self.calculated_data["std_mean"][quantity][ratio][i] = np.std(
+                    data
+                ) / np.sqrt(data.size)
                 self.calculated_data["std_dist"][quantity][ratio][i] = np.std(data)
 
     def calculate_values(self):

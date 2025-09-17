@@ -24,12 +24,11 @@ from scipy.interpolate import interp1d, RegularGridInterpolator
 from numba import njit, prange, cuda
 import logging
 import types
+
 try:  # optional dependency
     import h5py
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    raise ImportError(
-        "h5py is required; install dpf2[warpx]"
-    ) from exc
+    raise ImportError("h5py is required; install dpf2[warpx]") from exc
 
 
 from typing import List, Dict, Tuple, Optional
@@ -37,7 +36,7 @@ from typing import List, Dict, Tuple, Optional
 from .models import PhysicsModule
 from .utils import SimulationState
 
-logger = logging.getLogger('CollisionModel')
+logger = logging.getLogger("CollisionModel")
 logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
@@ -51,7 +50,8 @@ m_e = 9.10938356e-31  # kg
 m_p = 1.67262192369e-27  # kg
 pi = math.pi
 h_planck = 6.62607015e-34  # J·s
-m_d = 3.34358377e-27 # Deuterium mass
+m_d = 3.34358377e-27  # Deuterium mass
+
 
 # --------------------------------------
 # Abstract base for collision operators
@@ -74,6 +74,7 @@ class CollisionOperator(PhysicsModule):
     def restart(self, data):
         raise NotImplementedError
 
+
 # --------------------------------------
 # Coulomb logarithm: strong-weak coupling
 # --------------------------------------
@@ -92,30 +93,35 @@ def lnLambda_strong(ne, Te):
         raise ValueError(f"Unphysical lnLambda<0: min={lnL.min()}")
     return lnL
 
+
 # --------------------------------------
 # Spitzer collision frequencies
 # --------------------------------------
 @njit
 def nu_ei_spitzer(ne, Te, lnL=10.0, Z=1.0):
     coef = 4 * np.sqrt(2 * pi) * ne * Z * e_charge**4 * lnL
-    denom = 3 * (4 * pi * epsilon0)**2 * np.sqrt(m_e) * (kB * Te)**1.5
+    denom = 3 * (4 * pi * epsilon0) ** 2 * np.sqrt(m_e) * (kB * Te) ** 1.5
     return coef / (denom + 1e-30)
+
 
 @njit
 def nu_ee(ne, Te, lnL=10.0):
     return nu_ei_spitzer(ne, Te, lnL, Z=1.0) * np.sqrt(2)
 
+
 @njit
 def nu_ii(ni, Ti, lnL=10.0, Z=1.0, mi=m_p):
     coef = 4 * np.sqrt(pi) * ni * Z**4 * e_charge**4 * lnL
-    denom = 3 * (4 * pi * epsilon0)**2 * np.sqrt(mi) * (kB * Ti)**1.5
+    denom = 3 * (4 * pi * epsilon0) ** 2 * np.sqrt(mi) * (kB * Ti) ** 1.5
     return coef / (denom + 1e-30)
+
 
 @njit
 def nu_en(ne, Te, nn, sigma_en=1e-19):
     """Electron-neutral collision frequency."""
     v_th_e = np.sqrt(kB * Te / m_e)
     return nn * sigma_en * v_th_e
+
 
 # --------------------------------------
 # Implicit 2x2 electron-ion temperature relaxation
@@ -131,6 +137,7 @@ def relax_ei_implicit(Te, Ti, νei, dt):
     Ti_new = (a * (Ti + α * Te) - b * (Te + α * Ti)) / denom
     return Te_new, Ti_new
 
+
 # --------------------------------------
 # Energy-dependent cross-sections (example)
 # --------------------------------------
@@ -143,10 +150,12 @@ class CrossSectionData:
 
     def __init__(self, filename):
         try:
-            with h5py.File(filename, 'r') as f:
-                self.energy = f['energy'][:]
-                self.cross_section = f['cross_section'][:]
-            self.interp = interp1d(self.energy, self.cross_section, bounds_error=False, fill_value=0.0)
+            with h5py.File(filename, "r") as f:
+                self.energy = f["energy"][:]
+                self.cross_section = f["cross_section"][:]
+            self.interp = interp1d(
+                self.energy, self.cross_section, bounds_error=False, fill_value=0.0
+            )
         except Exception as e:
             logger.error(f"Error loading cross-section data from {filename}: {e}")
             self.energy = []
@@ -156,18 +165,20 @@ class CrossSectionData:
     def to_dict(self):
         """Return a serializable representation of the table."""
         return {
-            'energy': list(self.energy),
-            'cross_section': list(self.cross_section),
+            "energy": list(self.energy),
+            "cross_section": list(self.cross_section),
         }
 
     @classmethod
     def from_dict(cls, data):
         """Create a :class:`CrossSectionData` from checkpoint data."""
         obj = cls.__new__(cls)
-        obj.energy = np.array(data.get('energy', []))
-        obj.cross_section = np.array(data.get('cross_section', []))
+        obj.energy = np.array(data.get("energy", []))
+        obj.cross_section = np.array(data.get("cross_section", []))
         try:
-            obj.interp = interp1d(obj.energy, obj.cross_section, bounds_error=False, fill_value=0.0)
+            obj.interp = interp1d(
+                obj.energy, obj.cross_section, bounds_error=False, fill_value=0.0
+            )
         except Exception as e:
             logger.warning(f"Failed to construct cross-section interpolation: {e}")
             obj.interp = lambda E: 0.0
@@ -175,6 +186,7 @@ class CrossSectionData:
 
     def __call__(self, E):
         return self.interp(E)
+
 
 # --------------------------------------
 # Collision Processes
@@ -188,8 +200,8 @@ class CollisionProcess(PhysicsModule):
     def apply(self, state: SimulationState, dt):
         raise NotImplementedError
 
-class BetheBlochStopping(CollisionProcess):
 
+class BetheBlochStopping(CollisionProcess):
 
     def __init__(
         self,
@@ -215,16 +227,18 @@ class BetheBlochStopping(CollisionProcess):
                     vel = spc["vel"]
                     beta = np.linalg.norm(vel, axis=1) / self.c
                     gamma = 1.0 / np.sqrt(1.0 - beta**2)
-                    ne = getattr(getattr(state, "field_manager", types.SimpleNamespace(ne=0)), "ne", 0)
+                    ne = getattr(
+                        getattr(state, "field_manager", types.SimpleNamespace(ne=0)),
+                        "ne",
+                        0,
+                    )
                     ne = np.broadcast_to(ne, beta.shape)
                     stopping_power = (
-                        4
-                        * pi
-                        * self.Z_eff**2
-                        * e_charge**4
-                        * ne
-                        / (m_e * self.c**2)
-                    ) * (np.log((2 * m_e * self.c**2 * beta**2 * gamma**2) / self.I_mean) - beta**2)
+                        4 * pi * self.Z_eff**2 * e_charge**4 * ne / (m_e * self.c**2)
+                    ) * (
+                        np.log((2 * m_e * self.c**2 * beta**2 * gamma**2) / self.I_mean)
+                        - beta**2
+                    )
                     vel -= (
                         (stopping_power / (spc["m"] * gamma))[:, np.newaxis]
                         * (vel / (np.linalg.norm(vel, axis=1) + 1e-30)[:, np.newaxis])
@@ -232,6 +246,7 @@ class BetheBlochStopping(CollisionProcess):
                     )
         except Exception as e:
             logger.error(f"Error applying Bethe-Bloch stopping: {e}")
+
 
 class ElectronIonCollision(CollisionProcess):
     """Electron–ion collisions using Spitzer frequencies.
@@ -244,14 +259,15 @@ class ElectronIonCollision(CollisionProcess):
             if not hasattr(state, "species"):
                 return
             for name, spc in state.species.items():
-                if spc['q'] < 0:  # Electrons
+                if spc["q"] < 0:  # Electrons
                     ne = state.field_manager.ne
                     Te = state.field_manager.Te
                     νei = nu_ei_spitzer(ne, Te)
                     # Apply drag force (reduce velocity)
-                    spc['vel'] -= νei[:, np.newaxis] * spc['vel'] * dt
+                    spc["vel"] -= νei[:, np.newaxis] * spc["vel"] * dt
         except Exception as e:
             logger.error(f"Error applying electron-ion collisions: {e}")
+
 
 class ElectronNeutralCollision(CollisionProcess):
     """Electron–neutral collisions with a constant cross-section.
@@ -266,22 +282,26 @@ class ElectronNeutralCollision(CollisionProcess):
             if not hasattr(state, "species"):
                 return
             for name, spc in state.species.items():
-                if spc['q'] < 0:  # Electrons
+                if spc["q"] < 0:  # Electrons
                     ne = state.field_manager.ne
                     Te = state.field_manager.Te
                     nn = state.field_manager.nn
                     νen = nu_en(ne, Te, nn, self.sigma_en)
                     # Apply drag force (reduce velocity)
-                    spc['vel'] -= νen[:, np.newaxis] * spc['vel'] * dt
+                    spc["vel"] -= νen[:, np.newaxis] * spc["vel"] * dt
         except Exception as e:
             logger.error(f"Error applying electron-neutral collisions: {e}")
+
 
 class IonizationProcess(CollisionProcess):
     """Ionization of neutrals by electron impact.
 
     Particle creation is represented by sampling from the ionization rate and
     inserting new ions and electrons into the simulation state."""
-    def __init__(self, ionization_energy=13.6, cross_section_file="ionization_cross_section.h5"):
+
+    def __init__(
+        self, ionization_energy=13.6, cross_section_file="ionization_cross_section.h5"
+    ):
         self.ionization_energy = ionization_energy * e_charge  # Convert eV to Joules
         self.cross_section_data = CrossSectionData(cross_section_file)
 
@@ -293,7 +313,7 @@ class IonizationProcess(CollisionProcess):
                 return
             ne = state.field_manager.ne
             Te = state.field_manager.Te
-            nn = getattr(state.field_manager, 'nn', 0.0)
+            nn = getattr(state.field_manager, "nn", 0.0)
             sigma_ion = self.cross_section_data(Te)
 
             ion_rate = ne * sigma_ion * np.sqrt(8 * kB * Te / (pi * m_e))
@@ -315,16 +335,18 @@ class IonizationProcess(CollisionProcess):
             Te_mean = _mean(Te)
             vel_e = state.sample_velocities(num_pairs, Te_mean, m_e)
             vel_i = state.sample_velocities(num_pairs, Te_mean, m_p)
-            state.add_particles('e', -e_charge, m_e, positions, vel_e)
-            state.add_particles('ion', e_charge, m_p, positions, vel_i)
+            state.add_particles("e", -e_charge, m_e, positions, vel_e)
+            state.add_particles("ion", e_charge, m_p, positions, vel_i)
         except Exception as e:
             logger.error(f"Error applying ionization process: {e}")
+
 
 class RecombinationProcess(CollisionProcess):
     """Radiative recombination of ions and electrons.
 
     Particle removal removes ion–electron pairs using a simple momentum
     matching strategy to conserve charge and approximately conserve momentum."""
+
     def __init__(self, recombination_rate=1e-14):
         self.recombination_rate = recombination_rate
 
@@ -332,10 +354,10 @@ class RecombinationProcess(CollisionProcess):
         try:
             if not hasattr(state, "species"):
                 return
-            if not hasattr(state, 'field_manager'):
+            if not hasattr(state, "field_manager"):
                 return
             ne = state.field_manager.ne
-            ni = getattr(state.field_manager, 'ni', ne)
+            ni = getattr(state.field_manager, "ni", ne)
 
             def _mean(val):
                 try:
@@ -349,30 +371,35 @@ class RecombinationProcess(CollisionProcess):
             lam = _mean(self.recombination_rate * ne * ni) * dt
             num_pairs = np.random.poisson(lam)
             # identify electron and ion species
-            e_name = next((n for n, sp in state.species.items() if sp.get('q', 0.0) < 0), None)
-            i_name = next((n for n, sp in state.species.items() if sp.get('q', 0.0) > 0), None)
+            e_name = next(
+                (n for n, sp in state.species.items() if sp.get("q", 0.0) < 0), None
+            )
+            i_name = next(
+                (n for n, sp in state.species.items() if sp.get("q", 0.0) > 0), None
+            )
             if e_name is None or i_name is None:
                 return
             sp_e = state.species[e_name]
             sp_i = state.species[i_name]
-            num_pairs = min(num_pairs, sp_e['pos'].shape[0], sp_i['pos'].shape[0])
+            num_pairs = min(num_pairs, sp_e["pos"].shape[0], sp_i["pos"].shape[0])
             for _ in range(num_pairs):
-                if sp_e['pos'].shape[0] == 0 or sp_i['pos'].shape[0] == 0:
+                if sp_e["pos"].shape[0] == 0 or sp_i["pos"].shape[0] == 0:
                     break
-                if hasattr(np.random, 'randint'):
-                    idx_e = int(np.random.randint(0, sp_e['pos'].shape[0]))
+                if hasattr(np.random, "randint"):
+                    idx_e = int(np.random.randint(0, sp_e["pos"].shape[0]))
                 else:
                     idx_e = 0
-                p_e = sp_e['m'] * sp_e['vel'][idx_e]
-                ion_mom = sp_i['m'] * sp_i['vel']
+                p_e = sp_e["m"] * sp_e["vel"][idx_e]
+                ion_mom = sp_i["m"] * sp_i["vel"]
                 try:
-                    idx_i = int(np.argmin(np.sum((ion_mom + p_e)**2, axis=1)))
+                    idx_i = int(np.argmin(np.sum((ion_mom + p_e) ** 2, axis=1)))
                 except Exception:
                     idx_i = 0
                 state.remove_particles(e_name, [idx_e])
                 state.remove_particles(i_name, [idx_i])
         except Exception as e:
             logger.error(f"Error applying recombination process: {e}")
+
 
 # --------------------------------------
 # D-D Fusion Reactions (simplified)
@@ -381,6 +408,7 @@ class DDFusion(CollisionProcess):
     """Deuterium–Deuterium fusion reactions (simplified).
 
     Reaction products are not generated; only the rate is estimated."""
+
     def __init__(self, cross_section_file="dd_fusion_cross_section.h5"):
         self.cross_section_data = CrossSectionData(cross_section_file)
 
@@ -389,16 +417,21 @@ class DDFusion(CollisionProcess):
             if not hasattr(state, "species"):
                 return
             for name, spc in state.species.items():
-                if spc['q'] == e_charge and spc['m'] == 2 * m_p:  # Deuterium ions
+                if spc["q"] == e_charge and spc["m"] == 2 * m_p:  # Deuterium ions
                     # Use energy-dependent cross-section
-                    sigma_fusion = self.cross_section_data(spc['energy'])
+                    sigma_fusion = self.cross_section_data(spc["energy"])
                     # Fusion rate
-                    fusion_rate = spc['density'] * sigma_fusion * np.sqrt(8 * kB * spc['temperature'] / (pi * spc['m']))
+                    fusion_rate = (
+                        spc["density"]
+                        * sigma_fusion
+                        * np.sqrt(8 * kB * spc["temperature"] / (pi * spc["m"]))
+                    )
                     # Create new particles (simplified - needs proper distribution)
                     num_new_neutrons = np.random.poisson(fusion_rate * dt)
                     # ... (implementation for adding new neutrons) ...
         except Exception as e:
             logger.error(f"Error applying D-D fusion: {e}")
+
 
 # --------------------------------------
 # Fokker–Planck and anisotropy operators
@@ -423,10 +456,9 @@ class FokkerPlanckOperator(CollisionProcess):
                 if v is None:
                     continue
                 noise = np.random.normal(0.0, 1.0, size=v.shape)
-                spc["vel"] = (
-                    (1.0 - self.drag_coeff * dt) * v
-                    + np.sqrt(2.0 * self.diffusion_coeff * dt) * noise
-                )
+                spc["vel"] = (1.0 - self.drag_coeff * dt) * v + np.sqrt(
+                    2.0 * self.diffusion_coeff * dt
+                ) * noise
         except Exception as e:
             logger.error(f"Error applying Fokker-Planck operator: {e}")
 
@@ -503,12 +535,10 @@ class CollisionalRadiativeNetwork(CollisionProcess):
             with h5py.File(filename, "r") as f:
                 self.levels = [str(x) for x in f.get("levels", [])]
                 self.coll_rates = {
-                    (int(i), int(j)): float(r)
-                    for i, j, r in f.get("coll_rates", [])
+                    (int(i), int(j)): float(r) for i, j, r in f.get("coll_rates", [])
                 }
                 self.rad_rates = {
-                    (int(i), int(j)): float(r)
-                    for i, j, r in f.get("rad_rates", [])
+                    (int(i), int(j)): float(r) for i, j, r in f.get("rad_rates", [])
                 }
         except Exception as e:  # pragma: no cover - file parsing errors
             logger.warning(f"Failed to load collisional–radiative data: {e}")
@@ -560,6 +590,7 @@ def braginskii_coeffs(ne, Te, Bmag):
         logger.error(f"Error computing Braginskii coefficients: {e}")
         return 0.0, 0.0
 
+
 # --------------------------------------
 # Main CollisionModel integrating all
 # --------------------------------------
@@ -573,16 +604,24 @@ class CollisionModel(CollisionOperator):
 
     def __init__(self, config, processes: Optional[List[CollisionProcess]] = None):
         self.config = config
-        self.adas_file = config.get('adas_file', None)
-        self.crn = CollisionalRadiativeNetwork(self.adas_file) if self.adas_file is not None else None
+        self.adas_file = config.get("adas_file", None)
+        self.crn = (
+            CollisionalRadiativeNetwork(self.adas_file)
+            if self.adas_file is not None
+            else None
+        )
         self.checkpoint_data = {}
         self.accumulators = {}
         self.caches = {}
         # Optional list of additional collision processes
         self.processes: List[CollisionProcess] = processes or []
         # Load cross-section data
-        self.ionization_cross_section = CrossSectionData(config.get('ionization_cross_section_file', "ionization_cross_section.h5"))
-        self.dd_fusion_cross_section = CrossSectionData(config.get('dd_fusion_cross_section_file', "dd_fusion_cross_section.h5"))
+        self.ionization_cross_section = CrossSectionData(
+            config.get("ionization_cross_section_file", "ionization_cross_section.h5")
+        )
+        self.dd_fusion_cross_section = CrossSectionData(
+            config.get("dd_fusion_cross_section_file", "dd_fusion_cross_section.h5")
+        )
         logger.info("CollisionModel initialized.")
 
     def apply(self, state: SimulationState, dt):
@@ -594,7 +633,11 @@ class CollisionModel(CollisionOperator):
             ne = rho / m_p
             Te = state.electron_temperature
             Ti = state.ion_temperature
-            nn = state.neutral_density if hasattr(state, 'neutral_density') else np.zeros_like(ne)
+            nn = (
+                state.neutral_density
+                if hasattr(state, "neutral_density")
+                else np.zeros_like(ne)
+            )
             # explicit PIC kernel example
             # threads / blocks
             nx, ny, nz = rho.shape
@@ -607,8 +650,8 @@ class CollisionModel(CollisionOperator):
 
             # implicit relaxation
             νei = nu_ei_spitzer(ne, Te)
-            self.caches['nu_ei'] = νei
-            self.accumulators['steps'] = self.accumulators.get('steps', 0) + 1
+            self.caches["nu_ei"] = νei
+            self.accumulators["steps"] = self.accumulators.get("steps", 0) + 1
             Te_new, Ti_new = relax_ei_implicit(Te, Ti, νei, dt)
             state.electron_temperature, state.ion_temperature = Te_new, Ti_new
 
@@ -620,14 +663,18 @@ class CollisionModel(CollisionOperator):
             # collisional-radiative
             if self.crn:
                 ion_r, rec_r = self.crn.rates(Te, ne)  # m^3/s
-                if hasattr(state, 'neutral_density'):
+                if hasattr(state, "neutral_density"):
                     state.neutral_density -= ion_r * state.neutral_density * dt  # m^-3
-                    if hasattr(state, 'ion_density'):
-                        state.ion_density += (ion_r * state.neutral_density - rec_r * state.ion_density) * dt  # m^-3
+                    if hasattr(state, "ion_density"):
+                        state.ion_density += (
+                            ion_r * state.neutral_density - rec_r * state.ion_density
+                        ) * dt  # m^-3
 
             # ohmic heating J^2/sigma = eta*J^2
             J = state.field_manager.get_J()
-            state.internal_energy += (νei * np.sum(J**2, axis=0) / np.maximum(rho, 1e-30)) * dt
+            state.internal_energy += (
+                νei * np.sum(J**2, axis=0) / np.maximum(rho, 1e-30)
+            ) * dt
 
             # diagnostics
             state.collision_diag = self.diagnostics(state)
@@ -636,23 +683,29 @@ class CollisionModel(CollisionOperator):
 
     def diagnostics(self, state: SimulationState):
         v = state.velocity
-        return {
-            'm0': np.mean(v, axis=(0, 1, 2)),
-            'm2': np.mean(v**2, axis=(0, 1, 2))
-        }
+        return {"m0": np.mean(v, axis=(0, 1, 2)), "m2": np.mean(v**2, axis=(0, 1, 2))}
 
     def pic_collision_handler(self):
         from warp_piclibrary import PICCollisionHandler
+
         return PICCollisionHandler(lambda ne, Te, Z=1.0: nu_ei_spitzer(ne, Te, Z))
 
     def checkpoint(self):
         self.checkpoint_data = {
-            'ionization_cross_section': getattr(self.ionization_cross_section, 'to_dict', lambda: self.ionization_cross_section)(),
-            'dd_fusion_cross_section': getattr(self.dd_fusion_cross_section, 'to_dict', lambda: self.dd_fusion_cross_section)(),
-            'crn_state': self.crn,
-            'accumulators': self.accumulators,
-            'caches': self.caches,
-            'random_state': np.random.get_state(),
+            "ionization_cross_section": getattr(
+                self.ionization_cross_section,
+                "to_dict",
+                lambda: self.ionization_cross_section,
+            )(),
+            "dd_fusion_cross_section": getattr(
+                self.dd_fusion_cross_section,
+                "to_dict",
+                lambda: self.dd_fusion_cross_section,
+            )(),
+            "crn_state": self.crn,
+            "accumulators": self.accumulators,
+            "caches": self.caches,
+            "random_state": np.random.get_state(),
         }
         return self.checkpoint_data
 
@@ -673,7 +726,7 @@ class CollisionModel(CollisionOperator):
             raise ValueError("Restart data must be a dictionary")
 
         # --- Cross‑section tables ---
-        ion_data = data.get('ionization_cross_section')
+        ion_data = data.get("ionization_cross_section")
         if isinstance(ion_data, dict):
             # Recreate ``CrossSectionData`` including its interpolation object
             self.ionization_cross_section = CrossSectionData.from_dict(ion_data)
@@ -681,22 +734,22 @@ class CollisionModel(CollisionOperator):
             # Allow already‑constructed objects (useful for tests)
             self.ionization_cross_section = ion_data
 
-        dd_data = data.get('dd_fusion_cross_section')
+        dd_data = data.get("dd_fusion_cross_section")
         if isinstance(dd_data, dict):
             self.dd_fusion_cross_section = CrossSectionData.from_dict(dd_data)
         else:
             self.dd_fusion_cross_section = dd_data
 
         # --- Internal state ---
-        self.crn = data.get('crn_state')
+        self.crn = data.get("crn_state")
 
         # Copy so that caller cannot mutate our internal dictionaries through
         # references obtained from ``data``.
-        self.accumulators = dict(data.get('accumulators', {}))
-        self.caches = dict(data.get('caches', {}))
+        self.accumulators = dict(data.get("accumulators", {}))
+        self.caches = dict(data.get("caches", {}))
 
         # --- RNG state ---
-        rng_state = data.get('random_state')
+        rng_state = data.get("random_state")
         if rng_state is not None:
             try:
                 np.random.set_state(rng_state)

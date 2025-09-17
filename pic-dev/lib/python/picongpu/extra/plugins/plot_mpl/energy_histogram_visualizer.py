@@ -48,10 +48,15 @@ class Visualizer(BaseVisualizer):
         label = self.sim_labels[idx]
 
         if np.all(counts == 0.0):
-            warn("All counts were 0 for {}. ".format(label) + "No log-plot can be created!")
+            warn(
+                "All counts were 0 for {}. ".format(label)
+                + "No log-plot can be created!"
+            )
             return
 
-        self.plt_obj[idx] = self.ax.semilogy(bins, counts, nonpositive="clip", label=label, color=self.colors[idx])[0]
+        self.plt_obj[idx] = self.ax.semilogy(
+            bins, counts, nonpositive="clip", label=label, color=self.colors[idx]
+        )[0]
 
     def _update_plt_obj(self, idx):
         """
@@ -61,7 +66,10 @@ class Visualizer(BaseVisualizer):
         label = self.sim_labels[idx]
 
         if np.all(counts == 0.0):
-            warn("All counts were 0 for {}. ".format(label) + "Log-plot will not be updated!")
+            warn(
+                "All counts were 0 for {}. ".format(label)
+                + "Log-plot will not be updated!"
+            )
             return
 
         self.plt_obj[idx].set_data(bins, counts)
@@ -98,7 +106,9 @@ class Visualizer(BaseVisualizer):
         self.ax.autoscale_view(True, True, True)
         self.ax.set_xlabel("Energy [keV]")
         self.ax.set_ylabel("Counts")
-        self.ax.set_title("Energy Histogram for species " + species + ", filter = " + species_filter)
+        self.ax.set_title(
+            "Energy Histogram for species " + species + ", filter = " + species_filter
+        )
 
     def _legend(self):
         # draw the legend only for those lines for which there is data.
@@ -171,7 +181,9 @@ if __name__ == "__main__":
             print("Species filter was not given, will use", filtr)
 
         _, ax = plt.subplots(1, 1)
-        Visualizer(path, ax).visualize(iteration=iteration, species=species, species_filter=filtr)
+        Visualizer(path, ax).visualize(
+            iteration=iteration, species=species, species_filter=filtr
+        )
         plt.show()
 
     main()

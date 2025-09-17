@@ -13,7 +13,10 @@ def test_parallel_plasma_solver_matches_serial():
     for p in plasmas:
         p.coil_radius = 0.1
     states = [{"radius": 0.05 + 0.01 * i} for i in range(3)]
-    couplings = [CouplingState(current=1.0 + i, voltage=0.0, mutual_inductance=0.0) for i in range(3)]
+    couplings = [
+        CouplingState(current=1.0 + i, voltage=0.0, mutual_inductance=0.0)
+        for i in range(3)
+    ]
     dt = 1e-6
 
     seq = [
@@ -38,4 +41,3 @@ def test_parallel_circuit_solver_matches_serial():
 
     assert np.allclose(sol1.current, sol2.current)
     assert np.allclose(sol1.voltage, sol2.voltage)
-

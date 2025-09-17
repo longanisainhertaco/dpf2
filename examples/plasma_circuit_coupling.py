@@ -1,4 +1,5 @@
 """Example of circuit/plasma coupling with energy conservation."""
+
 """Demonstrate closed-loop coupling between a plasma model and an RLC circuit.
 
 The script integrates a toy zero-dimensional plasma whose inductance grows
@@ -78,11 +79,11 @@ def main() -> None:
         current, voltage = updated.current, updated.voltage
 
     Lp = plasma.inductance
-    initial_energy = 0.5 * circuit.C_ext * circuit.V0 ** 2
+    initial_energy = 0.5 * circuit.C_ext * circuit.V0**2
     final_energy = (
-        0.5 * circuit.L_ext * current ** 2
-        + 0.5 * circuit.C_ext * voltage ** 2
-        + 0.5 * Lp * current ** 2
+        0.5 * circuit.L_ext * current**2
+        + 0.5 * circuit.C_ext * voltage**2
+        + 0.5 * Lp * current**2
     )
     print(f"Initial energy: {initial_energy:.6f}")
     print(f"Final energy:   {final_energy:.6f}")

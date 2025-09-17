@@ -18,7 +18,10 @@ def generateReference():
 
     results = np.empty((10, 26, 869))
     for j, output in enumerate(outputs):
-        series = opmd.Series(output + "/binningOpenPMD/atomicStateBinning_000025.bp", opmd.Access.read_only)
+        series = opmd.Series(
+            output + "/binningOpenPMD/atomicStateBinning_000025.bp",
+            opmd.Access.read_only,
+        )
 
         i = series.iterations[25]
         binning = i.meshes["Binning"]
@@ -26,7 +29,9 @@ def generateReference():
         binning_data = binning_component.load_chunk()
         series.flush()
 
-        results[j] = binning_data / np.expand_dims(np.sum(binning_data, axis=1), axis=-1)
+        results[j] = binning_data / np.expand_dims(
+            np.sum(binning_data, axis=1), axis=-1
+        )
 
     mean = np.mean(results, axis=0)
     stdDev = np.std(results, axis=0, ddof=1)

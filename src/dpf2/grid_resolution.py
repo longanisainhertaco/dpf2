@@ -48,8 +48,8 @@ class GridResolution(ConfigSectionBase):
         Dict[Literal["xLow", "xHigh", "yLow", "yHigh", "zLow", "zHigh"], int]
     ] = Field(default_factory=dict)
     domain_refinement_level: Optional[int] = Field(0, ge=0, le=5)
-    nonuniform_axis_scaling: Optional[Dict[str, Literal["uniform", "log", "exp"]]] = Field(
-        default_factory=dict
+    nonuniform_axis_scaling: Optional[Dict[str, Literal["uniform", "log", "exp"]]] = (
+        Field(default_factory=dict)
     )
     grid_config_hash: Optional[str] = None
 
@@ -98,7 +98,10 @@ class GridResolution(ConfigSectionBase):
 
     @classmethod
     def get_field_metadata(cls) -> Dict[str, Dict[str, Any]]:
-        return {name: (field.json_schema_extra or field.metadata or {}) for name, field in cls.model_fields.items()}
+        return {
+            name: (field.json_schema_extra or field.metadata or {})
+            for name, field in cls.model_fields.items()
+        }
 
     def normalize_units(self, spatial_units: Literal["cm", "m"]) -> "GridResolution":
         scale = 0.01 if spatial_units == "m" else 1.0
@@ -179,14 +182,22 @@ class GridResolution(ConfigSectionBase):
             allowed = {"uniform", "log", "exp"}
             for ax, mode in values.nonuniform_axis_scaling.items():
                 if ax not in {"x", "y", "z"}:
-                    raise ValueError("nonuniform_axis_scaling keys must be 'x', 'y', or 'z'")
+                    raise ValueError(
+                        "nonuniform_axis_scaling keys must be 'x', 'y', or 'z'"
+                    )
                 if mode not in allowed:
-                    raise ValueError("nonuniform_axis_scaling values must be 'uniform', 'log', or 'exp'")
+                    raise ValueError(
+                        "nonuniform_axis_scaling values must be 'uniform', 'log', or 'exp'"
+                    )
 
-        if values.grid_centering == "node" and (values.nx % 2 == 0 or values.nz % 2 == 0):
+        if values.grid_centering == "node" and (
+            values.nx % 2 == 0 or values.nz % 2 == 0
+        ):
             warnings.warn("Node-centered grids typically use odd nx and nz")
 
-        values = values.model_copy(update={"grid_config_hash": values.hash_grid_config()})
+        values = values.model_copy(
+            update={"grid_config_hash": values.hash_grid_config()}
+        )
         return values
 
     # ------------------------------------------------------------------
@@ -204,4 +215,3 @@ class GridResolution(ConfigSectionBase):
 
 
 __all__ = ["GridResolution"]
-

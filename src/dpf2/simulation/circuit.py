@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import logging
+
 try:
     import sympy as sp
 except ModuleNotFoundError:  # pragma: no cover - handled for environments without sympy
@@ -17,26 +18,39 @@ except ModuleNotFoundError:  # pragma: no cover
         return x
 
     mu_0 = 1.0  # vacuum permeability (stub)
-    c = 1.0     # speed of light (stub)
+    c = 1.0  # speed of light (stub)
 
     def interp1d(*args, **kwargs):  # pragma: no cover - simple stub
         raise ModuleNotFoundError("scipy not available")
 
     def solve_ivp(*args, **kwargs):  # pragma: no cover - simple stub
         raise ModuleNotFoundError("scipy not available")
+
+
 from typing import Dict, Any, Optional
 from .utils import SimulationState, FieldManager
+
 try:  # pragma: no cover - allow tests to run without full package
     from ..core.bases import CouplingState
 except ModuleNotFoundError:  # pragma: no cover
+
     class CouplingState:  # type: ignore[override]
-        def __init__(self, Lp: float = 0.0, emf: float = 0.0, current: float = 0.0, voltage: float = 0.0, mutual_inductance: float = 0.0, back_reaction: float = 0.0):
+        def __init__(
+            self,
+            Lp: float = 0.0,
+            emf: float = 0.0,
+            current: float = 0.0,
+            voltage: float = 0.0,
+            mutual_inductance: float = 0.0,
+            back_reaction: float = 0.0,
+        ):
             self.Lp = Lp
             self.emf = emf
             self.current = current
             self.voltage = voltage
             self.mutual_inductance = mutual_inductance
             self.back_reaction = back_reaction
+
 
 # Physical constants (moved to the top)
 from .constants import e, me, epsilon0
@@ -51,7 +65,7 @@ if sp is not None:
     #   dQ/dt = -I
     #   dI/dt = [ -R_tot*I - Q/C ] / L_tot
     Q_sym, I_sym, R_sym, L_sym, C_sym, Lp_sym, Rp_sym, Ls_sym, Cs_sym = sp.symbols(
-        'Q I R L C Lp Rp Ls Cs'
+        "Q I R L C Lp Rp Ls Cs"
     )
     dQ_dt_expr = -I_sym
     dI_dt_expr = (-R_sym * I_sym - Q_sym / C_sym) / (L_sym + Ls_sym)
@@ -59,7 +73,7 @@ if sp is not None:
     _rhs = sp.lambdify(
         (Q_sym, I_sym, R_sym, L_sym, C_sym, Lp_sym, Rp_sym, Ls_sym, Cs_sym),
         (dQ_dt_expr, dI_dt_expr),
-        'numpy',
+        "numpy",
     )
     # Clean up
     del (
@@ -76,16 +90,19 @@ if sp is not None:
         dI_dt_expr,
     )
 else:  # pragma: no cover - exercised only when sympy is unavailable
+
     def _rhs(Q, I, R, L, C, Lp, Rp, Ls, Cs):
         """Fallback circuit ODE right-hand side without sympy."""
         dQ_dt = -I
         dI_dt = (-R * I - Q / C) / (L + Ls)
         return dQ_dt, dI_dt
 
+
 class SwitchModel:
     """
     A more sophisticated switch model that transitions from high resistance to low resistance based on voltage and current.
     """
+
     def __init__(
         self,
         initial_resistance: float = 1e6,
@@ -138,7 +155,10 @@ class SwitchModel:
         """
         if not self.is_closed:
             # Check if the switch should start closing based on voltage or current
-            if abs(voltage) >= self.transition_voltage or abs(current) >= self.transition_current:
+            if (
+                abs(voltage) >= self.transition_voltage
+                or abs(current) >= self.transition_current
+            ):
                 self.is_closed = True
                 self.start_time = 0.0  # Time when the switch started closing
 
@@ -177,13 +197,22 @@ class SwitchModel:
         """
         return 0.0  # Switch inductance is assumed to be negligible
 
+
 class TransmissionLineModel:
     """
     A more accurate transmission line model using the telegrapher's equations.
     """
-    def __init__(self, impedance: float = 50.0, length: float = 1.0, velocity_factor: float = 0.7,
-                 resistance_per_length: float = 0.1, conductance_per_length: float = 1e-6,
-                 capacitance_per_length: float = 100e-12, inductance_per_length: float = 250e-9):
+
+    def __init__(
+        self,
+        impedance: float = 50.0,
+        length: float = 1.0,
+        velocity_factor: float = 0.7,
+        resistance_per_length: float = 0.1,
+        conductance_per_length: float = 1e-6,
+        capacitance_per_length: float = 100e-12,
+        inductance_per_length: float = 250e-9,
+    ):
         """
         Initializes the TransmissionLineModel.
 
@@ -206,7 +235,9 @@ class TransmissionLineModel:
         self.delay = length / (c * velocity_factor)  # Transmission line delay
         self.history_V = []  # Store past voltage values
         self.history_I = []  # Store past current values
-        self.num_segments = 100  # Number of segments to discretize the transmission line
+        self.num_segments = (
+            100  # Number of segments to discretize the transmission line
+        )
 
     def get_reflected_current(self, voltage: float, current: float, dt: float) -> float:
         """
@@ -231,15 +262,20 @@ class TransmissionLineModel:
             delayed_current = self.history_I[-delay_steps]
 
             # Calculate the reflection coefficient
-            reflection_coefficient = (self.impedance - 50.0) / (self.impedance + 50.0)  # Example reflection coefficient
+            reflection_coefficient = (self.impedance - 50.0) / (
+                self.impedance + 50.0
+            )  # Example reflection coefficient
 
             # Calculate the reflected voltage and current
             reflected_voltage = reflection_coefficient * delayed_voltage
-            reflected_current = -reflection_coefficient * delayed_current  # Inverted sign for current
+            reflected_current = (
+                -reflection_coefficient * delayed_current
+            )  # Inverted sign for current
 
             return reflected_current
         else:
             return 0.0  # No reflection if the delay hasn't passed yet
+
 
 class CircuitModel:
     """
@@ -324,11 +360,37 @@ class CircuitModel:
                 ``trigger`` the stage engages and its resistance is added to the
                 total.
         """
-        if not all(isinstance(x, (int, float)) and x >= 0 for x in [C, L0, R0, anode_radius, cathode_radius, V0, ESR, ESL, parasitic_inductance, stray_capacitance, transmission_line_impedance, transmission_line_length, transmission_line_velocity_factor, switch_initial_resistance, switch_final_resistance, switch_transition_voltage, switch_transition_current, switch_transition_time, switch_voltage_slew_rate, switch_current_slew_rate]):
-            raise ValueError("Capacitance, inductance, resistance, radii, and initial voltage must be non-negative numbers.")
+        if not all(
+            isinstance(x, (int, float)) and x >= 0
+            for x in [
+                C,
+                L0,
+                R0,
+                anode_radius,
+                cathode_radius,
+                V0,
+                ESR,
+                ESL,
+                parasitic_inductance,
+                stray_capacitance,
+                transmission_line_impedance,
+                transmission_line_length,
+                transmission_line_velocity_factor,
+                switch_initial_resistance,
+                switch_final_resistance,
+                switch_transition_voltage,
+                switch_transition_current,
+                switch_transition_time,
+                switch_voltage_slew_rate,
+                switch_current_slew_rate,
+            ]
+        ):
+            raise ValueError(
+                "Capacitance, inductance, resistance, radii, and initial voltage must be non-negative numbers."
+            )
         if anode_radius >= cathode_radius:
             raise ValueError("Anode radius must be smaller than cathode radius.")
-        if not hasattr(collision_model, 'spitzer_resistivity'):
+        if not hasattr(collision_model, "spitzer_resistivity"):
             raise ValueError("Collision model must have a spitzer_resistivity method.")
 
         self.C = C
@@ -353,12 +415,14 @@ class CircuitModel:
                     TransmissionLineModel(
                         params.get("impedance", transmission_line_impedance),
                         params.get("length", transmission_line_length),
-                        params.get("velocity_factor", transmission_line_velocity_factor),
+                        params.get(
+                            "velocity_factor", transmission_line_velocity_factor
+                        ),
                     )
                 )
-        self.section_R = sum(sec.get('R', 0.0) for sec in self.sections)
-        self.section_L = sum(sec.get('L', 0.0) for sec in self.sections)
-        self.section_C = sum(sec.get('C', 0.0) for sec in self.sections)
+        self.section_R = sum(sec.get("R", 0.0) for sec in self.sections)
+        self.section_L = sum(sec.get("L", 0.0) for sec in self.sections)
+        self.section_C = sum(sec.get("C", 0.0) for sec in self.sections)
         if self.section_C:
             self.C += self.section_C
 
@@ -455,12 +519,16 @@ class CircuitModel:
         """Calculates the plasma resistance, considering current density distribution."""
 
         try:
-            Te = state.electron_temperature  # Access electron temperature from SimulationState
+            Te = (
+                state.electron_temperature
+            )  # Access electron temperature from SimulationState
             ne = state.density / 1.67e-27  # Assuming proton mass
             z = state.sheath_position  # Access sheath position from SimulationState
 
             if not all(isinstance(x, (int, float)) and x > 0 for x in [Te, ne, z]):
-                raise ValueError("Electron temperature, density, and sheath position must be positive numbers.")
+                raise ValueError(
+                    "Electron temperature, density, and sheath position must be positive numbers."
+                )
 
             η = self.collision_model.spitzer_resistivity(ne, Te, self._lnΛ)  # [Ω·m]
 
@@ -469,10 +537,14 @@ class CircuitModel:
             J0 = self.I / (np.pi * sigma**2)  # Estimate peak current density
 
             # Integrate the resistivity over the current distribution
-            R_plasma = η * z / (2 * np.pi * sigma**2) * (1 - erf((self.b - self.a) / sigma))
+            R_plasma = (
+                η * z / (2 * np.pi * sigma**2) * (1 - erf((self.b - self.a) / sigma))
+            )
             return R_plasma
         except AttributeError:
-            raise AttributeError("SimulationState object must have 'electron_temperature', 'density', and 'sheath_position' attributes.")
+            raise AttributeError(
+                "SimulationState object must have 'electron_temperature', 'density', and 'sheath_position' attributes."
+            )
         except ValueError as e:
             raise ValueError(f"Invalid plasma parameters: {e}")
 
@@ -599,9 +671,15 @@ class CircuitModel:
         Q0, I0 = self.Q, self.I
         try:
             k1_Q, k1_I = rhs(Q0, I0, R_tot, L_tot, Lp, Rp, Ls, Cs)
-            k2_Q, k2_I = rhs(Q0 + 0.5 * dt * k1_Q, I0 + 0.5 * dt * k1_I, R_tot, L_tot, Lp, Rp, Ls, Cs)
-            k3_Q, k3_I = rhs(Q0 + 0.5 * dt * k2_Q, I0 + 0.5 * dt * k2_I, R_tot, L_tot, Lp, Rp, Ls, Cs)
-            k4_Q, k4_I = rhs(Q0 + dt * k3_Q, I0 + dt * k3_I, R_tot, L_tot, Lp, Rp, Ls, Cs)
+            k2_Q, k2_I = rhs(
+                Q0 + 0.5 * dt * k1_Q, I0 + 0.5 * dt * k1_I, R_tot, L_tot, Lp, Rp, Ls, Cs
+            )
+            k3_Q, k3_I = rhs(
+                Q0 + 0.5 * dt * k2_Q, I0 + 0.5 * dt * k2_I, R_tot, L_tot, Lp, Rp, Ls, Cs
+            )
+            k4_Q, k4_I = rhs(
+                Q0 + dt * k3_Q, I0 + dt * k3_I, R_tot, L_tot, Lp, Rp, Ls, Cs
+            )
         except Exception as e:
             raise RuntimeError(f"Error during RK4 integration: {e}")
 
@@ -649,8 +727,12 @@ class CircuitModel:
 
             # Apply switch model (if any)
             if self.switch_model:
-                R_tot += self.switch_model.get_resistance(self.get_voltage(), self.I, dt)
-                L_tot += self.switch_model.get_inductance(self.get_voltage(), self.I, dt)
+                R_tot += self.switch_model.get_resistance(
+                    self.get_voltage(), self.I, dt
+                )
+                L_tot += self.switch_model.get_inductance(
+                    self.get_voltage(), self.I, dt
+                )
 
             # Apply transmission line model (if any)
             if self.transmission_line_model:
@@ -709,8 +791,12 @@ class CircuitModel:
 
             # Apply switch model (if any)
             if self.switch_model:
-                R_tot += self.switch_model.get_resistance(self.get_voltage(), self.I, dt)
-                L_tot += self.switch_model.get_inductance(self.get_voltage(), self.I, dt)
+                R_tot += self.switch_model.get_resistance(
+                    self.get_voltage(), self.I, dt
+                )
+                L_tot += self.switch_model.get_inductance(
+                    self.get_voltage(), self.I, dt
+                )
 
             # Apply transmission line model (if any)
             if self.transmission_line_model:
@@ -768,8 +854,8 @@ class CircuitModel:
         """Validates the circuit model against analytical discharge waveforms."""
         try:
             # Load analytical waveform data
-            analytical_time = analytical_waveform_data['time']
-            analytical_current = analytical_waveform_data['current']
+            analytical_time = analytical_waveform_data["time"]
+            analytical_current = analytical_waveform_data["current"]
 
             # Simulate the circuit using the same time steps as the analytical data
             simulated_time = []
@@ -778,20 +864,26 @@ class CircuitModel:
             t = 0.0
             while t <= analytical_time[-1]:
                 simulated_time.append(t)
+
                 # Create a dummy SimulationState
                 class DummySimulationState:
                     def __init__(self):
                         self.sheath_position = 0.0
                         self.electron_temperature = 1.0
                         self.density = 1.0
+
                 state = DummySimulationState()
                 self.step(state, dt)
                 simulated_current.append(self.get_current())
                 t += dt
 
             # Compare the simulated and analytical waveforms
-            simulated_current_interp = np.interp(analytical_time, simulated_time, simulated_current)
-            error = np.sqrt(np.mean((np.array(simulated_current_interp) - analytical_current)**2))
+            simulated_current_interp = np.interp(
+                analytical_time, simulated_time, simulated_current
+            )
+            error = np.sqrt(
+                np.mean((np.array(simulated_current_interp) - analytical_current) ** 2)
+            )
 
             logger.info(f"Validation error: {error:.3e}")
 

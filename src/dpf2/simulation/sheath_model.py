@@ -21,13 +21,16 @@ except Exception:  # pragma: no cover - scipy not available
 try:  # pragma: no cover - numerical acceleration optional
     from numba import njit, prange  # type: ignore
 except Exception:  # pragma: no cover - numba not available
+
     def njit(*args, **kwargs):  # type: ignore
         def decorator(func):
             return func
+
         return decorator
 
     def prange(*args, **kwargs):  # type: ignore
         return range(*args)
+
 
 from typing import Dict, Any
 
@@ -63,11 +66,13 @@ class BohmSheath:
     physically motivated behaviour in tests.
     """
 
-    def __init__(self,
-                 geometry: Any | None = None,
-                 electron_temperature: float = 1.0,
-                 ion_mass: float = 1.6726219e-27,
-                 axis: int = 2) -> None:
+    def __init__(
+        self,
+        geometry: Any | None = None,
+        electron_temperature: float = 1.0,
+        ion_mass: float = 1.6726219e-27,
+        axis: int = 2,
+    ) -> None:
         """Create a Bohm sheath model.
 
         Parameters
@@ -168,19 +173,25 @@ class BohmSheath:
         # Determine grid spacing along the sheath-normal axis for field estimate
         spacing = 1.0
         if self.axis == 0:
-            if hasattr(target, 'dx'):
-                spacing = getattr(target, 'dx', 1.0)
-            elif hasattr(target, 'field_manager') and hasattr(target.field_manager, 'dx'):
+            if hasattr(target, "dx"):
+                spacing = getattr(target, "dx", 1.0)
+            elif hasattr(target, "field_manager") and hasattr(
+                target.field_manager, "dx"
+            ):
                 spacing = target.field_manager.dx
         elif self.axis == 1:
-            if hasattr(target, 'dy'):
-                spacing = getattr(target, 'dy', 1.0)
-            elif hasattr(target, 'field_manager') and hasattr(target.field_manager, 'dy'):
+            if hasattr(target, "dy"):
+                spacing = getattr(target, "dy", 1.0)
+            elif hasattr(target, "field_manager") and hasattr(
+                target.field_manager, "dy"
+            ):
                 spacing = target.field_manager.dy
         else:
-            if hasattr(target, 'dz'):
-                spacing = getattr(target, 'dz', 1.0)
-            elif hasattr(target, 'field_manager') and hasattr(target.field_manager, 'dz'):
+            if hasattr(target, "dz"):
+                spacing = getattr(target, "dz", 1.0)
+            elif hasattr(target, "field_manager") and hasattr(
+                target.field_manager, "dz"
+            ):
                 spacing = target.field_manager.dz
         sheath_field = phi_s / spacing
 
@@ -191,7 +202,7 @@ class BohmSheath:
                 self._apply_to_field_manager(fm, sheath_field)
 
             # Update velocity field if present or create one
-            vel = getattr(target, 'velocity', None)
+            vel = getattr(target, "velocity", None)
             if vel is None:
                 vel = np.zeros((3,) + target.grid_shape)
                 target.velocity = vel
@@ -203,7 +214,7 @@ class BohmSheath:
                 vel[2, :, :, -1] = v_bohm
 
             # Update electrostatic potential field
-            phi = getattr(target, 'potential', None)
+            phi = getattr(target, "potential", None)
             if phi is None:
                 phi = np.zeros(target.grid_shape)
                 target.potential = phi
@@ -223,7 +234,9 @@ class BohmSheath:
         # Case 3: raw arrays -- modify the momentum to satisfy Bohm velocity
         density = target
         if momentum is None:
-            logger.warning("Momentum array required when applying BohmSheath to raw arrays.")
+            logger.warning(
+                "Momentum array required when applying BohmSheath to raw arrays."
+            )
             return
 
         try:
@@ -235,6 +248,7 @@ class BohmSheath:
                 momentum[2, :, :, -1] = density[:, :, -1] * v_bohm
         except Exception as exc:  # pragma: no cover - defensive programming
             logger.error(f"Failed to apply Bohm sheath to arrays: {exc}")
+
 
 class PlasmaSheathFormation(PhysicsModule):
     """
@@ -277,9 +291,15 @@ class PlasmaSheathFormation(PhysicsModule):
         self.plasma_edge_potential = config.plasma_edge_potential
         # Optional parameters with sensible defaults so that lightweight test
         # configurations can omit them without failing initialisation.
-        self.secondary_emission_coefficient = getattr(config, "secondary_emission_coefficient", 0.0)
-        self.electron_distribution = getattr(config, "electron_distribution", "maxwellian")
-        self.electron_distribution_params = getattr(config, "electron_distribution_params", {})
+        self.secondary_emission_coefficient = getattr(
+            config, "secondary_emission_coefficient", 0.0
+        )
+        self.electron_distribution = getattr(
+            config, "electron_distribution", "maxwellian"
+        )
+        self.electron_distribution_params = getattr(
+            config, "electron_distribution_params", {}
+        )
 
         logger.info("PlasmaSheathFormation initialized.")
 
@@ -294,13 +314,23 @@ class PlasmaSheathFormation(PhysicsModule):
             # Iteratively solve for sheath thickness
             def sheath_equation(s):
                 # Child-Langmuir law (collisionless)
-                cl_current = (4/9) * epsilon0 * np.sqrt(2 * e_charge / self.ion_mass) * (self.sheath_voltage**(3/2)) / (s**2)
+                cl_current = (
+                    (4 / 9)
+                    * epsilon0
+                    * np.sqrt(2 * e_charge / self.ion_mass)
+                    * (self.sheath_voltage ** (3 / 2))
+                    / (s**2)
+                )
                 # Bohm flux (approximation)
                 bohm_flux = self.ion_density * self.bohm_velocity * e_charge
                 return cl_current - bohm_flux
 
             # Find the root of the equation
-            result = root_scalar(sheath_equation, bracket=[self.dx, self.max_sheath_thickness], method='brentq')
+            result = root_scalar(
+                sheath_equation,
+                bracket=[self.dx, self.max_sheath_thickness],
+                method="brentq",
+            )
             self.sheath_thickness = result.root
             return self.sheath_thickness
         except Exception as e:
@@ -322,7 +352,11 @@ class PlasmaSheathFormation(PhysicsModule):
             # Define the matrix A for the finite difference approximation
             main_diag = -2 * np.ones(num_points)
             off_diag = np.ones(num_points - 1)
-            A = diags([off_diag, main_diag, off_diag], [-1, 0, 1], shape=(num_points, num_points)).toarray()
+            A = diags(
+                [off_diag, main_diag, off_diag],
+                [-1, 0, 1],
+                shape=(num_points, num_points),
+            ).toarray()
 
             # Boundary conditions
             A[0, :] = 0
@@ -346,7 +380,7 @@ class PlasmaSheathFormation(PhysicsModule):
             logger.error(f"Error solving Poisson's equation: {e}")
             return np.zeros_like(self.x_grid)
 
-    @njit(parallel=False) # Removed parallel=True, as it might not be beneficial here
+    @njit(parallel=False)  # Removed parallel=True, as it might not be beneficial here
     def _ion_fluid_equations(self):
         """
         Solves the ion fluid equations (continuity and momentum) using a higher-order scheme.
@@ -361,21 +395,35 @@ class PlasmaSheathFormation(PhysicsModule):
             self.ion_velocity_profile = np.zeros(num_points)
 
             # Boundary conditions
-            self.bohm_velocity = np.sqrt(e_charge * self.electron_temperature / self.ion_mass)
+            self.bohm_velocity = np.sqrt(
+                e_charge * self.electron_temperature / self.ion_mass
+            )
             self.ion_density_profile[0] = self.ion_density
             self.ion_velocity_profile[0] = self.bohm_velocity
 
             # Solve the fluid equations using a higher-order finite difference scheme
-            for i in range(1, num_points - 1): # Changed to range
+            for i in range(1, num_points - 1):  # Changed to range
                 # Continuity equation: dn/dx = -n * dv/dx / v
-                dvdx = (self.ion_velocity_profile[i] - self.ion_velocity_profile[i-1]) / h # Changed to forward difference
-                dndx = -self.ion_density_profile[i] * dvdx / (self.ion_velocity_profile[i] + 1e-30)
-                self.ion_density_profile[i] = self.ion_density_profile[i-1] + dndx * h
+                dvdx = (
+                    self.ion_velocity_profile[i] - self.ion_velocity_profile[i - 1]
+                ) / h  # Changed to forward difference
+                dndx = (
+                    -self.ion_density_profile[i]
+                    * dvdx
+                    / (self.ion_velocity_profile[i] + 1e-30)
+                )
+                self.ion_density_profile[i] = self.ion_density_profile[i - 1] + dndx * h
 
                 # Momentum equation: dv/dx = -e * E / (m * v)
-                dphidx = (self.electric_potential[i] - self.electric_potential[i-1]) / h # Changed to forward difference
-                dvdx = -(e_charge * dphidx) / (self.ion_mass * (self.ion_velocity_profile[i] + 1e-30))
-                self.ion_velocity_profile[i] = self.ion_velocity_profile[i-1] + dvdx * h
+                dphidx = (
+                    self.electric_potential[i] - self.electric_potential[i - 1]
+                ) / h  # Changed to forward difference
+                dvdx = -(e_charge * dphidx) / (
+                    self.ion_mass * (self.ion_velocity_profile[i] + 1e-30)
+                )
+                self.ion_velocity_profile[i] = (
+                    self.ion_velocity_profile[i - 1] + dvdx * h
+                )
 
             return self.ion_density_profile, self.ion_velocity_profile
 
@@ -389,7 +437,9 @@ class PlasmaSheathFormation(PhysicsModule):
             if self.electron_distribution == "analytic":
                 dist_fn = self.electron_distribution_params.get("distribution_fn")
                 if dist_fn is None:
-                    raise ValueError("distribution_fn must be provided for analytic distribution")
+                    raise ValueError(
+                        "distribution_fn must be provided for analytic distribution"
+                    )
                 v_max = self.electron_distribution_params.get("v_max", 1e7)
                 num = self.electron_distribution_params.get("num_points", 1000)
                 v = np.linspace(0.0, v_max, num)
@@ -417,10 +467,16 @@ class PlasmaSheathFormation(PhysicsModule):
                 self.compute_electric_field()
 
             # Boltzmann relation for electron density
-            self.electron_density_profile = self.electron_density * np.exp(e_charge * (self.electric_potential - self.plasma_edge_potential) / (self.electron_temperature * e_charge))
+            self.electron_density_profile = self.electron_density * np.exp(
+                e_charge
+                * (self.electric_potential - self.plasma_edge_potential)
+                / (self.electron_temperature * e_charge)
+            )
 
             # Solve ion fluid equations
-            self.ion_density_profile, self.ion_velocity_profile = self._ion_fluid_equations()
+            self.ion_density_profile, self.ion_velocity_profile = (
+                self._ion_fluid_equations()
+            )
 
         except Exception as e:
             logger.error(f"Error computing density profiles: {e}")
@@ -485,15 +541,21 @@ class PlasmaSheathFormation(PhysicsModule):
             # Apply the sheath model to the fluid state
             # Apply sheath potential as a boundary condition on the electric field
             # Assuming the sheath forms at the high-z boundary (adjust as needed for your geometry)
-            if hasattr(state, 'field_manager'):
+            if hasattr(state, "field_manager"):
                 E = state.field_manager.get_E()
                 g = 2  # Number of ghost cells (adjust if different in your setup)
                 # Apply the sheath potential to the x-component of the electric field at the high-z boundary
-                E[0, :, :, -g:] = self.electric_field[-1]  # Assuming 1D sheath, apply the last value
+                E[0, :, :, -g:] = self.electric_field[
+                    -1
+                ]  # Assuming 1D sheath, apply the last value
                 state.field_manager.update_E(E)
-                logger.debug(f"Applied sheath potential boundary condition using FieldManager. Electric field at boundary: {E[0, :, :, -g:]}")
+                logger.debug(
+                    f"Applied sheath potential boundary condition using FieldManager. Electric field at boundary: {E[0, :, :, -g:]}"
+                )
             else:
-                logger.warning("SimulationState does not have 'field_manager' attribute. Sheath potential BC not applied.")
+                logger.warning(
+                    "SimulationState does not have 'field_manager' attribute. Sheath potential BC not applied."
+                )
 
             # Apply Bohm velocity as a boundary condition on ion velocity (if applicable)
             # This part might need adjustment depending on how ion velocity is handled in your fluid solver
@@ -504,7 +566,9 @@ class PlasmaSheathFormation(PhysicsModule):
             # else:
             #     logger.warning("SimulationState does not have 'ion_velocity' attribute. Bohm velocity BC not applied.")
 
-            logger.debug(f"PlasmaSheathFormation applied. Ion Flux: {ion_flux:.3e}, Electron Flux: {electron_flux:.3e}")
+            logger.debug(
+                f"PlasmaSheathFormation applied. Ion Flux: {ion_flux:.3e}, Electron Flux: {electron_flux:.3e}"
+            )
         except Exception as e:
             logger.error(f"Error applying PlasmaSheathFormation: {e}")
 
@@ -513,7 +577,13 @@ class PlasmaSheathFormation(PhysicsModule):
         Visualizes the sheath density profiles, electric field, and potential.
         """
         try:
-            if self.x_grid is None or self.ion_density_profile is None or self.electron_density_profile is None or self.electric_field is None or self.electric_potential is None:
+            if (
+                self.x_grid is None
+                or self.ion_density_profile is None
+                or self.electron_density_profile is None
+                or self.electric_field is None
+                or self.electric_potential is None
+            ):
                 self.compute_sheath_thickness()
                 self.compute_electric_field()
                 self.compute_density_profiles()
@@ -522,7 +592,9 @@ class PlasmaSheathFormation(PhysicsModule):
 
             plt.subplot(1, 3, 1)
             plt.plot(self.x_grid, self.ion_density_profile, label="Ion Density")
-            plt.plot(self.x_grid, self.electron_density_profile, label="Electron Density")
+            plt.plot(
+                self.x_grid, self.electron_density_profile, label="Electron Density"
+            )
             plt.xlabel("Distance (m)")
             plt.ylabel("Density (m⁻³)")
             plt.legend()
@@ -585,8 +657,8 @@ class PlasmaSheathFormation(PhysicsModule):
         """Returns a dictionary of data to checkpoint."""
         try:
             self.checkpoint_data = {
-                'sheath_thickness': self.sheath_thickness,
-                'bohm_velocity': self.bohm_velocity,
+                "sheath_thickness": self.sheath_thickness,
+                "bohm_velocity": self.bohm_velocity,
                 # Add other data as needed
             }
             return self.checkpoint_data
@@ -597,8 +669,8 @@ class PlasmaSheathFormation(PhysicsModule):
     def restart(self, data: Dict[str, Any]):
         """Restores data from a checkpoint."""
         try:
-            self.sheath_thickness = data.get('sheath_thickness', 0.0)
-            self.bohm_velocity = data.get('bohm_velocity', 0.0)
+            self.sheath_thickness = data.get("sheath_thickness", 0.0)
+            self.bohm_velocity = data.get("bohm_velocity", 0.0)
         except Exception as e:
             logger.error(f"Error during restart: {e}")
 

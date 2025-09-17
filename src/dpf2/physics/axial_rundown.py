@@ -24,7 +24,9 @@ except Exception:  # pragma: no cover - used when matplotlib is absent
     plt = None  # type: ignore
 
 
-def shock_parameter(current: Iterable[float], anode_radius: float, p0: float) -> np.ndarray:
+def shock_parameter(
+    current: Iterable[float], anode_radius: float, p0: float
+) -> np.ndarray:
     """Return the dimensionless shock parameter ``S``.
 
     Parameters

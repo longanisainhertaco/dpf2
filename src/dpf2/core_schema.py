@@ -28,7 +28,6 @@ except Exception:  # pragma: no cover
 from .utils.pydantic_compat import model_validator
 
 
-
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -58,18 +57,22 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Helper for camelCase aliasing
 
+
 def to_camel_case(string: str) -> str:
-    parts = string.split('_')
-    return parts[0] + ''.join(word.capitalize() for word in parts[1:])
+    parts = string.split("_")
+    return parts[0] + "".join(word.capitalize() for word in parts[1:])
+
 
 # ---------------------------------------------------------------------------
 # Enums
+
 
 class GeometryType(str, Enum):
     """Defines valid simulation geometries."""
 
     RZ_2D = "2D_RZ"
     XYZ_3D = "3D_Cartesian"
+
 
 class ModeType(str, Enum):
     """Defines valid DPF solver modes."""
@@ -78,12 +81,14 @@ class ModeType(str, Enum):
     PIC = "PIC"
     HYBRID = "hybrid"
 
+
 class UnitsSystem(str, Enum):
     """Defines the base unit system used for internal normalization."""
 
     SI = "SI"
     CGS = "cgs"
     LAB = "lab"
+
 
 class ValidationPolicy(str, Enum):
     """Controls schema enforcement mode on load/override."""
@@ -92,8 +97,10 @@ class ValidationPolicy(str, Enum):
     WARN = "warn"
     SILENT = "silent"
 
+
 # ---------------------------------------------------------------------------
 # Physics-related enums
+
 
 class EOSModel(str, Enum):
     IDEAL = "ideal"
@@ -158,6 +165,7 @@ class CircuitFaultTypeEnum(str, Enum):
     NO_DISCHARGE = "no_discharge"
     EARLY_TRIGGER = "early_trigger"
 
+
 # ---------------------------------------------------------------------------
 # Unit normalization helpers
 
@@ -169,6 +177,7 @@ UNIT_SCALE_MAP: Dict[UnitsSystem, float] = {
 
 # ---------------------------------------------------------------------------
 # Base configuration section
+
 
 class ConfigSectionBase(BaseModel):
     """Base class for all configuration sections."""
@@ -205,14 +214,15 @@ class ConfigSectionBase(BaseModel):
         frozen=True,
     )
 
-
     # ------------------------------------------------------------------
     @classmethod
     def with_defaults(cls) -> Self:
         return cls()  # type: ignore[call-arg]
 
     def required_fields(self) -> List[str]:
-        return [name for name, field in self.model_fields.items() if field.is_required()]
+        return [
+            name for name, field in self.model_fields.items() if field.is_required()
+        ]
 
     def resolve_defaults(self) -> Self:
         data = self.model_dump()
@@ -233,9 +243,7 @@ class MaterialOpacity(BaseModel):
     """Per-material opacity definition across radiation groups."""
 
     material_id: str = Field(..., alias="materialId")
-    group_opacities: List[float] = Field(
-        ..., alias="groupOpacities"
-    )
+    group_opacities: List[float] = Field(..., alias="groupOpacities")
 
     model_config = ConfigDict(alias_generator=to_camel_case, populate_by_name=True)
 
@@ -304,24 +312,33 @@ class RadiationSettings(ConfigSectionBase):
                 if mo.material_id == material:
                     return mo.group_opacities
         return self.group_opacities
+
+
 # ---------------------------------------------------------------------------
 # Root configuration model
+
 
 class DPFConfig(BaseModel):
     """Root configuration object."""
 
     # Dedicated section models
     simulation: SimulationSettings = Field(
-        ..., alias="simulation", metadata={"units": "-", "category": "Model", "group": "Simulation"}
+        ...,
+        alias="simulation",
+        metadata={"units": "-", "category": "Model", "group": "Simulation"},
     )
     grid: GridResolution = Field(
         ..., alias="grid", metadata={"units": "-", "category": "Model", "group": "Grid"}
     )
     initial: InitialConditions = Field(
-        ..., alias="initial", metadata={"units": "-", "category": "Model", "group": "Initial"}
+        ...,
+        alias="initial",
+        metadata={"units": "-", "category": "Model", "group": "Initial"},
     )
     physics: PhysicsModels = Field(
-        ..., alias="physics", metadata={"units": "-", "category": "Model", "group": "Physics"}
+        ...,
+        alias="physics",
+        metadata={"units": "-", "category": "Model", "group": "Physics"},
     )
     radiation: RadiationSettings = Field(
         default_factory=RadiationSettings.with_defaults,
@@ -329,56 +346,90 @@ class DPFConfig(BaseModel):
         metadata={"units": "-", "category": "Model", "group": "Radiation"},
     )
     circuit: CircuitConfig = Field(
-        ..., alias="circuit", metadata={"units": "-", "category": "Model", "group": "Circuit"}
+        ...,
+        alias="circuit",
+        metadata={"units": "-", "category": "Model", "group": "Circuit"},
     )
     amrex: AmrexSettings = Field(
-        ..., alias="amrex", metadata={"units": "-", "category": "Model", "group": "AMReX"}
+        ...,
+        alias="amrex",
+        metadata={"units": "-", "category": "Model", "group": "AMReX"},
     )
     warpx: WarpXSettings = Field(
-        ..., alias="warpx", metadata={"units": "-", "category": "Model", "group": "WarpX"}
+        ...,
+        alias="warpx",
+        metadata={"units": "-", "category": "Model", "group": "WarpX"},
     )
     diagnostics: Diagnostics = Field(
-        ..., alias="diagnostics", metadata={"units": "-", "category": "Model", "group": "Diagnostics"}
+        ...,
+        alias="diagnostics",
+        metadata={"units": "-", "category": "Model", "group": "Diagnostics"},
     )
     variability: ExperimentalVariabilityModel = Field(
-        ..., alias="variability", metadata={"units": "-", "category": "Model", "group": "Variability"}
+        ...,
+        alias="variability",
+        metadata={"units": "-", "category": "Model", "group": "Variability"},
     )
     benchmark: BenchmarkMatching = Field(
-        ..., alias="benchmark", metadata={"units": "-", "category": "Model", "group": "Benchmark"}
+        ...,
+        alias="benchmark",
+        metadata={"units": "-", "category": "Model", "group": "Benchmark"},
     )
     boundary: BoundaryConditions = Field(
-        ..., alias="boundary", metadata={"units": "-", "category": "Model", "group": "Boundary"}
+        ...,
+        alias="boundary",
+        metadata={"units": "-", "category": "Model", "group": "Boundary"},
     )
     parallel: ParallelSettings = Field(
-        ..., alias="parallel", metadata={"units": "-", "category": "Model", "group": "Parallel"}
+        ...,
+        alias="parallel",
+        metadata={"units": "-", "category": "Model", "group": "Parallel"},
     )
     metadata: Metadata = Field(
-        ..., alias="metadata", metadata={"units": "-", "category": "Model", "group": "Metadata"}
+        ...,
+        alias="metadata",
+        metadata={"units": "-", "category": "Model", "group": "Metadata"},
     )
     advanced: AdvancedOptions = Field(
-        ..., alias="advanced", metadata={"units": "-", "category": "Model", "group": "Advanced"}
+        ...,
+        alias="advanced",
+        metadata={"units": "-", "category": "Model", "group": "Advanced"},
     )
     units: UnitsSettings = Field(
-        ..., alias="units", metadata={"units": "-", "category": "Model", "group": "Units"}
+        ...,
+        alias="units",
+        metadata={"units": "-", "category": "Model", "group": "Units"},
     )
 
     run_uuid: str = Field(
-        ..., alias="runUuid", metadata={"units": "-", "category": "Audit", "group": "Global"}
+        ...,
+        alias="runUuid",
+        metadata={"units": "-", "category": "Audit", "group": "Global"},
     )
     schema_version: str = Field(
-        ..., alias="schemaVersion", metadata={"units": "-", "category": "Audit", "group": "Global"}
+        ...,
+        alias="schemaVersion",
+        metadata={"units": "-", "category": "Audit", "group": "Global"},
     )
     created_at: datetime = Field(
-        ..., alias="createdAt", metadata={"units": "datetime", "category": "Audit", "group": "Global"}
+        ...,
+        alias="createdAt",
+        metadata={"units": "datetime", "category": "Audit", "group": "Global"},
     )
     config_hash: Optional[str] = Field(
-        default=None, alias="configHash", metadata={"units": "-", "category": "Audit", "group": "Global"}
+        default=None,
+        alias="configHash",
+        metadata={"units": "-", "category": "Audit", "group": "Global"},
     )
     restart_hash: Optional[str] = Field(
-        default=None, alias="restartHash", metadata={"units": "-", "category": "Audit", "group": "Global"}
+        default=None,
+        alias="restartHash",
+        metadata={"units": "-", "category": "Audit", "group": "Global"},
     )
     run_lineage: Optional[List[str]] = Field(
-        default=None, alias="runLineage", metadata={"units": "-", "category": "Audit", "group": "Global"}
+        default=None,
+        alias="runLineage",
+        metadata={"units": "-", "category": "Audit", "group": "Global"},
     )
 
     on_validation_error: ValidationPolicy = Field(
@@ -425,7 +476,9 @@ class DPFConfig(BaseModel):
         return cls(
             simulation=sim,
             grid=GridResolution.with_defaults(
-                sim.geometry.value if isinstance(sim.geometry, GeometryType) else sim.geometry
+                sim.geometry.value
+                if isinstance(sim.geometry, GeometryType)
+                else sim.geometry
             ),
             initial=InitialConditions.with_defaults(),
             physics=PhysicsModels.with_defaults(),
@@ -433,7 +486,9 @@ class DPFConfig(BaseModel):
             circuit=CircuitConfig.with_defaults(),
             amrex=AmrexSettings.with_defaults(),
             warpx=WarpXSettings.with_defaults(
-                sim.geometry.value if isinstance(sim.geometry, GeometryType) else sim.geometry
+                sim.geometry.value
+                if isinstance(sim.geometry, GeometryType)
+                else sim.geometry
             ),
             diagnostics=Diagnostics.with_defaults(),
             variability=ExperimentalVariabilityModel.with_defaults(),
@@ -457,19 +512,25 @@ class DPFConfig(BaseModel):
             raise FileNotFoundError(path)
         if p.suffix in {".yaml", ".yml"}:
             import yaml
+
             data = yaml.safe_load(p.read_text())
         else:
             import json
+
             data = json.loads(p.read_text())
         return cls.model_validate(data)
 
-    def to_file(self, path: Union[str, Path], format: Union[str, None] = "json") -> None:
+    def to_file(
+        self, path: Union[str, Path], format: Union[str, None] = "json"
+    ) -> None:
         p = Path(path)
         if format == "yaml":
             import yaml
+
             p.write_text(yaml.safe_dump(self.model_dump(by_alias=True)))
         else:
             import json
+
             p.write_text(json.dumps(self.model_dump(by_alias=True), indent=2))
 
     def override(self, key_path: str, value: Any) -> Self:
@@ -497,21 +558,27 @@ class DPFConfig(BaseModel):
         p = Path(path)
         if format == "yaml":
             import yaml
+
             p.write_text(yaml.safe_dump(self.model_json_schema()))
         else:
             import json
+
             p.write_text(json.dumps(self.model_json_schema(), indent=2))
 
     def normalize_units(self, base_units: UnitsSystem) -> None:
         scale = UNIT_SCALE_MAP.get(base_units, 1.0)
-        if hasattr(self.simulation, "time_start") and hasattr(self.simulation, "time_end"):
+        if hasattr(self.simulation, "time_start") and hasattr(
+            self.simulation, "time_end"
+        ):
             start = getattr(self.simulation, "time_start")
             end = getattr(self.simulation, "time_end")
             if isinstance(start, (int, float)) and isinstance(end, (int, float)):
-                self.simulation = self.simulation.model_copy(update={
-                    "time_start": start * scale,
-                    "time_end": end * scale,
-                })
+                self.simulation = self.simulation.model_copy(
+                    update={
+                        "time_start": start * scale,
+                        "time_end": end * scale,
+                    }
+                )
 
     def summarize(self) -> str:
         return (
@@ -530,7 +597,9 @@ class DPFConfig(BaseModel):
         return self.model_validate(data)
 
     def required_fields(self) -> List[str]:
-        return [name for name, field in self.model_fields.items() if field.is_required()]
+        return [
+            name for name, field in self.model_fields.items() if field.is_required()
+        ]
 
     def get_field_metadata(self) -> Dict[str, Dict[str, Any]]:
         return {
@@ -557,8 +626,11 @@ class DPFConfig(BaseModel):
                 raise ValueError("neutron diagnostics require D2 or DT gas")
         if getattr(values.circuit, "switching_model", "") == "multi-bank":
             if getattr(values.circuit, "switch_feedback_delay_ns", None) is None:
-                raise ValueError("switch_feedback_delay_ns is required for multi-bank model")
+                raise ValueError(
+                    "switch_feedback_delay_ns is required for multi-bank model"
+                )
         return values
+
 
 # Attempt to resolve forward references now that section models may be available
 try:  # pragma: no cover - optional import for forward refs
@@ -577,6 +649,7 @@ try:  # pragma: no cover - optional import for forward refs
     from .metadata import Metadata  # type: ignore
     from .advanced_options import AdvancedOptions  # type: ignore
     from .units_settings import UnitsSettings  # type: ignore
+
     DPFConfig.model_rebuild()
 except Exception:  # pragma: no cover - missing optional deps
     logger.debug("DPFConfig forward reference resolution skipped", exc_info=True)

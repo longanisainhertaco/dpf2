@@ -1,4 +1,5 @@
 """Sampling schemes for uncertainty quantification."""
+
 from __future__ import annotations
 
 from typing import Dict, Tuple
@@ -14,7 +15,9 @@ except Exception:  # pragma: no cover - fallback when SciPy not installed
 Bounds = Dict[str, Tuple[float, float]]
 
 
-def latin_hypercube(bounds: Bounds, n_samples: int, seed: int | None = None) -> np.ndarray:
+def latin_hypercube(
+    bounds: Bounds, n_samples: int, seed: int | None = None
+) -> np.ndarray:
     """Generate samples using Latin hypercube sampling.
 
     Parameters

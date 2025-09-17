@@ -38,5 +38,3 @@ def test_hybrid_solver_coupling_and_diagnostics():
     assert feedback.current == 10.0
     assert solver.last_voltage_spike >= 0.0
     assert solver.last_beam_current == 2.0
-
-

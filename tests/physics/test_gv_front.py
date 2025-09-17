@@ -8,8 +8,8 @@ def test_gv_front_shape():
     gv = GVFront(anode_radius=0.05, velocity=2e4)
     z = np.linspace(0, gv.anode_radius, 5)
     r = gv.radius(z)
-    expected = np.array([gv.anode_radius ** 2] * len(z))
-    assert np.allclose(r ** 2 + z ** 2, expected)
+    expected = np.array([gv.anode_radius**2] * len(z))
+    assert np.allclose(r**2 + z**2, expected)
 
 
 def test_gv_front_arrival_time():

@@ -7,8 +7,15 @@ License: GPLv3+
 
 from picongpu.pypicongpu.species.constant.ionizationmodel import IonizationModelGroups
 
-from picongpu.pypicongpu.species.constant.ionizationmodel import BSI, BSIEffectiveZ, BSIStarkShifted
-from picongpu.pypicongpu.species.constant.ionizationmodel import ADKLinearPolarization, ADKCircularPolarization
+from picongpu.pypicongpu.species.constant.ionizationmodel import (
+    BSI,
+    BSIEffectiveZ,
+    BSIStarkShifted,
+)
+from picongpu.pypicongpu.species.constant.ionizationmodel import (
+    ADKLinearPolarization,
+    ADKCircularPolarization,
+)
 from picongpu.pypicongpu.species.constant.ionizationmodel import Keldysh, ThomasFermi
 
 import unittest
@@ -45,15 +52,19 @@ class Test_IonizationModelGroups(unittest.TestCase):
 
     def test_get_by_group(self):
         """by_group is correctly returned"""
-        self.assertEqual(IonizationModelGroups().get_by_group(), self.expected_groups_standard)
         self.assertEqual(
-            IonizationModelGroups(by_group=self.expected_groups_custom).get_by_group(), self.expected_groups_custom
+            IonizationModelGroups().get_by_group(), self.expected_groups_standard
+        )
+        self.assertEqual(
+            IonizationModelGroups(by_group=self.expected_groups_custom).get_by_group(),
+            self.expected_groups_custom,
         )
 
     def test_get_by_model(self):
         """by_group is correctly converted to by_model"""
         self.assertEqual(
-            IonizationModelGroups(by_group=self.expected_groups_custom).get_by_model(), self.expected_by_model_custom
+            IonizationModelGroups(by_group=self.expected_groups_custom).get_by_model(),
+            self.expected_by_model_custom,
         )
 
     def _switch_groups(self, result, one, two):
@@ -73,7 +84,9 @@ class Test_IonizationModelGroups(unittest.TestCase):
 
     def test_get_by_group_returns_copy(self):
         """get_by_group() return copies only"""
-        ionization_model_group = IonizationModelGroups(by_group=self.expected_groups_custom)
+        ionization_model_group = IonizationModelGroups(
+            by_group=self.expected_groups_custom
+        )
 
         # get result
         result = ionization_model_group.get_by_group()
@@ -89,7 +102,9 @@ class Test_IonizationModelGroups(unittest.TestCase):
 
     def test_get_by_model_returns_copy(self):
         """get_by_model returns copies only"""
-        ionization_model_group = IonizationModelGroups(by_group=self.expected_groups_custom)
+        ionization_model_group = IonizationModelGroups(
+            by_group=self.expected_groups_custom
+        )
 
         # get result
         result = ionization_model_group.get_by_model()

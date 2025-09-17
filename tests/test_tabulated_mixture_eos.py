@@ -11,12 +11,16 @@ root = Path(__file__).resolve().parents[1] / "src"
 pkg = types.ModuleType("dpf2")
 pkg.__path__ = [str(root / "dpf2")]
 sys.modules.setdefault("dpf2", pkg)
+
+
 class _StubSimTabulated:
     def __init__(self, filename, mixture_fractions=None):
         import numpy as np, h5py
+
         def load(path):
             with h5py.File(path, "r") as f:
                 return f["rho"][:], f["T"][:], f["p"][:], f["e"][:]
+
         if mixture_fractions:
             if isinstance(filename, (str, Path)):
                 base = Path(filename)
@@ -41,9 +45,12 @@ class _StubSimTabulated:
         self.p_interp = lambda pts: np.full(len(pts), self.p_val)
         self.e_interp = lambda pts: np.full(len(pts), self.e_val)
 
+
 sys.modules.setdefault("dpf2.simulation.eos", types.ModuleType("dpf2.simulation.eos"))
 sys.modules["dpf2.simulation.eos"].TabulatedEOS = _StubSimTabulated
-spec = importlib.util.spec_from_file_location("dpf2.eos", root / "dpf2" / "eos" / "__init__.py")
+spec = importlib.util.spec_from_file_location(
+    "dpf2.eos", root / "dpf2" / "eos" / "__init__.py"
+)
 eos_mod = importlib.util.module_from_spec(spec)
 sys.modules["dpf2.eos"] = eos_mod
 spec.loader.exec_module(eos_mod)  # type: ignore[attr-defined]
@@ -51,7 +58,9 @@ spec.loader.exec_module(eos_mod)  # type: ignore[attr-defined]
 TabulatedEOS = eos_mod.TabulatedEOS
 
 
-def _create_species_file(tmp_path: Path, species: str, p_val: float, e_val: float) -> Path:
+def _create_species_file(
+    tmp_path: Path, species: str, p_val: float, e_val: float
+) -> Path:
     """Create a simple EOS table for a single species."""
 
     path = tmp_path / f"{species}.h5"
@@ -79,12 +88,12 @@ def test_mixed_eos_weighted_combination(tmp_path):
     rho = np.array([1.0])
     T_val = np.array([10.0])
 
-    expected_p = fractions["A"] * eos_a.pressure(rho, T_val) + fractions["B"] * eos_b.pressure(
-        rho, T_val
-    )
-    expected_e = fractions["A"] * eos_a.energy(rho, T_val) + fractions["B"] * eos_b.energy(
-        rho, T_val
-    )
+    expected_p = fractions["A"] * eos_a.pressure(rho, T_val) + fractions[
+        "B"
+    ] * eos_b.pressure(rho, T_val)
+    expected_e = fractions["A"] * eos_a.energy(rho, T_val) + fractions[
+        "B"
+    ] * eos_b.energy(rho, T_val)
 
     np.testing.assert_allclose(mix_eos.pressure(rho, T_val), expected_p)
     np.testing.assert_allclose(mix_eos.energy(rho, T_val), expected_e)
@@ -139,4 +148,3 @@ def test_mixed_eos_negative_fraction(tmp_path):
             filename={"A": str(path_a), "B": str(path_b)},
             mixture_fractions={"A": -0.1, "B": 1.1},
         )
-

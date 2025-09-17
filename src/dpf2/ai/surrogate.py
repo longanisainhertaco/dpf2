@@ -53,6 +53,7 @@ class SurrogateModel(ABC):
                 elif cov is not None:
                     try:
                         import numpy as _np  # type: ignore
+
                         inv = _np.linalg.inv(_np.asarray(cov)).tolist()
                     except Exception:
                         if (
@@ -83,7 +84,10 @@ class SurrogateModel(ABC):
 
     def predict_with_guardrails(
         self, inputs: Any
-    ) -> tuple[float, tuple[float, float], float] | list[tuple[float, tuple[float, float], float]]:
+    ) -> (
+        tuple[float, tuple[float, float], float]
+        | list[tuple[float, tuple[float, float], float]]
+    ):
         """Return prediction, uncertainty band and OOD distance for ``inputs``."""
 
         if isinstance(inputs, (list, tuple)):
@@ -174,7 +178,9 @@ class SurrogateModel(ABC):
             pickle.dump(self, fh)
 
     @classmethod
-    def load(cls, model_path: str | Path, *args: Any, **kwargs: Any) -> "SurrogateModel":
+    def load(
+        cls, model_path: str | Path, *args: Any, **kwargs: Any
+    ) -> "SurrogateModel":
         """Load a serialized model from ``model_path``."""
 
         return cls._load(Path(model_path), *args, **kwargs)
@@ -269,7 +275,9 @@ class ONNXSurrogateModel(SurrogateModel):
         return outputs[0]
 
     # ------------------------------------------------------------------
-    def _train(self, *args: Any, **kwargs: Any) -> dict[str, float]:  # pragma: no cover - thin wrapper
+    def _train(
+        self, *args: Any, **kwargs: Any
+    ) -> dict[str, float]:  # pragma: no cover - thin wrapper
         """ONNX models are inference-only and cannot be trained."""
 
         raise NotImplementedError("ONNX models do not support in-place training")

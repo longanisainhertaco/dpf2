@@ -16,6 +16,7 @@ import h5py
 
 class _DummyAxes:
     transAxes = object()
+
     def plot(self, *args, **kwargs):
         return None
 
@@ -62,6 +63,7 @@ sys.modules["matplotlib.pyplot"] = dummy_pyplot
 
 
 import importlib
+
 cli_main = importlib.import_module("dpf2.cli.main")
 main = cli_main.main
 

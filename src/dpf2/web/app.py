@@ -1,4 +1,5 @@
 """Minimal Flask application for running DPF simulations."""
+
 from __future__ import annotations
 
 import base64
@@ -71,10 +72,17 @@ DIAG_HTML = """
 """
 
 
-def _update_config_from_form(cfg: DPFConfig, form: dict, presets: dict[str, object]) -> DPFConfig:
+def _update_config_from_form(
+    cfg: DPFConfig, form: dict, presets: dict[str, object]
+) -> DPFConfig:
     """Populate a :class:`DPFConfig` instance from form fields."""
 
-    for field in ["charging_voltage", "anode_radius", "cathode_radius", "electrode_length"]:
+    for field in [
+        "charging_voltage",
+        "anode_radius",
+        "cathode_radius",
+        "electrode_length",
+    ]:
         if form.get(field):
             setattr(cfg, field, float(form[field]))
 
@@ -116,25 +124,40 @@ def create_app() -> Flask:
                     Path(output).mkdir(parents=True, exist_ok=True)
                     cfg.to_file(Path(output) / "config.json")
                     msg = f"Exported configuration to {output}/config.json"
-                    return render_template_string(INDEX_HTML + f"<p>{msg}</p>", cfg=cfg, presets=presets.keys(), output=output)
+                    return render_template_string(
+                        INDEX_HTML + f"<p>{msg}</p>",
+                        cfg=cfg,
+                        presets=presets.keys(),
+                        output=output,
+                    )
                 if action == "sweep":
                     param = request.form.get("sweep_param")
                     values = request.form.get("sweep_values", "")
                     if param and values:
                         vals = list(_parse_sweep_values(values))
-                        results = run_parametric_sweep(cfg, param, vals, output_dir=output)
+                        results = run_parametric_sweep(
+                            cfg, param, vals, output_dir=output
+                        )
                         metrics = compute_sweep_metrics(cfg, results, param)
-                        plot_metric_overlay(param, metrics, Path(output) / "sweep_metrics.png")
+                        plot_metric_overlay(
+                            param, metrics, Path(output) / "sweep_metrics.png"
+                        )
                 elif action == "sweep_metrics":
                     param = request.form.get("sweep_param")
                     values = request.form.get("sweep_values", "")
                     if param and values:
                         vals = list(_parse_sweep_values(values))
-                        results = run_parametric_sweep(cfg, param, vals, output_dir=output)
+                        results = run_parametric_sweep(
+                            cfg, param, vals, output_dir=output
+                        )
                         metrics = compute_sweep_metrics(cfg, results, param)
-                        plot_metric_overlay(param, metrics, Path(output) / "sweep_metrics.png")
+                        plot_metric_overlay(
+                            param, metrics, Path(output) / "sweep_metrics.png"
+                        )
                         if "pressure" in param:
-                            plot_yield_pressure_overlay({"sweep": metrics}, Path(output) / "yield_pressure.png")
+                            plot_yield_pressure_overlay(
+                                {"sweep": metrics}, Path(output) / "yield_pressure.png"
+                            )
                 else:
                     sim = DPFSimulation(cfg)
                     t, i, v = sim.run(output_dir=output)
@@ -145,17 +168,30 @@ def create_app() -> Flask:
                     scale = float(max(i)) if i else 0.0
                     U = -Y * scale
                     V = X * scale
-                    plot_vector_field_overlay(X, Y, U, V, Path(output) / "vector_field.png")
+                    plot_vector_field_overlay(
+                        X, Y, U, V, Path(output) / "vector_field.png"
+                    )
                     try:
                         S = shock_parameter(i, cfg.anode_radius, cfg.initial_pressure)
                         plot_shock_parameter(t, S, Path(output) / "shock_trend.png")
                     except Exception:
                         pass
                 return redirect(url_for("diagnostics", output=output))
-            except (ConfigurationError, SimulationRuntimeError, Exception) as exc:  # pragma: no cover - UI path
-                return render_template_string(INDEX_HTML + f"<p>Error: {exc}</p>", cfg=cfg, presets=presets.keys(), output=output)
+            except (
+                ConfigurationError,
+                SimulationRuntimeError,
+                Exception,
+            ) as exc:  # pragma: no cover - UI path
+                return render_template_string(
+                    INDEX_HTML + f"<p>Error: {exc}</p>",
+                    cfg=cfg,
+                    presets=presets.keys(),
+                    output=output,
+                )
 
-        return render_template_string(INDEX_HTML, cfg=cfg, presets=presets.keys(), output=output)
+        return render_template_string(
+            INDEX_HTML, cfg=cfg, presets=presets.keys(), output=output
+        )
 
     @app.route("/diagnostics")
     def diagnostics():
@@ -167,27 +203,39 @@ def create_app() -> Flask:
         plot = None
         plot_path = Path(output) / "sweep_plot.png"
         if plot_path.exists():
-            plot = "data:image/png;base64," + base64.b64encode(plot_path.read_bytes()).decode("ascii")
+            plot = "data:image/png;base64," + base64.b64encode(
+                plot_path.read_bytes()
+            ).decode("ascii")
         metrics_plot = None
         metrics_path = Path(output) / "sweep_metrics.png"
         if metrics_path.exists():
-            metrics_plot = "data:image/png;base64," + base64.b64encode(metrics_path.read_bytes()).decode("ascii")
+            metrics_plot = "data:image/png;base64," + base64.b64encode(
+                metrics_path.read_bytes()
+            ).decode("ascii")
         shock_plot = None
         shock_path = Path(output) / "shock_trend.png"
         if shock_path.exists():
-            shock_plot = "data:image/png;base64," + base64.b64encode(shock_path.read_bytes()).decode("ascii")
+            shock_plot = "data:image/png;base64," + base64.b64encode(
+                shock_path.read_bytes()
+            ).decode("ascii")
         yield_pressure_plot = None
         yp_path = Path(output) / "yield_pressure.png"
         if yp_path.exists():
-            yield_pressure_plot = "data:image/png;base64," + base64.b64encode(yp_path.read_bytes()).decode("ascii")
+            yield_pressure_plot = "data:image/png;base64," + base64.b64encode(
+                yp_path.read_bytes()
+            ).decode("ascii")
         current_plot = None
         cv_path = Path(output) / "current_voltage.png"
         if cv_path.exists():
-            current_plot = "data:image/png;base64," + base64.b64encode(cv_path.read_bytes()).decode("ascii")
+            current_plot = "data:image/png;base64," + base64.b64encode(
+                cv_path.read_bytes()
+            ).decode("ascii")
         vector_plot = None
         vf_path = Path(output) / "vector_field.png"
         if vf_path.exists():
-            vector_plot = "data:image/png;base64," + base64.b64encode(vf_path.read_bytes()).decode("ascii")
+            vector_plot = "data:image/png;base64," + base64.b64encode(
+                vf_path.read_bytes()
+            ).decode("ascii")
         channel_fractions = None
         cf_path = Path(output) / "channel_fractions.json"
         if cf_path.exists():

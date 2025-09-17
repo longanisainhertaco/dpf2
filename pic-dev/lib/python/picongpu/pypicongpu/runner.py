@@ -22,7 +22,9 @@ import datetime
 import pathlib
 import json
 
-DEFAULT_TEMPLATE_DIRECTORY = (Path(__file__).parents[4] / "share" / "picongpu" / "pypicongpu" / "template").absolute()
+DEFAULT_TEMPLATE_DIRECTORY = (
+    Path(__file__).parents[4] / "share" / "picongpu" / "pypicongpu" / "template"
+).absolute()
 
 
 def runArgs(name, args):
@@ -33,8 +35,14 @@ def runArgs(name, args):
     logging.info("{} done, returned {}".format(name, proc.returncode))
 
     if 0 != proc.returncode:
-        logging.error(">>>>>>> Command failed (output below): {}\n{}".format(" ".join(proc.args), proc.stdout.decode()))
-        logging.error(">>>>>>> Command failed (output above): {}".format(" ".join(proc.args)))
+        logging.error(
+            ">>>>>>> Command failed (output below): {}\n{}".format(
+                " ".join(proc.args), proc.stdout.decode()
+            )
+        )
+        logging.error(
+            ">>>>>>> Command failed (output above): {}".format(" ".join(proc.args))
+        )
         raise RuntimeError("subprocess failed")
 
 
@@ -46,7 +54,9 @@ def get_tmpdir_with_name(name, parent: str = None):
     :param parent: if given: create the tmpdir there
     :return: not existing path to directory
     """
-    assert re.match("^[0-9a-zA-Z._-]*$", name), "generated dir name may only contain a-zA-Z0-9._-"
+    assert re.match(
+        "^[0-9a-zA-Z._-]*$", name
+    ), "generated dir name may only contain a-zA-Z0-9._-"
 
     # Note: Do *not* use isotime here,
     # the colon (:) seems to screw with pic-build.
@@ -58,10 +68,14 @@ def get_tmpdir_with_name(name, parent: str = None):
     # immediately goes out of scope and deletes the dir again
     # -> we are left with purely a name
     dir_name = None
-    with tempfile.TemporaryDirectory(prefix="pypicongpu-{}-{}-".format(prefix, name), dir=parent) as tmpdir:
+    with tempfile.TemporaryDirectory(
+        prefix="pypicongpu-{}-{}-".format(prefix, name), dir=parent
+    ) as tmpdir:
         # dir now exists
         dir_name = tmpdir
-    assert not path.exists(dir_name), "freshly generated tmp dir name should not exist (anymore)"
+    assert not path.exists(
+        dir_name
+    ), "freshly generated tmp dir name should not exist (anymore)"
     return dir_name
 
 
@@ -195,12 +209,16 @@ class Runner:
             self.sim = sim.get_as_pypicongpu()
         else:
             raise typeguard.TypeCheckError(
-                "sim must be pypicongpu simulation or picmi simulation, got: {}".format(type(sim))
+                "sim must be pypicongpu simulation or picmi simulation, got: {}".format(
+                    type(sim)
+                )
             )
 
         # use helper to perform various checks
         # note that the order matters: run_dir depends on scratch_dir
-        self._pypicongpu_template_dir = pypicongpu_template_dir or (DEFAULT_TEMPLATE_DIRECTORY,)
+        self._pypicongpu_template_dir = pypicongpu_template_dir or (
+            DEFAULT_TEMPLATE_DIRECTORY,
+        )
         self.__helper_set_scratch_dir(scratch_dir)
         self.__helper_set_setup_dir(setup_dir)
         self.__helper_set_run_dir(run_dir)
@@ -209,13 +227,21 @@ class Runner:
         self.__log_dirs()
 
         # collision checks
-        assert self.scratch_dir != self.setup_dir, "scratch dir must not be equal to the setup dir"
-        assert self.setup_dir != self.run_dir, "setup dir must not be equal to the run dir"
-        assert self.run_dir != self.scratch_dir, "run dir must not be equal to the scratch dir"
+        assert (
+            self.scratch_dir != self.setup_dir
+        ), "scratch dir must not be equal to the setup dir"
+        assert (
+            self.setup_dir != self.run_dir
+        ), "setup dir must not be equal to the run dir"
+        assert (
+            self.run_dir != self.scratch_dir
+        ), "run dir must not be equal to the scratch dir"
 
     def __helper_set_setup_dir(self, setup_dir: typing.Optional[str]) -> None:
         """sets the setup dir according to description in __init__()"""
-        assert setup_dir is None or self.__valid_path_re.match(setup_dir), "setup dir contains invalid characters"
+        assert setup_dir is None or self.__valid_path_re.match(
+            setup_dir
+        ), "setup dir contains invalid characters"
         # setup dir (given or /tmp)
         if setup_dir is not None:
             self.setup_dir = path.abspath(setup_dir)
@@ -227,7 +253,9 @@ class Runner:
 
     def __helper_set_scratch_dir(self, scratch_dir: typing.Optional[str]) -> None:
         """sets the scratch dir according to description in __init__()"""
-        assert scratch_dir is None or self.__valid_path_re.match(scratch_dir), "scratch dir contains invalid characters"
+        assert scratch_dir is None or self.__valid_path_re.match(
+            scratch_dir
+        ), "scratch dir contains invalid characters"
         # scratch dir (given, or environment, else None)
         if scratch_dir is not None:
             self.scratch_dir = path.abspath(scratch_dir)
@@ -235,21 +263,29 @@ class Runner:
             # try to retrieve from environment var
             if self.SCRATCH_ENV_NAME in environ:
                 logging.info(
-                    "loading scratch directory (implicitly) from environment var ${}".format(self.SCRATCH_ENV_NAME)
+                    "loading scratch directory (implicitly) from environment var ${}".format(
+                        self.SCRATCH_ENV_NAME
+                    )
                 )
                 self.scratch_dir = path.abspath(environ[self.SCRATCH_ENV_NAME])
             else:
                 self.scratch_dir = None
 
-        if self.scratch_dir is not None and self.scratch_dir.startswith(str(pathlib.Path.home())):
+        if self.scratch_dir is not None and self.scratch_dir.startswith(
+            str(pathlib.Path.home())
+        ):
             logging.warning(
                 "You specified your scratch directory to be inside your $HOME. THIS IS NOT ACCEPTABLE ON HPC!"
             )
-        assert self.scratch_dir is None or path.isdir(self.scratch_dir), "scratch directory must exist"
+        assert self.scratch_dir is None or path.isdir(
+            self.scratch_dir
+        ), "scratch directory must exist"
 
     def __helper_set_run_dir(self, run_dir: typing.Optional[str]) -> None:
         """sets the run dir according to description in __init__()"""
-        assert run_dir is None or self.__valid_path_re.match(run_dir), "run dir contains invalid characters"
+        assert run_dir is None or self.__valid_path_re.match(
+            run_dir
+        ), "run dir contains invalid characters"
         # run dir
         # (given or placed in scratch dir or put into /tmp with warning)
         if run_dir is not None:
@@ -319,7 +355,11 @@ class Runner:
         runArgs(
             "PIConGPU",
             (
-                ("tbg -s bash -c etc/picongpu/N.cfg -t " + environ["PIC_SYSTEM_TEMPLATE_PATH"] + "/mpiexec.tpl").split()
+                (
+                    "tbg -s bash -c etc/picongpu/N.cfg -t "
+                    + environ["PIC_SYSTEM_TEMPLATE_PATH"]
+                    + "/mpiexec.tpl"
+                ).split()
                 + [self.run_dir]
             ),
         )
@@ -332,9 +372,9 @@ class Runner:
         if printDirToConsole:
             print(" [" + str(self.setup_dir) + "]")
 
-        assert not path.isdir(self.setup_dir), (
-            "setup directory must not exist before generation -- did you call generate() already?"
-        )
+        assert not path.isdir(
+            self.setup_dir
+        ), "setup directory must not exist before generation -- did you call generate() already?"
         self.__copy_template()
         self.__render_templates()
 
@@ -342,22 +382,24 @@ class Runner:
         """
         build (compile) picongpu-compatible input files
         """
-        assert path.isdir(self.setup_dir), (
-            "setup directory must exist (and contain generated files) -- did you call generate()?"
-        )
-        assert not path.isdir(path.join(self.setup_dir, ".build")), (
-            "build dir (.build in setup dir) must not exist -- did you call build() already?"
-        )
+        assert path.isdir(
+            self.setup_dir
+        ), "setup directory must exist (and contain generated files) -- did you call generate()?"
+        assert not path.isdir(
+            path.join(self.setup_dir, ".build")
+        ), "build dir (.build in setup dir) must not exist -- did you call build() already?"
         self.__build()
 
     def run(self):
         """
         run compiled picongpu simulation
         """
-        assert path.isdir(path.join(self.setup_dir, ".build")), (
-            "build dir (.build in setup dir) must exist -- did you call build()?"
-        )
-        assert not path.isdir(self.run_dir), "run dir must not exist yet -- did you call run() already?"
+        assert path.isdir(
+            path.join(self.setup_dir, ".build")
+        ), "build dir (.build in setup dir) must exist -- did you call build()?"
+        assert not path.isdir(
+            self.run_dir
+        ), "run dir must not exist yet -- did you call run() already?"
 
         if self.run_dir.startswith(path.abspath(tempfile.gettempdir())):
             logging.warning(

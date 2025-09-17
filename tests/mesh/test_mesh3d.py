@@ -53,9 +53,7 @@ def test_periodic_boundary_application():
     mesh = Mesh3D(0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 2, 1, 1)
     g = 1
     field = [
-        [
-            [0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)
-        ]
+        [[0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)]
         for _ in range(mesh.nx + 2 * g)
     ]
     field[g][g][g] = 1.0

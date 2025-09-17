@@ -126,6 +126,7 @@ class RegimePanel:
 
         try:  # pragma: no cover - matplotlib optional
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
         except Exception:  # pragma: no cover - gracefully handle missing dep
@@ -157,4 +158,3 @@ class RegimePanel:
         fig.savefig(p)
         plt.close(fig)
         return p
-

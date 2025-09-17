@@ -1,4 +1,5 @@
 """Example script to run a DPF simulation and plot the results."""
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt

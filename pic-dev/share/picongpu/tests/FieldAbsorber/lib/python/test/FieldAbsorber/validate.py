@@ -85,9 +85,15 @@ def main(dataPath):
         # Load test data #
         ##################
 
-        Efield["x"].load_chunk(Ex[i : i + 1], offset=(z_meas, y_meas, x_meas), extent=(1, 1, 1))
-        Efield["y"].load_chunk(Ey[i : i + 1], offset=[z_meas, y_meas, x_meas], extent=[1, 1, 1])
-        Efield["z"].load_chunk(Ez[i : i + 1], offset=[z_meas, y_meas, x_meas], extent=[1, 1, 1])
+        Efield["x"].load_chunk(
+            Ex[i : i + 1], offset=(z_meas, y_meas, x_meas), extent=(1, 1, 1)
+        )
+        Efield["y"].load_chunk(
+            Ey[i : i + 1], offset=[z_meas, y_meas, x_meas], extent=[1, 1, 1]
+        )
+        Efield["z"].load_chunk(
+            Ez[i : i + 1], offset=[z_meas, y_meas, x_meas], extent=[1, 1, 1]
+        )
 
         # spare the series.flush() since the iteration is closed immediately
 

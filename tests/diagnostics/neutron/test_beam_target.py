@@ -37,4 +37,3 @@ def test_tof_hook():
         edf, lambda e: 1.0, angles, distance, time_bins, tof_hook=hook
     )
     assert hist == [[1.5, 0.0]]
-

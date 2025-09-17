@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 
 # Stub out heavy dependencies before importing HybridController
-sys.modules.setdefault("fluid_solver_high_order", types.SimpleNamespace(FluidSolverHighOrder=object))
+sys.modules.setdefault(
+    "fluid_solver_high_order", types.SimpleNamespace(FluidSolverHighOrder=object)
+)
 sys.modules.setdefault("warpx_wrapper", types.SimpleNamespace(WarpXWrapper=object))
 sys.modules.setdefault("radiation_model", types.SimpleNamespace(RadiationModel=object))
 sys.modules.setdefault("collision_model", types.SimpleNamespace(CollisionModel=object))
@@ -17,10 +19,15 @@ class _SheathConfig:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
+
 class _HybridConfig:
     """Placeholder for HybridConfig used in tests."""
 
-sys.modules.setdefault("config_schema", types.SimpleNamespace(SheathConfig=_SheathConfig, HybridConfig=_HybridConfig))
+
+sys.modules.setdefault(
+    "config_schema",
+    types.SimpleNamespace(SheathConfig=_SheathConfig, HybridConfig=_HybridConfig),
+)
 
 from dpf2.simulation.sheath_model import PlasmaSheathFormation
 from dpf2.simulation.utils import FieldManager, SimulationState
@@ -96,7 +103,9 @@ def test_sheath_model_updates_e_field():
 def test_hybrid_controller_applies_sheath_bc():
     state, sheath, fm = make_state_and_sheath()
     config = SimpleNamespace(
-        criteria=SimpleNamespace(grad_thr=1.0, knud_thr=1.0, hall_thr=1.0, non_max_fac=1.0),
+        criteria=SimpleNamespace(
+            grad_thr=1.0, knud_thr=1.0, hall_thr=1.0, non_max_fac=1.0
+        ),
         coupling=SimpleNamespace(
             buffer_cells=1,
             filter_sigma=1.0,

@@ -76,7 +76,9 @@ def getInputparameter(parameter: dict) -> dict:
         return None
 
 
-def _output(direction, theory, simulation, max_diff, perc, acc_range, result, parameter):
+def _output(
+    direction, theory, simulation, max_diff, perc, acc_range, result, parameter
+):
     """
     generates the output. For this purpose, the plot is created
     first and then the log file is written

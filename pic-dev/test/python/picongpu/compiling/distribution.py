@@ -23,7 +23,9 @@ class TestDistribution(unittest.TestCase):
             upper_boundary_conditions=["open", "open", "periodic"],
         )
         solver = picmi.ElectromagneticSolver(method="Yee", grid=grid)
-        sim = picmi.Simulation(time_step_size=1.39e-16, max_steps=int(2048), solver=solver)
+        sim = picmi.Simulation(
+            time_step_size=1.39e-16, max_steps=int(2048), solver=solver
+        )
 
         self.grid = grid
         self.solver = solver
@@ -82,7 +84,9 @@ class TestDistribution(unittest.TestCase):
 
     def test_foil_nothing(self):
         # with no pre- or post-plasma
-        foil_dist = picmi.FoilDistribution(density=8.0e24, front=2.0e-5, thickness=1.0e-5)
+        foil_dist = picmi.FoilDistribution(
+            density=8.0e24, front=2.0e-5, thickness=1.0e-5
+        )
         self._compile_distribution(foil_dist)
 
     def test_gaussian(self):
@@ -102,9 +106,13 @@ class TestDistribution(unittest.TestCase):
     #   removed for now, see issue #4367 for the test cases
 
     def test_temperature(self):
-        uniform_dist = picmi.UniformDistribution(density=8e24, rms_velocity=[1e7, 1e7, 1e7])
+        uniform_dist = picmi.UniformDistribution(
+            density=8e24, rms_velocity=[1e7, 1e7, 1e7]
+        )
         self._compile_distribution(uniform_dist)
 
     def test_velocity(self):
-        uniform_dist = picmi.UniformDistribution(density=8e24, directed_velocity=[-5e6, 2.5e7, 0.55])
+        uniform_dist = picmi.UniformDistribution(
+            density=8e24, directed_velocity=[-5e6, 2.5e7, 0.55]
+        )
         self._compile_distribution(uniform_dist)

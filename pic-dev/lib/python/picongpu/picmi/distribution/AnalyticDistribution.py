@@ -127,7 +127,9 @@ class AnalyticDistribution:
         self.warned_about_lambdify_failure = False
 
     def get_as_pypicongpu(self, _) -> species.operation.densityprofile.DensityProfile:
-        return species.operation.densityprofile.FreeFormula(density_expression=self.density_expression)
+        return species.operation.densityprofile.FreeFormula(
+            density_expression=self.density_expression
+        )
 
     def picongpu_get_rms_velocity_si(self) -> typing.Tuple[float, float, float]:
         return self.rms_velocity
@@ -148,7 +150,9 @@ class AnalyticDistribution:
         try:
             # This produces faster code but the code generation is not perfect.
             # There are cases where the generated code can't handle broadcasting properly.
-            return sympy.lambdify(sympy.symbols("x,y,z"), self.density_expression, "numpy")(*args, **kwargs)
+            return sympy.lambdify(
+                sympy.symbols("x,y,z"), self.density_expression, "numpy"
+            )(*args, **kwargs)
         # We explicitly want this to be as broad as possible
         # because we have a second shot.
         # There should be no instances of this being dangerous during idiomatic use of this functionality.
@@ -161,7 +165,9 @@ class AnalyticDistribution:
                 )
                 logging.warning(message)
                 logging.warning(traceback.format_exc())
-                logging.warning("Continuing operation using a slower serialised version now.")
+                logging.warning(
+                    "Continuing operation using a slower serialised version now."
+                )
                 self.warned_about_lambdify_failure = True
         # This basically calls the original function in a big loop.
         # Slower but more reliable in some cases of difficult broadcasting.

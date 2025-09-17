@@ -13,6 +13,7 @@ spec.loader.exec_module(kinetics_mod)  # type: ignore[attr-defined]
 
 MultiSpeciesTransport = kinetics_mod.MultiSpeciesTransport
 
+
 def load_dataset():
     path = Path(__file__).resolve().parent / "data" / "transport_ablation.csv"
     diff = {}
@@ -23,6 +24,7 @@ def load_dataset():
             diff[row["species"]] = float(row["D"])
             abl[row["species"]] = float(row["ablation"])
     return diff, abl
+
 
 def test_diffusion_step():
     diff, _ = load_dataset()

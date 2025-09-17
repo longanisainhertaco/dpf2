@@ -14,6 +14,7 @@ Example
 This command generates three plots in ``results``: ``strong.png``,
 ``weak.png`` and ``hdf5_io.png``.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,6 +44,7 @@ except Exception:  # pragma: no cover
 # MPI kernels executed when ``--mode`` is supplied.  Each function returns the
 # elapsed time in seconds across all ranks (max reduction).
 # ---------------------------------------------------------------------------
+
 
 def _strong_kernel(size: int) -> float:
     arr = np.ones(size, dtype=np.float64)
@@ -80,6 +82,7 @@ def _io_bench(size: int, fname: Path) -> float:
 # Orchestrator invoked without ``--mode``.  Launches the script under MPI for
 # each process count, collects timing data and produces plots.
 # ---------------------------------------------------------------------------
+
 
 def _launch(mode: str, procs: int, size: int, outdir: Path) -> float:
     launcher = shutil.which("mpiexec") or shutil.which("mpirun")
@@ -134,7 +137,7 @@ def driver(max_procs: int, size: int, outdir: Path) -> None:
         io_times: List[float] = []
         for p in ranks:
             io_times.append(_launch("io", p, size, outdir))
-        bandwidth = [ (size * 8 * p) / t / 1e6 for p, t in zip(ranks, io_times) ]
+        bandwidth = [(size * 8 * p) / t / 1e6 for p, t in zip(ranks, io_times)]
         _plot(ranks, bandwidth, "Write bandwidth (MB/s)", outdir / "hdf5_io.png")
 
 
@@ -142,12 +145,21 @@ def driver(max_procs: int, size: int, outdir: Path) -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--max-procs", type=int, default=4, help="Maximum number of MPI ranks")
-    parser.add_argument("--size", type=int, default=1_000_000, help="Problem size for each kernel")
-    parser.add_argument("--outdir", type=Path, default=Path("scaling_results"), help="Output directory")
-    parser.add_argument("--mode", choices=["strong", "weak", "io"], help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--max-procs", type=int, default=4, help="Maximum number of MPI ranks"
+    )
+    parser.add_argument(
+        "--size", type=int, default=1_000_000, help="Problem size for each kernel"
+    )
+    parser.add_argument(
+        "--outdir", type=Path, default=Path("scaling_results"), help="Output directory"
+    )
+    parser.add_argument(
+        "--mode", choices=["strong", "weak", "io"], help=argparse.SUPPRESS
+    )
     parser.add_argument("--outfile", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -159,10 +171,14 @@ def main() -> None:
             t = func(args.size)
         else:
             if h5py is None:
-                raise RuntimeError("h5py built with MPI support is required for I/O benchmark")
+                raise RuntimeError(
+                    "h5py built with MPI support is required for I/O benchmark"
+                )
             t = _io_bench(args.size, args.outfile.with_suffix(".h5"))
         if MPI.COMM_WORLD.rank == 0:
-            args.outfile.write_text(json.dumps({"procs": MPI.COMM_WORLD.size, "time": t}))
+            args.outfile.write_text(
+                json.dumps({"procs": MPI.COMM_WORLD.size, "time": t})
+            )
         return
 
     driver(args.max_procs, args.size, args.outdir)

@@ -1,4 +1,5 @@
 """3D Cartesian mesh utilities."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ import numpy as np
 @dataclass
 class MeshCell3D:
     """Represents a single cell in the 3D mesh."""
+
     x_index: int
     y_index: int
     z_index: int
@@ -241,5 +243,5 @@ class Mesh3D:
         else:  # pragma: no cover - invalid axis
             raise NotImplementedError("axis must be 0, 1 or 2")
 
-__all__ = ["Mesh3D", "MeshCell3D"]
 
+__all__ = ["Mesh3D", "MeshCell3D"]

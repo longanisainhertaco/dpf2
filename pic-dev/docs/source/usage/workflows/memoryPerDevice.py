@@ -31,14 +31,22 @@ For a more accurate estimation use estimated compression multipliers.
 """
 
 
-def check_distributions(simulation_dimension, grid_distribution, gpu_particle_cell_distribution):
+def check_distributions(
+    simulation_dimension, grid_distribution, gpu_particle_cell_distribution
+):
     if len(grid_distribution) != simulation_dimension:
-        raise ValueError("grid_distribution must have one array for each simulation dimension")
+        raise ValueError(
+            "grid_distribution must have one array for each simulation dimension"
+        )
     if len(gpu_particle_cell_distribution) != simulation_dimension:
-        raise ValueError("gpu_particle_cell_distribution must have array for each simulation dimension")
+        raise ValueError(
+            "gpu_particle_cell_distribution must have array for each simulation dimension"
+        )
 
 
-def check_extents(simulation_dimension, global_gpu_extent, gpu_cell_extent, gpu_particle_cell_extent):
+def check_extents(
+    simulation_dimension, global_gpu_extent, gpu_cell_extent, gpu_particle_cell_extent
+):
     if np.shape(gpu_cell_extent) != (simulation_dimension, *global_gpu_extent):
         raise ValueError(
             "grid_distribution and global_gpu_extent are not consistent.\n"
@@ -86,14 +94,19 @@ gpu_particle_cell_distribution = [
     grid_distribution[0],
     # number of target cells on first GPU,                    target cells not on first GPU
     np.array(
-        (max(grid_distribution[1][0] - vacuum_cells, 0), target_cells - max(grid_distribution[1][0] - vacuum_cells, 0))
+        (
+            max(grid_distribution[1][0] - vacuum_cells, 0),
+            target_cells - max(grid_distribution[1][0] - vacuum_cells, 0),
+        )
     ),
 ]
 
 print(f"particle cell distribution: {gpu_particle_cell_distribution}")
 
 # debug checks
-check_distributions(simulation_dimension, grid_distribution, gpu_particle_cell_distribution)
+check_distributions(
+    simulation_dimension, grid_distribution, gpu_particle_cell_distribution
+)
 
 # get cell extent of each GPU: list of np.array[np.int_], one per simulation dimension, with each array entry being the
 #   cell extent of the corresponding gpu in the simulation, indexation by [simulation_dimension, gpu_index[0], gpu_index[1], ...]
@@ -104,9 +117,13 @@ gpu_cell_extent = np.meshgrid(*grid_distribution, indexing="ij")
 gpu_particle_cell_extent = np.meshgrid(*gpu_particle_cell_distribution, indexing="ij")
 
 # debug checks
-check_extents(simulation_dimension, global_gpu_extent, gpu_cell_extent, gpu_particle_cell_extent)
+check_extents(
+    simulation_dimension, global_gpu_extent, gpu_cell_extent, gpu_particle_cell_extent
+)
 
-mc = MemoryCalculator(simulation_dimension=simulation_dimension, super_cell_size=super_cell_size)
+mc = MemoryCalculator(
+    simulation_dimension=simulation_dimension, super_cell_size=super_cell_size
+)
 
 # typical number of particles per cell which is multiplied later for each species and its relative number of particles
 N_PPC = 6
@@ -128,7 +145,9 @@ for gpu_index in np.ndindex(tuple(global_gpu_extent)):
         cell_extent[dim] = gpu_cell_extent[dim][gpu_index]
 
     # field memory per GPU, see memory.param:fieldTmpNumSlots for number_of_temporary_field_slots
-    field_gpu = mc.memory_required_by_cell_fields(cell_extent, number_of_temporary_field_slots=2)
+    field_gpu = mc.memory_required_by_cell_fields(
+        cell_extent, number_of_temporary_field_slots=2
+    )
     print(f" + fields: {field_gpu / mibibyte:.2f} MiB")
 
     # memory for random number generator states
@@ -172,7 +191,10 @@ for gpu_index in np.ndindex(tuple(global_gpu_extent)):
 
     # memory for calorimeters
     cal_gpu = (
-        mc.memory_required_by_calorimeter(number_energy_bins=1024, number_yaw_bins=360, number_pitch_bins=1) * 2
+        mc.memory_required_by_calorimeter(
+            number_energy_bins=1024, number_yaw_bins=360, number_pitch_bins=1
+        )
+        * 2
     )  # electrons and protons
 
     print(" + species:")

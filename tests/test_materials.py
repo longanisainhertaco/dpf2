@@ -51,7 +51,6 @@ def test_state_serialization_roundtrip():
     assert restored.temperature_history == [300.0, 310.0]
 
 
-
 def test_redeposition_and_film():
     copper = MaterialLibrary.get("copper")
     steel = MaterialLibrary.get("stainless_steel")
@@ -93,4 +92,3 @@ def test_redeposition_and_film():
     # Plasma model should receive negative redeposition and positive evaporation
     assert ("A", -redep) in plasma.calls
     assert ("A", evap) in plasma.calls
-

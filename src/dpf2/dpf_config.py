@@ -12,6 +12,7 @@ from .grid_resolution import GridResolution
 
 # --- Submodels ---
 
+
 class SimulationControl(BaseModel):
     mode: Literal["fluid", "PIC", "hybrid"]
     geometry: Literal["2D_RZ", "3D_Cartesian"]
@@ -69,6 +70,7 @@ class BreakdownModel(BaseModel):
     def with_defaults(cls):
         return cls(type="field_threshold")
 
+
 class PaschenModel(BaseModel):
     insulator_gap_cm: float
     gas_pressure_torr: float
@@ -81,6 +83,7 @@ class PaschenModel(BaseModel):
     @classmethod
     def with_defaults(cls):
         return cls(insulator_gap_cm=1.0, gas_pressure_torr=10.0, material="Pyrex")
+
 
 class InitialConditions(BaseModel):
     temperature: float
@@ -110,6 +113,7 @@ class InitialConditions(BaseModel):
             breakdown_model=BreakdownModel.with_defaults(),
             paschen_model=PaschenModel.with_defaults(),
         )
+
 
 class PhysicsModels(BaseModel):
     eos_model: str
@@ -146,6 +150,7 @@ class PhysicsModels(BaseModel):
             gamma=1.4,
         )
 
+
 class CircuitConfig(BaseModel):
     L_ext: float
     R_ext: float
@@ -174,6 +179,7 @@ class CircuitConfig(BaseModel):
             V0=20e3,
             switch_delay=0.0,
         )
+
 
 class ElectrodeGeometry(BaseModel):
     geometry_preset: Optional[
@@ -208,11 +214,26 @@ class ElectrodeGeometry(BaseModel):
                 anode_shape="cylinder",
             )
         if geometry_preset == "tapered":
-            return cls.tapered(geometry_preset="tapered", cathode_type="bar", cathode_bar_count=10, cathode_gap_degrees=36.0)
+            return cls.tapered(
+                geometry_preset="tapered",
+                cathode_type="bar",
+                cathode_bar_count=10,
+                cathode_gap_degrees=36.0,
+            )
         if geometry_preset == "hollow":
-            return cls.hollow(geometry_preset="hollow", cathode_type="bar", cathode_bar_count=10, cathode_gap_degrees=36.0)
+            return cls.hollow(
+                geometry_preset="hollow",
+                cathode_type="bar",
+                cathode_bar_count=10,
+                cathode_gap_degrees=36.0,
+            )
         if geometry_preset == "reentrant":
-            return cls.reentrant(geometry_preset="reentrant", cathode_type="bar", cathode_bar_count=10, cathode_gap_degrees=36.0)
+            return cls.reentrant(
+                geometry_preset="reentrant",
+                cathode_type="bar",
+                cathode_bar_count=10,
+                cathode_gap_degrees=36.0,
+            )
         # default to mather-style geometry
         return cls(
             geometry_preset="mather",
@@ -234,6 +255,7 @@ class ElectrodeGeometry(BaseModel):
     def reentrant(cls, reentrant_depth: float = 1.0, **kwargs) -> "ElectrodeGeometry":
         return cls(anode_shape="reentrant", reentrant_depth=reentrant_depth, **kwargs)
 
+
 class AmrexSettings(BaseModel):
     amr_levels: int
     stencil_order: int
@@ -250,8 +272,9 @@ class AmrexSettings(BaseModel):
         return cls(
             amr_levels=1,
             stencil_order=2,
-            electrode_geometry=ElectrodeGeometry.with_defaults()
+            electrode_geometry=ElectrodeGeometry.with_defaults(),
         )
+
 
 class WarpXSettings(BaseModel):
     field_solver: str
@@ -270,8 +293,9 @@ class WarpXSettings(BaseModel):
             collision_model="binary",
             ionization_model="field",
             particle_shape="cloud_in_cell",
-            particle_shape_order=2
+            particle_shape_order=2,
         )
+
 
 class Diagnostics(BaseModel):
     output_dir: Path
@@ -321,9 +345,7 @@ class Diagnostics(BaseModel):
     @classmethod
     def with_defaults(cls):
         return cls(
-            output_dir=Path("./output"),
-            plotfile_interval=10,
-            checkpoint_interval=100
+            output_dir=Path("./output"), plotfile_interval=10, checkpoint_interval=100
         )
 
 
@@ -339,8 +361,10 @@ class BenchmarkMatching(BaseModel):
     def with_defaults(cls):
         return cls()
 
+
 class FaceType(str):
     pass
+
 
 class BoundaryConditions(BaseModel):
     x_low: Literal["reflecting", "absorbing", "conducting"]
@@ -354,10 +378,14 @@ class BoundaryConditions(BaseModel):
     @classmethod
     def with_defaults(cls):
         return cls(
-            x_low="reflecting", x_high="reflecting",
-            y_low="reflecting", y_high="reflecting",
-            z_low="reflecting", z_high="reflecting"
+            x_low="reflecting",
+            x_high="reflecting",
+            y_low="reflecting",
+            y_high="reflecting",
+            z_low="reflecting",
+            z_high="reflecting",
         )
+
 
 class ParallelSettings(BaseModel):
     mpi_ranks: int
@@ -371,7 +399,9 @@ class ParallelSettings(BaseModel):
     def with_defaults(cls):
         return cls(mpi_ranks=1, gpu_backend="None")
 
+
 # --- Top-level config ---
+
 
 class DPFConfig(BaseModel):
     simulation_control: SimulationControl
@@ -396,7 +426,12 @@ class DPFConfig(BaseModel):
             raise ValueError("ny must be 1 for 2D_RZ geometry")
 
         amrex = getattr(values, "amrex_settings", None)
-        if sc and amrex and amrex.electrode_geometry and amrex.electrode_geometry.mesh_file:
+        if (
+            sc
+            and amrex
+            and amrex.electrode_geometry
+            and amrex.electrode_geometry.mesh_file
+        ):
             from .geometry.loaders import (
                 load_axisymmetric_mesh,
                 load_cad_geometry,
@@ -466,7 +501,9 @@ class DPFConfig(BaseModel):
         data.update(updates)
         return self.__class__.model_validate(data)
 
-    def to_file(self, path: Union[str, Path], format: Literal["json", "yaml"] = "json") -> None:
+    def to_file(
+        self, path: Union[str, Path], format: Literal["json", "yaml"] = "json"
+    ) -> None:
         if format == "json":
             self.to_json(path)
         elif format == "yaml":
@@ -492,7 +529,11 @@ class DPFConfig(BaseModel):
         return [cls.model_validate(d) for d in data]
 
     @staticmethod
-    def save_config_set(configs: List["DPFConfig"], path: Union[str, Path], format: Literal["json", "yaml"] = "json") -> None:
+    def save_config_set(
+        configs: List["DPFConfig"],
+        path: Union[str, Path],
+        format: Literal["json", "yaml"] = "json",
+    ) -> None:
         p = Path(path)
         data = [cfg.model_dump() for cfg in configs]
         if format == "json":
@@ -552,6 +593,7 @@ class DPFConfig(BaseModel):
 
     def required_fields(self) -> List[str]:
         return []
+
 
 __all__ = [
     "SimulationControl",

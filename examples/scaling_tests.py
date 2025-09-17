@@ -4,6 +4,7 @@ These routines mimic weak and strong scaling studies and can be used to
 produce documentation figures.  They do not run the full simulation but
 serve as placeholders for HPC environments.
 """
+
 from __future__ import annotations
 
 from typing import Iterable, Dict

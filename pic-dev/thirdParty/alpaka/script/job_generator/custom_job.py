@@ -10,7 +10,9 @@ from typeguard import typechecked
 
 
 @typechecked
-def read_jobs_from_folder(path: str, filter: Callable = lambda name: True) -> List[Dict[str, Dict]]:
+def read_jobs_from_folder(
+    path: str, filter: Callable = lambda name: True
+) -> List[Dict[str, Dict]]:
     """Read all job descriptions from the files located in a specific folder.
     The function ignore sub folders.
 
@@ -35,7 +37,9 @@ def read_jobs_from_folder(path: str, filter: Callable = lambda name: True) -> Li
         abs_file_path = os.path.join(path, file_name)
         if os.path.isfile(abs_file_path) and filter(file_name):
             with open(abs_file_path, "r", encoding="utf8") as job_yaml:
-                for job_name, job_body in yaml.load(job_yaml, yaml.loader.SafeLoader).items():
+                for job_name, job_body in yaml.load(
+                    job_yaml, yaml.loader.SafeLoader
+                ).items():
                     custom_job_list.append({job_name: job_body})
 
     return custom_job_list
@@ -54,11 +58,15 @@ def add_custom_jobs(job_matrix_yaml: List[Dict[str, Dict]], container_version: f
         RuntimeError: Throw error, if yaml file of custom jobs does not exits.
     """
     # load custom jobs from the folder script/gitlabci
-    script_gitlab_ci_folder = os.path.abspath(os.path.join(os.path.abspath(__file__), "../../gitlabci/"))
+    script_gitlab_ci_folder = os.path.abspath(
+        os.path.join(os.path.abspath(__file__), "../../gitlabci/")
+    )
 
     for path in [script_gitlab_ci_folder]:
         job_matrix_yaml += read_jobs_from_folder(
             path,
             # filter file names
-            lambda name: name != "job_base.yml" and name.startswith("job_") and name.endswith(".yml"),
+            lambda name: name != "job_base.yml"
+            and name.startswith("job_")
+            and name.endswith(".yml"),
         )

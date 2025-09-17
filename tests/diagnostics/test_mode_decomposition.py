@@ -48,7 +48,11 @@ def test_mode_decomposition_complex():
 
 def test_write_growth_rates(tmp_path):
     times = [0.0, 1.0, 2.0]
-    spectra = [np.array([1.0, 1.0]), np.array([1.0, math.e]), np.array([1.0, math.e**2])]
+    spectra = [
+        np.array([1.0, 1.0]),
+        np.array([1.0, math.e]),
+        np.array([1.0, math.e**2]),
+    ]
     path = write_growth_rates(times, spectra, tmp_path)
     assert path.exists()
     if hasattr(np, "loadtxt"):

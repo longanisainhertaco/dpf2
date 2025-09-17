@@ -5,6 +5,7 @@ primitives.  They convert NumPy arrays into VTK data structures to write mesh
 files and subsequently render those meshes to video.  ParaView can consume the
 produced ``.vtp`` files for further interactive exploration.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

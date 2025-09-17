@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Utilities for validating swarm parameters against reference data."""
 
 from dataclasses import dataclass
@@ -33,7 +34,9 @@ def compute_swarm_parameters(table: np.ndarray) -> SwarmParameters:
     return SwarmParameters(mobility=mobility, diffusion=diffusion)
 
 
-def validate_swarm_parameters(path: Path, reference: Dict[str, float]) -> SwarmParameters:
+def validate_swarm_parameters(
+    path: Path, reference: Dict[str, float]
+) -> SwarmParameters:
     """Validate swarm parameters against reference values.
 
     Parameters

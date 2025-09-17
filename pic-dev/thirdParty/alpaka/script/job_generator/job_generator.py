@@ -139,7 +139,7 @@ if __name__ == "__main__":
     )
 
     add_job_parameters(job_matrix)
-    
+
     job_matrix = add_sycl_fpga_jobs(job_matrix)
 
     if args.print_combinations or args.all:

@@ -49,7 +49,12 @@ class Array:
                 return Array([[v] for v in self.data])
             if idx == (None, slice(None)):
                 return Array([self.data])
-            if len(idx) == 2 and isinstance(idx[0], slice) and idx[0] == slice(None) and isinstance(idx[1], int):
+            if (
+                len(idx) == 2
+                and isinstance(idx[0], slice)
+                and idx[0] == slice(None)
+                and isinstance(idx[1], int)
+            ):
                 return Array([row[idx[1]] for row in self.data])
             arr = self.data
             for i in idx:
@@ -62,15 +67,22 @@ class Array:
         if isinstance(value, Array):
             value = value.data
         if idx is Ellipsis:
+
             def _fill(arr):
                 if isinstance(arr, list):
                     return [_fill(a) for a in arr]
                 return value
+
             self.data = _fill(self.data)
             return
         if isinstance(idx, tuple):
             idx = tuple(slice(None) if i is Ellipsis else i for i in idx)
-            if len(idx) == 2 and isinstance(idx[0], slice) and idx[0] == slice(None) and isinstance(idx[1], int):
+            if (
+                len(idx) == 2
+                and isinstance(idx[0], slice)
+                and idx[0] == slice(None)
+                and isinstance(idx[1], int)
+            ):
                 if isinstance(value, (int, float)):
                     for row in self.data:
                         row[idx[1]] = value
@@ -124,12 +136,20 @@ class Array:
         if isinstance(self.data, list):
             if isinstance(other, list):
                 if len(self.data) == len(other):
-                    return Array([Array(a)._binary(b, op).data for a, b in zip(self.data, other)])
+                    return Array(
+                        [Array(a)._binary(b, op).data for a, b in zip(self.data, other)]
+                    )
                 if len(self.data) == 1:
-                    return Array([Array(self.data[0])._binary(b, op).data for b in other])
+                    return Array(
+                        [Array(self.data[0])._binary(b, op).data for b in other]
+                    )
                 if len(other) == 1:
-                    return Array([Array(a)._binary(other[0], op).data for a in self.data])
-                return Array([Array(a)._binary(b, op).data for a, b in zip(self.data, other)])
+                    return Array(
+                        [Array(a)._binary(other[0], op).data for a in self.data]
+                    )
+                return Array(
+                    [Array(a)._binary(b, op).data for a, b in zip(self.data, other)]
+                )
             return Array([Array(a)._binary(other, op).data for a in self.data])
         return Array(op(self.data, other))
 
@@ -152,11 +172,13 @@ class Array:
         return Array(other).__truediv__(self)
 
     def __pow__(self, other):
-        return self._binary(other, lambda a, b: a ** b)
+        return self._binary(other, lambda a, b: a**b)
 
     def __neg__(self):
         if isinstance(self.data, list):
-            return Array([(-Array(x)).data if isinstance(x, list) else -x for x in self.data])
+            return Array(
+                [(-Array(x)).data if isinstance(x, list) else -x for x in self.data]
+            )
         return Array(-self.data)
 
     def __float__(self):
@@ -175,7 +197,9 @@ def array(data):
     if isinstance(data, Array):
         return data
     if isinstance(data, (list, tuple)):
-        return Array([array(x).data if isinstance(x, (list, tuple)) else x for x in data])
+        return Array(
+            [array(x).data if isinstance(x, (list, tuple)) else x for x in data]
+        )
     return Array(data)
 
 
@@ -203,15 +227,16 @@ def diag(arr):
     arr = array(arr).data
     # Extract diagonal for 2-D arrays
     if isinstance(arr, list) and arr and isinstance(arr[0], list):
-        return array([arr[i][i] for i in range(min(len(arr), len(arr[0])))] )
+        return array([arr[i][i] for i in range(min(len(arr), len(arr[0])))])
     # Construct diagonal matrix from 1-D input
     if isinstance(arr, list):
         n = len(arr)
-        mat = [[0.0]*n for _ in range(n)]
+        mat = [[0.0] * n for _ in range(n)]
         for i, v in enumerate(arr):
             mat[i][i] = v
         return array(mat)
     return array([[arr]])
+
 
 def full(shape, fill_value):
     if isinstance(shape, tuple):
@@ -271,7 +296,9 @@ def default_rng(seed=0):
 def stack(arrs, axis=0):
     arrs = [array(a).data for a in arrs]
     if axis == -1:
-        return Array([[arrs[j][i] for j in range(len(arrs))] for i in range(len(arrs[0]))])
+        return Array(
+            [[arrs[j][i] for j in range(len(arrs))] for i in range(len(arrs[0]))]
+        )
     return Array(arrs)
 
 
@@ -320,21 +347,27 @@ def isscalar(x) -> bool:
 def sin(vals):
     arr = array(vals)
     if isinstance(arr.data, list):
-        return Array([sin(v).data if isinstance(v, list) else math.sin(v) for v in arr.data])
+        return Array(
+            [sin(v).data if isinstance(v, list) else math.sin(v) for v in arr.data]
+        )
     return Array(math.sin(arr.data))
 
 
 def exp(vals):
     arr = array(vals)
     if isinstance(arr.data, list):
-        return Array([exp(v).data if isinstance(v, list) else math.exp(v) for v in arr.data])
+        return Array(
+            [exp(v).data if isinstance(v, list) else math.exp(v) for v in arr.data]
+        )
     return Array(math.exp(arr.data))
 
 
 def abs_(vals):
     arr = array(vals)
     if isinstance(arr.data, list):
-        return Array([abs_(v).data if isinstance(v, list) else abs(v) for v in arr.data])
+        return Array(
+            [abs_(v).data if isinstance(v, list) else abs(v) for v in arr.data]
+        )
     return Array(abs(arr.data))
 
 
@@ -368,18 +401,21 @@ def sum_(vals, axis=None):
 
 def dot(a: Array, b: Array) -> float:
     return sum(x * y for x, y in zip(array(a), array(b)))
+
+
 def mean(vals):
     arr = array(vals).data
+
     def _count(a):
         if isinstance(a, list):
             return sum(_count(x) for x in a)
         return 1
+
     if isinstance(arr, list):
         total = sum_(arr)
         cnt = _count(arr)
         return total / cnt if cnt else 0.0
     return arr
-
 
 
 def cross(a: Array, b: Array) -> Array:
@@ -391,7 +427,12 @@ def cross(a: Array, b: Array) -> Array:
 def clip(vals, lo, hi):
     arr = array(vals)
     if isinstance(arr.data, list):
-        return Array([clip(v, lo, hi).data if isinstance(v, list) else min(max(v, lo), hi) for v in arr.data])
+        return Array(
+            [
+                clip(v, lo, hi).data if isinstance(v, list) else min(max(v, lo), hi)
+                for v in arr.data
+            ]
+        )
     return Array(min(max(arr.data, lo), hi))
 
 
@@ -465,9 +506,13 @@ np = types.SimpleNamespace(
     loadtxt=loadtxt,
     interp=interp,
     stack=stack,
-    testing=types.SimpleNamespace(assert_allclose=lambda a,b,rtol=1e-8,atol=1e-8: (
-        None if allclose(a,b,rtol,atol) else (_ for _ in ()).throw(AssertionError("Arrays are not close"))
-    )),
+    testing=types.SimpleNamespace(
+        assert_allclose=lambda a, b, rtol=1e-8, atol=1e-8: (
+            None
+            if allclose(a, b, rtol, atol)
+            else (_ for _ in ()).throw(AssertionError("Arrays are not close"))
+        )
+    ),
     vstack=vstack,
     linspace=linspace,
     arange=arange,
@@ -500,5 +545,24 @@ np = types.SimpleNamespace(
 
 sys.modules.setdefault("numpy", np)
 
-__all__ = ["Array", "array", "zeros", "zeros_like", "vstack", "linspace", "arange", "meshgrid", "sin", "exp", "abs_", "max_", "dot", "clip", "sqrt", "gradient", "isclose", "allclose", "np"]
-
+__all__ = [
+    "Array",
+    "array",
+    "zeros",
+    "zeros_like",
+    "vstack",
+    "linspace",
+    "arange",
+    "meshgrid",
+    "sin",
+    "exp",
+    "abs_",
+    "max_",
+    "dot",
+    "clip",
+    "sqrt",
+    "gradient",
+    "isclose",
+    "allclose",
+    "np",
+]

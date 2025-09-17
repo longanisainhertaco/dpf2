@@ -10,6 +10,7 @@ rather than production work.  Dependencies are optional; if :mod:`dash` is not
 installed, an informative :class:`RuntimeError` is raised when attempting to
 launch the application.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -50,7 +51,9 @@ def _ensure_dash() -> None:
         raise RuntimeError("dash is required for the interactive GUI")
 
 
-def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = False) -> None:
+def launch(
+    host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = False
+) -> None:
     """Launch the Dash-based GUI.
 
     Parameters
@@ -212,13 +215,19 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
             html.Button("Sweep Voltage", id="sweep_voltage"),
             html.Button("Sweep Pressure", id="sweep_pressure"),
             html.Button(
-                "Overlay Runs", id="overlay_runs", style={} if not simplified else {"display": "none"}
+                "Overlay Runs",
+                id="overlay_runs",
+                style={} if not simplified else {"display": "none"},
             ),
             html.Button(
-                "Pareto Search", id="pareto", style={} if not simplified else {"display": "none"}
+                "Pareto Search",
+                id="pareto",
+                style={} if not simplified else {"display": "none"},
             ),
             html.Button(
-                "Export Metrics", id="export", style={} if not simplified else {"display": "none"}
+                "Export Metrics",
+                id="export",
+                style={} if not simplified else {"display": "none"},
             ),
             html.Button(
                 "Export Overlay",
@@ -226,7 +235,9 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
                 style={} if not simplified else {"display": "none"},
             ),
             html.Button("Save Scene", id="save_scene"),
-            dcc.Upload(id="load_scene", children=html.Button("Load Scene"), multiple=False),
+            dcc.Upload(
+                id="load_scene", children=html.Button("Load Scene"), multiple=False
+            ),
             dcc.Download(id="download_scene"),
             dcc.Graph(id="metrics_plot"),
             html.H2("Sheath Overlay"),
@@ -466,7 +477,9 @@ def launch(host: str = "127.0.0.1", port: int = 8050, *, simplified: bool = Fals
         State("geom_rz", "value"),
         prevent_initial_call=True,
     )
-    def _update_geometry(contents, _t_clicks, _r_clicks, filename, label, dx, dy, dz, rx, ry, rz):
+    def _update_geometry(
+        contents, _t_clicks, _r_clicks, filename, label, dx, dy, dz, rx, ry, rz
+    ):
         ctx = dash.callback_context
         if not ctx.triggered:
             return go.Figure()

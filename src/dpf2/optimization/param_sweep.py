@@ -77,7 +77,9 @@ def run_parametric_sweep(
         from ..ai.surrogate import ONNXSurrogateModel, OutOfDomainError as _OOD
 
         y_path = Path(yield_model) if yield_model else model_dir / "yield_model.onnx"
-        p_path = Path(pinch_model) if pinch_model else model_dir / "pinch_time_model.onnx"
+        p_path = (
+            Path(pinch_model) if pinch_model else model_dir / "pinch_time_model.onnx"
+        )
         y_model = ONNXSurrogateModel.load(y_path)
         p_model = ONNXSurrogateModel.load(p_path)
         OutOfDomainError = _OOD
@@ -154,7 +156,9 @@ def compute_sweep_metrics(
             "efficiency": 0.0,
         }
 
-        pressure = val if parameter == "initial_pressure" else base_config.initial_pressure
+        pressure = (
+            val if parameter == "initial_pressure" else base_config.initial_pressure
+        )
         if a > 0 and pressure > 0:
             metric["S"] = float(y_pred) / (a * pressure)
 
@@ -178,8 +182,12 @@ def plot_metric_overlay(
     effs = [metrics[v].get("efficiency", 0.0) for v in vals]
     y_lo = [metrics[v].get("yield_lo", metrics[v]["yield"]) for v in vals]
     y_hi = [metrics[v].get("yield_hi", metrics[v]["yield"]) for v in vals]
-    p_lo = [metrics[v].get("pinch_time_lo", metrics[v].get("pinch_time", 0.0)) for v in vals]
-    p_hi = [metrics[v].get("pinch_time_hi", metrics[v].get("pinch_time", 0.0)) for v in vals]
+    p_lo = [
+        metrics[v].get("pinch_time_lo", metrics[v].get("pinch_time", 0.0)) for v in vals
+    ]
+    p_hi = [
+        metrics[v].get("pinch_time_hi", metrics[v].get("pinch_time", 0.0)) for v in vals
+    ]
 
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 9))
 
@@ -267,4 +275,3 @@ __all__ = [
     "SweepResult",
     "Prediction",
 ]
-

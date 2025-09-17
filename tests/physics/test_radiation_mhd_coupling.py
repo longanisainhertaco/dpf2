@@ -1,4 +1,3 @@
-
 import cmath
 import math
 import numpy as np
@@ -38,7 +37,9 @@ def test_frequency_domain_coupling_zero_back_reaction():
         frequency=freq,
         em_solver=solver,
     )
-    ref = solve_distributed_circuit([seg], [], V0=0.0, t_end=t_end, dt=dt, frequency=freq)
+    ref = solve_distributed_circuit(
+        [seg], [], V0=0.0, t_end=t_end, dt=dt, frequency=freq
+    )
     assert np.allclose(res.current, ref.current)
     assert np.allclose(res.voltage, ref.voltage)
     iface = solver.coupling_interface()
@@ -102,6 +103,7 @@ def test_energy_conservation_closed_system():
     dt = 1e-6
     current = 2.0
     voltage = 3.0
+
     def total_energy(st):
         e = _sum(st.energy)
         B2 = _sum(st.magnetic * st.magnetic)
@@ -177,6 +179,7 @@ def test_energy_conservation_closed_system():
     dt = 1e-6
     current = 2.0
     voltage = 3.0
+
     def total_energy(st):
         e = _sum(st.energy)
         B2 = _sum(st.magnetic * st.magnetic)
@@ -193,4 +196,3 @@ def test_energy_conservation_closed_system():
         totals.append(after + radiated)
     for tot in totals:
         assert np.isclose(tot, initial, rtol=1e-12)
-

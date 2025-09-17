@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Simple neutral gas fluid model with gas puff injection.
 
 This module provides a small 0D fluid model that evolves the neutral

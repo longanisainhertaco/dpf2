@@ -31,7 +31,9 @@ class NoBoundElectrons(Operation):
         pass
 
     def check_preconditions(self) -> None:
-        assert self.species.has_constant_of_type(GroundStateIonization), "BoundElectrons requires GroundStateIonization"
+        assert self.species.has_constant_of_type(
+            GroundStateIonization
+        ), "BoundElectrons requires GroundStateIonization"
 
     def prebook_species_attributes(self) -> None:
         self.attributes_by_species = {
@@ -47,4 +49,6 @@ class NoBoundElectrons(Operation):
         generated attribute -> there is no code generated -> nothing to
         serialize
         """
-        raise RuntimeError("NoBoundElectrons operation has no rendering context representation")
+        raise RuntimeError(
+            "NoBoundElectrons operation has no rendering context representation"
+        )

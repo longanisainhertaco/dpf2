@@ -24,7 +24,13 @@ def test_partition_yield_with_uncertainties():
     beam = [1.0, 1.0, 1.0]
     thermo_sigma = [0.5, 0.5, 0.5]
     beam_sigma = [0.2, 0.2, 0.2]
-    res = partition_yield(thermo, beam, dt=0.5, thermonuclear_sigma=thermo_sigma, beam_target_sigma=beam_sigma)
+    res = partition_yield(
+        thermo,
+        beam,
+        dt=0.5,
+        thermonuclear_sigma=thermo_sigma,
+        beam_target_sigma=beam_sigma,
+    )
     th, th_u = res["thermonuclear"]
     bt, bt_u = res["beam_target"]
     tot, tot_u = res["total"]
@@ -67,9 +73,19 @@ def test_directional_counts_uncertainty():
     fwd_s = [0.1, 0.1]
     rad_s = [0.2, 0.2]
     back_s = [0.3, 0.3]
-    res = directional_counts(fwd, rad, back, dt=1.0, forward_sigma=fwd_s, radial_sigma=rad_s, backward_sigma=back_s)
+    res = directional_counts(
+        fwd,
+        rad,
+        back,
+        dt=1.0,
+        forward_sigma=fwd_s,
+        radial_sigma=rad_s,
+        backward_sigma=back_s,
+    )
+
     def _expected(count, sigs):
-        return math.sqrt(count + sum(s ** 2 for s in sigs))
+        return math.sqrt(count + sum(s**2 for s in sigs))
+
     assert math.isclose(res["forward"][1], _expected(2.0, fwd_s))
     assert math.isclose(res["radial"][1], _expected(4.0, rad_s))
     assert math.isclose(res["backward"][1], _expected(6.0, back_s))

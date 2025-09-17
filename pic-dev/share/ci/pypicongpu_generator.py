@@ -91,7 +91,9 @@ def exit_error(text: str):
 
 
 @typeguard.typechecked
-def get_all_pypy_releases(package_name: str, version_strategy: Callable[[str], List[str]]) -> List[str]:
+def get_all_pypy_releases(
+    package_name: str, version_strategy: Callable[[str], List[str]]
+) -> List[str]:
     """Return release version of given package depending on the version_strategy.
 
     Parameters
@@ -160,7 +162,9 @@ def get_all_major_pypi_versions(package_name):
 
 
 @typeguard.typechecked
-def get_supported_versions(package_name: str, versions: List[str], pyproject_toml: Dict) -> List[str]:
+def get_supported_versions(
+    package_name: str, versions: List[str], pyproject_toml: Dict
+) -> List[str]:
     """Take a list of package versions and remove all versions, which are not supported by the
     pyproject.toml.
 
@@ -223,7 +227,9 @@ class Job:
 
 
 @typeguard.typechecked
-def extend_job_with_test_requirement(job: Job, package_name: str, package_version: str) -> Job:
+def extend_job_with_test_requirement(
+    job: Job, package_name: str, package_version: str
+) -> Job:
     """Copies the input job, adds a new variable to the variables section of
     the copied job and return it.
 
@@ -275,7 +281,9 @@ def construct_job(
 
     if len(current_test_pkgs) == 1:
         for package_version in test_pkg_versions[package_name]:
-            extended_job = extend_job_with_test_requirement(job, package_name, package_version)
+            extended_job = extend_job_with_test_requirement(
+                job, package_name, package_version
+            )
             print(extended_job.yaml_dumps())
     else:
         for package_version in test_pkg_versions[package_name]:
@@ -347,6 +355,8 @@ if __name__ == "__main__":
     # remove all release version, which are not supported by the version range configured in the
     # pyproject.toml
     for pkg in test_pkg_versions:
-        test_pkg_versions[pkg] = get_supported_versions(pkg, test_pkg_versions[pkg], pyproject_toml)
+        test_pkg_versions[pkg] = get_supported_versions(
+            pkg, test_pkg_versions[pkg], pyproject_toml
+        )
 
     print_job_yaml(test_pkg_versions)

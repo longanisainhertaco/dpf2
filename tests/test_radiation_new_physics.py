@@ -22,7 +22,9 @@ import numpy_stub
 
 # provide small helpers missing from numpy_stub
 numpy_stub.np.any = lambda arr: any(arr)
-numpy_stub.np.linalg = types.SimpleNamespace(norm=lambda v: numpy_stub.sqrt(sum(x * x for x in v)))
+numpy_stub.np.linalg = types.SimpleNamespace(
+    norm=lambda v: numpy_stub.sqrt(sum(x * x for x in v))
+)
 numpy_stub.np.arccos = math.acos
 numpy_stub.np.cos = math.cos
 numpy_stub.np.sin = math.sin
@@ -35,7 +37,7 @@ from dpf2.simulation.radiation_model import Photon, RadiationModel, m_e, c
 
 def test_polarization_rotates_and_is_orthogonal():
     random.seed(0)
-    p = Photon([0, 0, 0], [1, 0, 0], m_e * c ** 2, 0, polarization=[0, 1, 0])
+    p = Photon([0, 0, 0], [1, 0, 0], m_e * c**2, 0, polarization=[0, 1, 0])
     p.scatter()
     assert abs(np.dot(p.dir, p.polarization)) < 1e-12
 
@@ -43,7 +45,7 @@ def test_polarization_rotates_and_is_orthogonal():
 def test_pair_production_counts_pairs():
     rm = RadiationModel.__new__(RadiationModel)
     rm.pairs_created = 0
-    photon = Photon([0, 0, 0], [1, 0, 0], 3 * m_e * c ** 2, 0)
+    photon = Photon([0, 0, 0], [1, 0, 0], 3 * m_e * c**2, 0)
     orig = random.random
     random.random = lambda: 0.0
     occurred = rm._pair_production(photon, dt=1e30)
@@ -61,4 +63,3 @@ def test_non_lte_population_time_dependence():
     pop1 = rm._update_level_population(Te, ne, dt=1.0)
     pop2 = rm._update_level_population(Te, ne, dt=1.0)
     assert pop1[0][0][0] != pop2[0][0][0]
-

@@ -74,4 +74,3 @@ class BayesianParameterInference:
 
 
 __all__ = ["BayesianParameterInference", "ParameterEstimate"]
-

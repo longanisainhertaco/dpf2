@@ -6,6 +6,7 @@ SLURM clusters and AWS Batch.  The implementation intentionally focuses on
 small scale examples and does not aim to expose the full feature set of the
 underlying schedulers.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -73,9 +74,12 @@ class JobManager:
                 manifest.attrs["container_hash"] = container_hash
             if datasets:
                 from ..io.manifest import write_hdf5_dataset_manifest
+
                 write_hdf5_dataset_manifest(h5, datasets)
 
-    def _extend_cmd(self, cmd: list[str], opts: Dict[str, Any], flag_map: Dict[str, Iterable[str]]) -> None:
+    def _extend_cmd(
+        self, cmd: list[str], opts: Dict[str, Any], flag_map: Dict[str, Iterable[str]]
+    ) -> None:
         """Append CLI options from ``opts`` to ``cmd`` using ``flag_map``.
 
         Parameters
@@ -130,7 +134,7 @@ class JobManager:
                 lines.append(f"cp -r {src} {dst}")
         # Forward any arguments passed to the wrapper script to the actual job
         # script so features like ``--restart`` continue to function.
-        lines.append(f"{job_script} \"$@\"")
+        lines.append(f'{job_script} "$@"')
         if stage_out:
             for src, dst in stage_out.items():
                 lines.append(f"cp -r {src} {dst}")
@@ -202,7 +206,9 @@ class JobManager:
 
         # ``--restart`` may reference a previously generated manifest. Stage it
         # in so the job can resume using the recorded metadata.
-        if restart is not None and (str(restart).endswith(".json") or str(restart).endswith(".h5")):
+        if restart is not None and (
+            str(restart).endswith(".json") or str(restart).endswith(".h5")
+        ):
             stage_in = dict(stage_in or {})
             stage_in[str(restart)] = str(restart)
 
@@ -252,12 +258,16 @@ class JobManager:
             if restart is not None:
                 # Allow job scripts to locate the checkpoint or manifest for staging
                 env["DPF_RESTART"] = str(restart)
-            return subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
+            return subprocess.run(
+                cmd, capture_output=True, text=True, check=False, env=env
+            )
         if self.scheduler == "awsbatch":
             try:
                 import boto3  # type: ignore
             except Exception as exc:  # pragma: no cover - optional dependency
-                raise RuntimeError("boto3 is required for AWS Batch submissions") from exc
+                raise RuntimeError(
+                    "boto3 is required for AWS Batch submissions"
+                ) from exc
             batch = boto3.client("batch")
             gpus = kwargs.pop("gpus", None)
             gpu_type = kwargs.pop("gpu_type", None)
@@ -276,15 +286,26 @@ class JobManager:
                 params["dependsOn"] = [{"jobId": str(d)} for d in dep_list]
             if gpus is not None or gpu_type is not None:
                 rr = {"value": str(gpus if gpus is not None else 1), "type": "GPU"}
-                params.setdefault("containerOverrides", {})["resourceRequirements"] = [rr]
+                params.setdefault("containerOverrides", {})["resourceRequirements"] = [
+                    rr
+                ]
             if restart is not None or gpu_affinity is not None:
-                env_list = params.setdefault("containerOverrides", {}).setdefault("environment", [])
+                env_list = params.setdefault("containerOverrides", {}).setdefault(
+                    "environment", []
+                )
                 if restart is not None:
                     env_list.append({"name": "DPF_RESTART", "value": str(restart)})
                 if gpu_affinity is not None:
-                    env_list.append({"name": "CUDA_VISIBLE_DEVICES", "value": ",".join(str(g) for g in gpu_affinity)})
+                    env_list.append(
+                        {
+                            "name": "CUDA_VISIBLE_DEVICES",
+                            "value": ",".join(str(g) for g in gpu_affinity),
+                        }
+                    )
             if script_args:
-                params.setdefault("containerOverrides", {})["command"] = [job_script] + script_args
+                params.setdefault("containerOverrides", {})["command"] = [
+                    job_script
+                ] + script_args
             return batch.submit_job(**params)
         if self.scheduler == "mpi":
             gpus = kwargs.pop("gpus", None)
@@ -325,12 +346,18 @@ class JobManager:
                     for gpu in gpu_list:
                         gpu_map_lines.append(f"{rank} {host} {gpu}")
                         rank += 1
-                hostfile = self._write_temp_file("\n".join(host_lines) + "\n", suffix=".hosts")
+                hostfile = self._write_temp_file(
+                    "\n".join(host_lines) + "\n", suffix=".hosts"
+                )
                 cmd.extend(["--hostfile", hostfile])
-                gpu_map_file = self._write_temp_file("\n".join(gpu_map_lines) + "\n", suffix=".gpus")
+                gpu_map_file = self._write_temp_file(
+                    "\n".join(gpu_map_lines) + "\n", suffix=".gpus"
+                )
                 env["DPF_GPU_MAP"] = gpu_map_file
             elif hosts is not None:
-                hostfile = self._write_temp_file("\n".join(hosts) + "\n", suffix=".hosts")
+                hostfile = self._write_temp_file(
+                    "\n".join(hosts) + "\n", suffix=".hosts"
+                )
                 cmd.extend(["--hostfile", hostfile])
 
             script_cmd = [job_script] + script_args
@@ -346,7 +373,9 @@ class JobManager:
                 env["DPF_RESTART"] = str(restart)
 
             cmd.extend(script_cmd)
-            return subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
+            return subprocess.run(
+                cmd, capture_output=True, text=True, check=False, env=env
+            )
         raise ValueError(f"Unsupported scheduler: {self.scheduler}")
 
     # ------------------------------------------------------------------

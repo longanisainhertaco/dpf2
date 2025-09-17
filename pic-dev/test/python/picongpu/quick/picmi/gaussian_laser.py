@@ -47,11 +47,17 @@ class TestPicmiGaussianLaser(unittest.TestCase):
         self.assertEqual([2.0, 3.0], pypic_laser.laguerre_modes)
         self.assertEqual([4.0, 5.0], pypic_laser.laguerre_phases)
         self.assertEqual(-2, pypic_laser.phi0)
-        self.assertEqual([[1, -1], [1, -1], [1, -1]], pypic_laser.huygens_surface_positions)
+        self.assertEqual(
+            [[1, -1], [1, -1], [1, -1]], pypic_laser.huygens_surface_positions
+        )
 
         # computed values
         self.assertAlmostEqual(
-            -2.0 * picmi_laser.centroid_position[1] / picmi_laser.propagation_direction[1] / c / picmi_laser.duration,
+            -2.0
+            * picmi_laser.centroid_position[1]
+            / picmi_laser.propagation_direction[1]
+            / c
+            / picmi_laser.duration,
             pypic_laser.pulse_init,
         )
 
@@ -162,7 +168,9 @@ class TestPicmiGaussianLaser(unittest.TestCase):
                 E0=1,
             )
             pypic_laser = picmi_laser.get_as_pypicongpu()
-            self.assertEqual(valid_polarization_vector, pypic_laser.polarization_direction)
+            self.assertEqual(
+                valid_polarization_vector, pypic_laser.polarization_direction
+            )
 
     def test_minimal(self):
         """mimimal possible initialization"""
@@ -334,7 +342,9 @@ class TestPicmiGaussianLaser(unittest.TestCase):
     def test_overdefinition_a0_E0(self):
         """only either a0 or E0 allowed to be set"""
 
-        with self.assertRaisesRegex(ValueError, "Only one of E0 or a0 should be specified. You set both."):
+        with self.assertRaisesRegex(
+            ValueError, "Only one of E0 or a0 should be specified. You set both."
+        ):
             picmi.GaussianLaser(
                 1,
                 2,
@@ -350,7 +360,9 @@ class TestPicmiGaussianLaser(unittest.TestCase):
     def test_no_a0_E0(self):
         """either a0 or E0 have to be set"""
 
-        with self.assertRaisesRegex(ValueError, "Both E0 or a0 are None. You must specify exactly one."):
+        with self.assertRaisesRegex(
+            ValueError, "Both E0 or a0 are None. You must specify exactly one."
+        ):
             picmi.GaussianLaser(
                 1,
                 2,

@@ -20,27 +20,35 @@ except Exception:  # pragma: no cover - exercised when SciPy missing
 
 # Stub pyevtk which is an optional dependency
 sys.modules.setdefault("pyevtk", types.ModuleType("pyevtk"))
-sys.modules.setdefault("pyevtk.hl", types.SimpleNamespace(imageToVTK=lambda *a, **k: None))
+sys.modules.setdefault(
+    "pyevtk.hl", types.SimpleNamespace(imageToVTK=lambda *a, **k: None)
+)
 
 # Augment numpy stub with helpers used by diagnostics
 np.ones = lambda shape: np.full(shape, 1.0)
 np.trapz = lambda y, dx=1.0: dx * sum(y) if len(y) else 0.0
 np.floor = lambda x: int(x)
 np.ceil = lambda x: int(x) if x == int(x) else int(x) + 1
+
+
 def _np_sum(arr):
     try:
         return sum(arr)
     except TypeError:
         return arr
 
+
 np.sum = _np_sum
+
 
 class _Linalg:
     @staticmethod
     def norm(v):
         return np.sqrt(np.sum([vi * vi for vi in v]))
 
+
 np.linalg = _Linalg()
+
 
 def _histogram(data, bins):
     hist = [0] * (len(bins) - 1)
@@ -50,6 +58,7 @@ def _histogram(data, bins):
                 hist[i] += 1
                 break
     return hist, bins
+
 
 np.histogram = _histogram
 
@@ -68,7 +77,9 @@ def _field_manager():
 def test_interferometry_serialisation(tmp_path):
     fm = _field_manager()
     diag = Interferometry("int", [0, 0, 0], [1, 0, 0], fm)
-    state = types.SimpleNamespace(density=np.full((1, 1, 1), 1.0), dx=1.0, domain_lo=(0, 0, 0))
+    state = types.SimpleNamespace(
+        density=np.full((1, 1, 1), 1.0), dx=1.0, domain_lo=(0, 0, 0)
+    )
 
     diag.record(0.0, None, None, state=state)
     expected = diag.data[0]["phase_shift"]
@@ -144,4 +155,3 @@ def test_neutron_detector_serialisation(tmp_path):
         assert np.allclose(grp["time_bins"].data, bins)
         assert grp["histogram"].attrs["unitSI"] == 1.0
         assert grp.attrs["reaction"] == "DD"
-

@@ -8,7 +8,9 @@ from dpf2.physics.simple_plasma import ZeroDPlasma
 
 
 def test_coupled_traces_match_reference():
-    ref_path = Path(__file__).resolve().parents[2] / "ReferenceMaterial/coupled_traces.json"
+    ref_path = (
+        Path(__file__).resolve().parents[2] / "ReferenceMaterial/coupled_traces.json"
+    )
     reference = json.loads(ref_path.read_text())
 
     L_ext = 1e-6
@@ -34,7 +36,11 @@ def test_coupled_traces_match_reference():
     states = []
     for _ in range(num):
         fb = plasma.coupling_interface()
-        state = circuit.step(CouplingState(Lp=fb.Lp, emf=fb.emf, current=current, voltage=voltage), 0.0, dt)
+        state = circuit.step(
+            CouplingState(Lp=fb.Lp, emf=fb.emf, current=current, voltage=voltage),
+            0.0,
+            dt,
+        )
         states.append(state)
         current, voltage = state.current, state.voltage
         plasma.step(None, dt, current, voltage)

@@ -118,7 +118,10 @@ class MLModelConfig(ConfigSectionBase):
 
     @classmethod
     def get_field_metadata(cls) -> Dict[str, Dict[str, Any]]:
-        return {n: (f.json_schema_extra or f.metadata or {}) for n, f in cls.model_fields.items()}
+        return {
+            n: (f.json_schema_extra or f.metadata or {})
+            for n, f in cls.model_fields.items()
+        }
 
     def normalize_units(self) -> "MLModelConfig":
         return self
@@ -134,7 +137,9 @@ class MLModelConfig(ConfigSectionBase):
         if self.inference_output_path:
             inf = str(self.inference_output_path)
             conf = (
-                f" < {self.confidence_threshold}" if self.confidence_threshold is not None else ""
+                f" < {self.confidence_threshold}"
+                if self.confidence_threshold is not None
+                else ""
             )
             parts.append(f"Inference: {inf} | Confidence{conf}")
         return "\n".join(parts)
@@ -160,9 +165,7 @@ class MLModelConfig(ConfigSectionBase):
         cov = np.asarray(self.training_covariance, dtype=float)
         x_arr = np.asarray(x, dtype=float)
         if mean.shape[-1] != x_arr.shape[-1]:
-            raise ValueError(
-                "Input dimensionality does not match training statistics"
-            )
+            raise ValueError("Input dimensionality does not match training statistics")
         diff = x_arr - mean
         inv = np.linalg.pinv(cov)
         return float(np.sqrt(diff.T @ inv @ diff))
@@ -173,7 +176,9 @@ class MLModelConfig(ConfigSectionBase):
         return self.mahalanobis_distance(x) <= self.ood_threshold
 
     def hash_ml_model_config(self) -> str:
-        data = self.model_dump(by_alias=True, exclude={"model_config_hash"}, exclude_none=True)
+        data = self.model_dump(
+            by_alias=True, exclude={"model_config_hash"}, exclude_none=True
+        )
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
 
@@ -184,22 +189,36 @@ class MLModelConfig(ConfigSectionBase):
             raise ValueError("input_features must not be empty")
         if not values.output_targets:
             raise ValueError("output_targets must not be empty")
-        if values.model_type == "classification" and values.loss_function not in {"crossentropy", "logloss"}:
-            raise ValueError("classification models require crossentropy or logloss loss_function")
+        if values.model_type == "classification" and values.loss_function not in {
+            "crossentropy",
+            "logloss",
+        }:
+            raise ValueError(
+                "classification models require crossentropy or logloss loss_function"
+            )
         if values.inference_enabled:
-            if values.inference_input_path is None or values.inference_output_path is None:
-                raise ValueError("inference_input_path and inference_output_path required when inference_enabled")
+            if (
+                values.inference_input_path is None
+                or values.inference_output_path is None
+            ):
+                raise ValueError(
+                    "inference_input_path and inference_output_path required when inference_enabled"
+                )
         if values.cv_folds is not None and values.validation_split is not None:
             raise ValueError("validation_split must be None when cv_folds is set")
         if values.load_existing_model and values.existing_model_path is None:
-            raise ValueError("existing_model_path required when load_existing_model is True")
+            raise ValueError(
+                "existing_model_path required when load_existing_model is True"
+            )
         if values.ood_detection_enabled and (
             values.training_mean is None or values.training_covariance is None
         ):
             raise ValueError(
                 "training_mean and training_covariance required when ood_detection_enabled"
             )
-        values = values.model_copy(update={"model_config_hash": values.hash_ml_model_config()})
+        values = values.model_copy(
+            update={"model_config_hash": values.hash_ml_model_config()}
+        )
         return values
 
 

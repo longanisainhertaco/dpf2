@@ -47,7 +47,9 @@ def velocity(gamma):
 class TestAnalyticDistribution(unittest.TestCase):
     def setUp(self):
         self.valid_density = lambda x, y, z: x * y * z
-        self.dist = AnalyticDistribution(self.valid_density, directed_velocity=(1.0, 2.0, 3.0))
+        self.dist = AnalyticDistribution(
+            self.valid_density, directed_velocity=(1.0, 2.0, 3.0)
+        )
 
     def test_density_expression_invalid(self):
         for density, err in INVALID_DENSITIES:
@@ -60,12 +62,20 @@ class TestAnalyticDistribution(unittest.TestCase):
         # this needs to be large, so that gamma != 1
         drift = 1.0e7 * np.array([3.0, 4.0, 5.0])
         for t in types:
-            dist = AnalyticDistribution(lambda x, y, z: x + y + z, directed_velocity=t(drift))
+            dist = AnalyticDistribution(
+                lambda x, y, z: x + y + z, directed_velocity=t(drift)
+            )
             result = dist.get_picongpu_drift()
-            np.testing.assert_allclose(velocity(result.gamma) * np.asarray(result.direction_normalized), drift)
+            np.testing.assert_allclose(
+                velocity(result.gamma) * np.asarray(result.direction_normalized), drift
+            )
 
     def test_drift_is_none_for_vanishing_vector(self):
-        self.assertIsNone(AnalyticDistribution(lambda *x: sum(x), directed_velocity=[0, 0, 0]).get_picongpu_drift())
+        self.assertIsNone(
+            AnalyticDistribution(
+                lambda *x: sum(x), directed_velocity=[0, 0, 0]
+            ).get_picongpu_drift()
+        )
 
     def test_drift_wrong_dimensionality(self):
         # Test drift with wrong dimensionality
@@ -79,7 +89,9 @@ class TestAnalyticDistribution(unittest.TestCase):
     def test_call(self):
         for args, result in VALID_CALLS:
             with self.subTest(args=args, result=result):
-                np.testing.assert_allclose(np.asarray(self.dist(*args)), np.asarray(result))
+                np.testing.assert_allclose(
+                    np.asarray(self.dist(*args)), np.asarray(result)
+                )
 
 
 if __name__ == "__main__":

@@ -284,7 +284,9 @@ class TestRenderedObject(unittest.TestCase):
             # note: does not have to inherit from RenderedObject
             pass
 
-        with self.assertRaisesRegex(referencing.exceptions.NoSuchResource, ".*[Ss]chema.*"):
+        with self.assertRaisesRegex(
+            referencing.exceptions.NoSuchResource, ".*[Ss]chema.*"
+        ):
             RenderedObject.check_context_for_type(HasNoValidation, {})
 
     def test_irregular_schema(self):
@@ -326,19 +328,26 @@ class TestSelfRegisteringRenderedObject(unittest.TestCase):
         RenderedObject.check_context_for_type = lambda _, c: c
 
     def test_names_list_is_empty(self):
-        self.assertSetEqual(set(self.Base().get_rendering_context()["typeID"].keys()), set())
+        self.assertSetEqual(
+            set(self.Base().get_rendering_context()["typeID"].keys()), set()
+        )
 
     def test_subclass_without_name_is_not_registered(self):
         class UnregisteredSubclass(self.Base):
             pass
 
-        self.assertSetEqual(set(self.Base().get_rendering_context()["typeID"].keys()), set())
+        self.assertSetEqual(
+            set(self.Base().get_rendering_context()["typeID"].keys()), set()
+        )
 
     def test_subclass_with_name_is_registered(self):
         class RegisteredSubclass(self.Base):
             _name = "arbitrary_name"
 
-        self.assertSetEqual(set(self.Base().get_rendering_context()["typeID"].keys()), {RegisteredSubclass._name})
+        self.assertSetEqual(
+            set(self.Base().get_rendering_context()["typeID"].keys()),
+            {RegisteredSubclass._name},
+        )
 
     def test_two_subclasses_with_name_are_registered(self):
         class RegisteredSubclass1(self.Base):
@@ -359,13 +368,17 @@ class TestSelfRegisteringRenderedObject(unittest.TestCase):
         class LeafClass(BaseClass):
             _name = "arbitrary_name2"
 
-        self.assertSetEqual(set(self.Base().get_rendering_context()["typeID"].keys()), {LeafClass._name})
+        self.assertSetEqual(
+            set(self.Base().get_rendering_context()["typeID"].keys()), {LeafClass._name}
+        )
 
     def test_z(self):
         # This test is last in lexicographical ordering.
         # It's to make sure that if the tests are run deterministically in lexicographical order,
         # the preconditions are still fulfilled.
-        self.assertSetEqual(set(self.Base().get_rendering_context()["typeID"].keys()), set())
+        self.assertSetEqual(
+            set(self.Base().get_rendering_context()["typeID"].keys()), set()
+        )
 
     def test_multiple_hierarchies_are_independent(self):
         class BaseClass1(SelfRegisteringRenderedObject):
@@ -386,8 +399,14 @@ class TestSelfRegisteringRenderedObject(unittest.TestCase):
             def _get_serialized(self):
                 return {}
 
-        self.assertSetEqual(set(LeafClass1().get_rendering_context()["typeID"].keys()), {LeafClass1._name})
-        self.assertSetEqual(set(LeafClass2().get_rendering_context()["typeID"].keys()), {LeafClass2._name})
+        self.assertSetEqual(
+            set(LeafClass1().get_rendering_context()["typeID"].keys()),
+            {LeafClass1._name},
+        )
+        self.assertSetEqual(
+            set(LeafClass2().get_rendering_context()["typeID"].keys()),
+            {LeafClass2._name},
+        )
 
     def test_different_leaves_know_who_they_are(self):
         class LeafClass1(self.Base):
@@ -396,10 +415,18 @@ class TestSelfRegisteringRenderedObject(unittest.TestCase):
         class LeafClass2(self.Base):
             _name = "arbitrary_name2"
 
-        self.assertTrue(LeafClass1().get_rendering_context()["typeID"][LeafClass1._name])
-        self.assertFalse(LeafClass1().get_rendering_context()["typeID"][LeafClass2._name])
-        self.assertFalse(LeafClass2().get_rendering_context()["typeID"][LeafClass1._name])
-        self.assertTrue(LeafClass2().get_rendering_context()["typeID"][LeafClass2._name])
+        self.assertTrue(
+            LeafClass1().get_rendering_context()["typeID"][LeafClass1._name]
+        )
+        self.assertFalse(
+            LeafClass1().get_rendering_context()["typeID"][LeafClass2._name]
+        )
+        self.assertFalse(
+            LeafClass2().get_rendering_context()["typeID"][LeafClass1._name]
+        )
+        self.assertTrue(
+            LeafClass2().get_rendering_context()["typeID"][LeafClass2._name]
+        )
 
     def test_get_serialized_into_data(self):
         arbitrary_value = 42
@@ -410,7 +437,9 @@ class TestSelfRegisteringRenderedObject(unittest.TestCase):
             def _get_serialized(self):
                 return {"arbitrary_name": arbitrary_value}
 
-        self.assertDictEqual(LeafClass().get_rendering_context()["data"], LeafClass()._get_serialized())
+        self.assertDictEqual(
+            LeafClass().get_rendering_context()["data"], LeafClass()._get_serialized()
+        )
 
     def test_schema_is_checked_for_base_as_well_as_child(self):
         types = []
@@ -448,6 +477,7 @@ class TestSelfRegisteringRenderedObject(unittest.TestCase):
                 _name = LeafClass1._name
 
         with self.assertRaisesRegex(
-            TypeError, "Attempt to register cls=.* with name cls._name=.* failed because that was registered before."
+            TypeError,
+            "Attempt to register cls=.* with name cls._name=.* failed because that was registered before.",
         ):
             define_class()

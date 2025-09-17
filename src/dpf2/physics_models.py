@@ -65,7 +65,11 @@ class PhysicsModels(ConfigSectionBase):
     initial_neutral_pressure_torr: Optional[float] = Field(
         None,
         alias="initialNeutralPressureTorr",
-        metadata={"units": "Torr", "category": "PhysicsModels", "group": "NeutralFluid"},
+        metadata={
+            "units": "Torr",
+            "category": "PhysicsModels",
+            "group": "NeutralFluid",
+        },
     )
     enable_neutral_particle_tracking: bool = Field(
         False,
@@ -178,12 +182,20 @@ class PhysicsModels(ConfigSectionBase):
     temperature_cutoff_min_keV: Optional[float] = Field(
         None,
         alias="temperatureCutoffMinKeV",
-        metadata={"units": "keV", "category": "PhysicsModels", "group": "Instabilities"},
+        metadata={
+            "units": "keV",
+            "category": "PhysicsModels",
+            "group": "Instabilities",
+        },
     )
     density_cutoff_max_gcc: Optional[float] = Field(
         None,
         alias="densityCutoffMaxGcc",
-        metadata={"units": "g/cm\u00b3", "category": "PhysicsModels", "group": "Instabilities"},
+        metadata={
+            "units": "g/cm\u00b3",
+            "category": "PhysicsModels",
+            "group": "Instabilities",
+        },
     )
 
     eos_table_path: Optional[Path] = Field(
@@ -204,7 +216,6 @@ class PhysicsModels(ConfigSectionBase):
         allow_population_by_field_name=True,
         validate_default=True,
     )
-
 
     # ------------------------------------------------------------------
     @classmethod
@@ -278,7 +289,9 @@ class PhysicsModels(ConfigSectionBase):
             return 0.0
         return _equilibrium_electron_density(n_total, temperature)
 
-    def electron_density_rate(self, ne: float, n_total: float, temperature: float) -> float:
+    def electron_density_rate(
+        self, ne: float, n_total: float, temperature: float
+    ) -> float:
         """Time derivative d(ne)/dt from the CR model."""
 
         if self.ionization_model is IonizationModel.NONE:
@@ -292,7 +305,9 @@ class PhysicsModels(ConfigSectionBase):
 
         return ne + self.electron_density_rate(ne, n_total, temperature) * dt
 
-    def ionization_energy_sink(self, ne: float, n_total: float, temperature: float) -> float:
+    def ionization_energy_sink(
+        self, ne: float, n_total: float, temperature: float
+    ) -> float:
         """Energy sink due to ionization (J/m^3/s)."""
 
         if self.ionization_model is IonizationModel.NONE:
@@ -302,20 +317,45 @@ class PhysicsModels(ConfigSectionBase):
     # ------------------------------------------------------------------
     @model_validator(mode="after")
     def check_rules(cls, values: "PhysicsModels") -> "PhysicsModels":
-        if values.radiation_model is not RadiationModel.NONE and values.sxr_bandpass_nm is None:
-            raise ValueError("sxr_bandpass_nm must be set when radiation_model is not 'None'")
-        if values.neutral_fluid_enabled and values.initial_neutral_pressure_torr is None:
-            raise ValueError("initial_neutral_pressure_torr must be set when neutral_fluid_enabled is True")
+        if (
+            values.radiation_model is not RadiationModel.NONE
+            and values.sxr_bandpass_nm is None
+        ):
+            raise ValueError(
+                "sxr_bandpass_nm must be set when radiation_model is not 'None'"
+            )
+        if (
+            values.neutral_fluid_enabled
+            and values.initial_neutral_pressure_torr is None
+        ):
+            raise ValueError(
+                "initial_neutral_pressure_torr must be set when neutral_fluid_enabled is True"
+            )
         if values.instability_models_enabled:
             if values.instability_thresholds is None:
-                raise ValueError("instability_thresholds must be provided when instability_models_enabled is set")
-            missing = [m.value for m in values.instability_models_enabled if m.value not in values.instability_thresholds]
+                raise ValueError(
+                    "instability_thresholds must be provided when instability_models_enabled is set"
+                )
+            missing = [
+                m.value
+                for m in values.instability_models_enabled
+                if m.value not in values.instability_thresholds
+            ]
             if missing:
-                raise ValueError(f"instability_thresholds missing for: {', '.join(missing)}")
-        if values.radiation_transport_model is RadiationTransportModel.MONTE_CARLO and values.opacity_table_path is None:
-            raise ValueError("opacity_table_path is required for MonteCarlo radiation transport")
+                raise ValueError(
+                    f"instability_thresholds missing for: {', '.join(missing)}"
+                )
+        if (
+            values.radiation_transport_model is RadiationTransportModel.MONTE_CARLO
+            and values.opacity_table_path is None
+        ):
+            raise ValueError(
+                "opacity_table_path is required for MonteCarlo radiation transport"
+            )
         if values.eos_model is EOSModel.TABULATED and values.eos_table_path is None:
-            raise ValueError("eos_table_path must be provided when eos_model is 'tabulated'")
+            raise ValueError(
+                "eos_table_path must be provided when eos_model is 'tabulated'"
+            )
 
         # Context-based validation omitted for compatibility with Pydantic v1
         return values

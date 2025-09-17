@@ -9,7 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator
 
 
-
 from .core_schema import ConfigSectionBase, UnitsSystem, UNIT_SCALE_MAP, to_camel_case
 
 
@@ -25,20 +24,30 @@ class BenchmarkMatching(ConfigSectionBase):
         validate_default=True,
     )
 
-    dataset_id: str = Field(..., description="Benchmark dataset or facility ID (e.g., PF1000, NX2)")
+    dataset_id: str = Field(
+        ..., description="Benchmark dataset or facility ID (e.g., PF1000, NX2)"
+    )
     benchmark_trace_path: Optional[Path] = None
     benchmark_trace_paths: Optional[List[Path]] = None
     benchmark_format: Optional[Literal["csv", "hdf5", "json"]] = None
     benchmark_time_unit: Optional[Literal["s", "ms", "us", "ns"]] = "us"
     benchmark_units: Optional[Dict[str, str]] = None
-    benchmark_selection_strategy: Optional[Literal["average", "best_fit", "worst_case", "all"]] = "best_fit"
+    benchmark_selection_strategy: Optional[
+        Literal["average", "best_fit", "worst_case", "all"]
+    ] = "best_fit"
 
-    benchmark_fields: List[Literal["I(t)", "V(t)", "B_max", "pinch_radius"]] = Field(default_factory=list)
-    compare_fields: List[Literal["E", "B", "rho", "T", "J"]] = Field(default_factory=list)
+    benchmark_fields: List[Literal["I(t)", "V(t)", "B_max", "pinch_radius"]] = Field(
+        default_factory=list
+    )
+    compare_fields: List[Literal["E", "B", "rho", "T", "J"]] = Field(
+        default_factory=list
+    )
 
     waveform_tolerance: float = Field(..., metadata={"units": "%", "group": "Matching"})
     match_waveform_features: bool = True
-    feature_alignment_method: Literal["cross_correlation", "windowed_lag", "manual"] = "cross_correlation"
+    feature_alignment_method: Literal["cross_correlation", "windowed_lag", "manual"] = (
+        "cross_correlation"
+    )
     max_time_alignment_error_ns: Optional[float] = Field(None, metadata={"units": "ns"})
     match_region_start_us: Optional[float] = Field(None, metadata={"units": "us"})
     match_region_end_us: Optional[float] = Field(None, metadata={"units": "us"})
@@ -80,7 +89,9 @@ class BenchmarkMatching(ConfigSectionBase):
         scale = UNIT_SCALE_MAP.get(base_units, 1.0)
         update: Dict[str, Any] = {}
         if self.max_time_alignment_error_ns is not None:
-            update["max_time_alignment_error_ns"] = self.max_time_alignment_error_ns * scale
+            update["max_time_alignment_error_ns"] = (
+                self.max_time_alignment_error_ns * scale
+            )
         if self.match_region_start_us is not None:
             update["match_region_start_us"] = self.match_region_start_us * scale
         if self.match_region_end_us is not None:
@@ -104,8 +115,14 @@ class BenchmarkMatching(ConfigSectionBase):
     def hash_benchmark(self) -> str:
         data = {
             "dataset_id": self.dataset_id,
-            "benchmark_trace_path": str(self.benchmark_trace_path) if self.benchmark_trace_path else None,
-            "benchmark_trace_paths": [str(p) for p in self.benchmark_trace_paths] if self.benchmark_trace_paths else None,
+            "benchmark_trace_path": (
+                str(self.benchmark_trace_path) if self.benchmark_trace_path else None
+            ),
+            "benchmark_trace_paths": (
+                [str(p) for p in self.benchmark_trace_paths]
+                if self.benchmark_trace_paths
+                else None
+            ),
             "waveform_tolerance": self.waveform_tolerance,
             "feature_alignment_method": self.feature_alignment_method,
             "match_region_start_us": self.match_region_start_us,
@@ -119,9 +136,13 @@ class BenchmarkMatching(ConfigSectionBase):
     @model_validator(mode="after")
     def check_rules(cls, values: "BenchmarkMatching") -> "BenchmarkMatching":
         if values.benchmark_trace_path and values.benchmark_trace_paths:
-            raise ValueError("Only one of benchmark_trace_path or benchmark_trace_paths allowed")
+            raise ValueError(
+                "Only one of benchmark_trace_path or benchmark_trace_paths allowed"
+            )
 
-        if values.benchmark_format and not (values.benchmark_trace_path or values.benchmark_trace_paths):
+        if values.benchmark_format and not (
+            values.benchmark_trace_path or values.benchmark_trace_paths
+        ):
             raise ValueError("benchmark_format requires benchmark trace path")
 
         paths: List[Path] = []
@@ -138,10 +159,27 @@ class BenchmarkMatching(ConfigSectionBase):
             suffix = values.benchmark_trace_paths[0].suffix
             for p in values.benchmark_trace_paths:
                 if p.suffix != suffix:
-                    raise ValueError("benchmark_trace_paths must have consistent structure")
+                    raise ValueError(
+                        "benchmark_trace_paths must have consistent structure"
+                    )
 
         if values.benchmark_units is not None:
-            valid_units = {"kA", "A", "MA", "V", "kV", "T", "G", "cm", "mm", "m", "s", "ms", "us", "ns"}
+            valid_units = {
+                "kA",
+                "A",
+                "MA",
+                "V",
+                "kV",
+                "T",
+                "G",
+                "cm",
+                "mm",
+                "m",
+                "s",
+                "ms",
+                "us",
+                "ns",
+            }
             for u in values.benchmark_units.values():
                 if u not in valid_units:
                     raise ValueError("benchmark_units contain unsupported unit")
@@ -165,16 +203,23 @@ class BenchmarkMatching(ConfigSectionBase):
             raise ValueError("match_region_start_us must be < match_region_end_us")
 
         if values.match_waveform_features and not values.benchmark_fields:
-            raise ValueError("benchmark_fields required when match_waveform_features is True")
+            raise ValueError(
+                "benchmark_fields required when match_waveform_features is True"
+            )
 
         ctx = getattr(values, "_context", {})
         diag_fields = ctx.get("fields_to_output")
         if diag_fields is not None:
             missing = [f for f in values.compare_fields if f not in diag_fields]
             if missing:
-                raise ValueError(f"compare_fields not in Diagnostics.fields_to_output: {missing}")
+                raise ValueError(
+                    f"compare_fields not in Diagnostics.fields_to_output: {missing}"
+                )
 
-        values = values.model_copy(update={"benchmark_config_hash": values.hash_benchmark()})
+        values = values.model_copy(
+            update={"benchmark_config_hash": values.hash_benchmark()}
+        )
         return values
+
 
 __all__ = ["BenchmarkMatching"]

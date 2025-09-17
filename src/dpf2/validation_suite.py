@@ -10,7 +10,6 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 
-
 from .core_schema import ConfigSectionBase, UnitsSystem, UNIT_SCALE_MAP, to_camel_case
 
 
@@ -82,8 +81,8 @@ class ValidationSuite(ConfigSectionBase):
     validation_time_window_us: Optional[Tuple[float, float]] = Field(
         None, alias="validationTimeWindowUs"
     )
-    resample_method: Optional[Literal["interpolate", "zero_order", "downsample"]] = Field(
-        "interpolate", alias="resampleMethod"
+    resample_method: Optional[Literal["interpolate", "zero_order", "downsample"]] = (
+        Field("interpolate", alias="resampleMethod")
     )
     interpolation_mode: Optional[Literal["linear", "cubic", "spline"]] = Field(
         "linear", alias="interpolationMode"
@@ -112,7 +111,10 @@ class ValidationSuite(ConfigSectionBase):
 
     @classmethod
     def get_field_metadata(cls) -> Dict[str, Dict[str, Any]]:
-        return {n: (f.json_schema_extra or f.metadata or {}) for n, f in cls.model_fields.items()}
+        return {
+            n: (f.json_schema_extra or f.metadata or {})
+            for n, f in cls.model_fields.items()
+        }
 
     def normalize_units(self, base_units: UnitsSystem) -> "ValidationSuite":
         scale = UNIT_SCALE_MAP.get(base_units, 1.0)
@@ -126,7 +128,9 @@ class ValidationSuite(ConfigSectionBase):
 
     def summarize(self) -> str:
         targets = ", ".join(self.validation_targets)
-        tol_vals = [self.observable_tolerances.get(t, 0.0) for t in self.validation_targets]
+        tol_vals = [
+            self.observable_tolerances.get(t, 0.0) for t in self.validation_targets
+        ]
         tstr = ", ".join(f"{v*100:.0f}%" for v in tol_vals)
         resample = self.resample_method or "none"
         interp = self.interpolation_mode or "linear"
@@ -141,7 +145,9 @@ class ValidationSuite(ConfigSectionBase):
         )
 
     def hash_validation_suite_config(self) -> str:
-        data = self.model_dump(by_alias=True, exclude={"computed_validation_score", "validation_passed"})
+        data = self.model_dump(
+            by_alias=True, exclude={"computed_validation_score", "validation_passed"}
+        )
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
 
@@ -154,17 +160,25 @@ class ValidationSuite(ConfigSectionBase):
             if not p.exists():
                 raise ValueError(f"observable file {p} must exist")
         if self.observable_format_spec:
-            if set(self.observable_format_spec.keys()) != set(self.observable_file_map.keys()):
-                raise ValueError("observable_format_spec keys must match observable_file_map")
+            if set(self.observable_format_spec.keys()) != set(
+                self.observable_file_map.keys()
+            ):
+                raise ValueError(
+                    "observable_format_spec keys must match observable_file_map"
+                )
             for spec in self.observable_format_spec.values():
                 if "time" not in spec or "value" not in spec:
-                    raise ValueError("observable_format_spec entries must contain time and value")
+                    raise ValueError(
+                        "observable_format_spec entries must contain time and value"
+                    )
         if self.validation_time_window_us is not None:
             start, end = self.validation_time_window_us
             if start >= end:
                 raise ValueError("validation_time_window_us start must be < end")
         if self.require_all_targets:
-            missing = [t for t in self.validation_targets if t not in self.observable_file_map]
+            missing = [
+                t for t in self.validation_targets if t not in self.observable_file_map
+            ]
             if missing:
                 raise ValueError(f"missing targets in observable_file_map: {missing}")
         weights = self.observable_weighting or {t: 1.0 for t in self.validation_targets}
@@ -183,7 +197,9 @@ class ValidationSuite(ConfigSectionBase):
                     raise ValueError("uncertainty ranges must have two entries")
                 lo, hi = rng
                 if lo > hi:
-                    raise ValueError("uncertainty range lower bound must be <= upper bound")
+                    raise ValueError(
+                        "uncertainty range lower bound must be <= upper bound"
+                    )
                 uncertainties[obs] = (hi - lo) / 2.0
 
         if uncertainties and self.validation_score_model == "weighted":
@@ -282,7 +298,9 @@ def load_pinch_dataset(dataset_dir: Path) -> Dict[str, Tuple[np.ndarray, np.ndar
     return traces
 
 
-def _rmse(sim: Tuple[np.ndarray, np.ndarray], ref: Tuple[np.ndarray, np.ndarray]) -> float:
+def _rmse(
+    sim: Tuple[np.ndarray, np.ndarray], ref: Tuple[np.ndarray, np.ndarray]
+) -> float:
     """Compute RMSE between two time series."""
 
     sim_t, sim_v = sim
@@ -321,9 +339,7 @@ def _energy_balance_error(
 ) -> float:
     """Difference in discharge energy between simulation and reference."""
 
-    return abs(
-        _integrated_energy(sim_I, sim_V) - _integrated_energy(ref_I, ref_V)
-    )
+    return abs(_integrated_energy(sim_I, sim_V) - _integrated_energy(ref_I, ref_V))
 
 
 def compute_pinch_error_metrics(
@@ -340,9 +356,7 @@ def compute_pinch_error_metrics(
     }
     errors.update(
         {
-            f"{name}_t_peak": _peak_timing_error(
-                sim_outputs[name], bench[name]
-            )
+            f"{name}_t_peak": _peak_timing_error(sim_outputs[name], bench[name])
             for name in ["current", "voltage", "radius"]
         }
     )
@@ -455,9 +469,7 @@ def score_simulation(
         if weights:
             total_w = sum(weights.get(k, 0.0) for k in scores)
             total_w = total_w or 1.0
-            overall = (
-                sum(scores[k] * weights.get(k, 0.0) for k in scores) / total_w
-            )
+            overall = sum(scores[k] * weights.get(k, 0.0) for k in scores) / total_w
         else:
             overall = sum(scores.values()) / len(scores)
     return {
@@ -509,7 +521,7 @@ def evaluate_benchmark(
     if len(t_exp) and len(t_sim):
         v_interp = np.interp(t_exp, t_sim, v_sim)
         diff = v_interp - v_exp
-        cur_rmse = float(np.sqrt(np.mean(diff ** 2)))
+        cur_rmse = float(np.sqrt(np.mean(diff**2)))
         cur_max_err = float(np.max(np.abs(diff)))
         norm = np.max(np.abs(v_exp)) or 1.0
         cur_pass = cur_max_err <= norm * tol.get("current", 0.0)
@@ -558,5 +570,3 @@ __all__ = [
     "score_simulation",
     "evaluate_benchmark",
 ]
-
-

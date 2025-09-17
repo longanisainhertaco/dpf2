@@ -60,14 +60,18 @@ class HelperTestPicmiBoundaries:
     @unittest.skip("not implemented")
     def test_boundary_not_given_partial(self):
         """only some boundaries (components) are missing"""
-        picmi_dist = self._get_distribution(lower_bound=[123, -569, None], upper_bound=[124, None, 17])
+        picmi_dist = self._get_distribution(
+            lower_bound=[123, -569, None], upper_bound=[124, None, 17]
+        )
         pypic = picmi_dist.get_as_pypicongpu(ARBITRARY_GRID)
         self.assertEqual((123, -569, -math.inf), pypic.lower_bound)
         self.assertEqual((124, math.inf, 17), pypic.upper_bound)
 
     @unittest.skip("not implemented")
     def test_boundary_passthru(self):
-        picmi_dist = self._get_distribution(lower_bound=[111, 222, 333], upper_bound=[444, 555, 666])
+        picmi_dist = self._get_distribution(
+            lower_bound=[111, 222, 333], upper_bound=[444, 555, 666]
+        )
         pypic = picmi_dist.get_as_pypicongpu(ARBITRARY_GRID)
         self.assertTrue(isinstance(pypic, species.attributes.position.profile.Profile))
         self.assertEqual((111, 222, 333), pypic.lower_bound)
@@ -76,11 +80,15 @@ class HelperTestPicmiBoundaries:
 
 class TestPicmiUniformDistribution(unittest.TestCase, HelperTestPicmiBoundaries):
     def _get_distribution(self, lower_bound, upper_bound):
-        return picmi.UniformDistribution(density=1716273, lower_bound=lower_bound, upper_bound=upper_bound)
+        return picmi.UniformDistribution(
+            density=1716273, lower_bound=lower_bound, upper_bound=upper_bound
+        )
 
     def test_full(self):
         """full paramset"""
-        uniform = picmi.UniformDistribution(density=42.42, lower_bound=[111, 222, 333], upper_bound=[444, 555, 666])
+        uniform = picmi.UniformDistribution(
+            density=42.42, lower_bound=[111, 222, 333], upper_bound=[444, 555, 666]
+        )
         pypic = uniform.get_as_pypicongpu(ARBITRARY_GRID)
         self.assertTrue(isinstance(pypic, species.operation.densityprofile.Uniform))
 
@@ -114,7 +122,9 @@ class TestPicmiUniformDistribution(unittest.TestCase, HelperTestPicmiBoundaries)
 
         # some drift
         # uses velocity
-        uniform = picmi.UniformDistribution(density=1, directed_velocity=[278487224.0, 103784563.0, 1283345.0])
+        uniform = picmi.UniformDistribution(
+            density=1, directed_velocity=[278487224.0, 103784563.0, 1283345.0]
+        )
         drift = uniform.get_picongpu_drift()
         self.assertNotEqual(None, drift)
         self.assertAlmostEqual(drift.gamma, 7.6208808298928865)
@@ -128,9 +138,13 @@ class TestPicmiUniformDistribution(unittest.TestCase, HelperTestPicmiBoundaries)
 class TestPicmiGaussianBunchDistribution(unittest.TestCase):
     def test_full(self):
         """check for all possible params"""
-        gb = picmi.GaussianBunchDistribution(1337, 0.05, centroid_position=[111, 222, 333])
+        gb = picmi.GaussianBunchDistribution(
+            1337, 0.05, centroid_position=[111, 222, 333]
+        )
         pypic = gb.get_as_pypicongpu(ARBITRARY_GRID)
-        self.assertTrue(isinstance(pypic, species.attributes.position.profile.GaussianCloud))
+        self.assertTrue(
+            isinstance(pypic, species.attributes.position.profile.GaussianCloud)
+        )
         self.assertEqual((111, 222, 333), pypic.centroid_position_si)
         self.assertAlmostEqual(0.05, pypic.rms_bunch_size_si)
         self.assertAlmostEqual(679127.9299526414, pypic.max_density_si)
@@ -352,12 +366,16 @@ class TestPicmiFoilDistribution(unittest.TestCase, HelperTestPicmiBoundaries):
             picmi.FoilDistribution().get_as_pypicongpu(ARBITRARY_GRID)
 
         # density, thickness and front are only required param
-        picmi.FoilDistribution(density=3.14, thickness=1.0, front=3.0).get_as_pypicongpu(ARBITRARY_GRID)
+        picmi.FoilDistribution(
+            density=3.14, thickness=1.0, front=3.0
+        ).get_as_pypicongpu(ARBITRARY_GRID)
 
     def test_drift(self):
         """drift is correctly translated"""
         # no drift
-        foil = picmi.FoilDistribution(density=1.0, front=2.0, thickness=3.0, directed_velocity=[0, 0, 0])
+        foil = picmi.FoilDistribution(
+            density=1.0, front=2.0, thickness=3.0, directed_velocity=[0, 0, 0]
+        )
         drift = foil.get_picongpu_drift()
         self.assertEqual(None, drift)
 
@@ -389,7 +407,9 @@ class TestPicmiGaussianDistribution(unittest.TestCase, HelperTestPicmiBoundaries
         "vacuum_front": 50,
     }
 
-    def _get_distribution(self, lower_bound=[None, None, None], upper_bound=[None, None, None]):
+    def _get_distribution(
+        self, lower_bound=[None, None, None], upper_bound=[None, None, None]
+    ):
         return picmi.GaussianDistribution(
             density=self.values["density"],
             center_front=self.values["center_front"],
@@ -433,7 +453,9 @@ class TestPicmiGaussianDistribution(unittest.TestCase, HelperTestPicmiBoundaries
         gaussian = self._get_distribution()
         gaussian.center_front = self.values["center_rear"]
         gaussian.center_rear = self.values["center_front"]
-        with self.assertRaisesRegex(ValueError, ".*center_front must be <= center_rear.*"):
+        with self.assertRaisesRegex(
+            ValueError, ".*center_front must be <= center_rear.*"
+        ):
             gaussian.get_as_pypicongpu(ARBITRARY_GRID).get_rendering_context()
 
     def test_sigma_zero(self):

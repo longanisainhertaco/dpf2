@@ -20,24 +20,19 @@ import random
 import threading
 import queue
 import logging
+
 try:  # optional dependency
     import h5py
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    raise ImportError(
-        "h5py is required; install dpf2[warpx]"
-    ) from exc
+    raise ImportError("h5py is required; install dpf2[warpx]") from exc
 try:  # optional dependency
     import amrex
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    raise ImportError(
-        "amrex is required; install dpf2[warpx]"
-    ) from exc
+    raise ImportError("amrex is required; install dpf2[warpx]") from exc
 try:  # optional dependency
     import adios2
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    raise ImportError(
-        "adios2 is required; install dpf2[warpx]"
-    ) from exc
+    raise ImportError("adios2 is required; install dpf2[warpx]") from exc
 from scipy.interpolate import RegularGridInterpolator
 from numba import njit, prange
 import socket
@@ -47,6 +42,7 @@ try:  # pragma: no cover - config schema may be optional
     from .config_schema import RadiationConfig
 except Exception:  # fallback when imported outside package
     from typing import Any
+
     RadiationConfig = Any  # type: ignore
 from typing import Dict, Any
 
@@ -59,11 +55,12 @@ e_charge = 1.602176634e-19
 m_e = 9.10938356e-31
 pi = np.pi
 
-logger = logging.getLogger('RadiationModel')
+logger = logging.getLogger("RadiationModel")
 logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(ch)
+
 
 # --------------------------------------
 # Photon data structure for Monte Carlo
@@ -74,7 +71,7 @@ class Photon:
     Only position, direction, energy and group are evolved.  A simple
     polarization vector is carried and rotated during scattering events."""
 
-    __slots__ = ('pos', 'dir', 'energy', 'group', 'polarization')
+    __slots__ = ("pos", "dir", "energy", "group", "polarization")
 
     def __init__(self, pos, dir, energy, group, polarization=None):
         self.pos = np.array(pos)
@@ -83,9 +80,7 @@ class Photon:
         self.energy = float(energy)
         self.group = int(group)
         # ``polarization`` may be ``None`` when polarization tracking is disabled.
-        self.polarization = (
-            np.array(polarization) if polarization is not None else None
-        )
+        self.polarization = np.array(polarization) if polarization is not None else None
 
     def scatter(self):
         """Perform a simplified isotropic Compton scattering event.
@@ -130,23 +125,25 @@ class Photon:
                 p /= norm
                 self.polarization = p
 
+
 # --------------------------------------
 # Klein-Nishina Compton cross section
 # --------------------------------------
 @njit
 def klein_nishina_cross_section(E):
-    x = E / (m_e * c ** 2)
-    r0 = e_charge ** 2 / (4 * pi * epsilon0 * m_e * c ** 2)
-    term1 = ((1 + x) / x ** 3) * (2 * x * (1 + x) / (1 + 2 * x) - np.log(1 + 2 * x))
+    x = E / (m_e * c**2)
+    r0 = e_charge**2 / (4 * pi * epsilon0 * m_e * c**2)
+    term1 = ((1 + x) / x**3) * (2 * x * (1 + x) / (1 + 2 * x) - np.log(1 + 2 * x))
     term2 = (1 / (2 * x)) * np.log(1 + 2 * x)
     term3 = -(1 + 3 * x) / (1 + 2 * x)
-    sigma = (3 / 4) * pi * r0 ** 2 * (term1 + term2 + term3)
+    sigma = (3 / 4) * pi * r0**2 * (term1 + term2 + term3)
     return max(sigma, 0.0)
+
 
 # -------------------------------------------------
 # Electron–positron pair production cross section
 # -------------------------------------------------
-PAIR_PRODUCTION_THRESHOLD = 2 * m_e * c ** 2
+PAIR_PRODUCTION_THRESHOLD = 2 * m_e * c**2
 
 
 def pair_production_cross_section(E):
@@ -158,6 +155,7 @@ def pair_production_cross_section(E):
         return 0.0
     sigma0 = 1e-30  # m^2 baseline
     return sigma0 * np.log(E / PAIR_PRODUCTION_THRESHOLD)
+
 
 # --------------------------------------
 # High-Fidelity Radiation Model Class
@@ -172,7 +170,7 @@ class RadiationModel(PhysicsModule):
     def __init__(self, amrex_geom, config: RadiationConfig):
         self.geom = amrex_geom
         self.config = config
-        self.fluid_callback = None # Remove fluid_callback
+        self.fluid_callback = None  # Remove fluid_callback
 
         self.ncomp = len(config.group_energies)
         self.group_energies = np.array(config.group_energies)
@@ -186,27 +184,35 @@ class RadiationModel(PhysicsModule):
         # Feature toggles
         self.track_polarization = getattr(config, "track_polarization", True)
         self.pair_production_enabled = getattr(config, "enable_pair_production", True)
-        self.non_lte_line_transport = getattr(
-            config, "non_lte_line_transport", True
-        )
+        self.non_lte_line_transport = getattr(config, "non_lte_line_transport", True)
 
         # AMReX MultiFabs for radiation energy E and flux F
-        self.E_mf = amrex.MultiFab(self.geom.boxArray(), self.geom.DistributionMap(), self.ncomp, 1)
-        self.F_mf = amrex.MultiFab(self.geom.boxArray(), self.geom.DistributionMap(), self.ncomp * 3, 1)
+        self.E_mf = amrex.MultiFab(
+            self.geom.boxArray(), self.geom.DistributionMap(), self.ncomp, 1
+        )
+        self.F_mf = amrex.MultiFab(
+            self.geom.boxArray(), self.geom.DistributionMap(), self.ncomp * 3, 1
+        )
 
         # Load line cooling tables (HDF5: datasets 'Te', 'Z', 'cooling')
         try:
-            with h5py.File(config.line_cooling_curve, 'r') as f:
-                if not all(key in f for key in ['Te', 'Z', 'cooling']):
+            with h5py.File(config.line_cooling_curve, "r") as f:
+                if not all(key in f for key in ["Te", "Z", "cooling"]):
                     raise ValueError("Line cooling table is missing required datasets.")
-                self.Te_grid = f['Te'][:]
-                self.Z_grid = f['Z'][:]
-                self.cool_curve = f['cooling'][:]
-                if not (self.Te_grid.ndim == 1 and self.Z_grid.ndim == 1 and self.cool_curve.ndim == 2):
+                self.Te_grid = f["Te"][:]
+                self.Z_grid = f["Z"][:]
+                self.cool_curve = f["cooling"][:]
+                if not (
+                    self.Te_grid.ndim == 1
+                    and self.Z_grid.ndim == 1
+                    and self.cool_curve.ndim == 2
+                ):
                     raise ValueError("Line cooling table has incorrect dimensions.")
                 if self.cool_curve.shape != (len(self.Te_grid), len(self.Z_grid)):
                     raise ValueError("Line cooling table has inconsistent dimensions.")
-            self.line_interp = RegularGridInterpolator((self.Te_grid, self.Z_grid), self.cool_curve)
+            self.line_interp = RegularGridInterpolator(
+                (self.Te_grid, self.Z_grid), self.cool_curve
+            )
         except Exception as e:
             logger.error(f"Error loading line cooling table: {e}")
             raise
@@ -230,12 +236,22 @@ class RadiationModel(PhysicsModule):
             for k, v in config.adios_parameters.items():
                 io.SetParameter(k, str(v))
             self.writer = io.Open(config.adios_file, adios2.Mode.Write)
-            self.vars = {'E': io.DefineVariable('E', self.E_mf.array(), adios2.Shape(self.geom.Domain()),
-                                                adios2.Start(self.geom.Indices()),
-                                                adios2.Count(self.geom.Sizes())),
-                         'F': io.DefineVariable('F', self.F_mf.array(), adios2.Shape(self.geom.Domain()),
-                                                adios2.Start(self.geom.Indices()),
-                                                adios2.Count(self.geom.Sizes()))}
+            self.vars = {
+                "E": io.DefineVariable(
+                    "E",
+                    self.E_mf.array(),
+                    adios2.Shape(self.geom.Domain()),
+                    adios2.Start(self.geom.Indices()),
+                    adios2.Count(self.geom.Sizes()),
+                ),
+                "F": io.DefineVariable(
+                    "F",
+                    self.F_mf.array(),
+                    adios2.Shape(self.geom.Domain()),
+                    adios2.Start(self.geom.Indices()),
+                    adios2.Count(self.geom.Sizes()),
+                ),
+            }
             logger.info("RadiationModel ADIOS2 I/O initialized.")
         except Exception as e:
             logger.error(f"Error setting up ADIOS2 I/O: {e}")
@@ -252,7 +268,9 @@ class RadiationModel(PhysicsModule):
 
     def _telemetry_loop(self):
         try:
-            self._telemetry_conn = socket.create_connection(('localhost', self.telemetry_port))
+            self._telemetry_conn = socket.create_connection(
+                ("localhost", self.telemetry_port)
+            )
             while True:
                 msg = self._q.get()
                 if msg is None:
@@ -311,7 +329,7 @@ class RadiationModel(PhysicsModule):
             line = line_lte * pop
 
             # Synchrotron emission (relativistic correction)
-            gamma = np.sqrt(1 + (Te / (m_e * c**2))**2)  # Relativistic gamma factor
+            gamma = np.sqrt(1 + (Te / (m_e * c**2)) ** 2)  # Relativistic gamma factor
             sync = 1.59e-15 * ne * Bmag**2 * Te * gamma**2
 
             return br, line, sync
@@ -325,8 +343,10 @@ class RadiationModel(PhysicsModule):
             br, line, sync = self._compute_local_emissivities(Te, ne, Z, Bmag, dt)
             Em = np.zeros((self.ncomp,) + br.shape)
             Em[0] = br
-            if self.ncomp > 1: Em[1] = line
-            if self.ncomp > 2: Em[2] = sync
+            if self.ncomp > 1:
+                Em[1] = line
+            if self.ncomp > 2:
+                Em[2] = sync
             return Em
         except Exception as e:
             logger.error(f"Error building emissivity: {e}")
@@ -345,15 +365,21 @@ class RadiationModel(PhysicsModule):
                         arr = P[g, ii, jj]
                         grad = np.zeros_like(arr)
                         if jj == 0:
-                            grad[1:-1, :, :] = (arr[2:, :, :] - arr[:-2, :, :]) / (2 * dx)
+                            grad[1:-1, :, :] = (arr[2:, :, :] - arr[:-2, :, :]) / (
+                                2 * dx
+                            )
                             grad[0, :, :] = (arr[1, :, :] - arr[0, :, :]) / dx
                             grad[-1, :, :] = (arr[-1, :, :] - arr[-2, :, :]) / dx
                         elif jj == 1:
-                            grad[:, 1:-1, :] = (arr[:, 2:, :] - arr[:, :-2, :]) / (2 * dy)
+                            grad[:, 1:-1, :] = (arr[:, 2:, :] - arr[:, :-2, :]) / (
+                                2 * dy
+                            )
                             grad[:, 0, :] = (arr[:, 1, :] - arr[:, 0, :]) / dy
                             grad[:, -1, :] = (arr[:, -1, :] - arr[:, -2, :]) / dy
                         else:
-                            grad[:, :, 1:-1] = (arr[:, :, 2:] - arr[:, :, :-2]) / (2 * dz)
+                            grad[:, :, 1:-1] = (arr[:, :, 2:] - arr[:, :, :-2]) / (
+                                2 * dz
+                            )
                             grad[:, :, 0] = (arr[:, :, 1] - arr[:, :, 0]) / dz
                             grad[:, :, -1] = (arr[:, :, -1] - arr[:, :, -2]) / dz
                         divP[g, :, :, :, ii] += grad
@@ -369,8 +395,8 @@ class RadiationModel(PhysicsModule):
             P = np.zeros((self.ncomp, 3, 3) + E_arr.shape[1:])
             for g in range(self.ncomp):
                 E = E_arr[g]
-                Fx = F_arr[3 * g + 0];
-                Fy = F_arr[3 * g + 1];
+                Fx = F_arr[3 * g + 0]
+                Fy = F_arr[3 * g + 1]
                 Fz = F_arr[3 * g + 2]
                 magF = np.sqrt(Fx * Fx + Fy * Fy + Fz * Fz)
                 f = magF / (c * E + eps)
@@ -379,8 +405,9 @@ class RadiationModel(PhysicsModule):
                     i, j, k = idx
                     I3 = np.eye(3)
                     Fv = np.array([Fx[idx], Fy[idx], Fz[idx]])
-                    P[g, :, :, i, j, k] = chi[i, j, k] * val * I3 + (1 - chi[i, j, k]) * np.outer(Fv, Fv) / (
-                                magF[idx] ** 2 + eps)
+                    P[g, :, :, i, j, k] = chi[i, j, k] * val * I3 + (
+                        1 - chi[i, j, k]
+                    ) * np.outer(Fv, Fv) / (magF[idx] ** 2 + eps)
             return P
         except Exception as e:
             logger.error(f"Error computing Eddington tensor: {e}")
@@ -425,7 +452,7 @@ class RadiationModel(PhysicsModule):
                 base = params["base"]
                 alpha = params["alpha"]
                 beta = params["beta"]
-                return base + alpha * Te ** beta
+                return base + alpha * Te**beta
 
             elif model == "density_dependent":
                 # κ = base + α * quantity^exp where quantity is ne or Z
@@ -441,7 +468,7 @@ class RadiationModel(PhysicsModule):
                     raise KeyError(exponent_key)
                 quantity = Z if use_Z else ne
                 exponent = params[exponent_key]
-                return base + alpha * quantity ** exponent
+                return base + alpha * quantity**exponent
 
         except KeyError as exc:
             # Provide a clear error message if any required parameter is missing
@@ -511,10 +538,10 @@ class RadiationModel(PhysicsModule):
     def emit_photons(self, state, dt):
         """Creates new photons based on the calculated emissivities."""
         try:
-            Te = state.electron_temperature;
-            ne = state.density;
-            Z = state.get('Z', np.ones_like(ne))
-            Bmag = state.get('Bmag', np.zeros_like(ne))
+            Te = state.electron_temperature
+            ne = state.density
+            Z = state.get("Z", np.ones_like(ne))
+            Bmag = state.get("Bmag", np.zeros_like(ne))
             br, line, sync = self._compute_local_emissivities(Te, ne, Z, Bmag, dt)
             g = self.ncomp - 1
             V = np.prod(self.geom.CellSize())
@@ -524,11 +551,25 @@ class RadiationModel(PhysicsModule):
                     for k in range(nz):
                         energy = (br[i, j, k] + line[i, j, k] + sync[i, j, k]) * V * dt
                         npack = int(energy / self.group_energies[g])
-                        pos = np.array([i + 0.5, j + 0.5, k + 0.5]) * self.geom.CellSize()
+                        pos = (
+                            np.array([i + 0.5, j + 0.5, k + 0.5]) * self.geom.CellSize()
+                        )
                         for _ in range(npack):
                             dir = np.random.normal(size=3)
-                            pol = np.array([1.0, 0.0, 0.0]) if self.track_polarization else None
-                            self.photons.append(Photon(pos, dir, self.group_energies[g], g, polarization=pol))
+                            pol = (
+                                np.array([1.0, 0.0, 0.0])
+                                if self.track_polarization
+                                else None
+                            )
+                            self.photons.append(
+                                Photon(
+                                    pos,
+                                    dir,
+                                    self.group_energies[g],
+                                    g,
+                                    polarization=pol,
+                                )
+                            )
         except Exception as e:
             logger.error(f"Error emitting photons: {e}")
 
@@ -548,7 +589,7 @@ class RadiationModel(PhysicsModule):
                 if np.any(idx < 0) or idx[0] >= nx or idx[1] >= ny or idx[2] >= nz:
                     # For now, we simply remove photons that leave the domain.
                     # More sophisticated boundary conditions (reflection, periodicity) could be implemented here.
-                    continue  
+                    continue
 
                 # Pair production (photon removed if event occurs)
                 if self.pair_production_enabled and self._pair_production(p, dt):
@@ -573,9 +614,9 @@ class RadiationModel(PhysicsModule):
             self.implicit_monte_carlo(dt)
             # 2) Build emissivities and FLD
             Bmag = state.field_manager.get_B()
-            self.Emiss = self._build_emissivity(state.electron_temperature,
-                                                state.density,
-                                                state.get('Z', 1.0), Bmag, dt)
+            self.Emiss = self._build_emissivity(
+                state.electron_temperature, state.density, state.get("Z", 1.0), Bmag, dt
+            )
             self.flux_limited_diffusion(dt)
             # 3) M1 two-moment coupling
             E_arr = self.E_mf.array()
@@ -585,7 +626,10 @@ class RadiationModel(PhysicsModule):
             # update fluxes
             for g in range(self.ncomp):  # Iterate over radiation groups
                 for dim in range(3):  # Iterate over x, y, z components
-                    F_arr[3 * g + dim] -= dt * (c ** 2 * divP[g, ..., dim] + c * self.group_opacities[g] * F_arr[3 * g + dim])
+                    F_arr[3 * g + dim] -= dt * (
+                        c**2 * divP[g, ..., dim]
+                        + c * self.group_opacities[g] * F_arr[3 * g + dim]
+                    )
             self.F_mf.setVal(F_arr)  # Update fluxes
             # Radiation pressure on fluid momentum (coupling)
             # state.velocity -= dt * divP  # This line is removed to address the coupling issue
@@ -595,12 +639,14 @@ class RadiationModel(PhysicsModule):
             self.propagate_photons(state, dt)
             # diagnostics
             spec = np.histogram([p.energy for p in self.photons], bins=100)[0].tolist()
-            self._q.put({'time': state.time, 'spectrum': spec})
-            self.total_radiated_energy += np.sum(self.Emiss) * np.prod(self.geom.CellSize()) * dt
+            self._q.put({"time": state.time, "spectrum": spec})
+            self.total_radiated_energy += (
+                np.sum(self.Emiss) * np.prod(self.geom.CellSize()) * dt
+            )
 
             # checkpoint
             self.writer.BeginStep()
-            for k, mf in {'E': self.E_mf, 'F': self.F_mf}.items():
+            for k, mf in {"E": self.E_mf, "F": self.F_mf}.items():
                 arr = mf.array()
                 self.writer.Put(self.vars[k], arr)
             self.writer.EndStep()
@@ -610,15 +656,15 @@ class RadiationModel(PhysicsModule):
     def compute_radiation_loss(self, state: Dict[str, Any], dt: float = 0.0) -> Any:
         """Computes the radiation loss based on the current simulation state."""
         try:
-            Te = state['Te']
-            ne = state['density']
-            Z = state.get('Z', np.ones_like(ne))
-            Bmag = state.get('Bmag', np.zeros_like(ne))
+            Te = state["Te"]
+            ne = state["density"]
+            Z = state.get("Z", np.ones_like(ne))
+            Bmag = state.get("Bmag", np.zeros_like(ne))
             br, line, sync = self._compute_local_emissivities(Te, ne, Z, Bmag, dt)
             return br + line + sync
         except Exception as e:
             logger.error(f"Error computing radiation loss: {e}")
-            return np.zeros_like(state['Te'])
+            return np.zeros_like(state["Te"])
 
     def initialize(self):
         """
@@ -673,18 +719,18 @@ class RadiationModel(PhysicsModule):
         """Returns a dictionary of data to checkpoint."""
         try:
             self.checkpoint_data = {
-                'total_radiated_energy': self.total_radiated_energy,
-                'pairs_created': self.pairs_created,
-                'photons': [
+                "total_radiated_energy": self.total_radiated_energy,
+                "pairs_created": self.pairs_created,
+                "photons": [
                     {
-                        'pos': p.pos.tolist(),
-                        'dir': p.dir.tolist(),
-                        'energy': p.energy,
-                        'group': p.group,
-                        'polarization': p.polarization.tolist(),
+                        "pos": p.pos.tolist(),
+                        "dir": p.dir.tolist(),
+                        "energy": p.energy,
+                        "group": p.group,
+                        "polarization": p.polarization.tolist(),
                     }
                     for p in self.photons
-                ]
+                ],
             }
             return self.checkpoint_data
         except Exception as e:
@@ -694,11 +740,13 @@ class RadiationModel(PhysicsModule):
     def restart(self, data: Dict[str, Any]):
         """Restores data from a checkpoint."""
         try:
-            self.total_radiated_energy = data.get('total_radiated_energy', 0.0)
-            self.pairs_created = data.get('pairs_created', 0)
+            self.total_radiated_energy = data.get("total_radiated_energy", 0.0)
+            self.pairs_created = data.get("pairs_created", 0)
             self.photons = [
-                Photon(p['pos'], p['dir'], p['energy'], p['group'], p.get('polarization'))
-                for p in data.get('photons', [])
+                Photon(
+                    p["pos"], p["dir"], p["energy"], p["group"], p.get("polarization")
+                )
+                for p in data.get("photons", [])
             ]
         except Exception as e:
             logger.error(f"Error during restart: {e}")

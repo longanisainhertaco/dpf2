@@ -29,15 +29,13 @@ logger = logging.getLogger(__name__)
 class _FluidSolver(Protocol):
     """Minimal protocol for fluid solvers used by :class:`HybridPICSolver`."""
 
-    def step(self, state: Any, dt: float, current: float, voltage: float) -> Any:
-        ...
+    def step(self, state: Any, dt: float, current: float, voltage: float) -> Any: ...
 
 
 class _ParticleSolver(Protocol):
     """Minimal protocol for particle solvers used by :class:`HybridPICSolver`."""
 
-    def step(self, state: Any, dt: float, current: float, voltage: float) -> Any:
-        ...
+    def step(self, state: Any, dt: float, current: float, voltage: float) -> Any: ...
 
     def beam_current(self) -> float:  # pragma: no cover - trivial protocol
         """Return the instantaneous beam current in Amperes."""
@@ -103,7 +101,14 @@ class HybridPICSolver(PlasmaSolverBase):
         spike = eta * abs(J)
         return eta, spike
 
-    def step(self, state: Any, dt: float, current: float, voltage: float, refinement_cb: Optional[Callable[[Dict[str, Any]], Dict[str, int]]] = None) -> Any:
+    def step(
+        self,
+        state: Any,
+        dt: float,
+        current: float,
+        voltage: float,
+        refinement_cb: Optional[Callable[[Dict[str, Any]], Dict[str, int]]] = None,
+    ) -> Any:
         """Advance both fluid and particle descriptions.
 
         The method updates the coupled solvers, evaluates ``m=0`` growth

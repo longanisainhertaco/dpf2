@@ -7,19 +7,21 @@ import time
 import logging
 from typing import List, Optional
 import numpy as np
+
 try:  # optional dependency
     import pywarpx
     from pywarpx import picmi
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    raise ImportError(
-        "WarpX dependencies missing; install dpf2[warpx]"
-    ) from exc
+    raise ImportError("WarpX dependencies missing; install dpf2[warpx]") from exc
 
 # Setup logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s [%(levelname)s] %(message)s',
-                    handlers=[logging.StreamHandler(sys.stdout)])
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
 logger = logging.getLogger("AdvancedWarpXSimulation")
+
 
 class AdvancedWarpXSimulation:
     """
@@ -46,7 +48,9 @@ class AdvancedWarpXSimulation:
         os.environ["WARPX_REFINE_THRESH"] = str(self.config["refinement_threshold"])
 
         # Initialize simulation domain
-        grid_length = [self.config["prob_hi"][i] - self.config["prob_lo"][i] for i in range(3)]
+        grid_length = [
+            self.config["prob_hi"][i] - self.config["prob_lo"][i] for i in range(3)
+        ]
         self.sim = picmi.ElectromagneticSimulation(
             solver_type="FiniteDifferenceSolver",
             grid_length=grid_length,
@@ -59,13 +63,21 @@ class AdvancedWarpXSimulation:
         self._setup_diagnostics()
 
     def _load_config(self):
-        with open(self.config_path, 'r') as f:
+        with open(self.config_path, "r") as f:
             self.config = json.load(f)
         logger.info(f"Configuration loaded from {self.config_path}")
 
     def _validate_config(self):
-        required_keys = ["ncell", "prob_lo", "prob_hi", "dt", "max_steps",
-                         "amr_levels", "refinement_threshold", "diag_interval"]
+        required_keys = [
+            "ncell",
+            "prob_lo",
+            "prob_hi",
+            "dt",
+            "max_steps",
+            "amr_levels",
+            "refinement_threshold",
+            "diag_interval",
+        ]
         for key in required_keys:
             if key not in self.config:
                 raise ValueError(f"Missing required configuration parameter: {key}")
@@ -75,9 +87,12 @@ class AdvancedWarpXSimulation:
         bounds = self.config["prob_lo"] + self.config["prob_hi"]
         distribution = picmi.UniformDistribution(
             density=1e19,
-            xlo=bounds[0], xhi=bounds[3],
-            ylo=bounds[1], yhi=bounds[4],
-            zlo=bounds[2], zhi=bounds[5],
+            xlo=bounds[0],
+            xhi=bounds[3],
+            ylo=bounds[1],
+            yhi=bounds[4],
+            zlo=bounds[2],
+            zhi=bounds[5],
         )
 
         self.electron = picmi.Species(
@@ -85,7 +100,7 @@ class AdvancedWarpXSimulation:
             name="electron",
             charge=-1.60217662e-19,
             mass=9.10938356e-31,
-            initial_distribution=distribution
+            initial_distribution=distribution,
         )
 
         self.ion = picmi.Species(
@@ -93,7 +108,7 @@ class AdvancedWarpXSimulation:
             name="ion",
             charge=1.60217662e-19,
             mass=1.6726219e-27,
-            initial_distribution=distribution
+            initial_distribution=distribution,
         )
 
         self.sim.add_species(self.electron)
@@ -176,6 +191,7 @@ class AdvancedWarpXSimulation:
         except Exception as e:
             logger.error(f"Error during grid refinement: {e}")
 
+
 # Usage: run with a config file (example_config.json)
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -185,10 +201,12 @@ if __name__ == "__main__":
     config_file = sys.argv[1]
     sim = AdvancedWarpXSimulation(config_file)
     sim.initialize()
+
     # Create a dummy SimulationState
     class DummySimulationState:
         def __init__(self, grid_shape):
             self.density = np.zeros(grid_shape)
+
     state = DummySimulationState(sim.config["ncell"])
     sim.run(state)
     sim.visualize_diagnostics()

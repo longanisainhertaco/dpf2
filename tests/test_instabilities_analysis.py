@@ -13,7 +13,7 @@ def test_m_mode_growth_and_alert():
         theta = np.linspace(0, 2 * np.pi, n_theta, endpoint=False)
         field = 1.0 + np.exp(0.2 * ti) * np.cos(theta)
         series.append(field)
-    ez_series = times ** 2
+    ez_series = times**2
     result = analyze_instabilities(
         series,
         dt,

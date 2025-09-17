@@ -16,6 +16,7 @@ from typing import Dict, Iterable, Tuple
 
 try:  # pragma: no cover - matplotlib may be absent
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 except Exception:  # pragma: no cover - fallback when matplotlib missing
@@ -38,6 +39,7 @@ from .lab import write_manifest
 
 # ---------------------------------------------------------------------------
 # Data handling helpers
+
 
 def _build_validation_suite(dataset: str) -> ValidationSuite:
     """Create a :class:`ValidationSuite` for bundled validation data."""
@@ -64,20 +66,28 @@ def _build_validation_suite(dataset: str) -> ValidationSuite:
     )
 
 
-def _load_experimental(vsuite: ValidationSuite) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+def _load_experimental(
+    vsuite: ValidationSuite,
+) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
     """Load experimental observables from disk."""
     data: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
     for name, rel in vsuite.observable_file_map.items():
         path = vsuite.dataset_directory / rel
         arr = np.genfromtxt(path, delimiter=",", names=True)
-        spec = vsuite.observable_format_spec.get(name, {}) if vsuite.observable_format_spec else {}
+        spec = (
+            vsuite.observable_format_spec.get(name, {})
+            if vsuite.observable_format_spec
+            else {}
+        )
         t_col = spec.get("time", arr.dtype.names[0])
         v_col = spec.get("value", arr.dtype.names[1])
         data[name] = (arr[t_col], arr[v_col])
     return data
 
 
-def _simulation_observables(res: SimulationResults) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+def _simulation_observables(
+    res: SimulationResults,
+) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
     """Extract observables from the simulation results."""
     return {
         "I(t)": (res.time * 1e6, res.current / 1e3),
@@ -113,6 +123,7 @@ def _plot_overlays(
 
 # ---------------------------------------------------------------------------
 # Public API
+
 
 def run_validation(
     config: Path,
@@ -203,9 +214,13 @@ def run_validation(
             json.dump(metrics, fh, indent=2)
 
     if lab_mode:
-        ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
+        ppc = getattr(
+            getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None
+        )
         cfg_dict = (
-            cfg.model_dump(mode="python") if hasattr(cfg, "model_dump") else cfg.__dict__
+            cfg.model_dump(mode="python")
+            if hasattr(cfg, "model_dump")
+            else cfg.__dict__
         )
         write_manifest(
             outdir,
@@ -274,7 +289,9 @@ def main(argv: Iterable[str] | None = None) -> None:
         help="Record a reproducibility manifest alongside outputs",
     )
     args = parser.parse_args(args_list)
-    run_validation(args.config, args.dataset, outdir=args.outdir, lab_mode=args.lab_mode)
+    run_validation(
+        args.config, args.dataset, outdir=args.outdir, lab_mode=args.lab_mode
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

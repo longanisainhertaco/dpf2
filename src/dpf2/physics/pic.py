@@ -113,12 +113,8 @@ class SimplePIC(PlasmaSolverBase):
                 cell = x / self.dx
                 left = int(math.floor(cell))
                 frac = cell - left
-                self.rho[left % self.num_cells] += (
-                    self.charge * (1.0 - frac) / cell_vol
-                )
-                self.rho[(left + 1) % self.num_cells] += (
-                    self.charge * frac / cell_vol
-                )
+                self.rho[left % self.num_cells] += self.charge * (1.0 - frac) / cell_vol
+                self.rho[(left + 1) % self.num_cells] += self.charge * frac / cell_vol
             else:  # standard and Esirkepov use simple nearest grid
                 idx = int(math.floor(x / self.length * self.num_cells)) % self.num_cells
                 self.rho[idx] += self.charge / cell_vol
@@ -132,7 +128,6 @@ class SimplePIC(PlasmaSolverBase):
             dEdx = np.gradient(self.E, self.dx, edge_order=2)
             gauss = self.rho / EPS0
             self.divergence_error = float(abs(np.sum(dEdx - gauss)))
-
 
     def _interp_E(self, x: float) -> float:
         if len(self.E) == 0:
@@ -184,7 +179,7 @@ class SimplePIC(PlasmaSolverBase):
 
         # Diagnostics ------------------------------------------------------
         if len(self.E):
-            field_energy = 0.5 * EPS0 * np.sum(self.E ** 2) * self.dx
+            field_energy = 0.5 * EPS0 * np.sum(self.E**2) * self.dx
             kinetic_energy = 0.5 * self.mass * sum(v**2 for v in self.velocities)
             total = field_energy + kinetic_energy
             self.energy_drift = (
@@ -199,7 +194,7 @@ class SimplePIC(PlasmaSolverBase):
             except Exception:  # pragma: no cover - ``numpy`` stub fallback
                 spectrum = np.zeros(0)
             self.wave_spectrum = spectrum
-            self.wave_power = float(np.sum(spectrum ** 2)) if len(spectrum) else 0.0
+            self.wave_power = float(np.sum(spectrum**2)) if len(spectrum) else 0.0
             self.axial_field = float(np.mean(self.E))
             self.last_eta = lhdi_resistivity(np.abs(self.rho), np.abs(self.E), self.dx)
         else:

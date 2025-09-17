@@ -38,10 +38,15 @@ def _not_allowed_template_directories(directories: tuple[Path]) -> dict[Path, st
     """
     Check the directories and return a path->reason mapping of non-allowed ones.
     """
-    return {d: "is not an existing directory" for d in filter(lambda p: not p.is_dir(), directories)}
+    return {
+        d: "is not an existing directory"
+        for d in filter(lambda p: not p.is_dir(), directories)
+    }
 
 
-def _normalise_template_dir(directory: None | PathLike | typing.Iterable[PathLike]) -> tuple[Path]:
+def _normalise_template_dir(
+    directory: None | PathLike | typing.Iterable[PathLike],
+) -> tuple[Path]:
     """
     Allow strings, Paths and an iterable thereof and return tuple[Path].
     """
@@ -63,7 +68,9 @@ def _normalise_template_dir(directory: None | PathLike | typing.Iterable[PathLik
         )
 
     if not_allowed := _not_allowed_template_directories(directory):
-        raise ValueError(f"Found {not_allowed=} as values for template directories. These are invalid.")
+        raise ValueError(
+            f"Found {not_allowed=} as values for template directories. These are invalid."
+        )
     return directory
 
 
@@ -86,7 +93,9 @@ class Simulation(picmistandard.PICMI_Simulation):
     update using picongpu_add_custom_user_input() or by direct setting
     """
 
-    picongpu_interaction = pypicongpu.util.build_typesafe_property(typing.Optional[Interaction])
+    picongpu_interaction = pypicongpu.util.build_typesafe_property(
+        typing.Optional[Interaction]
+    )
     """Interaction instance containing all particle interactions of the simulation, set to None to have no interactions"""
 
     picongpu_typical_ppc = pypicongpu.util.build_typesafe_property(typing.Optional[int])
@@ -98,10 +107,14 @@ class Simulation(picmistandard.PICMI_Simulation):
     optional, if set to None, will be set to median ppc of all species ppcs
     """
 
-    picongpu_template_dir = pypicongpu.util.build_typesafe_property(typing.Iterable[Path])
+    picongpu_template_dir = pypicongpu.util.build_typesafe_property(
+        typing.Iterable[Path]
+    )
     """directory containing templates to use for generating picongpu setups"""
 
-    picongpu_moving_window_move_point = pypicongpu.util.build_typesafe_property(typing.Optional[float])
+    picongpu_moving_window_move_point = pypicongpu.util.build_typesafe_property(
+        typing.Optional[float]
+    )
     """
     point a light ray reaches in y from the left border until we begin sliding the simulation window with the speed of
     light
@@ -112,19 +125,29 @@ class Simulation(picmistandard.PICMI_Simulation):
         thereby reducing the simulation window size accordingrelative spot at which to start moving the simulation window
     """
 
-    picongpu_moving_window_stop_iteration = pypicongpu.util.build_typesafe_property(typing.Optional[int])
+    picongpu_moving_window_stop_iteration = pypicongpu.util.build_typesafe_property(
+        typing.Optional[int]
+    )
     """iteration, at which to stop moving the simulation window"""
 
-    picongpu_base_density = pypicongpu.util.build_typesafe_property(typing.Optional[float])
+    picongpu_base_density = pypicongpu.util.build_typesafe_property(
+        typing.Optional[float]
+    )
     """value to normalise densities with"""
 
-    picongpu_walltime = pypicongpu.util.build_typesafe_property(typing.Optional[datetime.timedelta])
+    picongpu_walltime = pypicongpu.util.build_typesafe_property(
+        typing.Optional[datetime.timedelta]
+    )
     """time after which the cluster scheduler will stop the simulation"""
 
-    picongpu_binomial_current_interpolation = pypicongpu.util.build_typesafe_property(bool)
+    picongpu_binomial_current_interpolation = pypicongpu.util.build_typesafe_property(
+        bool
+    )
     """switch on a binomial current interpolation"""
 
-    __runner = pypicongpu.util.build_typesafe_property(typing.Optional[pypicongpu.runner.Runner])
+    __runner = pypicongpu.util.build_typesafe_property(
+        typing.Optional[pypicongpu.runner.Runner]
+    )
 
     # @todo remove boiler plate constructor argument list once picmistandard reference implementation switches to
     #   pydantic, Brian Marre, 2024
@@ -143,11 +166,15 @@ class Simulation(picmistandard.PICMI_Simulation):
         self.picongpu_template_dir = _normalise_template_dir(picongpu_template_dir)
         self.picongpu_typical_ppc = picongpu_typical_ppc
         self.picongpu_moving_window_move_point = picongpu_moving_window_move_point
-        self.picongpu_moving_window_stop_iteration = picongpu_moving_window_stop_iteration
+        self.picongpu_moving_window_stop_iteration = (
+            picongpu_moving_window_stop_iteration
+        )
         self.picongpu_interaction = picongpu_interaction
         self.picongpu_base_density = picongpu_base_density
         self.picongpu_walltime = picongpu_walltime
-        self.picongpu_binomial_current_interpolation = picongpu_binomial_current_interpolation
+        self.picongpu_binomial_current_interpolation = (
+            picongpu_binomial_current_interpolation
+        )
         self.picongpu_custom_user_input = None
         self.__runner = None
 
@@ -205,25 +232,30 @@ class Simulation(picmistandard.PICMI_Simulation):
         if self.time_step_size is not None and self.solver.cfl is not None:
             # both cfl & delta_t given -> check their compatibility
             delta_t_from_cfl = self.solver.cfl / (
-                constants.c * math.sqrt(1 / delta_x**2 + 1 / delta_y**2 + 1 / delta_z**2)
+                constants.c
+                * math.sqrt(1 / delta_x**2 + 1 / delta_y**2 + 1 / delta_z**2)
             )
 
             if delta_t_from_cfl != self.time_step_size:
                 raise ValueError(
                     "time step size (delta t) does not match CFL "
                     "(Courant-Friedrichs-Lewy) parameter! delta_t: {}; "
-                    "expected from CFL: {}".format(self.time_step_size, delta_t_from_cfl)
+                    "expected from CFL: {}".format(
+                        self.time_step_size, delta_t_from_cfl
+                    )
                 )
         else:
             if self.time_step_size is not None:
                 # calculate cfl
                 self.solver.cfl = self.time_step_size * (
-                    constants.c * math.sqrt(1 / delta_x**2 + 1 / delta_y**2 + 1 / delta_z**2)
+                    constants.c
+                    * math.sqrt(1 / delta_x**2 + 1 / delta_y**2 + 1 / delta_z**2)
                 )
             elif self.solver.cfl is not None:
                 # calculate delta_t
                 self.time_step_size = self.solver.cfl / (
-                    constants.c * math.sqrt(1 / delta_x**2 + 1 / delta_y**2 + 1 / delta_z**2)
+                    constants.c
+                    * math.sqrt(1 / delta_x**2 + 1 / delta_y**2 + 1 / delta_z**2)
                 )
 
             # if neither delta_t nor cfl are given simply silently pass
@@ -275,7 +307,9 @@ class Simulation(picmistandard.PICMI_Simulation):
 
                 op.species = set(
                     map(
-                        lambda picmi_species: pypicongpu_by_picmi_species[picmi_species],
+                        lambda picmi_species: pypicongpu_by_picmi_species[
+                            picmi_species
+                        ],
                         picmi_species_list,
                     )
                 )
@@ -328,7 +362,9 @@ class Simulation(picmistandard.PICMI_Simulation):
         all_operations = []
 
         for picmi_species, pypicongpu_species in pypicongpu_by_picmi_species.items():
-            all_operations += picmi_species.get_independent_operations(pypicongpu_species, self.picongpu_interaction)
+            all_operations += picmi_species.get_independent_operations(
+                pypicongpu_species, self.picongpu_interaction
+            )
 
         return all_operations
 
@@ -340,14 +376,14 @@ class Simulation(picmistandard.PICMI_Simulation):
             profile = picmi_species.initial_distribution
             ratio = picmi_species.density_scale
 
-            assert 1 != [layout, profile].count(None), (
-                "species need BOTH layout AND initial distribution set (or neither)"
-            )
+            assert 1 != [layout, profile].count(
+                None
+            ), "species need BOTH layout AND initial distribution set (or neither)"
 
             if ratio is not None:
-                assert layout is not None and profile is not None, (
-                    "layout and initial distribution must be set to use density scale"
-                )
+                assert (
+                    layout is not None and profile is not None
+                ), "layout and initial distribution must be set to use density scale"
 
     def __get_translated_species_and_ionization_models(
         self,
@@ -372,10 +408,14 @@ class Simulation(picmistandard.PICMI_Simulation):
         ionization_model_conversion_by_species = {}
         for picmi_species in self.species:
             # @todo split into two different fucntion calls?, Brian Marre, 2024
-            pypicongpu_species, ionization_model_conversion = picmi_species.get_as_pypicongpu(self.picongpu_interaction)
+            pypicongpu_species, ionization_model_conversion = (
+                picmi_species.get_as_pypicongpu(self.picongpu_interaction)
+            )
 
             pypicongpu_by_picmi_species[picmi_species] = pypicongpu_species
-            ionization_model_conversion_by_species[picmi_species] = ionization_model_conversion
+            ionization_model_conversion_by_species[picmi_species] = (
+                ionization_model_conversion
+            )
 
         return pypicongpu_by_picmi_species, ionization_model_conversion_by_species
 
@@ -422,7 +462,9 @@ class Simulation(picmistandard.PICMI_Simulation):
         ) = self.__get_translated_species_and_ionization_models()
 
         # fill inter-species dependencies
-        self.__fill_in_ionization_electrons(pypicongpu_by_picmi_species, ionization_model_conversion_by_species)
+        self.__fill_in_ionization_electrons(
+            pypicongpu_by_picmi_species, ionization_model_conversion_by_species
+        )
 
         # init PyPIConGPU init manager
         initmgr = InitManager()  # This works because InitManager is imported
@@ -431,11 +473,17 @@ class Simulation(picmistandard.PICMI_Simulation):
             initmgr.all_species.append(pypicongpu_species)
 
         # operations on multiple species
-        initmgr.all_operations += self.__get_operations_simple_density(pypicongpu_by_picmi_species)
+        initmgr.all_operations += self.__get_operations_simple_density(
+            pypicongpu_by_picmi_species
+        )
 
         # operations on single species
-        initmgr.all_operations += self.__get_operations_not_placed(pypicongpu_by_picmi_species)
-        initmgr.all_operations += self.__get_operations_from_individual_species(pypicongpu_by_picmi_species)
+        initmgr.all_operations += self.__get_operations_not_placed(
+            pypicongpu_by_picmi_species
+        )
+        initmgr.all_operations += self.__get_operations_from_individual_species(
+            pypicongpu_by_picmi_species
+        )
 
         return initmgr, pypicongpu_by_picmi_species
 
@@ -459,12 +507,18 @@ class Simulation(picmistandard.PICMI_Simulation):
         if pypicongpu_simulation is None:
             pypicongpu_simulation = self.get_as_pypicongpu()
 
-        self.__runner = pypicongpu.runner.Runner(pypicongpu_simulation, self.picongpu_template_dir, setup_dir=file_name)
+        self.__runner = pypicongpu.runner.Runner(
+            pypicongpu_simulation, self.picongpu_template_dir, setup_dir=file_name
+        )
         self.__runner.generate()
 
-    def picongpu_add_custom_user_input(self, custom_user_input: pypicongpu.customuserinput.InterfaceCustomUserInput):
+    def picongpu_add_custom_user_input(
+        self, custom_user_input: pypicongpu.customuserinput.InterfaceCustomUserInput
+    ):
         """add custom user input to previously stored input"""
-        self.picongpu_custom_user_input = (self.picongpu_custom_user_input or []) + [custom_user_input]
+        self.picongpu_custom_user_input = (self.picongpu_custom_user_input or []) + [
+            custom_user_input
+        ]
 
     def add_interaction(self, interaction) -> None:
         pypicongpu.util.unsupported(
@@ -475,7 +529,9 @@ class Simulation(picmistandard.PICMI_Simulation):
     def step(self, nsteps: int = 1):
         if nsteps != self.max_steps:
             raise ValueError(
-                "PIConGPU does not support stepwise running. Invoke step() with max_steps (={})".format(self.max_steps)
+                "PIConGPU does not support stepwise running. Invoke step() with max_steps (={})".format(
+                    self.max_steps
+                )
             )
         self.picongpu_run()
 
@@ -495,7 +551,9 @@ class Simulation(picmistandard.PICMI_Simulation):
         elif self.max_time is not None:
             s.time_steps = math.ceil(self.max_time / self.time_step_size)
         else:
-            raise ValueError("runtime not specified (neither as step count nor max time)")
+            raise ValueError(
+                "runtime not specified (neither as step count nor max time)"
+            )
 
         pypicongpu.util.unsupported("verbose", self.verbose)
         pypicongpu.util.unsupported("particle shape", self.particle_shape, "linear")
@@ -507,8 +565,12 @@ class Simulation(picmistandard.PICMI_Simulation):
             pypicongpu.util.unsupported(f"grid type: {type(self.solver.grid)}")
 
         # any injection method != None is not supported
-        if len(self.laser_injection_methods) != self.laser_injection_methods.count(None):
-            pypicongpu.util.unsupported("laser injection method", self.laser_injection_methods, [])
+        if len(self.laser_injection_methods) != self.laser_injection_methods.count(
+            None
+        ):
+            pypicongpu.util.unsupported(
+                "laser injection method", self.laser_injection_methods, []
+            )
 
         # pypicongpu interface currently only supports one laser, @todo change Brian Marre, 2024
         if len(self.lasers) > 1:
@@ -541,7 +603,9 @@ class Simulation(picmistandard.PICMI_Simulation):
         if s.typical_ppc < 1:
             raise ValueError("typical_ppc must be >= 1")
 
-        s.base_density = self.picongpu_base_density or s.init_manager.get_base_density(s.grid)
+        s.base_density = self.picongpu_base_density or s.init_manager.get_base_density(
+            s.grid
+        )
 
         # disable moving Window if explicitly activated by the user
         if self.picongpu_moving_window_move_point is None:
@@ -564,12 +628,16 @@ class Simulation(picmistandard.PICMI_Simulation):
     def picongpu_run(self) -> None:
         """build and run PIConGPU simulation"""
         if self.__runner is None:
-            self.__runner = pypicongpu.runner.Runner(self.get_as_pypicongpu(), self.picongpu_template_dir)
+            self.__runner = pypicongpu.runner.Runner(
+                self.get_as_pypicongpu(), self.picongpu_template_dir
+            )
         self.__runner.generate()
         self.__runner.build()
         self.__runner.run()
 
     def picongpu_get_runner(self) -> pypicongpu.runner.Runner:
         if self.__runner is None:
-            self.__runner = pypicongpu.runner.Runner(self.get_as_pypicongpu(), self.picongpu_template_dir)
+            self.__runner = pypicongpu.runner.Runner(
+                self.get_as_pypicongpu(), self.picongpu_template_dir
+            )
         return self.__runner

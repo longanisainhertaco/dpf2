@@ -1,4 +1,3 @@
-
 """Legacy synthetic diagnostics module.
 
 This module re-exports the public API from
@@ -9,5 +8,3 @@ standalone module rather than a package.
 
 from .synthetic_diagnostics.core import *  # noqa: F401,F403
 from .synthetic_diagnostics.core import __all__  # noqa: F401
-
-

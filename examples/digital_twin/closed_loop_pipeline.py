@@ -19,7 +19,7 @@ def forward_model(params: dict[str, float]) -> dict[str, float]:
     # Here we assume the neutron yield scales with the square of a
     # ``current_scale`` parameter for demonstration purposes.
     scale = params["current_scale"]
-    return {"neutron_yield": 1.0e5 * scale ** 2}
+    return {"neutron_yield": 1.0e5 * scale**2}
 
 
 def main() -> None:
@@ -34,7 +34,9 @@ def main() -> None:
         print(f"t={t:.2e}s  sim={sim:.2e}  exp={exp:.2e}  residual={exp - sim:.2e}")
 
     comparator = RealTimeComparator(comparison_callback)
-    streamer = NeutronYieldStreamer(callback=lambda t, v: comparator.compare(t, v), comparator=comparator)
+    streamer = NeutronYieldStreamer(
+        callback=lambda t, v: comparator.compare(t, v), comparator=comparator
+    )
 
     # Inject a synthetic experimental measurement at t=1 microsecond
     comparator.ingest(1e-6, 5.0e5)
@@ -50,4 +52,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

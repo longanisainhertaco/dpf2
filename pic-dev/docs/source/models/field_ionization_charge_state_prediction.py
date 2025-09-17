@@ -272,7 +272,9 @@ if __name__ == "__main__":
     ax_bsi.set_yticklabels(labels)
 
     # secondy y-axis for rate plot
-    secaxy_rate = ax_rate.secondary_yaxis("right", functions=(time_SI_to_AU, time_AU_to_SI))
+    secaxy_rate = ax_rate.secondary_yaxis(
+        "right", functions=(time_SI_to_AU, time_AU_to_SI)
+    )
     secaxy_rate.set_ylabel(r"ionizations per second")
 
     # set plot limits
@@ -285,7 +287,9 @@ if __name__ == "__main__":
     ax_bsi_twin.set_ylim(ylim_ax_bsi_twin)
 
     # note string for ADK rate plot note
-    note_string = "Note: ADK rates were calculated from the " + "intensity envelope below"
+    note_string = (
+        "Note: ADK rates were calculated from the " + "intensity envelope below"
+    )
     # note in ADK rate plot
     ax_rate.text(x=0.05, y=0.9, s=note_string, fontsize=12, transform=ax_rate.transAxes)
 

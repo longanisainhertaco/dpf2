@@ -138,7 +138,9 @@ class SweepPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.canvas)
 
-    def overlay(self, managers: Dict[str, ProjectManager], metric: str = "yield") -> None:
+    def overlay(
+        self, managers: Dict[str, ProjectManager], metric: str = "yield"
+    ) -> None:
         """Overlay ``metric`` versus parameter for all managed sweeps."""
 
         self.ax.clear()
@@ -308,9 +310,7 @@ class _SweepWindow(QWidget):
         y_path = plot_yield_vs_param(
             param,
             metrics,
-            Path("results") / pm.project
-            / f"yield_vs_{param}"
-            / f"{label}.png",
+            Path("results") / pm.project / f"yield_vs_{param}" / f"{label}.png",
         )
         img = plt.imread(y_path)
         plt.figure()
@@ -372,6 +372,7 @@ class _SweepWindow(QWidget):
 
 
 # ---------------------------------------------------------------------------
+
 
 def launch() -> None:
     """Launch the Qt-based sweep GUI."""

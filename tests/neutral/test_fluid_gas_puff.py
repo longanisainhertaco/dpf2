@@ -5,7 +5,9 @@ from dpf2.physics.hooks import neutral_density_source
 
 
 def test_gas_puff_increases_density_then_ionizes():
-    fluid = NeutralGasFluid(rho=0.0, volume=1.0, mass_flow_rate=1e-6, puff_start=0.0, puff_end=1.0)
+    fluid = NeutralGasFluid(
+        rho=0.0, volume=1.0, mass_flow_rate=1e-6, puff_start=0.0, puff_end=1.0
+    )
     # During puff, density rises linearly
     rho1 = fluid.step(1.0, t=0.5, ionization_rate=0.0)
     assert rho1 == pytest.approx(1e-6)

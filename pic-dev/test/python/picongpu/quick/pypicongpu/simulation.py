@@ -189,7 +189,9 @@ class TestSimulation(unittest.TestCase):
         self.assertEqual("Yee", context["solver"]["name"])
         self.assertEqual(2, context["grid"]["cell_size"]["y"])
         self.assertEqual(None, context["laser"])
-        self.assertEqual(self.s.init_manager.get_rendering_context(), context["species_initmanager"])
+        self.assertEqual(
+            self.s.init_manager.get_rendering_context(), context["species_initmanager"]
+        )
         self.assertEqual(1, context["output"][0]["data"]["period"]["specs"][0]["step"])
 
         self.assertNotEqual([], context["species_initmanager"]["species"])
@@ -215,7 +217,9 @@ class TestSimulation(unittest.TestCase):
             self.s.time_steps = time_steps
             self.assertEqual(
                 1,
-                self.s.get_rendering_context()["output"][0]["data"]["period"]["specs"][0]["step"],
+                self.s.get_rendering_context()["output"][0]["data"]["period"]["specs"][
+                    0
+                ]["step"],
             )
 
     def test_custom_input_pass_thru(self):
@@ -264,7 +268,9 @@ class TestSimulation(unittest.TestCase):
 
         self.s.custom_user_input = [i_1, i_2]
 
-        with self.assertRaisesRegex(ValueError, "duplicate tag provided!, tags must be unique!"):
+        with self.assertRaisesRegex(
+            ValueError, "duplicate tag provided!, tags must be unique!"
+        ):
             self.s.get_rendering_context()
 
     def test_duplicated_key_over_different_custom_inputs(self):
@@ -285,6 +291,8 @@ class TestSimulation(unittest.TestCase):
         self.s.custom_user_input.append(i_sameValue)
         self.s.get_rendering_context()
 
-        with self.assertRaisesRegex(ValueError, "Key test_data_1 exist already, and specified values differ."):
+        with self.assertRaisesRegex(
+            ValueError, "Key test_data_1 exist already, and specified values differ."
+        ):
             self.s.custom_user_input.append(i_differentValue)
             self.s.get_rendering_context()

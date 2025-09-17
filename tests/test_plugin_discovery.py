@@ -4,6 +4,7 @@ import textwrap
 
 from dpf2.simulation.module_registry import ModuleRegistry
 
+
 def test_discover_plugins_subpackage(tmp_path, monkeypatch):
     pkg = tmp_path / "myplugins"
     subpkg = pkg / "subpkg"
@@ -25,4 +26,5 @@ def test_discover_plugins_subpackage(tmp_path, monkeypatch):
     registry = ModuleRegistry()
     registry.discover_plugins("myplugins")
     from myplugins.subpkg.plugin import ExamplePlugin
+
     assert ExamplePlugin in registry.modules

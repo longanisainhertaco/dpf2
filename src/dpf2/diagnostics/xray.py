@@ -7,7 +7,9 @@ import json
 from .detector_models import apply_irf
 
 
-def load_response(path: str | Path, overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+def load_response(
+    path: str | Path, overrides: Mapping[str, Any] | None = None
+) -> Dict[str, Any]:
     """Load an X-ray detector response description from *path*.
 
     Parameters
@@ -32,5 +34,6 @@ def apply_response(
     """Apply detector response effects to ``signal`` sampled at ``times``."""
 
     return apply_irf(times, signal, response)
+
 
 __all__ = ["load_response", "apply_response"]

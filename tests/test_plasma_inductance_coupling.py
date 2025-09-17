@@ -34,7 +34,9 @@ class RecordingCircuit:
         self.circuit = _Circuit()
         self.received_Lp: list[float] = []
 
-    def step(self, coupling: CouplingState, back_emf: float, dt: float, energy_tracker=None):
+    def step(
+        self, coupling: CouplingState, back_emf: float, dt: float, energy_tracker=None
+    ):
         self.received_Lp.append(coupling.Lp)
         self.currents.append(coupling.current)
         self.voltages.append(coupling.voltage)
@@ -94,8 +96,12 @@ class ConstantLpSolver(PlasmaSolverBase):
 
 
 def test_distributed_solver_uses_plasma_inductance():
-    seg_L = TransmissionLineSegment(0, 1, length=1.0, L_per_m=1e-6, R_per_m=0.0, C_per_m=0.0)
-    seg_C = TransmissionLineSegment(1, 2, length=1.0, L_per_m=0.0, R_per_m=0.0, C_per_m=1e-6)
+    seg_L = TransmissionLineSegment(
+        0, 1, length=1.0, L_per_m=1e-6, R_per_m=0.0, C_per_m=0.0
+    )
+    seg_C = TransmissionLineSegment(
+        1, 2, length=1.0, L_per_m=0.0, R_per_m=0.0, C_per_m=1e-6
+    )
     segments = [seg_L, seg_C]
 
     res_base = solve_distributed_circuit(segments, [], V0=1.0, t_end=1e-6, dt=1e-7)

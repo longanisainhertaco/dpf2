@@ -6,7 +6,9 @@ from dpf2.physics import ResistiveMHD
 
 
 def test_alegra_energy_profile():
-    ref_path = Path(__file__).resolve().parents[2] / "ReferenceMaterial/alegra_reference.json"
+    ref_path = (
+        Path(__file__).resolve().parents[2] / "ReferenceMaterial/alegra_reference.json"
+    )
     reference = json.loads(ref_path.read_text())
 
     model = ResistiveMHD(gamma=1.4)

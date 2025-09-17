@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for conflict detection
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -17,6 +19,11 @@ jobs:
         run: |
           pip install .[server,warpx]
           pip install ruff flake8 mypy pytest
+      - name: Check for merge conflicts (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Checking for potential merge conflicts..."
+          python scripts/resolve_conflicts.py --verbose || echo "Conflict check completed"
       - name: Ruff
         run: ruff check .
       - name: Flake8

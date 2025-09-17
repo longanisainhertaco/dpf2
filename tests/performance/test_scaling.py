@@ -1,4 +1,5 @@
 """Basic performance regression tests for scaling utilities."""
+
 from __future__ import annotations
 
 import json

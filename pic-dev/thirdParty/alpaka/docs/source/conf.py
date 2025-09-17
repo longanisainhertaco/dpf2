@@ -100,7 +100,13 @@ latex_logo = "../logo/alpaka.png"
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "alpaka-doc.tex", "alpaka Documentation", "The alpaka Community", "manual"),
+    (
+        master_doc,
+        "alpaka-doc.tex",
+        "alpaka Documentation",
+        "The alpaka Community",
+        "manual",
+    ),
 ]
 
 # -- Options for manual page output ------------------------------------------
@@ -161,7 +167,8 @@ cpp_id_attributes = [
 if on_rtd:
     subprocess.call("cd ..; doxygen", shell=True)
     subprocess.call(
-        "cd ../cheatsheet; rst2pdf -s cheatsheet.style ../source/basic/cheatsheet.rst -o cheatsheet.pdf", shell=True
+        "cd ../cheatsheet; rst2pdf -s cheatsheet.style ../source/basic/cheatsheet.rst -o cheatsheet.pdf",
+        shell=True,
     )
 else:
     import sphinx_rtd_theme

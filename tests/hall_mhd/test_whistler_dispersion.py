@@ -9,7 +9,7 @@ def test_whistler_dispersion_matches_analytic():
     B = 2.0  # Tesla
     omega = whistler_dispersion(k, ne, B)
 
-    di = np.sqrt(m_p / (mu_0 * ne * q_e ** 2))
+    di = np.sqrt(m_p / (mu_0 * ne * q_e**2))
     omega_ci = abs(q_e) * B / m_p
     analytic = omega_ci * (k * di) ** 2
     assert np.isclose(omega, analytic)

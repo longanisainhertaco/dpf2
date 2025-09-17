@@ -32,7 +32,12 @@ class BoundBoundTransitions:
         if U < 1.0:
             return 0.0
         else:
-            return cxin1 * np.log(U) + cxin2 + cxin3 / (U + cxin5) + cxin4 / (U + cxin5) ** 2
+            return (
+                cxin1 * np.log(U)
+                + cxin2
+                + cxin3 / (U + cxin5)
+                + cxin4 / (U + cxin5) ** 2
+            )
 
     @staticmethod
     def _multiplicity(levelVector):
@@ -91,15 +96,21 @@ class BoundBoundTransitions:
         #! @attention differs from original publication
 
         if excitation:
-            return crossSection_butGaunt * BoundBoundTransitions._gaunt(U, cxin1, cxin2, cxin3, cxin4, cxin5)  # 1e6b
+            return crossSection_butGaunt * BoundBoundTransitions._gaunt(
+                U, cxin1, cxin2, cxin3, cxin4, cxin5
+            )  # 1e6b
         else:
             statisticalRatio = BoundBoundTransitions._multiplicity(
                 lowerStateLevelVector
-            ) / BoundBoundTransitions._multiplicity(upperStateLevelVector)  # unitless
+            ) / BoundBoundTransitions._multiplicity(
+                upperStateLevelVector
+            )  # unitless
             return (
                 statisticalRatio
                 * crossSection_butGaunt
-                * BoundBoundTransitions._gaunt(U + 1.0, cxin1, cxin2, cxin3, cxin4, cxin5)
+                * BoundBoundTransitions._gaunt(
+                    U + 1.0, cxin1, cxin2, cxin3, cxin4, cxin5
+                )
             )  # 1e6b
 
     @staticmethod
@@ -154,7 +165,9 @@ class BoundBoundTransitions:
         if sigma < 0.0:
             sigma = 0.0
 
-        electronRestMassEnergy = const.physical_constants["electron mass energy equivalent in MeV"][0] * 1e6  # eV
+        electronRestMassEnergy = (
+            const.physical_constants["electron mass energy equivalent in MeV"][0] * 1e6
+        )  # eV
 
         # derivation for relativist kinetic energy to velocity
         # E = gamma * m*c^2 E_kin + m*c^2 = gamma * m*c^2 => E_kin = (gamma-1) * m*c^2
@@ -180,7 +193,10 @@ class BoundBoundTransitions:
 
     @staticmethod
     def rateSpontaneousDeexcitation(
-        absorptionOscillatorStrength, frequencyPhoton, lowerStateLevelVector, upperStateLevelVector
+        absorptionOscillatorStrength,
+        frequencyPhoton,
+        lowerStateLevelVector,
+        upperStateLevelVector,
     ):
         """rate of spontaneous deexcitation under photon emission
 
@@ -199,13 +215,18 @@ class BoundBoundTransitions:
             * np.pi
             * const.physical_constants["elementary charge"][0] ** 2
             * const.physical_constants["vacuum mag. permeability"][0]
-            / (const.value("electron mass") * const.physical_constants["speed of light in vacuum"][0])
+            / (
+                const.value("electron mass")
+                * const.physical_constants["speed of light in vacuum"][0]
+            )
         )  # s
 
-        ratio = BoundBoundTransitions._multiplicity(lowerStateLevelVector) / BoundBoundTransitions._multiplicity(
-            upperStateLevelVector
-        )
+        ratio = BoundBoundTransitions._multiplicity(
+            lowerStateLevelVector
+        ) / BoundBoundTransitions._multiplicity(upperStateLevelVector)
         # untiless
 
         # s * 1/s^2 * untiless * unitless = 1/s
-        return scalingConstant * frequencyPhoton**2 * ratio * absorptionOscillatorStrength  # 1/s
+        return (
+            scalingConstant * frequencyPhoton**2 * ratio * absorptionOscillatorStrength
+        )  # 1/s

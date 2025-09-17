@@ -49,7 +49,6 @@ except Exception:  # fallback minimal stub
             return cls(**data)
 
 
-
 def validator(*args, **kwargs):  # pragma: no cover - trivial passthrough
     def decorator(func):
         return func
@@ -67,12 +66,11 @@ def root_validator(*args, **kwargs):  # pragma: no cover - trivial passthrough
 def Field(default=None, **kwargs):  # pragma: no cover - trivial passthrough
     return default
 
-
     ConfigDict = dict
-
 
     class ValidationError(Exception):
         """Placeholder for :class:`pydantic.ValidationError`."""
+
         pass
 
     # -----------------------------------------------------------------------
@@ -84,4 +82,3 @@ def Field(default=None, **kwargs):  # pragma: no cover - trivial passthrough
     import sys as _sys
 
     _sys.modules.setdefault("pydantic", _sys.modules[__name__])
-

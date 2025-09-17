@@ -20,10 +20,13 @@ sys.modules.setdefault("numba", numba_stub)
 # Provide minimal numpy stub with required functions
 import math
 import numpy_stub
+
 numpy_stub.np.sin = math.sin
 numpy_stub.np.cos = math.cos
 numpy_stub.np.arccos = math.acos
-numpy_stub.np.linalg = types.SimpleNamespace(norm=lambda v: math.sqrt(sum(x * x for x in v)))
+numpy_stub.np.linalg = types.SimpleNamespace(
+    norm=lambda v: math.sqrt(sum(x * x for x in v))
+)
 sys.modules["numpy"] = numpy_stub.np
 
 from dpf2.simulation.radiation_model import Photon, m_e, c
@@ -40,4 +43,3 @@ def test_photon_scatter_rotates_direction():
     assert changed
     norm = _norm(p.dir)
     assert abs(norm - 1.0) < 1e-12
-

@@ -8,7 +8,9 @@ try:  # optional dependency
 except Exception:  # pragma: no cover - fallback when CUDA unavailable
     cuda = types.SimpleNamespace(
         is_available=lambda: False,
-        jit=lambda f=None, *a, **k: (lambda *args, **kwargs: f(*args, **kwargs) if f else None),
+        jit=lambda f=None, *a, **k: (
+            lambda *args, **kwargs: f(*args, **kwargs) if f else None
+        ),
         to_device=lambda arr: arr,
         device_array=lambda n, dtype=None: np.zeros(n),
         grid=lambda x: 0,
@@ -17,13 +19,16 @@ except Exception:  # pragma: no cover - fallback when CUDA unavailable
 
 
 if getattr(cuda, "is_available", lambda: False)():
+
     @cuda.jit
     def _kinetic_energy_kernel(vel, mass, out):  # pragma: no cover - device code
         i = cuda.grid(1)
         if i < vel.shape[0]:
             vx, vy, vz = vel[i, 0], vel[i, 1], vel[i, 2]
             out[i] = 0.5 * mass * (vx * vx + vy * vy + vz * vz)
+
 else:  # pragma: no cover - CPU fallback when CUDA missing
+
     def _kinetic_energy_kernel(vel, mass, out):
         pass
 
@@ -40,7 +45,7 @@ def kinetic_energy(vel, mass):
         cuda.synchronize()
         return float(d_out.copy_to_host().sum())
     else:
-        return float(0.5 * mass * np.sum(vel ** 2))
+        return float(0.5 * mass * np.sum(vel**2))
 
 
 class GPUKineticEnergyDiagnostic:

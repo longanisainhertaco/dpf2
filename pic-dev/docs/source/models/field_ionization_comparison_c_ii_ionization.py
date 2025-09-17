@@ -33,7 +33,12 @@ def ADK_rate_simple(Z, E_i, F):
     # pol_fac = 1.
     # laser is lin. polarized
     pol_fac = ((3 * n_eff**3 * F) / (np.pi * Z**3)) ** (1.0 / 2)
-    I_rate = pol_fac * (F * D**2.0) / (8.0 * np.pi * Z) * np.exp(-(2.0 * Z**3.0) / (3.0 * n_eff**3.0 * F))
+    I_rate = (
+        pol_fac
+        * (F * D**2.0)
+        / (8.0 * np.pi * Z)
+        * np.exp(-(2.0 * Z**3.0) / (3.0 * n_eff**3.0 * F))
+    )
     return I_rate
 
 
@@ -76,7 +81,9 @@ if __name__ == "__main__":
     p_H = plt.plot(fields, H, label="ADK H")
 
     p_Csimple = plt.plot(fields, Csimple, label=r"ADK C  $ \quad Z = 2\mathrm{+}$")
-    p_Ceff = plt.plot(fields, Ceff, label=r"ADK C (eff) $ \quad Z = 3.136 = Z_\mathrm{eff}$")
+    p_Ceff = plt.plot(
+        fields, Ceff, label=r"ADK C (eff) $ \quad Z = 3.136 = Z_\mathrm{eff}$"
+    )
     plt.vlines(
         E_H**2.0 / (4 * 1),
         ymin,

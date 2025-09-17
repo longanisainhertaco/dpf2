@@ -39,7 +39,9 @@ def pinhole_image(
         2D image array with intensity accumulated per pixel.
     """
     if len(source_positions) != len(source_intensities):
-        raise ValueError("source_positions and source_intensities must be the same length")
+        raise ValueError(
+            "source_positions and source_intensities must be the same length"
+        )
     if detector_distance <= 0 or pixel_size <= 0:
         raise ValueError("detector_distance and pixel_size must be positive")
     nx, ny = detector_pixels

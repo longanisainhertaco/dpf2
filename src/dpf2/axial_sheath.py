@@ -44,7 +44,9 @@ class AxialSheathModel:
         self.upstream_pressure = upstream_pressure
         self.radius = np.sqrt(area / np.pi)
 
-    def run(self, time: Iterable[float], current: Iterable[float], start_index: int = 0) -> SheathResult:
+    def run(
+        self, time: Iterable[float], current: Iterable[float], start_index: int = 0
+    ) -> SheathResult:
         t = np.array(list(time))
         I = np.array(list(current))
         J = I / self.area
@@ -79,17 +81,15 @@ class AxialSheathModel:
         else:
             end_idx = len(t) - 1
 
-        times = t[start_index:end_idx + 1]
+        times = t[start_index : end_idx + 1]
 
-        forces = net_force[start_index:end_idx + 1]
+        forces = net_force[start_index : end_idx + 1]
 
         return SheathResult(
             time=times,
             position=np.array(pos),
             velocity=np.array(vel),
-
             jxb_force=forces,
             swept_mass=np.array(mass_history),
             end_index=end_idx,
-
         )

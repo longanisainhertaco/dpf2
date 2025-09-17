@@ -17,16 +17,24 @@ from types import SimpleNamespace
 from typing import Any, Dict, Mapping
 
 try:  # Prefer package-local imports
-    from .config_schema import SimulationConfig, FieldManagerConfig, PICConfig, AMRConfig
+    from .config_schema import (
+        SimulationConfig,
+        FieldManagerConfig,
+        PICConfig,
+        AMRConfig,
+    )
 except Exception:  # pragma: no cover - fallback when loaded as a script
     from config_schema import SimulationConfig, FieldManagerConfig  # type: ignore
+
     class PICConfig:  # type: ignore
         pass
+
     class AMRConfig:  # type: ignore
         enable: bool = False
         max_level: int = 1
         refinement_threshold: float = 1.0
         diag_interval: int = 10
+
 
 _AMR = AMRConfig
 from .module_registry import ModuleRegistry
@@ -37,6 +45,7 @@ from .eos_selector import select_eos
 from .solver_selector import select_solver
 from .circuit import CircuitModel
 from .utils import FieldManager, SimulationState
+
 try:
     from .diagnostics import Diagnostics
 except ModuleNotFoundError:  # pragma: no cover - compatibility with legacy layout
@@ -48,13 +57,17 @@ from ..materials import (
     ComponentMaterialState,
     MaterialDamageModel,
 )
+
 try:
     from ..exceptions import SimulationRuntimeError
 except Exception:  # pragma: no cover - fallback for standalone usage
+
     class SimulationRuntimeError(RuntimeError):
         pass
 
+
 logger = logging.getLogger("DPFSimulationWrapper")
+
 
 def _namespace_to_plain(value: Any) -> Any:
     if isinstance(value, _ConfigNamespace):
@@ -96,6 +109,7 @@ def _as_namespace(data: Mapping[str, Any]) -> _ConfigNamespace:
 # Custom Exceptions
 class ConfigurationError(Exception):
     pass
+
 
 class InitializationError(Exception):
     pass
@@ -532,29 +546,51 @@ class DPFSimulation:
         """Finalizes the simulation."""
         logger.info("Simulation completed.")
 
+
 def parse_arguments():
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="DPF Simulation Launcher")
-    parser.add_argument("--config-file", type=str, required=True, help="Path to the JSON configuration file")
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO",
-                        help="Global logging level")
-    parser.add_argument("--seed", type=int, default=None,
-                        help="Random seed for reproducibility")
+    parser.add_argument(
+        "--config-file",
+        type=str,
+        required=True,
+        help="Path to the JSON configuration file",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Global logging level",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducibility"
+    )
     parser.add_argument(
         "--enable-tracing",
         action="store_true",
         help="Enable OpenCensus tracing for simulation stages",
     )
-    parser.add_argument("--relativistic-corrections", action="store_true", help="Enable relativistic PIC corrections")
-    parser.add_argument("--quantum-emission", action="store_true", help="Enable quantum emission module")
-    parser.add_argument("--time-dependent-boundaries", action="store_true", help="Enable time-dependent PIC boundaries")
+    parser.add_argument(
+        "--relativistic-corrections",
+        action="store_true",
+        help="Enable relativistic PIC corrections",
+    )
+    parser.add_argument(
+        "--quantum-emission", action="store_true", help="Enable quantum emission module"
+    )
+    parser.add_argument(
+        "--time-dependent-boundaries",
+        action="store_true",
+        help="Enable time-dependent PIC boundaries",
+    )
     args = parser.parse_args()
     return args
+
 
 def load_config_from_json(filepath):
     """Loads configuration from a JSON file and validates it."""
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             config_data = json.load(f)
             config = SimulationConfig(**config_data)  # Validate the config
             return config
@@ -565,12 +601,15 @@ def load_config_from_json(filepath):
     except Exception as e:
         raise ConfigurationError(f"Error validating configuration: {e}")
 
+
 def main():
     args = parse_arguments()
 
     # Configure logging
-    logging.basicConfig(level=getattr(logging, args.log_level),
-                        format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s [%(levelname)s] %(message)s",
+    )
 
     # Seed RNGs
     if args.seed is not None:
@@ -599,9 +638,7 @@ def main():
 
             tracer = Tracer()
         except ModuleNotFoundError:
-            logger.error(
-                "OpenCensus is required for tracing but is not installed."
-            )
+            logger.error("OpenCensus is required for tracing but is not installed.")
             sys.exit(1)
 
     # Instantiate and run the simulation
@@ -627,5 +664,6 @@ def main():
         logger.error(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -6,7 +6,9 @@ import json
 import math
 
 
-def load_response(path: str | Path, overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+def load_response(
+    path: str | Path, overrides: Mapping[str, Any] | None = None
+) -> Dict[str, Any]:
     """Load an I-V probe response description from *path*.
 
     Parameters
@@ -39,7 +41,11 @@ def _rlc_kernel(length: int, dt: float, R: float, L: float, C: float) -> List[fl
             sq = math.sqrt(alpha * alpha - w0 * w0)
             r1 = -alpha + sq
             r2 = -alpha - sq
-            val = (1.0 / (L * (r2 - r1))) * (math.exp(r1 * t) - math.exp(r2 * t)) if L else 0.0
+            val = (
+                (1.0 / (L * (r2 - r1))) * (math.exp(r1 * t) - math.exp(r2 * t))
+                if L
+                else 0.0
+            )
         kernel.append(val)
     return kernel
 
@@ -103,5 +109,6 @@ def apply_response(
         vals = conv
 
     return vals
+
 
 __all__ = ["load_response", "apply_response"]

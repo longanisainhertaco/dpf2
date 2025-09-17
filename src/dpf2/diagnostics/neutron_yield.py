@@ -36,7 +36,9 @@ def compute_neutron_yield(reaction_rate: Sequence[float], dt: float) -> float:
 class IonBeamEDF(Protocol):
     """Interface providing ion energy distributions by angle."""
 
-    def energy_distribution(self, angle_deg: float) -> Tuple[Sequence[float], Sequence[float]]:
+    def energy_distribution(
+        self, angle_deg: float
+    ) -> Tuple[Sequence[float], Sequence[float]]:
         """Return energies and differential flux for a detector angle."""
 
 
@@ -136,7 +138,7 @@ def compute_thermonuclear_yield(
         raise ValueError("dt must be positive")
     if len(reactivity) != len(ion_density):
         raise ValueError("reactivity and ion_density must be same length")
-    rate = [r * n ** 2 for r, n in zip(reactivity, ion_density)]
+    rate = [r * n**2 for r, n in zip(reactivity, ion_density)]
     return compute_neutron_yield(rate, dt)
 
 
@@ -261,7 +263,9 @@ def save_anisotropic_spectrum_hdf5(
     """
 
     spec_arr = [[float(v) for v in row] for row in spectrum]
-    if len(spec_arr) != len(angles) or any(len(row) != len(energies) for row in spec_arr):
+    if len(spec_arr) != len(angles) or any(
+        len(row) != len(energies) for row in spec_arr
+    ):
         raise ValueError("spectrum shape must be (n_angles, n_energies)")
     if detector_names is not None and len(detector_names) != len(angles):
         raise ValueError("detector_names must match number of angles")
@@ -375,8 +379,7 @@ def ez_beam_correlation(
         mean_b = sum(b) / len(b)
         num = sum((x - mean_a) * (y - mean_b) for x, y in zip(a, b))
         den = math.sqrt(
-            sum((x - mean_a) ** 2 for x in a)
-            * sum((y - mean_b) ** 2 for y in b)
+            sum((x - mean_a) ** 2 for x in a) * sum((y - mean_b) ** 2 for y in b)
         )
         return num / den if den != 0 else 0.0
 
@@ -409,8 +412,7 @@ def save_angular_yield_map_hdf5(
 ) -> None:
     """Export angular yield map to HDF5 using standard spectrum layout."""
     energies = [
-        (energy_bins[i] + energy_bins[i + 1]) / 2.0
-        for i in range(len(energy_bins) - 1)
+        (energy_bins[i] + energy_bins[i + 1]) / 2.0 for i in range(len(energy_bins) - 1)
     ]
     save_anisotropic_spectrum_hdf5(
         path,

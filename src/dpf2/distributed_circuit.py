@@ -1,4 +1,3 @@
-
 """Compatibility layer for distributed circuit models.
 
 The functionality has moved to :mod:`dpf2.circuit.distributed`.  This
@@ -33,4 +32,3 @@ __all__ = [
     "assemble_matrices",
     "Switch",
 ]
-

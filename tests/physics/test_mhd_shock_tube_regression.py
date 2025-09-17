@@ -12,7 +12,9 @@ def _riemann_function(p, rho, p_k, a, gamma):
         df = np.sqrt(A / (p + B)) * (1.0 - 0.5 * (p - p_k) / (p + B))
     else:  # rarefaction
         f = (
-            2.0 * a / (gamma - 1.0)
+            2.0
+            * a
+            / (gamma - 1.0)
             * ((p / p_k) ** ((gamma - 1.0) / (2.0 * gamma)) - 1.0)
         )
         df = (1.0 / (rho * a)) * (p / p_k) ** (-(gamma + 1.0) / (2.0 * gamma))
@@ -41,8 +43,7 @@ def _sod_exact(x, t, left, right, gamma):
             / ((gamma - 1.0) / (gamma + 1.0) * p_star / p_l + 1.0)
         )
         S_L = u_l - a_l * np.sqrt(
-            (gamma + 1.0) / (2.0 * gamma) * p_star / p_l
-            + (gamma - 1.0) / (2.0 * gamma)
+            (gamma + 1.0) / (2.0 * gamma) * p_star / p_l + (gamma - 1.0) / (2.0 * gamma)
         )
     else:
         rho_star_l = rho_l * (p_star / p_l) ** (1.0 / gamma)
@@ -55,8 +56,7 @@ def _sod_exact(x, t, left, right, gamma):
             / ((gamma - 1.0) / (gamma + 1.0) * p_star / p_r + 1.0)
         )
         S_R = u_r + a_r * np.sqrt(
-            (gamma + 1.0) / (2.0 * gamma) * p_star / p_r
-            + (gamma - 1.0) / (2.0 * gamma)
+            (gamma + 1.0) / (2.0 * gamma) * p_star / p_r + (gamma - 1.0) / (2.0 * gamma)
         )
     else:
         rho_star_r = rho_r * (p_star / p_r) ** (1.0 / gamma)
@@ -138,5 +138,6 @@ def test_sod_shock_tube_regression():
         x, t_end, (1.0, 0.0, 1.0), (0.125, 0.0, 0.1), gamma
     )
     rho_num = U[:, 0]
-    diff = np.abs(rho_num - rho_exact); l1 = sum(diff.data)/len(diff)
+    diff = np.abs(rho_num - rho_exact)
+    l1 = sum(diff.data) / len(diff)
     assert l1 < 0.1

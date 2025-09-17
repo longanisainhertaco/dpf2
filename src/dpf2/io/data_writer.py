@@ -1,4 +1,5 @@
 """Utilities for writing simulation output."""
+
 from __future__ import annotations
 
 import hashlib
@@ -37,9 +38,7 @@ class DataWriter:
         }
         if config is not None:
             try:
-                self.metadata["config"] = json.loads(
-                    json.dumps(config, sort_keys=True)
-                )
+                self.metadata["config"] = json.loads(json.dumps(config, sort_keys=True))
             except Exception:
                 self.metadata["config"] = {k: str(v) for k, v in config.items()}
         if seeds is not None:
@@ -87,8 +86,6 @@ class DataWriter:
         if meshio is None:
             raise RuntimeError("meshio is required for VTK output")
         fname = self.output_dir / f"data_{time:.6e}.vtu"
-        points = [
-            [cell.r_center, cell.z_center, 0.0] for cell in mesh.cells
-        ]
+        points = [[cell.r_center, cell.z_center, 0.0] for cell in mesh.cells]
         cells = {"vertex": [[i] for i in range(len(points))]}
         meshio.write_points_cells(fname, points, cells, point_data=data)

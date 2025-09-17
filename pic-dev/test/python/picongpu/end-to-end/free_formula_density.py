@@ -75,7 +75,9 @@ def setup_sim():
         [],
     )
 
-    diagnostics = [picmi.diagnostics.Checkpoint(TimeStepSpec[:])] + binning_diagnostics(species, sim.time_step_size)
+    diagnostics = [picmi.diagnostics.Checkpoint(TimeStepSpec[:])] + binning_diagnostics(
+        species, sim.time_step_size
+    )
 
     for s in species:
         sim.add_species(s, LAYOUT)
@@ -110,7 +112,11 @@ class TestFreeFormulaDensity(unittest.TestCase):
         return self._result_path
 
     def test_compare_particles_pairwise(self):
-        self.assertTrue(compare_particles(self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5"))
+        self.assertTrue(
+            compare_particles(
+                self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5"
+            )
+        )
 
     def test_compare_particles_against_call_operator(self):
         particles = read_densities_into_mesh(
@@ -121,7 +127,10 @@ class TestFreeFormulaDensity(unittest.TestCase):
         for setup, dists in DISTRIBUTIONS.items():
             for impl, func in dists.items():
                 density = particles.loc(axis=0)[setup][impl]
-                values = func(*(np.indices(density.shape) + 0.5) * np.reshape(CELL_SIZE, (3, 1, 1, 1)))
+                values = func(
+                    *(np.indices(density.shape) + 0.5)
+                    * np.reshape(CELL_SIZE, (3, 1, 1, 1))
+                )
                 np.testing.assert_allclose(density, values, rtol=1.0e-4)
 
     def test_compare_binning_against_call_operator(self):
@@ -134,7 +143,10 @@ class TestFreeFormulaDensity(unittest.TestCase):
                     / f"particleDensity_{generate_name(setup, impl)}_000000.bp5",
                     CELL_SIZE,
                 )
-                values = func(*(np.indices(mesh.shape) + 0.5) * np.reshape(CELL_SIZE, (3, 1, 1, 1)))
+                values = func(
+                    *(np.indices(mesh.shape) + 0.5)
+                    * np.reshape(CELL_SIZE, (3, 1, 1, 1))
+                )
 
                 np.testing.assert_allclose(mesh, values, rtol=1.0e-4)
 
@@ -165,7 +177,9 @@ class TestFreeFormulaDensity(unittest.TestCase):
         # except for the fact that all the different coordinates must be identical.
         # The position_check functor does so by counting the correct ones.
         number_of_particles = (
-            read_particles(self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5")["weighting"]
+            read_particles(
+                self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5"
+            )["weighting"]
             .groupby(["setup", "impl"])
             .count()
         )
@@ -185,7 +199,9 @@ class TestFreeFormulaDensity(unittest.TestCase):
 
     def test_unit_conversions_by_hand(self):
         number_of_particles = (
-            read_particles(self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5")["weighting"]
+            read_particles(
+                self.result_path / "simOutput" / "checkpoints" / "checkpoint_000000.bp5"
+            )["weighting"]
             .groupby(["setup", "impl"])
             .count()
         )

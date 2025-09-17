@@ -44,7 +44,10 @@ def test_missing_thresholds_for_instabilities():
         PhysicsModels(
             eos_model=EOSModel.IDEAL,
             gamma=1.4,
-            instability_models_enabled=[InstabilityModel.KINK, InstabilityModel.SAUSAGE],
+            instability_models_enabled=[
+                InstabilityModel.KINK,
+                InstabilityModel.SAUSAGE,
+            ],
             instability_thresholds={"kink": 0.04},
         )
 

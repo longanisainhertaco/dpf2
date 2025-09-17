@@ -1,4 +1,3 @@
-
 """Material-related models and helpers."""
 
 from .models import MaterialRef
@@ -22,7 +21,6 @@ from .tables import (
 
 __all__ = [
     "MaterialRef",
-
     "MaterialLibrary",
     "ComponentMaterialState",
     "MaterialDamageModel",
@@ -35,4 +33,3 @@ __all__ = [
     "get_resistivity",
     "get_skin_effect_coeff",
 ]
-

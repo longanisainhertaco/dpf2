@@ -15,6 +15,7 @@ try:  # pragma: no cover - prefer real numpy
     import numpy  # noqa: F401
 except Exception:  # pragma: no cover - fallback to stub
     import runpy
+
     runpy.run_path(Path(__file__).with_name("numpy_stub.py"))
 
 

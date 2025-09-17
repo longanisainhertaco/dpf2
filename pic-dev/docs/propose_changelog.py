@@ -35,12 +35,15 @@ import yaml
 def make_lambda(main_condition, component=None):
     """Factory for lambdas encoding the categorisation conditions. Only needed to capture the current iteration by value."""
     if component:
-        return lambda pr: contains_label(pr, f"component: {component}") and main_condition(pr)
+        return lambda pr: contains_label(
+            pr, f"component: {component}"
+        ) and main_condition(pr)
 
     # Okay, admittedly this is just a lazy way to sneak the 'other' category into this interface:
     # A careful review would probably request to split this function up and give both of them better names.
     return lambda pr: all(
-        not contains_label(pr, f"component: {component}") for component in COMPONENTS.values()
+        not contains_label(pr, f"component: {component}")
+        for component in COMPONENTS.values()
     ) and main_condition(pr)
 
 
@@ -49,9 +52,12 @@ COMPONENTS = {"PIC": "core", "PMacc": "PMacc", "plugins": "plugin", "tools": "to
 
 # describe how to detect the main categories
 MAIN_CATEGORIES = {
-    "Features": lambda pr: not contains_label(pr, "bug") and not contains_label(pr, "refactoring"),
-    "Bug Fixes": lambda pr: contains_label(pr, "bug") and contains_label(pr, "affects latest release"),
-    "Refactoring": lambda pr: not contains_label(pr, "bug") and contains_label(pr, "refactoring"),
+    "Features": lambda pr: not contains_label(pr, "bug")
+    and not contains_label(pr, "refactoring"),
+    "Bug Fixes": lambda pr: contains_label(pr, "bug")
+    and contains_label(pr, "affects latest release"),
+    "Refactoring": lambda pr: not contains_label(pr, "bug")
+    and contains_label(pr, "refactoring"),
     "Documentation": lambda pr: contains_label(pr, "documentation"),
 }
 
@@ -114,7 +120,9 @@ def remove_quotes(string):
 
 def main(version, gh_key=None):
     """Main logic: Download, categorise, print."""
-    print(remove_quotes(to_string(categorise(pull_requests(gh_key, version), CATEGORIES))))
+    print(
+        remove_quotes(to_string(categorise(pull_requests(gh_key, version), CATEGORIES)))
+    )
 
 
 if __name__ == "__main__":
@@ -122,7 +130,9 @@ if __name__ == "__main__":
         description=__doc__.split("\n\n", 1)[1],
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("version", help="Verbatim name of the milestone you want to filter for.")
+    parser.add_argument(
+        "version", help="Verbatim name of the milestone you want to filter for."
+    )
     parser.add_argument(
         "-k",
         "--key",

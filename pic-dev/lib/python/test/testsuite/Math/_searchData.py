@@ -44,8 +44,13 @@ def searchParameter(parameter: str, directiontype: str = None, **kwargs):
     out : float or array
     """
 
-    if directiontype not in ["param", "json", "dat", "openpmd"] and directiontype is not None:
-        raise ValueError("directiontype must be either None, param, dat, json, or openpmd")
+    if (
+        directiontype not in ["param", "json", "dat", "openpmd"]
+        and directiontype is not None
+    ):
+        raise ValueError(
+            "directiontype must be either None, param, dat, json, or openpmd"
+        )
 
     if directiontype == "param":
         pR = Reader.paramReader.ParamReader(directiontype="paramDirection")

@@ -18,6 +18,7 @@ from pathlib import Path
 # in the test environment we fall back to lightweight implementations.
 try:  # pragma: no cover - runtime check for real numpy
     import numpy as _np  # type: ignore
+
     # ``numpy_stub`` used in tests lacks ``loadtxt``/``interp``; trigger the
     # fallback below in that case.
     if not hasattr(_np, "loadtxt"):
@@ -114,13 +115,21 @@ class RateTable:
     def ion_rate(self, T, species: str = "base") -> list[float]:
         table = self.data[species]
         return np.interp(
-            T, table["T"], table["k_ion"], left=table["k_ion"][0], right=table["k_ion"][-1]
+            T,
+            table["T"],
+            table["k_ion"],
+            left=table["k_ion"][0],
+            right=table["k_ion"][-1],
         )
 
     def rec_rate(self, T, species: str = "base") -> list[float]:
         table = self.data[species]
         return np.interp(
-            T, table["T"], table["k_rec"], left=table["k_rec"][0], right=table["k_rec"][-1]
+            T,
+            table["T"],
+            table["k_rec"],
+            left=table["k_rec"][0],
+            right=table["k_rec"][-1],
         )
 
 
@@ -236,6 +245,7 @@ class ImpurityModel:
     def electron_density(self, n: list[float]) -> float:
         return self.equations.electron_density(n)
 
+
 class MultiSpeciesTransport:
     """Very small multi‑species diffusion and wall ablation model.
 
@@ -276,9 +286,7 @@ class MultiSpeciesTransport:
         wall_ablation = wall_ablation or {}
         sources = sources or {}
         cells = len(next(iter(n.values())))
-        updated: dict[str, list[float]] = {
-            sp: list(vals) for sp, vals in n.items()
-        }
+        updated: dict[str, list[float]] = {sp: list(vals) for sp, vals in n.items()}
         for sp, values in n.items():
             D = self.diffusion.get(sp, 0.0)
             dv = [0.0] * cells
@@ -309,4 +317,3 @@ __all__ = [
     "ImpurityModel",
     "MultiSpeciesTransport",
 ]
-

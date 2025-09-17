@@ -19,7 +19,11 @@ import itertools
 
 
 def _get_debug_data(sim_path, collider_id, pair_id):
-    debug_file_path = Path(sim_path) / "simOutput" / f"debug_values_collider_{collider_id}_species_pair_{pair_id}.dat"
+    debug_file_path = (
+        Path(sim_path)
+        / "simOutput"
+        / f"debug_values_collider_{collider_id}_species_pair_{pair_id}.dat"
+    )
     debug_data = None
     with open(debug_file_path, "r") as f:
         debug_data = np.loadtxt(
@@ -42,8 +46,12 @@ class ThermalizationVerifier:
     ION_DENSITY = 1.1e28
     ELECTRON_DENSITY = ION_DENSITY
     ION_CHARGE = 1
-    INIT_TEMP_IONS = 1.8e-4 * cs.electron_mass * cs.speed_of_light**2 * 6.241509e18  # eV
-    INIT_TEMP_ELECTRONS = 2e-4 * cs.electron_mass * cs.speed_of_light**2 * 6.241509e18  # eV
+    INIT_TEMP_IONS = (
+        1.8e-4 * cs.electron_mass * cs.speed_of_light**2 * 6.241509e18
+    )  # eV
+    INIT_TEMP_ELECTRONS = (
+        2e-4 * cs.electron_mass * cs.speed_of_light**2 * 6.241509e18
+    )  # eV
 
     def __init__(self, sim_output_path):
         self.series = api.Series(
@@ -67,13 +75,22 @@ class ThermalizationVerifier:
         collider_id_map = {"ei": 1, "ee": 0, "ii": 0}
         pair_id_map = {"ei": 0, "ee": 0, "ii": 1}
         self.debug_values = {
-            pair: _get_debug_data(sim_output_path, collider_id_map[pair], pair_id_map[pair]) for pair in self.pairs
+            pair: _get_debug_data(
+                sim_output_path, collider_id_map[pair], pair_id_map[pair]
+            )
+            for pair in self.pairs
         }
-        debug_file_path = Path(sim_output_path) / "simOutput" / "average_debye_length_for_collisions.dat"
+        debug_file_path = (
+            Path(sim_output_path)
+            / "simOutput"
+            / "average_debye_length_for_collisions.dat"
+        )
         self.average_debye_present = True
         try:
             with open(debug_file_path, "r") as f:
-                self.debug_values["all"] = np.loadtxt(f, dtype=[("iteration", np.uint32), ("debye_length", np.float64)])
+                self.debug_values["all"] = np.loadtxt(
+                    f, dtype=[("iteration", np.uint32), ("debye_length", np.float64)]
+                )
         except FileNotFoundError:
             print("No average debye length output present")
             self.average_debye_present = False
@@ -83,9 +100,13 @@ class ThermalizationVerifier:
         iterations = self.series.iterations
         for i in iterations:
             iteration = self.series.iterations[i]
-            average_e_energy_m = iteration.meshes["e_all_Average_particleEnergy"][api.Mesh_Record_Component.SCALAR]
+            average_e_energy_m = iteration.meshes["e_all_Average_particleEnergy"][
+                api.Mesh_Record_Component.SCALAR
+            ]
             average_e_energy = average_e_energy_m[:]
-            average_i_energy_m = iteration.meshes["i_all_Average_particleEnergy"][api.Mesh_Record_Component.SCALAR]
+            average_i_energy_m = iteration.meshes["i_all_Average_particleEnergy"][
+                api.Mesh_Record_Component.SCALAR
+            ]
             average_i_energy = average_i_energy_m[:]
             self.series.flush()
             average_e_energy = average_e_energy.astype(np.float64)
@@ -137,7 +158,8 @@ class ThermalizationVerifier:
                     4
                     * np.pi
                     * cs.epsilon_0**2
-                    * (self.ELECTRON_MASS * temp_e_joul + self.ION_MASS * temp_i_joul) ** (3 / 2)
+                    * (self.ELECTRON_MASS * temp_e_joul + self.ION_MASS * temp_i_joul)
+                    ** (3 / 2)
                 )
             )
             delta_temp = rate * (temp_e - temp_i) * self.dt

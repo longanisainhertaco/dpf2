@@ -48,10 +48,14 @@ def get_params(path):
     i = series.iterations[indices[0]]
 
     if len(series.iterations) == 1:
-        raise ValueError("There is just 1 iteration in the seriesmake sure, there are at least two")
+        raise ValueError(
+            "There is just 1 iteration in the seriesmake sure, there are at least two"
+        )
 
     elif len(np.array(i.particles)) != 1:
-        raise ValueError("There is not only 1 particle in the seriesmake sure, there is only one")
+        raise ValueError(
+            "There is not only 1 particle in the seriesmake sure, there is only one"
+        )
 
     else:
         # read parameters of the simulation
@@ -142,11 +146,33 @@ def read_series(series):
         x_momentum[array_index] = p_x
         y_momentum[array_index] = p_y
 
-    return (x_poss, y_poss, x_offSet, y_offSet, x_momentum, y_momentum, charge, mass, num_iter, period)
+    return (
+        x_poss,
+        y_poss,
+        x_offSet,
+        y_offSet,
+        x_momentum,
+        y_momentum,
+        charge,
+        mass,
+        num_iter,
+        period,
+    )
 
 
 def compare_radius(
-    x_poss, y_poss, x_offSet, y_offSet, x_momentum, y_momentum, charge, mass, B, params, num_iter, period
+    x_poss,
+    y_poss,
+    x_offSet,
+    y_offSet,
+    x_momentum,
+    y_momentum,
+    charge,
+    mass,
+    B,
+    params,
+    num_iter,
+    period,
 ):
     """Tests if the change in radius from one revolution to the other is
     greater than epsilon = 1e-5.
@@ -180,7 +206,9 @@ def compare_radius(
     abs_momentum = np.sqrt(x_momentum[0] ** 2 + y_momentum[0] ** 2)
     gamma = 1 / np.sqrt(1 - abs_momentum**2 / (abs_momentum**2 + 1))
     # periodic time / timestep
-    steps_per_revolution = (2 * np.pi * gamma * mass[0] / (abs(charge[0]) * B / params["unit_bfield"])) / params["dt"]
+    steps_per_revolution = (
+        2 * np.pi * gamma * mass[0] / (abs(charge[0]) * B / params["unit_bfield"])
+    ) / params["dt"]
 
     revolutions_in_series = int(num_iter / steps_per_revolution)
 
@@ -193,7 +221,10 @@ def compare_radius(
     # relative comparison
     for k in range(revolutions_in_series):
         index_of_revolution = int(steps_per_revolution / period) * k
-        compare_radii = abs(radius[index_of_revolution] - radius[index_of_revolution + 1]) / radius[index_of_revolution]
+        compare_radii = (
+            abs(radius[index_of_revolution] - radius[index_of_revolution + 1])
+            / radius[index_of_revolution]
+        )
 
         if compare_radii > epsilon_position:
             print("pusher is not valid (position)")
@@ -223,7 +254,10 @@ def compare_radius(
     # relative comparison
     for k in range(revolutions_in_series):
         index_of_revolution = int(steps_per_revolution / period) * k
-        compare_radii = abs(radius[index_of_revolution] - radius[index_of_revolution + 1]) / radius[index_of_revolution]
+        compare_radii = (
+            abs(radius[index_of_revolution] - radius[index_of_revolution + 1])
+            / radius[index_of_revolution]
+        )
 
         if compare_radii > epsilon_momentum:
             print("pusher is not valid (position)")
@@ -237,7 +271,18 @@ def compare_radius(
 
 
 def compare_phases(
-    x_poss, y_poss, x_offSet, y_offSet, x_momentum, y_momentum, charge, mass, B, params, num_iter, period
+    x_poss,
+    y_poss,
+    x_offSet,
+    y_offSet,
+    x_momentum,
+    y_momentum,
+    charge,
+    mass,
+    B,
+    params,
+    num_iter,
+    period,
 ):
     """Tests if the phase difference from one revolution to the other is
     greater than delta = 0.25.
@@ -268,7 +313,9 @@ def compare_phases(
     abs_momentum = np.sqrt(x_momentum[0] ** 2 + y_momentum[0] ** 2)
     gamma = 1 / np.sqrt(1 - abs_momentum**2 / (abs_momentum**2 + 1))
     # periodic time / timestep
-    steps_per_revolution = (2 * np.pi * gamma * mass[0] / (abs(charge[0]) * B / params["unit_bfield"])) / params["dt"]
+    steps_per_revolution = (
+        2 * np.pi * gamma * mass[0] / (abs(charge[0]) * B / params["unit_bfield"])
+    ) / params["dt"]
 
     revolutions_in_series = int(num_iter / steps_per_revolution)
 
@@ -290,10 +337,13 @@ def compare_phases(
         index_of_revolution = int(steps_per_revolution / period) * k
         # compare the phase after 1 periodic time
         compare_phases = abs(
-            theta[index_of_revolution] - theta[index_of_revolution + int(steps_per_revolution / period)]
+            theta[index_of_revolution]
+            - theta[index_of_revolution + int(steps_per_revolution / period)]
         )
         # compare with theoretical, i.e. stationary phase
-        compare_ana_phases = abs(theta[index_of_revolution] - np.pi / 2 + 2 * np.pi / 100)
+        compare_ana_phases = abs(
+            theta[index_of_revolution] - np.pi / 2 + 2 * np.pi / 100
+        )
 
         compare_result_phases = 0
 
@@ -312,7 +362,9 @@ def compare_phases(
     return compare_result_phases
 
 
-def correct_starting_values_for_technical_details(x_poss, y_poss, x_offSet, y_offSet, R_c):
+def correct_starting_values_for_technical_details(
+    x_poss, y_poss, x_offSet, y_offSet, R_c
+):
     """The particle is initialized at the arbitary position (5, 32) in the x-y-plane (some arbitrary z which is irrelevant for our computation...).
     So we have to shift the coordinates in a form, that the initialization point is exactly on the circle with the radius of the particle trajectory with its center at the origin.
     This shifting is done by the transformation (subtraction of the initialization coordinates and radius).
@@ -350,7 +402,18 @@ def main(dataPath):
 
     B = 50
     # extract all relevant data
-    (x_poss, y_poss, x_offSet, y_offSet, x_momentum, y_momentum, charge, mass, num_iter, period) = read_series(series)
+    (
+        x_poss,
+        y_poss,
+        x_offSet,
+        y_offSet,
+        x_momentum,
+        y_momentum,
+        charge,
+        mass,
+        num_iter,
+        period,
+    ) = read_series(series)
 
     # all radii in the series
     radius = (
@@ -370,10 +433,32 @@ def main(dataPath):
 
     # tests
     compare_result_radius = compare_radius(
-        x_poss, y_poss, x_offSet, y_offSet, x_momentum, y_momentum, charge, mass, B, params, num_iter, period
+        x_poss,
+        y_poss,
+        x_offSet,
+        y_offSet,
+        x_momentum,
+        y_momentum,
+        charge,
+        mass,
+        B,
+        params,
+        num_iter,
+        period,
     )
     compare_result_phases = compare_phases(
-        x_poss, y_poss, x_offSet, y_offSet, x_momentum, y_momentum, charge, mass, B, params, num_iter, period
+        x_poss,
+        y_poss,
+        x_offSet,
+        y_offSet,
+        x_momentum,
+        y_momentum,
+        charge,
+        mass,
+        B,
+        params,
+        num_iter,
+        period,
     )
 
     # yield both tests/comparisions a positive result?

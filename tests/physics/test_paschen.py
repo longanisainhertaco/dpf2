@@ -25,5 +25,7 @@ def test_prepulse_uses_paschen_delay():
     )
     res = model.run(time, current)
     t_paschen = paschen_breakdown_time(1.0, 1.0, 10.0)
-    expected_idx = next((i for i, tt in enumerate(time) if tt >= t_paschen), len(time) - 1)
+    expected_idx = next(
+        (i for i, tt in enumerate(time) if tt >= t_paschen), len(time) - 1
+    )
     assert res.breakdown_index == expected_idx

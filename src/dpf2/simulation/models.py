@@ -1,6 +1,7 @@
 # models.py
 from abc import ABC, abstractmethod
 from typing import Dict, Any
+
 try:  # Prefer package-relative import
     from .utils import SimulationState  # type: ignore
 except Exception:  # pragma: no cover - fallback for standalone usage
@@ -8,6 +9,7 @@ except Exception:  # pragma: no cover - fallback for standalone usage
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class PhysicsModule(ABC):
     """

@@ -64,17 +64,23 @@ def _load_sim_module(monkeypatch):
 
     # Minimal config schema stubs
     config_mod = types.ModuleType("config_schema")
+
     class SimulationConfig:
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)
+
     class SheathConfig:
         """Minimal sheath configuration for test."""
+
     config_mod.SimulationConfig = SimulationConfig
     config_mod.SheathConfig = SheathConfig
     monkeypatch.setitem(sys.modules, "config_schema", config_mod)
 
     # Import module under test without package dependencies
-    module_path = Path(__file__).resolve().parent.parent / "src/dpf2/simulation/dpf_simulator_full_backend.py"
+    module_path = (
+        Path(__file__).resolve().parent.parent
+        / "src/dpf2/simulation/dpf_simulator_full_backend.py"
+    )
     spec = importlib.util.spec_from_file_location(
         "dpf2.simulation.dpf_simulator_full_backend", module_path
     )
@@ -102,6 +108,7 @@ def test_failure_logging_on_non_numeric_dt(monkeypatch, caplog):
     class BadNumber:
         def __float__(self):
             raise TypeError("no float conversion")
+
         def __le__(self, other):
             return False
 

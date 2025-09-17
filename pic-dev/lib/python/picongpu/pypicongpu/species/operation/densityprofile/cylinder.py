@@ -54,7 +54,9 @@ class Cylinder(DensityProfile):
         if self.density_si <= 0.0:
             raise ValueError("density must be > 0")
         min_radius = (
-            math.sqrt(2.0) * self.pre_plasma_ramp.PlasmaLength if type(self.pre_plasma_ramp) is not None_ else 0.0
+            math.sqrt(2.0) * self.pre_plasma_ramp.PlasmaLength
+            if type(self.pre_plasma_ramp) is not None_
+            else 0.0
         )
         if self.radius_si < min_radius:
             raise ValueError(

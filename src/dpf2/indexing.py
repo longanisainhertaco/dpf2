@@ -101,7 +101,11 @@ def build_code_index(package: str, package_root: Path) -> list[ModuleEntry]:
 
         entries.append(
             ModuleEntry(
-                module=f"{package}.{dotted.split('.', 1)[-1]}" if dotted != package else package,
+                module=(
+                    f"{package}.{dotted.split('.', 1)[-1]}"
+                    if dotted != package
+                    else package
+                ),
                 path=path,
                 relative_path=display_path,
                 summary=module_summary,
@@ -114,7 +118,9 @@ def build_code_index(package: str, package_root: Path) -> list[ModuleEntry]:
     return entries
 
 
-def render_markdown(entries: Sequence[ModuleEntry], heading: str = "DPF2 Code Index") -> str:
+def render_markdown(
+    entries: Sequence[ModuleEntry], heading: str = "DPF2 Code Index"
+) -> str:
     """Render ``entries`` as a Markdown document."""
 
     lines: list[str] = [f"# {heading}", "", "Generated with `dpf2.indexing`.", ""]

@@ -4,7 +4,9 @@ import numpy as np
 
 # Provide minimal stubs for heavy optional dependencies
 amrex_stub = types.ModuleType("amrex")
-amrex_stub.EBIndexSpace = types.SimpleNamespace(instance=lambda: types.SimpleNamespace(build_from_stl=lambda *_: None))
+amrex_stub.EBIndexSpace = types.SimpleNamespace(
+    instance=lambda: types.SimpleNamespace(build_from_stl=lambda *_: None)
+)
 amrex_stub.MultiFab = object
 amrex_stub.MultiFabLaplacian = object
 amrex_stub.MLMG = object
@@ -25,7 +27,9 @@ sys.modules.setdefault("dpf2.simulation.collision_model", collision_stub)
 sys.modules.setdefault("h5py", types.ModuleType("h5py"))
 
 rad_stub = types.ModuleType("dpf2.simulation.radiation_model")
-rad_stub.RadiationModel = lambda *a, **k: types.SimpleNamespace(compute_radiation_loss=lambda *a, **k: 0.0)
+rad_stub.RadiationModel = lambda *a, **k: types.SimpleNamespace(
+    compute_radiation_loss=lambda *a, **k: 0.0
+)
 sys.modules.setdefault("dpf2.simulation.radiation_model", rad_stub)
 
 from dpf2.simulation.fluid_solver_high_order import FluidSolverHighOrder
@@ -48,7 +52,9 @@ if not hasattr(np, "linalg"):
             for plane in data:
                 plane_out = []
                 for row in plane:
-                    plane_out.append([math.sqrt(sum(v * v for v in vec)) for vec in row])
+                    plane_out.append(
+                        [math.sqrt(sum(v * v for v in vec)) for vec in row]
+                    )
                 out.append(plane_out)
             return np.array(out)
         raise NotImplementedError

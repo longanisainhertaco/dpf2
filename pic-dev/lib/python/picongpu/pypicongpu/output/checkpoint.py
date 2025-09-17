@@ -50,7 +50,9 @@ class Checkpoint(Plugin):
         """Return the serialized representation of the object."""
         self.check()
         serialized = {
-            "period": self.period.get_rendering_context() if self.period is not None else None,
+            "period": (
+                self.period.get_rendering_context() if self.period is not None else None
+            ),
             "timePeriod": self.timePeriod,
             "directory": self.directory,
             "file": self.file,

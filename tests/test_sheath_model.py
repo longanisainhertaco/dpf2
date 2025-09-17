@@ -44,7 +44,9 @@ def test_analytic_sheath_drop_reduces_to_standard():
     cfg = make_config(secondary_emission_coefficient=0.0)
     sheath = PlasmaSheathFormation(cfg)
     drop = sheath.analytic_sheath_drop()
-    c_s = np.sqrt(e_charge * (cfg.electron_temperature + cfg.ion_temperature) / cfg.ion_mass)
+    c_s = np.sqrt(
+        e_charge * (cfg.electron_temperature + cfg.ion_temperature) / cfg.ion_mass
+    )
     v_th = np.sqrt(8 * e_charge * cfg.electron_temperature / (np.pi * m_e))
     expected = cfg.electron_temperature * np.log(4 * c_s / v_th)
     assert np.isclose(drop, expected, rtol=1e-12)

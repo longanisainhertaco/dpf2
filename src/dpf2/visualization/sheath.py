@@ -171,9 +171,7 @@ def animate_sheath(
     overlay_quiver = None
     if overlay is not None:
         o0 = overlay(0.0)
-        overlay_quiver = ax.quiver(
-            o0.x, o0.y, o0.u, o0.v, color="C1", alpha=0.5
-        )
+        overlay_quiver = ax.quiver(o0.x, o0.y, o0.u, o0.v, color="C1", alpha=0.5)
     ax.set_title("Sheath evolution")
     ax.set_xlabel("x")
     ax.set_ylabel("y")
@@ -227,4 +225,3 @@ __all__ = [
     "jxb_field",
     "sheath_velocity_field",
 ]
-

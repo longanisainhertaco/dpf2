@@ -38,7 +38,9 @@ def test_hip_backend_blocks_pinned_memory():
 
 def test_manual_decomp_requires_manual_amr():
     data = make_base_data()
-    data.update({"decompositionStrategy": "manual", "amrRefinementCriteria": "gradient"})
+    data.update(
+        {"decompositionStrategy": "manual", "amrRefinementCriteria": "gradient"}
+    )
     with pytest.raises(ValueError):
         ParallelSettings.model_validate(data)
 
@@ -59,16 +61,18 @@ def test_tile_size_validates():
 
 def test_summarize_outputs_expected_format():
     data = make_base_data()
-    data.update({
-        "decompositionStrategy": "auto",
-        "amrRefinementCriteria": "gradient",
-        "decompositionFailurePolicy": "auto_reduce",
-        "schedulerContext": "slurm",
-        "launcherType": "srun",
-        "bufferPoolSizeMb": 256,
-        "tileSize": [32, 32, 1],
-        "gpuPartitionStrategy": "affinity_map",
-    })
+    data.update(
+        {
+            "decompositionStrategy": "auto",
+            "amrRefinementCriteria": "gradient",
+            "decompositionFailurePolicy": "auto_reduce",
+            "schedulerContext": "slurm",
+            "launcherType": "srun",
+            "bufferPoolSizeMb": 256,
+            "tileSize": [32, 32, 1],
+            "gpuPartitionStrategy": "affinity_map",
+        }
+    )
     cfg = ParallelSettings.model_validate(data)
     summary = cfg.summarize()
     assert "Parallelism" in summary

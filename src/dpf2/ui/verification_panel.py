@@ -1,4 +1,5 @@
 """Simple CLI/CLI helpers for running verification problems."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -28,6 +29,7 @@ class VerificationPanelUI:
 
 def _main() -> None:  # pragma: no cover - CLI helper
     import argparse
+
     parser = argparse.ArgumentParser(description="Run verification problems")
     parser.add_argument("--output", default="synthetic_diagnostics/verification.h5")
     args = parser.parse_args()

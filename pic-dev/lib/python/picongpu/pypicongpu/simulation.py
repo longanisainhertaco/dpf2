@@ -6,7 +6,12 @@ License: GPLv3+
 """
 
 from .grid import Grid3D
-from .laser import DispersivePulseLaser, FromOpenPMDPulseLaser, GaussianLaser, PlaneWaveLaser
+from .laser import (
+    DispersivePulseLaser,
+    FromOpenPMDPulseLaser,
+    GaussianLaser,
+    PlaneWaveLaser,
+)
 from .movingwindow import MovingWindow
 from .field_solver.DefaultSolver import Solver
 from . import species
@@ -48,7 +53,13 @@ class Simulation(RenderedObject):
     """Used grid Object"""
 
     laser = util.build_typesafe_property(
-        typing.Union[DispersivePulseLaser, FromOpenPMDPulseLaser, GaussianLaser, PlaneWaveLaser, None]
+        typing.Union[
+            DispersivePulseLaser,
+            FromOpenPMDPulseLaser,
+            GaussianLaser,
+            PlaneWaveLaser,
+            None,
+        ]
     )
     """Used (gaussian) Laser"""
 
@@ -65,7 +76,9 @@ class Simulation(RenderedObject):
     used for normalization of units
     """
 
-    custom_user_input = util.build_typesafe_property(typing.Optional[list[InterfaceCustomUserInput]])
+    custom_user_input = util.build_typesafe_property(
+        typing.Optional[list[InterfaceCustomUserInput]]
+    )
     """
     object that contains additional user specified input parameters to be used in custom templates
 
@@ -81,14 +94,18 @@ class Simulation(RenderedObject):
     binomial_current_interpolation = util.build_typesafe_property(bool)
     """switch on a binomial current interpolation"""
 
-    plugins = util.build_typesafe_property(typing.Optional[list[Plugin] | typing.Literal["auto"]])
+    plugins = util.build_typesafe_property(
+        typing.Optional[list[Plugin] | typing.Literal["auto"]]
+    )
 
     def __get_output_context(self) -> dict | list[dict] | None:
         """retrieve all output objects"""
 
         if self.plugins == "auto":
             auto = output.Auto()
-            auto.period = TimeStepSpec([slice(0, None, max(1, int(self.time_steps / 100)))])
+            auto.period = TimeStepSpec(
+                [slice(0, None, max(1, int(self.time_steps / 100)))]
+            )
 
             return [auto.get_rendering_context()]
         else:
@@ -105,7 +122,9 @@ class Simulation(RenderedObject):
             add_context = entry.get_generic_rendering_context()
             tags = entry.get_tags()
 
-            entry.check_does_not_change_existing_key_values(custom_rendering_context, add_context)
+            entry.check_does_not_change_existing_key_values(
+                custom_rendering_context, add_context
+            )
             entry.check_tags(custom_rendering_context["tags"], tags)
 
             custom_rendering_context.update(add_context)
@@ -151,9 +170,13 @@ class Simulation(RenderedObject):
         if self.walltime is not None:
             serialized["walltime"] = self.walltime.get_rendering_context()
         else:
-            serialized["walltime"] = Walltime(walltime=datetime.timedelta(hours=1)).get_rendering_context()
+            serialized["walltime"] = Walltime(
+                walltime=datetime.timedelta(hours=1)
+            ).get_rendering_context()
 
-        serialized["binomial_current_interpolation"] = self.binomial_current_interpolation
+        serialized["binomial_current_interpolation"] = (
+            self.binomial_current_interpolation
+        )
 
         if self.custom_user_input is not None:
             serialized["customuserinput"] = self.__render_custom_user_input_list()

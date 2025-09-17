@@ -25,7 +25,9 @@ def test_rogowski_calibration(tmp_path):
             "apply_time_response": True,
             "instrument_response_directory": tmp_path,
             "synthetic_rogowski_signal_enabled": True,
-            "instrument_overrides": {"rogowski": SyntheticInstrument(calibration_file=cal)},
+            "instrument_overrides": {
+                "rogowski": SyntheticInstrument(calibration_file=cal)
+            },
         }
     )
     out = run_diagnostic_calculations(hist, cfg, dt=1.0)
@@ -58,4 +60,3 @@ def test_bdot_calibration(tmp_path):
     assert out_base["bdot"] != out["bdot"]
     expected = [v * 0.5 for v in out_base["bdot"]]
     assert all(abs(a - b) < 1e-12 for a, b in zip(out["bdot"], expected))
-

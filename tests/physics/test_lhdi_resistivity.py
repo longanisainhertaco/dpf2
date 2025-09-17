@@ -1,11 +1,16 @@
-
 import sys
 import pathlib
 import csv
 from pathlib import Path
 
 sys.modules.pop("numpy", None)
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent / "venv/lib/python3.12/site-packages"))
+sys.path.insert(
+    0,
+    str(
+        pathlib.Path(__file__).resolve().parent.parent.parent
+        / "venv/lib/python3.12/site-packages"
+    ),
+)
 import numpy as np
 
 from dpf2.hall_mhd_solver import HallMHDSolver, spitzer_resistivity
@@ -56,4 +61,3 @@ def test_spitzer_floor_enforced():
     eta = solver.compute_anomalous_resistivity(J)
     assert np.isclose(float(eta[0]), floor)
     assert np.isclose(solver.last_voltage_spike, floor * mag)
-

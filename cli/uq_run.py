@@ -1,4 +1,5 @@
 """Command line interface for generating UQ sample batches."""
+
 from __future__ import annotations
 
 import argparse

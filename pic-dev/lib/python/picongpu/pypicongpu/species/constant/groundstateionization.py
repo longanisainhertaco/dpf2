@@ -28,7 +28,9 @@ class GroundStateIonization(Constant, pydantic.BaseModel):
     def check(self) -> None:
         # check that at least one ionization model in list
         if len(self.ionization_model_list) == 0:
-            raise ValueError("at least one ionization model must be specified if ground_state_ionization is not none.")
+            raise ValueError(
+                "at least one ionization model must be specified if ground_state_ionization is not none."
+            )
 
         # call check() all ionization models
         for ionization_model in self.ionization_model_list:

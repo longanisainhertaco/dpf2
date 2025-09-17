@@ -115,8 +115,12 @@ class AdvancedOptions(ConfigSectionBase):
             if self.force_amrex_tile_size is not None
             else "None"
         )
-        script = self.inject_runtime_script.name if self.inject_runtime_script else "None"
-        hash_short = self.advanced_config_hash[:6] if self.advanced_config_hash else "none"
+        script = (
+            self.inject_runtime_script.name if self.inject_runtime_script else "None"
+        )
+        hash_short = (
+            self.advanced_config_hash[:6] if self.advanced_config_hash else "none"
+        )
         return (
             f"Advanced Mode: diagnostics mocked = {self.enable_diagnostics_mock_mode}, "
             f"validators disabled = {self.disable_all_validators}\n"
@@ -176,8 +180,12 @@ class AdvancedOptions(ConfigSectionBase):
         if values.disable_all_validators and not values.disable_reason:
             raise ValueError("disable_reason must be set when validators are disabled")
         if values.force_amrex_tile_size is not None:
-            if len(values.force_amrex_tile_size) != 3 or any(d <= 0 for d in values.force_amrex_tile_size):
-                raise ValueError("force_amrex_tile_size must be three positive integers")
+            if len(values.force_amrex_tile_size) != 3 or any(
+                d <= 0 for d in values.force_amrex_tile_size
+            ):
+                raise ValueError(
+                    "force_amrex_tile_size must be three positive integers"
+                )
         if values.inject_runtime_script is not None:
             p = Path(values.inject_runtime_script)
             if not p.exists():
@@ -186,7 +194,9 @@ class AdvancedOptions(ConfigSectionBase):
             values.disable_all_validators or values.override_initial_conditions_check
         ):
             warnings.warn("Advanced options may alter global campaign behavior")
-        values = values.model_copy(update={"advanced_config_hash": values.hash_advanced_options()})
+        values = values.model_copy(
+            update={"advanced_config_hash": values.hash_advanced_options()}
+        )
         return values
 
 

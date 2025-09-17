@@ -89,7 +89,10 @@ def parse(file, ptype):
 
     # construct the statement passed to picongpu
     if ptype == "compile":
-        ostr = [to_macro_name(name) + "=" + str(value) for name, value in filtered_dict.items()]
+        ostr = [
+            to_macro_name(name) + "=" + str(value)
+            for name, value in filtered_dict.items()
+        ]
         cxx_defines = ";".join(map(lambda s: "-D" + s, ostr))
         return "-DPARAM_OVERWRITES:LIST='" + cxx_defines + "'"
 

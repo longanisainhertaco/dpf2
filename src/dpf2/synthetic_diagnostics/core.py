@@ -8,6 +8,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Literal, Iterable, Seque
 
 import csv
 import math
+
 try:  # pragma: no cover - h5py may be optional
     import h5py  # type: ignore
 except Exception:  # pragma: no cover
@@ -17,7 +18,6 @@ except Exception:  # pragma: no cover
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 from ..utils.pydantic_compat import model_validator
-
 
 
 from ..core_schema import ConfigSectionBase, to_camel_case
@@ -112,7 +112,9 @@ def beam_target_angular_spectrum(
         Sequence of angles spanning ``-180`` to ``180`` degrees.
     """
 
-    return dd_beam_target_angular_spectrum(beam_energy_keV, n_beam, n_target, angles_deg)
+    return dd_beam_target_angular_spectrum(
+        beam_energy_keV, n_beam, n_target, angles_deg
+    )
 
 
 def directional_yields(
@@ -143,7 +145,7 @@ def flashover_delay_stats(delays: Sequence[float]) -> Dict[str, float]:
         return {"count": 0, "mean": 0.0, "stddev": 0.0}
     mean = sum(vals) / n
     var = sum((d - mean) ** 2 for d in vals) / n
-    return {"count": n, "mean": mean, "stddev": var ** 0.5}
+    return {"count": n, "mean": mean, "stddev": var**0.5}
 
 
 def flashover_jitter_stats(holdoffs: Sequence[float]) -> Dict[str, float]:
@@ -217,7 +219,9 @@ def correlate_tof_with_iv(
     return tof_iv_cross_correlation(counts, current, voltage)
 
 
-def _cross_correlate(a: Sequence[float], b: Sequence[float]) -> tuple[List[int], List[float]]:
+def _cross_correlate(
+    a: Sequence[float], b: Sequence[float]
+) -> tuple[List[int], List[float]]:
     """Return raw cross-correlation sequence and integer lags."""
 
     n = len(a)
@@ -367,6 +371,7 @@ def anisotropy_report(
     corr_plot: Optional[Path] = None
     try:  # pragma: no cover - matplotlib optional
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
@@ -398,7 +403,6 @@ def anisotropy_report(
     return result
 
 
-
 def _cr39_image(history: Sequence[CouplingState], size: int = 64) -> List[List[float]]:
     """Return a simple Gaussian spot image scaled by peak current."""
 
@@ -407,7 +411,7 @@ def _cr39_image(history: Sequence[CouplingState], size: int = 64) -> List[List[f
     y = np.linspace(-1.0, 1.0, size)
     xv, yv = np.meshgrid(x, y)
     sigma = 0.3
-    img = amp * np.exp(-(xv ** 2 + yv ** 2) / (2.0 * sigma ** 2))
+    img = amp * np.exp(-(xv**2 + yv**2) / (2.0 * sigma**2))
     return img.tolist()
 
 
@@ -418,9 +422,9 @@ def _rcf_image(history: Sequence[CouplingState], size: int = 64) -> List[List[fl
     x = np.linspace(-1.0, 1.0, size)
     y = np.linspace(-1.0, 1.0, size)
     xv, yv = np.meshgrid(x, y)
-    r = np.sqrt(xv ** 2 + yv ** 2)
+    r = np.sqrt(xv**2 + yv**2)
     sigma = 0.1
-    img = amp * np.exp(-((r - 0.5) ** 2) / (2.0 * sigma ** 2))
+    img = amp * np.exp(-((r - 0.5) ** 2) / (2.0 * sigma**2))
     return img.tolist()
 
 
@@ -442,7 +446,6 @@ def _faraday_eedf(history: Sequence[CouplingState], bins: int = 50) -> List[floa
     temp = max_energy / 7.0 if max_energy > 0 else 1.0
     dist = np.sqrt(energies) * np.exp(-energies / temp)
     return dist.tolist()
-
 
 
 class SyntheticInstrument(BaseModel):
@@ -467,7 +470,9 @@ class SyntheticInstrument(BaseModel):
 class SyntheticDiagnostics(ConfigSectionBase):
     """Synthetic diagnostic modeling configuration."""
 
-    config_section_id: ClassVar[Literal["synthetic_diagnostics"]] = "synthetic_diagnostics"
+    config_section_id: ClassVar[Literal["synthetic_diagnostics"]] = (
+        "synthetic_diagnostics"
+    )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
@@ -480,7 +485,9 @@ class SyntheticDiagnostics(ConfigSectionBase):
     # Global output configuration
     output_dir: str = "synthetic_diagnostics/"
     output_format: Literal["csv", "hdf5", "ascii"] = "csv"
-    sampling_interval_ns: float = Field(1.0, alias="samplingIntervalNs", metadata={"units": "ns"})
+    sampling_interval_ns: float = Field(
+        1.0, alias="samplingIntervalNs", metadata={"units": "ns"}
+    )
     runtime_synthetic_enabled: bool = Field(True, alias="runtimeSyntheticEnabled")
     postprocessing_only: bool = Field(False, alias="postprocessingOnly")
     synthetic_diagnostics_config_hash: Optional[str] = Field(
@@ -493,47 +500,79 @@ class SyntheticDiagnostics(ConfigSectionBase):
     apply_spatial_psf: bool = Field(False, alias="applySpatialPsf")
 
     # Enabled diagnostics
-    synthetic_current_waveform_enabled: bool = Field(True, alias="syntheticCurrentWaveformEnabled")
-    synthetic_voltage_waveform_enabled: bool = Field(True, alias="syntheticVoltageWaveformEnabled")
+    synthetic_current_waveform_enabled: bool = Field(
+        True, alias="syntheticCurrentWaveformEnabled"
+    )
+    synthetic_voltage_waveform_enabled: bool = Field(
+        True, alias="syntheticVoltageWaveformEnabled"
+    )
     synthetic_coupled_current_waveform_enabled: bool = Field(
         False, alias="syntheticCoupledCurrentWaveformEnabled"
     )
     synthetic_coupled_voltage_waveform_enabled: bool = Field(
         False, alias="syntheticCoupledVoltageWaveformEnabled"
     )
-    synthetic_rogowski_signal_enabled: bool = Field(True, alias="syntheticRogowskiSignalEnabled")
-    synthetic_bdot_signal_enabled: bool = Field(True, alias="syntheticBdotSignalEnabled")
-    synthetic_neutron_tof_enabled: bool = Field(True, alias="syntheticNeutronTofEnabled")
-    synthetic_xray_pinhole_enabled: bool = Field(True, alias="syntheticXrayPinholeEnabled")
-    synthetic_thomson_parabola_enabled: bool = Field(False, alias="syntheticThomsonParabolaEnabled")
-    synthetic_optical_interferogram_enabled: bool = Field(False, alias="syntheticOpticalInterferogramEnabled")
+    synthetic_rogowski_signal_enabled: bool = Field(
+        True, alias="syntheticRogowskiSignalEnabled"
+    )
+    synthetic_bdot_signal_enabled: bool = Field(
+        True, alias="syntheticBdotSignalEnabled"
+    )
+    synthetic_neutron_tof_enabled: bool = Field(
+        True, alias="syntheticNeutronTofEnabled"
+    )
+    synthetic_xray_pinhole_enabled: bool = Field(
+        True, alias="syntheticXrayPinholeEnabled"
+    )
+    synthetic_thomson_parabola_enabled: bool = Field(
+        False, alias="syntheticThomsonParabolaEnabled"
+    )
+    synthetic_optical_interferogram_enabled: bool = Field(
+        False, alias="syntheticOpticalInterferogramEnabled"
+    )
     synthetic_cr39_image_enabled: bool = Field(False, alias="syntheticCr39ImageEnabled")
     synthetic_rcf_image_enabled: bool = Field(False, alias="syntheticRcfImageEnabled")
-    synthetic_faraday_iedf_enabled: bool = Field(False, alias="syntheticFaradayIedfEnabled")
-    synthetic_faraday_eedf_enabled: bool = Field(False, alias="syntheticFaradayEedfEnabled")
+    synthetic_faraday_iedf_enabled: bool = Field(
+        False, alias="syntheticFaradayIedfEnabled"
+    )
+    synthetic_faraday_eedf_enabled: bool = Field(
+        False, alias="syntheticFaradayEedfEnabled"
+    )
 
     # Diagnostic classification and labeling
     detector_ids: Optional[List[str]] = Field(None, alias="detectorIds")
-    diagnostic_output_type: Dict[str, Literal["time_series", "spatial_map", "image"]] = Field(
-        default_factory=dict, alias="diagnosticOutputType"
-    )
+    diagnostic_output_type: Dict[
+        str, Literal["time_series", "spatial_map", "image"]
+    ] = Field(default_factory=dict, alias="diagnosticOutputType")
     detector_positions_path: Optional[Path] = Field(None, alias="detectorPositionsPath")
     diagnostic_geometry_model: Optional[Literal["1D", "2D", "3D", "raycast"]] = Field(
         None, alias="diagnosticGeometryModel"
     )
 
     # Global paths
-    detector_definitions_path: Optional[Path] = Field(None, alias="detectorDefinitionsPath")
-    instrument_response_directory: Optional[Path] = Field(None, alias="instrumentResponseDirectory")
+    detector_definitions_path: Optional[Path] = Field(
+        None, alias="detectorDefinitionsPath"
+    )
+    instrument_response_directory: Optional[Path] = Field(
+        None, alias="instrumentResponseDirectory"
+    )
 
     # Noise and filter modeling
     apply_electrical_filter: bool = Field(False, alias="applyElectricalFilter")
-    filter_type: Optional[Literal["RC", "bandpass", "gaussian"]] = Field(None, alias="filterType")
-    filter_parameters: Optional[Dict[str, float]] = Field(None, alias="filterParameters")
+    filter_type: Optional[Literal["RC", "bandpass", "gaussian"]] = Field(
+        None, alias="filterType"
+    )
+    filter_parameters: Optional[Dict[str, float]] = Field(
+        None, alias="filterParameters"
+    )
     include_detector_noise: bool = Field(False, alias="includeDetectorNoise")
-    noise_model: Optional[Literal["gaussian", "poisson", "custom"]] = Field(None, alias="noiseModel")
+    noise_model: Optional[Literal["gaussian", "poisson", "custom"]] = Field(
+        None, alias="noiseModel"
+    )
     noise_parameters: Optional[Dict[str, float]] = Field(None, alias="noiseParameters")
-    instrument_response: Optional[Dict[str, Any]] = Field(None, alias="instrumentResponse")
+    instrument_response: Optional[Dict[str, Any]] = Field(
+        None, alias="instrumentResponse"
+    )
 
     # Per-instrument overrides
     instrument_overrides: Optional[Dict[str, SyntheticInstrument]] = Field(
@@ -561,7 +600,10 @@ class SyntheticDiagnostics(ConfigSectionBase):
 
     @classmethod
     def get_field_metadata(cls) -> Dict[str, Dict[str, Any]]:
-        return {n: (f.json_schema_extra or f.metadata or {}) for n, f in cls.model_fields.items()}
+        return {
+            n: (f.json_schema_extra or f.metadata or {})
+            for n, f in cls.model_fields.items()
+        }
 
     def normalize_units(self, units: UnitsSettings) -> "SyntheticDiagnostics":
         unit_map = units.normalize_units()
@@ -575,7 +617,9 @@ class SyntheticDiagnostics(ConfigSectionBase):
                 if val is not None:
                     val = val * scale
                 overrides[name] = inst.model_copy(update={"sampling_override_ns": val})
-        return self.model_copy(update={"sampling_interval_ns": interval, "instrument_overrides": overrides})
+        return self.model_copy(
+            update={"sampling_interval_ns": interval, "instrument_overrides": overrides}
+        )
 
     def summarize(self) -> str:
         diag_flags = [
@@ -599,7 +643,11 @@ class SyntheticDiagnostics(ConfigSectionBase):
             unit = " Hz" if cutoff is not None else ""
             val = f"{cutoff}{unit}" if cutoff is not None else ""
             filt = f"{self.filter_type}({val})"
-        noise = self.noise_model.capitalize() if self.include_detector_noise and self.noise_model else "None"
+        noise = (
+            self.noise_model.capitalize()
+            if self.include_detector_noise and self.noise_model
+            else "None"
+        )
         num_det = len(self.detector_ids) if self.detector_ids else 0
         ids = ", ".join(self.detector_ids[:2]) if self.detector_ids else ""
         geom = self.diagnostic_geometry_model or "n/a"
@@ -631,7 +679,9 @@ class SyntheticDiagnostics(ConfigSectionBase):
         return [name for name, flag in mapping.items() if flag]
 
     def hash_synthetic_diagnostics_config(self) -> str:
-        data = self.model_dump(by_alias=True, exclude={"synthetic_diagnostics_config_hash"})
+        data = self.model_dump(
+            by_alias=True, exclude={"synthetic_diagnostics_config_hash"}
+        )
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
 
@@ -640,30 +690,52 @@ class SyntheticDiagnostics(ConfigSectionBase):
     def check_rules(cls, values: "SyntheticDiagnostics") -> "SyntheticDiagnostics":
         if values.apply_electrical_filter:
             if values.filter_type is None or values.filter_parameters is None:
-                raise ValueError("filter_parameters required when apply_electrical_filter is True")
+                raise ValueError(
+                    "filter_parameters required when apply_electrical_filter is True"
+                )
         if values.include_detector_noise:
             if values.noise_model is None or values.noise_parameters is None:
-                raise ValueError("noise_parameters required when include_detector_noise is True")
+                raise ValueError(
+                    "noise_parameters required when include_detector_noise is True"
+                )
         if (
-            values.apply_time_response or values.apply_energy_filter or values.apply_spatial_psf
+            values.apply_time_response
+            or values.apply_energy_filter
+            or values.apply_spatial_psf
         ) and values.instrument_response_directory is None:
-            raise ValueError("instrument_response_directory required when response modeling enabled")
+            raise ValueError(
+                "instrument_response_directory required when response modeling enabled"
+            )
         if values.instrument_overrides:
             if values.detector_ids:
                 for key in values.instrument_overrides.keys():
                     if key not in values.detector_ids:
-                        raise ValueError("instrument_override key not listed in detector_ids")
+                        raise ValueError(
+                            "instrument_override key not listed in detector_ids"
+                        )
             new_overrides = {}
             for name, inst in values.instrument_overrides.items():
-                if values.apply_time_response and inst.response_file is None and values.instrument_response_directory is None:
-                    raise ValueError("response_file required for instrument when time response applied")
-                if inst.sampling_override_ns is not None and inst.sampling_override_ns <= 0:
+                if (
+                    values.apply_time_response
+                    and inst.response_file is None
+                    and values.instrument_response_directory is None
+                ):
+                    raise ValueError(
+                        "response_file required for instrument when time response applied"
+                    )
+                if (
+                    inst.sampling_override_ns is not None
+                    and inst.sampling_override_ns <= 0
+                ):
                     raise ValueError("sampling_override_ns must be positive")
                 new_overrides[name] = inst
             values = values.model_copy(update={"instrument_overrides": new_overrides})
-        values = values.model_copy(update={"synthetic_diagnostics_config_hash": values.hash_synthetic_diagnostics_config()})
+        values = values.model_copy(
+            update={
+                "synthetic_diagnostics_config_hash": values.hash_synthetic_diagnostics_config()
+            }
+        )
         return values
-
 
 
 def run_diagnostic_calculations(
@@ -710,9 +782,13 @@ def run_diagnostic_calculations(
     if cfg.synthetic_coupled_voltage_waveform_enabled:
         outputs["coupled_voltage"] = coupled_voltage_waveform(hist)
     if cfg.synthetic_rogowski_signal_enabled:
-        outputs["rogowski"] = rogowski_signal(hist, dt, calibration_file=_cal_path("rogowski"))
+        outputs["rogowski"] = rogowski_signal(
+            hist, dt, calibration_file=_cal_path("rogowski")
+        )
     if cfg.synthetic_bdot_signal_enabled:
-        outputs["bdot"] = bdot_signal(hist, bdot_radius, dt, calibration_file=_cal_path("bdot"))
+        outputs["bdot"] = bdot_signal(
+            hist, bdot_radius, dt, calibration_file=_cal_path("bdot")
+        )
 
     if cfg.synthetic_cr39_image_enabled:
         outputs["cr39_image"] = _cr39_image(hist)
@@ -738,7 +814,9 @@ def _export_csv(path: Path, data: Sequence[Any], kind: str) -> None:
                 writer.writerow(list(row))
 
 
-def _export_hdf5(path: Path, name: str, data: Sequence[Any], metadata: Dict[str, Any] | None = None) -> None:
+def _export_hdf5(
+    path: Path, name: str, data: Sequence[Any], metadata: Dict[str, Any] | None = None
+) -> None:
     with h5py.File(path, "w") as fh:
         ds = fh.create_dataset(name, data=data)
         try:  # pragma: no cover - stub compatibility
@@ -778,12 +856,16 @@ def export_diagnostic_data(
             if kind == "time_series":
                 file_path.write_text("\n".join(str(v) for v in values))
             else:
-                file_path.write_text("\n".join(",".join(str(v) for v in row) for row in values))
+                file_path.write_text(
+                    "\n".join(",".join(str(v) for v in row) for row in values)
+                )
         written.append(file_path)
     return written
 
 
-def _sd_model_validate(cls, data: Any, *args: Any, **kwargs: Any) -> "SyntheticDiagnostics":
+def _sd_model_validate(
+    cls, data: Any, *args: Any, **kwargs: Any
+) -> "SyntheticDiagnostics":
     if isinstance(data, dict):
         annotations = getattr(cls, "__annotations__", {})
         mapping = {to_camel_case(name): name for name in annotations}

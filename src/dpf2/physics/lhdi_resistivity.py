@@ -26,7 +26,9 @@ def _to_array(val: Any) -> np.ndarray:
         return np.asarray(val)
 
 
-def compute_effective_eta(wave_power: Any, phase_velocity: Any) -> Tuple[np.ndarray, np.ndarray]:
+def compute_effective_eta(
+    wave_power: Any, phase_velocity: Any
+) -> Tuple[np.ndarray, np.ndarray]:
     """Return an effective resistivity and axial electric-field surge.
 
     Parameters
@@ -55,7 +57,7 @@ def compute_effective_eta(wave_power: Any, phase_velocity: Any) -> Tuple[np.ndar
     power = _to_array(wave_power)
     velocity = _to_array(phase_velocity)
 
-    eta = power / (velocity ** 2 + 1.0e-30)
+    eta = power / (velocity**2 + 1.0e-30)
     e_field = eta * velocity
     return eta, e_field
 

@@ -119,7 +119,9 @@ def apply_bc(
                 else:
                     for i in range(len(field)):
                         for j in range(len(field[i])):
-                            field[i][j][-ghosts + k] = field[-ghosts - 1 - i][j][-ghosts + k]
+                            field[i][j][-ghosts + k] = field[-ghosts - 1 - i][j][
+                                -ghosts + k
+                            ]
             elif bc == "dirichlet":
                 for i in range(len(field)):
                     for j in range(len(field[i])):
@@ -141,4 +143,3 @@ def apply_bc(
 
 
 __all__ = ["apply_bc"]
-

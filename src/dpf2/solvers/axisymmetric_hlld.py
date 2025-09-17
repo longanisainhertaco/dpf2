@@ -23,6 +23,7 @@ The goal of the tests is not to provide a production ready plasma solver, but
 rather to exercise the interface and demonstrate the constrained transport
 update.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -298,4 +299,3 @@ class AxisymmetricHLLD(PlasmaSolverBase):
 
         U[4] = Br
         U[6] = Bz
-

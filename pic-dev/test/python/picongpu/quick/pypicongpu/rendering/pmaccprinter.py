@@ -92,7 +92,9 @@ class TestPMAccPrinterMeta(type):
                 # So, we need to eagerly evaluate the `example` variable
                 # which we achieve via an immediately evaluated lambda expression.
                 # Please excuse my C++ dialect.
-                lambda expression, cpp_code: lambda self: self.generic_test(expression, cpp_code)
+                lambda expression, cpp_code: lambda self: self.generic_test(
+                    expression, cpp_code
+                )
             )(expression, cpp_code)
         return type.__new__(cls, name, bases, dictionary)
 

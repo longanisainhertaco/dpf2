@@ -34,8 +34,9 @@ from .units_settings import UnitsSettings
 class IonBeamEDF(Protocol):
     """Protocol providing ion energy distributions by angle."""
 
-    def energy_distribution(self, angle_deg: float) -> Tuple[Sequence[float], Sequence[float]]:
-        ...
+    def energy_distribution(
+        self, angle_deg: float
+    ) -> Tuple[Sequence[float], Sequence[float]]: ...
 
 
 class NeutronYieldModel(ConfigSectionBase):
@@ -61,16 +62,25 @@ class NeutronYieldModel(ConfigSectionBase):
     # ------------------------------------------------------------------
     # Beam-target fusion configuration
     beam_ion_species: str
-    target_density_source: Literal["diagnostics", "constant", "user_file"] = "diagnostics"
+    target_density_source: Literal["diagnostics", "constant", "user_file"] = (
+        "diagnostics"
+    )
     target_density_constant: Optional[float] = Field(None, metadata={"units": "cm^-3"})
     target_density_diagnostic_path: Optional[Path] = None
-    iedf_source: Literal["diagnostics", "user_file", "synthetic_gaussian"] = "diagnostics"
+    iedf_source: Literal["diagnostics", "user_file", "synthetic_gaussian"] = (
+        "diagnostics"
+    )
     iedf_user_path: Optional[Path] = None
     iedf_diagnostic_path: Optional[Path] = None
     iedf_format: Optional[Literal["csv", "OpenPMD", "json"]] = "csv"
-    fusion_cross_section_model: Literal["Bosch-Hale", "EXFOR", "tabulated"] = "Bosch-Hale"
+    fusion_cross_section_model: Literal["Bosch-Hale", "EXFOR", "tabulated"] = (
+        "Bosch-Hale"
+    )
     cross_section_table_path: Optional[Path] = None
-    cross_section_table_units: Optional[Dict[str, str]] = {"energy": "MeV", "sigma": "barn"}
+    cross_section_table_units: Optional[Dict[str, str]] = {
+        "energy": "MeV",
+        "sigma": "barn",
+    }
 
     # ------------------------------------------------------------------
     # Thermonuclear fusion configuration
@@ -79,12 +89,13 @@ class NeutronYieldModel(ConfigSectionBase):
     average_ion_temperature_keV: Optional[float] = Field(
         None, alias="averageIonTemperatureKeV"
     )
-    average_ion_density_cm3: Optional[float] = Field(
-        None, alias="averageIonDensityCm3"
-    )
+    average_ion_density_cm3: Optional[float] = Field(None, alias="averageIonDensityCm3")
     dd_branching_ratio: Optional[float] = Field(0.5, ge=0.0, le=1.0)
     reactivity_table_path: Optional[Path] = None
-    reactivity_table_units: Optional[Dict[str, str]] = {"Ti": "keV", "reactivity": "cm^3/s"}
+    reactivity_table_units: Optional[Dict[str, str]] = {
+        "Ti": "keV",
+        "reactivity": "cm^3/s",
+    }
 
     # ------------------------------------------------------------------
     # Spectrum output and detector modeling
@@ -96,11 +107,13 @@ class NeutronYieldModel(ConfigSectionBase):
     spectrum_output_format: Optional[Literal["csv", "OpenPMD", "plot", "hdf5"]] = "csv"
     apply_detector_response_function: bool = False
     detector_response_file: Optional[Path] = None
-    detector_response_normalization: Optional[Literal["none", "area", "peak", "custom"]] = "none"
+    detector_response_normalization: Optional[
+        Literal["none", "area", "peak", "custom"]
+    ] = "none"
     detector_layout: Optional[Dict[str, float]] = None
-    anisotropy_metric: Literal[
-        "max_min_over_mean", "forward_backward_ratio"
-    ] = "max_min_over_mean"
+    anisotropy_metric: Literal["max_min_over_mean", "forward_backward_ratio"] = (
+        "max_min_over_mean"
+    )
 
     # ------------------------------------------------------------------
     @classmethod
@@ -118,7 +131,10 @@ class NeutronYieldModel(ConfigSectionBase):
         return [n for n, f in self.model_fields.items() if f.is_required()]
 
     def get_field_metadata(self) -> Dict[str, Dict[str, Any]]:
-        return {n: (f.json_schema_extra or f.metadata or {}) for n, f in self.model_fields.items()}
+        return {
+            n: (f.json_schema_extra or f.metadata or {})
+            for n, f in self.model_fields.items()
+        }
 
     def normalize_units(self, units: UnitsSettings) -> "NeutronYieldModel":
         unit_map = units.normalize_units()
@@ -155,7 +171,11 @@ class NeutronYieldModel(ConfigSectionBase):
             f"Branching: DDn = {self.dd_branching_ratio} | Spectrum ({anis}): {spec_bins} MeV → {fmt}",
         ]
         if self.apply_detector_response_function:
-            resp = self.detector_response_file.name if self.detector_response_file else "none"
+            resp = (
+                self.detector_response_file.name
+                if self.detector_response_file
+                else "none"
+            )
             parts.append(
                 f"Detector: applied, Norm = {self.detector_response_normalization}, Response = {resp}"
             )
@@ -188,16 +208,25 @@ class NeutronYieldModel(ConfigSectionBase):
             and values.thermonuclear_model_enabled
             and values.reactivity_table_path is None
         ):
-            raise ValueError("reactivity_table_path required for table-based reactivity")
+            raise ValueError(
+                "reactivity_table_path required for table-based reactivity"
+            )
 
         if (
             values.fusion_cross_section_model == "tabulated"
             and values.cross_section_table_path is None
         ):
-            raise ValueError("cross_section_table_path required for tabulated cross sections")
+            raise ValueError(
+                "cross_section_table_path required for tabulated cross sections"
+            )
 
-        if values.apply_detector_response_function and values.detector_response_file is None:
-            raise ValueError("detector_response_file required when apply_detector_response_function is True")
+        if (
+            values.apply_detector_response_function
+            and values.detector_response_file is None
+        ):
+            raise ValueError(
+                "detector_response_file required when apply_detector_response_function is True"
+            )
 
         if values.dd_branching_ratio is not None and not (
             0.0 <= values.dd_branching_ratio <= 1.0
@@ -205,11 +234,17 @@ class NeutronYieldModel(ConfigSectionBase):
             raise ValueError("dd_branching_ratio must be between 0 and 1")
 
         if values.spectrum_energy_bins_MeV is not None:
-            if values.spectrum_energy_bins_MeV != sorted(values.spectrum_energy_bins_MeV):
-                raise ValueError("spectrum_energy_bins_MeV must be monotonically increasing")
+            if values.spectrum_energy_bins_MeV != sorted(
+                values.spectrum_energy_bins_MeV
+            ):
+                raise ValueError(
+                    "spectrum_energy_bins_MeV must be monotonically increasing"
+                )
 
         if values.anisotropic_spectrum and values.spectrum_output_format != "hdf5":
-            raise ValueError("anisotropic_spectrum requires spectrum_output_format='hdf5'")
+            raise ValueError(
+                "anisotropic_spectrum requires spectrum_output_format='hdf5'"
+            )
 
         if values.yield_integration_window_us is not None:
             s, e = values.yield_integration_window_us
@@ -234,7 +269,9 @@ class TabulatedIonEDF(IonBeamEDF):
             for a, (en, fl) in data.items()
         }
 
-    def energy_distribution(self, angle_deg: float) -> Tuple[Sequence[float], Sequence[float]]:
+    def energy_distribution(
+        self, angle_deg: float
+    ) -> Tuple[Sequence[float], Sequence[float]]:
         return self._data.get(float(angle_deg), ([], []))
 
     @classmethod
@@ -252,10 +289,7 @@ class TabulatedIonEDF(IonBeamEDF):
         dists = obj.get("distributions", [])
         if len(angles) != len(dists):
             raise ValueError("angles and distributions length mismatch")
-        data = {
-            float(ang): (energies, dists[i])
-            for i, ang in enumerate(angles)
-        }
+        data = {float(ang): (energies, dists[i]) for i, ang in enumerate(angles)}
         return cls(data)
 
 
@@ -356,7 +390,9 @@ def compute_angular_spectra(
 
     xs = load_endf_b_viii(endf_path)
     beam_spec = compute_directional_spectrum(beam_edf, xs, angles, energy_bins)
-    th_spec_single = compute_directional_spectrum(thermal_edf, xs, [0.0], energy_bins)[0]
+    th_spec_single = compute_directional_spectrum(thermal_edf, xs, [0.0], energy_bins)[
+        0
+    ]
     th_spec = [list(th_spec_single) for _ in angles]
     return {
         "angles": list(angles),
@@ -372,7 +408,7 @@ def partition_yield(
     dt: float,
     thermonuclear_sigma: Sequence[float] | None = None,
     beam_target_sigma: Sequence[float] | None = None,
- ) -> Dict[str, Tuple[float, float]]:
+) -> Dict[str, Tuple[float, float]]:
     """Integrate rate histories and return channel yields with uncertainties.
 
     Parameters
@@ -447,7 +483,9 @@ def directional_counts(
     if not (len(radial_rate) == len(backward_rate) == n):
         raise ValueError("rate histories must have the same length")
 
-    def _integrate(rate: Sequence[float], sigma: Sequence[float] | None) -> Tuple[float, float]:
+    def _integrate(
+        rate: Sequence[float], sigma: Sequence[float] | None
+    ) -> Tuple[float, float]:
         count = sum(float(v) for v in rate) * dt
         var = count if count > 0 else 0.0
         if sigma is not None:

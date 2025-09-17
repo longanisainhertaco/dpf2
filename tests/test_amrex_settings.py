@@ -80,22 +80,26 @@ def test_refinement_ratio_applied_correctly():
     cfg = AmrexSettings.model_validate(data)
     assert cfg.coarse_block_size == (32, 32, 16)
     data_bad = base_data()
-    data_bad.update({"tile_size_override": [16, 16, 8], "coarse_block_size": [30, 32, 16]})
+    data_bad.update(
+        {"tile_size_override": [16, 16, 8], "coarse_block_size": [30, 32, 16]}
+    )
     with pytest.raises(ValueError):
         AmrexSettings.model_validate(data_bad)
 
 
 def test_summary_outputs_expected_fields():
     data = base_data()
-    data.update({
-        "embedded_boundary": True,
-        "embedded_boundary_extrapolation": "linear",
-        "flux_limiter_enabled": True,
-        "tile_size_override": [32, 32, 1],
-        "coarse_block_size": [64, 64, 32],
-        "max_grid_size": 128,
-        "erosion_mechanisms_enabled": ["thermal", "sputtering"],
-    })
+    data.update(
+        {
+            "embedded_boundary": True,
+            "embedded_boundary_extrapolation": "linear",
+            "flux_limiter_enabled": True,
+            "tile_size_override": [32, 32, 1],
+            "coarse_block_size": [64, 64, 32],
+            "max_grid_size": 128,
+            "erosion_mechanisms_enabled": ["thermal", "sputtering"],
+        }
+    )
     cfg = AmrexSettings.model_validate(data)
     summary = cfg.summarize()
     assert "AMReX:" in summary

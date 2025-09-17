@@ -3,12 +3,11 @@ import json
 import logging
 import time
 from typing import Mapping
+
 try:  # optional dependency
     import h5py
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    raise ImportError(
-        "h5py is required; install dpf2[warpx]"
-    ) from exc
+    raise ImportError("h5py is required; install dpf2[warpx]") from exc
 
 try:  # optional SciPy dependency
     from scipy.constants import c, m_n, m_e, mu_0, e, epsilon_0, k as k_B
@@ -18,6 +17,7 @@ except Exception:  # pragma: no cover - fallback when SciPy missing
 
     def interp1d(*args, **kwargs):  # type: ignore
         return None
+
 
 try:
     from pyevtk.hl import imageToVTK
@@ -31,12 +31,13 @@ from .utils import FieldManager, SimulationState
 from ..io.manifest import capture_dataset_metadata, write_hdf5_dataset_manifest
 
 # Classical electron radius (m)
-r_e = e ** 2 / (4 * np.pi * epsilon_0 * m_e * c ** 2)
+r_e = e**2 / (4 * np.pi * epsilon_0 * m_e * c**2)
 
 logger = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------------
 # Noise helpers
+
 
 def gaussian_noise(std: float):
     """Return a callable generating Gaussian noise with given ``std``.
@@ -58,6 +59,7 @@ def poisson_noise(lam: float):
         return np.random.poisson(lam, size=shape)
 
     return _noise
+
 
 # --- Diagnostic Base Class ---
 class Diagnostic(DiagnosticsBase):
@@ -163,6 +165,7 @@ class Diagnostic(DiagnosticsBase):
             logger.exception("diagnostic %s failed to serialise", self.name)
         return grp
 
+
 # --- Interferometry ---
 class Interferometry(Diagnostic):
     def __init__(
@@ -179,7 +182,9 @@ class Interferometry(Diagnostic):
         self.p1 = np.array(p1)
         self.detector_response = detector_response or (lambda x: x)
 
-    def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
+    def record(
+        self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None
+    ):
         def _compute():
             rho = state.density
             dx = state.dx
@@ -189,7 +194,11 @@ class Interferometry(Diagnostic):
             pts = np.linspace(self.p0, self.p1, Np)
             dens = []
             for pt in pts:
-                xi, yi, zi = (pt[0] - domain_lo[0]) / dx, (pt[1] - domain_lo[1]) / dx, (pt[2] - domain_lo[2]) / dx
+                xi, yi, zi = (
+                    (pt[0] - domain_lo[0]) / dx,
+                    (pt[1] - domain_lo[1]) / dx,
+                    (pt[2] - domain_lo[2]) / dx,
+                )
                 i, j, k = int(np.floor(xi)), int(np.floor(yi)), int(np.floor(zi))
                 dens.append(rho[i, j, k])
             line_integral = np.trapz(dens, dx=dx)
@@ -197,15 +206,25 @@ class Interferometry(Diagnostic):
             phase_shift = self.detector_response(phase_shift)
             return {"phase_shift": phase_shift}
 
-        super().record(t, circuit, fluid, pic=pic, radiation=radiation, state=state, callback=_compute)
+        super().record(
+            t,
+            circuit,
+            fluid,
+            pic=pic,
+            radiation=radiation,
+            state=state,
+            callback=_compute,
+        )
 
     def to_hdf5(self, hdf5_group):
         grp = super().to_hdf5(hdf5_group)
         if self.detector_response is not None:
             grp.attrs.setdefault(
-                "detector_response", getattr(self.detector_response, "__name__", "custom")
+                "detector_response",
+                getattr(self.detector_response, "__name__", "custom"),
             )
         return grp
+
 
 # --- X-ray Detector ---
 class XrayDetector(Diagnostic):
@@ -221,14 +240,20 @@ class XrayDetector(Diagnostic):
         super().__init__(name, field_manager, noise_model=noise_model)
         self.position = np.array(position)
         self.energy_bins = energy_bins or [0, np.inf]
-        self.detector_response = detector_response or (lambda E: 1.0)  # Default: constant efficiency
+        self.detector_response = detector_response or (
+            lambda E: 1.0
+        )  # Default: constant efficiency
 
-    def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
+    def record(
+        self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None
+    ):
         def _compute():
             if not radiation:
                 return None
-            if hasattr(radiation, 'get_energy_resolved_emission'):
-                energy_bins, P_rad_energy = radiation.get_energy_resolved_emission(state)
+            if hasattr(radiation, "get_energy_resolved_emission"):
+                energy_bins, P_rad_energy = radiation.get_energy_resolved_emission(
+                    state
+                )
             else:
                 P_rad_total = radiation.total_radiated_energy
                 energy_bins = [0, np.inf]
@@ -241,19 +266,32 @@ class XrayDetector(Diagnostic):
                 dys = state._Y - self.position[1]
                 dzs = state._Z - self.position[2]
                 dist2 = dxs * dxs + dys * dys + dzs * dzs
-                signal += np.sum(P_rad_energy[i] * state.cell_volume / dist2) * detector_efficiency
+                signal += (
+                    np.sum(P_rad_energy[i] * state.cell_volume / dist2)
+                    * detector_efficiency
+                )
             return {"signal": signal}
 
-        super().record(t, circuit, fluid, pic=pic, radiation=radiation, state=state, callback=_compute)
+        super().record(
+            t,
+            circuit,
+            fluid,
+            pic=pic,
+            radiation=radiation,
+            state=state,
+            callback=_compute,
+        )
 
     def to_hdf5(self, hdf5_group):
         grp = super().to_hdf5(hdf5_group)
-        grp.create_dataset('energy_bins', data=self.energy_bins)
+        grp.create_dataset("energy_bins", data=self.energy_bins)
         if self.detector_response is not None:
             grp.attrs.setdefault(
-                'detector_response', getattr(self.detector_response, '__name__', 'custom')
+                "detector_response",
+                getattr(self.detector_response, "__name__", "custom"),
             )
         return grp
+
 
 # --- Neutron Detector ---
 class NeutronDetector(Diagnostic):
@@ -263,7 +301,7 @@ class NeutronDetector(Diagnostic):
         position,
         time_bins,
         field_manager: FieldManager,
-        reaction='DD',
+        reaction="DD",
         detector_response=None,
         noise_model=None,
     ):
@@ -273,33 +311,45 @@ class NeutronDetector(Diagnostic):
         self.reaction = reaction
         self.detector_response = detector_response or (lambda arr: arr)
 
-    def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
+    def record(
+        self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None
+    ):
         def _compute():
-            if pic and hasattr(pic, 'get_neutron_events'):
+            if pic and hasattr(pic, "get_neutron_events"):
                 events = pic.get_neutron_events(reaction=self.reaction)
                 tof = []
                 for ev in events:
-                    ev_pos = np.array(ev['position'])
-                    E_n = ev['energy'] * 1.602e-13  # keV->J
+                    ev_pos = np.array(ev["position"])
+                    E_n = ev["energy"] * 1.602e-13  # keV->J
                     v = np.sqrt(2 * E_n / m_n)
                     dist = np.linalg.norm(ev_pos - self.position)
-                    tof.append(ev['time'] + dist / v)
+                    tof.append(ev["time"] + dist / v)
                 hist, _ = np.histogram(tof, bins=self.time_bins)
                 hist = self.detector_response(hist)
                 return {"histogram": hist}
             return None
 
-        super().record(t, circuit, fluid, pic=pic, radiation=radiation, state=state, callback=_compute)
+        super().record(
+            t,
+            circuit,
+            fluid,
+            pic=pic,
+            radiation=radiation,
+            state=state,
+            callback=_compute,
+        )
 
     def to_hdf5(self, hdf5_group):
         grp = super().to_hdf5(hdf5_group)
-        grp.create_dataset('time_bins', data=self.time_bins)
-        grp.attrs['reaction'] = self.reaction
+        grp.create_dataset("time_bins", data=self.time_bins)
+        grp.attrs["reaction"] = self.reaction
         if self.detector_response is not None:
             grp.attrs.setdefault(
-                'detector_response', getattr(self.detector_response, '__name__', 'custom')
+                "detector_response",
+                getattr(self.detector_response, "__name__", "custom"),
             )
         return grp
+
 
 # --- Mode Analysis ---
 class ModeAnalysis(Diagnostic):
@@ -310,7 +360,9 @@ class ModeAnalysis(Diagnostic):
         self.modes = modes
         self.data = []
 
-    def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
+    def record(
+        self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None
+    ):
         rho = state.density
         dx = state.dx
         mode_amp = {}
@@ -324,18 +376,29 @@ class ModeAnalysis(Diagnostic):
             for m in self.modes:
                 Fm = np.sum(vals * np.exp(-1j * m * thetas))
                 mode_amp[f"m{m}_z{kz}"] = np.abs(Fm)
-        self.data.append({'time': t, 'mode_amplitudes': mode_amp})
+        self.data.append({"time": t, "mode_amplitudes": mode_amp})
 
     def to_hdf5(self, hdf5_group):
         grp = hdf5_group.create_group(self.name)
-        grp.create_dataset('time', data=[d['time'] for d in self.data])
-        mode_data = {k: [d['mode_amplitudes'].get(k, 0) for d in self.data] for k in self.data[0]['mode_amplitudes']}
+        grp.create_dataset("time", data=[d["time"] for d in self.data])
+        mode_data = {
+            k: [d["mode_amplitudes"].get(k, 0) for d in self.data]
+            for k in self.data[0]["mode_amplitudes"]
+        }
         for k, v in mode_data.items():
             grp.create_dataset(k, data=v)
 
+
 # --- Thomson Scattering ---
 class ThomsonScattering(Diagnostic):
-    def __init__(self, name, laser_wavelength, scattering_angle, position, field_manager: FieldManager):
+    def __init__(
+        self,
+        name,
+        laser_wavelength,
+        scattering_angle,
+        position,
+        field_manager: FieldManager,
+    ):
         super().__init__(name, field_manager)
         self.laser_wavelength = laser_wavelength
         self.scattering_angle = scattering_angle
@@ -346,7 +409,9 @@ class ThomsonScattering(Diagnostic):
         # Spectral grid will be created on first record
         self._wavelength_grid = None
 
-    def record(self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None):
+    def record(
+        self, t, circuit, fluid, pic=None, radiation=None, state: SimulationState = None
+    ):
         """Calculate a simplified Thomson scattering spectrum.
 
         The spectrum is approximated as a Gaussian profile whose width is
@@ -373,7 +438,9 @@ class ThomsonScattering(Diagnostic):
         Te = float(Te_grid[xi, yi, zi]) if Te_grid is not None else 0.0
 
         # Thermal broadening of wavelength
-        delta_lambda = self.laser_wavelength * np.sqrt(2 * k_B * max(Te, 1e-6) / m_e) / c
+        delta_lambda = (
+            self.laser_wavelength * np.sqrt(2 * k_B * max(Te, 1e-6) / m_e) / c
+        )
         if self._wavelength_grid is None:
             self._wavelength_grid = np.linspace(
                 self.laser_wavelength - 5 * delta_lambda,
@@ -384,7 +451,7 @@ class ThomsonScattering(Diagnostic):
         width = delta_lambda if delta_lambda > 0 else self.laser_wavelength * 1e-9
         spectrum = (
             ne
-            * r_e ** 2
+            * r_e**2
             * self._geom_factor
             * np.exp(-0.5 * ((wl - self.laser_wavelength) / width) ** 2)
         )
@@ -399,6 +466,7 @@ class ThomsonScattering(Diagnostic):
             grp.create_dataset("wavelength", data=self.data[0]["wavelength"])
             spectra = np.array([d["spectrum"] for d in self.data])
             grp.create_dataset("spectrum", data=spectra)
+
 
 # --- Main Diagnostics Class ---
 class Diagnostics:
@@ -439,15 +507,24 @@ class Diagnostics:
         # Prepare grid coordinates for synthetic operations
         nx, ny, nz = self.grid_shape
         x0, y0, z0 = self.domain_lo
-        xs = x0 + (np.arange(nx)+0.5)*dx
-        ys = y0 + (np.arange(ny)+0.5)*dx
-        zs = z0 + (np.arange(nz)+0.5)*dx
-        self._X, self._Y, self._Z = np.meshgrid(xs, ys, zs, indexing='ij')
+        xs = x0 + (np.arange(nx) + 0.5) * dx
+        ys = y0 + (np.arange(ny) + 0.5) * dx
+        zs = z0 + (np.arange(nz) + 0.5) * dx
+        self._X, self._Y, self._Z = np.meshgrid(xs, ys, zs, indexing="ij")
 
     def add_diagnostic(self, diagnostic):
         self.diagnostics.append(diagnostic)
 
-    def record(self, t, circuit, fluid, pic=None, radiation=None, checkpoint_id=None, timings=None):
+    def record(
+        self,
+        t,
+        circuit,
+        fluid,
+        pic=None,
+        radiation=None,
+        checkpoint_id=None,
+        timings=None,
+    ):
         try:
             start = time.perf_counter()
 
@@ -461,7 +538,7 @@ class Diagnostics:
                 dIdt = 0.0
             else:
                 dt = t - self._last_time
-                dIdt = (I - self._last_current) / dt if dt>0 else 0.0
+                dIdt = (I - self._last_current) / dt if dt > 0 else 0.0
 
             self._last_time = t
             self._last_current = I
@@ -472,23 +549,27 @@ class Diagnostics:
             if isinstance(fluid, SimulationState) and state_obj is None:
                 state_obj = fluid
             if state_obj is None:
-                logger.debug("Diagnostics skipping record because no simulation state was provided")
+                logger.debug(
+                    "Diagnostics skipping record because no simulation state was provided"
+                )
                 return
 
             rho = getattr(state_obj, "density", None)
             vel = getattr(state_obj, "velocity", None)
             pres = getattr(state_obj, "pressure", None)
             if rho is None or vel is None or pres is None:
-                logger.debug("Diagnostics state missing required fields; skipping record")
+                logger.debug(
+                    "Diagnostics state missing required fields; skipping record"
+                )
                 return
             B = self.field_manager.get_B()
 
             # Energies
-            E_th = np.sum(pres/(self.gamma-1.0)*self.cell_volume)
-            v2 = np.sum(vel**2,axis=-1)
-            E_kin = np.sum(0.5*rho*v2*self.cell_volume)
-            B2 = np.sum(B**2,axis=-1)
-            E_mag = np.sum(B2/(2*mu_0)*self.cell_volume)
+            E_th = np.sum(pres / (self.gamma - 1.0) * self.cell_volume)
+            v2 = np.sum(vel**2, axis=-1)
+            E_kin = np.sum(0.5 * rho * v2 * self.cell_volume)
+            B2 = np.sum(B**2, axis=-1)
+            E_mag = np.sum(B2 / (2 * mu_0) * self.cell_volume)
             E_rad = radiation.total_radiated_energy if radiation else 0.0
 
             # Divergence of B
@@ -498,28 +579,28 @@ class Diagnostics:
             end = time.perf_counter()
             elapsed = end - start
             tdict = timings or {}
-            tdict['diagnostics'] = elapsed
+            tdict["diagnostics"] = elapsed
             self.timing.append(tdict)
 
             # Build summary record
             rec = {
-                'time': t,
-                'current': I,
-                'voltage': V,
-                'dI_dt': dIdt,
-                'E_thermal': E_th,
-                'E_kinetic': E_kin,
-                'E_magnetic': E_mag,
-                'E_radiated': E_rad,
-                'divB_max': divB_max,
-                'divB_l2': divB_l2,
-                'timing': tdict,
-                'checkpoint': checkpoint_id
+                "time": t,
+                "current": I,
+                "voltage": V,
+                "dI_dt": dIdt,
+                "E_thermal": E_th,
+                "E_kinetic": E_kin,
+                "E_magnetic": E_mag,
+                "E_radiated": E_rad,
+                "divB_max": divB_max,
+                "divB_l2": divB_l2,
+                "timing": tdict,
+                "checkpoint": checkpoint_id,
             }
             if coupled_currents is not None:
-                rec['coupled_currents'] = coupled_currents
+                rec["coupled_currents"] = coupled_currents
             if coupled_voltages is not None:
-                rec['coupled_voltages'] = coupled_voltages
+                rec["coupled_voltages"] = coupled_voltages
             self.summary.append(rec)
 
             # Call each diagnostic
@@ -528,15 +609,19 @@ class Diagnostics:
 
             # Adaptive snapshot frequency
             rho_max = np.max(rho)
-            if self._step % self.full_interval == 0 or abs(rho_max - self._last_rho_max) / self._last_rho_max > self.adaptive_interval_threshold:
+            if (
+                self._step % self.full_interval == 0
+                or abs(rho_max - self._last_rho_max) / self._last_rho_max
+                > self.adaptive_interval_threshold
+            ):
                 snap = {
-                    'time': t,
-                    'density': rho.copy(),
-                    'pressure': pres.copy(),
-                    'velocity': vel.copy(),
-                    'magnetic': B.copy(),
+                    "time": t,
+                    "density": rho.copy(),
+                    "pressure": pres.copy(),
+                    "velocity": vel.copy(),
+                    "magnetic": B.copy(),
                 }
-                self.snapshots.append({'snapshot': snap, 'checkpoint': checkpoint_id})
+                self.snapshots.append({"snapshot": snap, "checkpoint": checkpoint_id})
                 self._last_rho_max = rho_max
 
             self._step += 1
@@ -550,36 +635,50 @@ class Diagnostics:
     def to_hdf5(self):
         """Write diagnostics to HDF5."""
         try:
-            with h5py.File(self.hdf5_filename, 'w') as f:
+            with h5py.File(self.hdf5_filename, "w") as f:
                 f.attrs.update({"openPMD": "1.1.0", "openPMDextension": 0})
                 # Provenance / config snapshot
-                prov = f.create_group('provenance')
-                prov.attrs['created'] = time.time()
-                prov.attrs['software'] = 'dpf2'
-                prov.create_dataset('config', data=np.string_(json.dumps(self.config)))
+                prov = f.create_group("provenance")
+                prov.attrs["created"] = time.time()
+                prov.attrs["software"] = "dpf2"
+                prov.create_dataset("config", data=np.string_(json.dumps(self.config)))
 
                 # Time series
-                ts = f.create_group('time_series')
+                ts = f.create_group("time_series")
                 ts.attrs.update({"openPMD": "1.1.0", "openPMDextension": 0})
                 keys = list(self.summary[0].keys())
                 for key in keys:
                     data = [rec[key] for rec in self.summary]
-                    ds = ts.create_dataset(key, data=data, compression='gzip')
-                    ds.attrs['unitSI'] = 1.0
+                    ds = ts.create_dataset(key, data=data, compression="gzip")
+                    ds.attrs["unitSI"] = 1.0
 
                 # Snapshots
-                snaps = f.create_group('snapshots')
+                snaps = f.create_group("snapshots")
                 for idx, item in enumerate(self.snapshots):
-                    grp = snaps.create_group(f'step_{idx}')
-                    grp.attrs['checkpoint'] = item['checkpoint']
-                    grp.create_dataset('time', data=item['snapshot']['time'])
-                    grp.create_dataset('density', data=item['snapshot']['density'], compression='gzip')
-                    grp.create_dataset('pressure', data=item['snapshot']['pressure'], compression='gzip')
-                    grp.create_dataset('velocity', data=item['snapshot']['velocity'], compression='gzip')
-                    grp.create_dataset('magnetic', data=item['snapshot']['magnetic'], compression='gzip')
+                    grp = snaps.create_group(f"step_{idx}")
+                    grp.attrs["checkpoint"] = item["checkpoint"]
+                    grp.create_dataset("time", data=item["snapshot"]["time"])
+                    grp.create_dataset(
+                        "density", data=item["snapshot"]["density"], compression="gzip"
+                    )
+                    grp.create_dataset(
+                        "pressure",
+                        data=item["snapshot"]["pressure"],
+                        compression="gzip",
+                    )
+                    grp.create_dataset(
+                        "velocity",
+                        data=item["snapshot"]["velocity"],
+                        compression="gzip",
+                    )
+                    grp.create_dataset(
+                        "magnetic",
+                        data=item["snapshot"]["magnetic"],
+                        compression="gzip",
+                    )
 
                 # Diagnostic-specific data
-                diag_grp = f.create_group('diagnostics')
+                diag_grp = f.create_group("diagnostics")
                 diag_grp.attrs.update({"openPMD": "1.1.0", "openPMDextension": 0})
                 for diagnostic in self.diagnostics:
                     diagnostic.to_hdf5(diag_grp)
@@ -593,7 +692,7 @@ class Diagnostics:
         """Write snapshots to VTK files."""
         try:
             for idx, item in enumerate(self.snapshots):
-                snap = item['snapshot']
+                snap = item["snapshot"]
                 imageToVTK(f"{filename_base}_{idx}", cellData=snap)
         except Exception as e:
             logger.error(f"Error writing to VTK: {e}")
@@ -602,9 +701,9 @@ class Diagnostics:
         """Return latest summary as JSON."""
         latest = self.get_latest()
         if not latest:
-            return '{}'
+            return "{}"
         clean = {}
-        for k,v in latest.items():
+        for k, v in latest.items():
             try:
                 json.dumps(v)
                 clean[k] = v

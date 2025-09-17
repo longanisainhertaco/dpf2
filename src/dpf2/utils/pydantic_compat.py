@@ -13,18 +13,24 @@ def model_validator(*, mode: str = "after"):
 
     def decorator(func):
         if mode == "after":
+
             def wrapper(cls, values):
                 inst = values if isinstance(values, cls) else cls.construct(**values)
                 result = func(cls, inst)
                 return result.__dict__ if isinstance(result, cls) else values
 
-            return root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(wrapper)
+            return root_validator(pre=False, skip_on_failure=True, allow_reuse=True)(
+                wrapper
+            )
         else:
+
             def wrapper(cls, values):
                 out = func(values)
                 return out if out is not None else values
 
-            return root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(wrapper)
+            return root_validator(pre=True, skip_on_failure=True, allow_reuse=True)(
+                wrapper
+            )
 
     return decorator
 
@@ -44,8 +50,8 @@ if not hasattr(BaseModel, "model_dump"):
     if hasattr(BaseModel, "dict"):
         BaseModel.model_dump = BaseModel.dict  # type: ignore[attr-defined]
     else:  # pragma: no cover - minimal stub
-        BaseModel.model_dump = (
-            lambda self, *_, **__: getattr(self, "__dict__", {})
+        BaseModel.model_dump = lambda self, *_, **__: getattr(
+            self, "__dict__", {}
         )  # type: ignore[attr-defined]
 
 if not hasattr(BaseModel, "model_dump_json"):
@@ -54,14 +60,15 @@ if not hasattr(BaseModel, "model_dump_json"):
     else:  # pragma: no cover - minimal stub
         import json as _json
 
-        BaseModel.model_dump_json = (
-            lambda self, *_, **__: _json.dumps(getattr(self, "__dict__", {}))
+        BaseModel.model_dump_json = lambda self, *_, **__: _json.dumps(
+            getattr(self, "__dict__", {})
         )  # type: ignore[attr-defined]
 
 if not hasattr(BaseModel, "model_copy"):
     if hasattr(BaseModel, "copy"):
         BaseModel.model_copy = BaseModel.copy  # type: ignore[attr-defined]
     else:  # pragma: no cover - minimal stub
+
         def _copy(self, update=None, **__):  # type: ignore
             new = self.__class__()  # type: ignore[attr-defined]
             for k, v in getattr(self, "__dict__", {}).items():
@@ -83,4 +90,3 @@ if not hasattr(BaseModel, "model_rebuild"):
         BaseModel.model_rebuild = classmethod(lambda cls, *_, **__: None)
 
 __all__ = ["model_validator"]
-

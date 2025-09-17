@@ -66,7 +66,7 @@ def dd_fusion_rates(
     """
 
     reactivity = bosch_hale_dd(T_keV)
-    thermo = n_thermal ** 2 * reactivity
+    thermo = n_thermal**2 * reactivity
 
     beam = 0.0
     if n_beam and beam_energy_keV:
@@ -190,9 +190,7 @@ def dd_yield_components(
         ``(yield, uncertainty)`` tuples.
     """
 
-    thermo_rate, beam_rate = dd_fusion_rates(
-        T_keV, n_thermal, n_beam, beam_energy_keV
-    )
+    thermo_rate, beam_rate = dd_fusion_rates(T_keV, n_thermal, n_beam, beam_energy_keV)
     th_yield = thermo_rate * volume * duration
     bt_yield = beam_rate * volume * duration
     total = th_yield + bt_yield
@@ -210,4 +208,3 @@ def dd_yield_components(
         "beam_target": (bt_yield, math.sqrt(bt_var) if bt_var > 0 else 0.0),
         "total": (total, math.sqrt(total_var) if total_var > 0 else 0.0),
     }
-

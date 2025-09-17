@@ -16,7 +16,6 @@ from .utils.pydantic_compat import model_validator
 from .units_settings import UnitsSettings
 
 
-
 from .core_schema import ConfigSectionBase, to_camel_case
 
 
@@ -82,7 +81,9 @@ class Metadata(ConfigSectionBase):
         None, alias="summaryId", description="Short 6-character summary hash"
     )
     run_label: Optional[str] = Field(
-        None, alias="runLabel", description="Human-readable short name or tag for this run"
+        None,
+        alias="runLabel",
+        description="Human-readable short name or tag for this run",
     )
 
     # Campaign & traceability
@@ -99,10 +100,14 @@ class Metadata(ConfigSectionBase):
 
     # Platform tagging
     platform_tag: Optional[str] = Field(
-        None, alias="platformTag", description="Platform tag or compute cluster identifier"
+        None,
+        alias="platformTag",
+        description="Platform tag or compute cluster identifier",
     )
     arch_id: Optional[str] = Field(
-        None, alias="archId", description="Architecture ID or backend fingerprint (e.g., cuda-12.2-ampere)"
+        None,
+        alias="archId",
+        description="Architecture ID or backend fingerprint (e.g., cuda-12.2-ampere)",
     )
 
     # ML usage
@@ -116,9 +121,7 @@ class Metadata(ConfigSectionBase):
         None, alias="surrogateConfidenceThreshold"
     )
     use_surrogate_model: Optional[str] = Field(None, alias="useSurrogateModel")
-    yield_targeting_enabled: Optional[bool] = Field(
-        None, alias="yieldTargetingEnabled"
-    )
+    yield_targeting_enabled: Optional[bool] = Field(None, alias="yieldTargetingEnabled")
 
     # ------------------------------------------------------------------
     @classmethod
@@ -150,14 +153,18 @@ class Metadata(ConfigSectionBase):
         return [n for n, f in self.model_fields.items() if f.is_required()]
 
     def get_field_metadata(self) -> Dict[str, Dict[str, Any]]:
-        return {n: field.json_schema_extra or {} for n, field in self.model_fields.items()}
+        return {
+            n: field.json_schema_extra or {} for n, field in self.model_fields.items()
+        }
 
     def summarize(self) -> str:
         surrogate_desc = "none"
         if self.use_surrogate_model and self.ml_metadata:
             surrogate_desc = f"{self.ml_metadata.model}"
         conf = (
-            f" < {self.surrogate_confidence_threshold}" if self.surrogate_confidence_threshold is not None else ""
+            f" < {self.surrogate_confidence_threshold}"
+            if self.surrogate_confidence_threshold is not None
+            else ""
         )
         return (
             f"Schema: {self.schema_version}, Code: {self.sim_version} (commit {self.commit_hash})\n"
@@ -199,8 +206,14 @@ class Metadata(ConfigSectionBase):
     @model_validator(mode="after")
     def check_rules(cls, values: "Metadata") -> "Metadata":
         if values.use_surrogate_model:
-            if not values.ml_metadata or not values.ml_metadata.model or not values.ml_metadata.version:
-                raise ValueError("ml_metadata.model and version required when use_surrogate_model is set")
+            if (
+                not values.ml_metadata
+                or not values.ml_metadata.model
+                or not values.ml_metadata.version
+            ):
+                raise ValueError(
+                    "ml_metadata.model and version required when use_surrogate_model is set"
+                )
 
         if values.ml_parameter_bounds:
             for k, (low, high) in values.ml_parameter_bounds.items():
@@ -221,4 +234,3 @@ class Metadata(ConfigSectionBase):
 
 
 __all__ = ["Metadata", "MLMetadata", "MLResult"]
-

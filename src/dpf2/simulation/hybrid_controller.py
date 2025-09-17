@@ -26,6 +26,7 @@ import threading
 import queue
 import math
 from typing import Dict, Any, Optional, List
+
 try:
     import caliper  # Ribbon profiling
 except Exception as e:  # pragma: no cover - fallback for test environment
@@ -55,84 +56,109 @@ from .utils import FieldManager
 from ..core.bases import CouplingState
 
 # Physical constants
-mu0      = 4*np.pi*1e-7
+mu0 = 4 * np.pi * 1e-7
 epsilon0 = 8.854187817e-12
-kB       = 1.380649e-23
-m_e      = 9.10938356e-31
+kB = 1.380649e-23
+m_e = 9.10938356e-31
 e_charge = 1.602176634e-19
-c        = 299792458.0
+c = 299792458.0
 
-logger = logging.getLogger('HybridController')
+logger = logging.getLogger("HybridController")
 logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(ch)
 
-#======================================
+
+# ======================================
 # JIT-accelerated criteria computation
-#======================================
+# ======================================
 @njit(parallel=True)
-def compute_transition_mask(rho, vel, press, Bmag, dx, dy, dz,
-                            grad_thr, knud_thr, hall_thr, non_max_fac,
-                            collision_frequency):
+def compute_transition_mask(
+    rho,
+    vel,
+    press,
+    Bmag,
+    dx,
+    dy,
+    dz,
+    grad_thr,
+    knud_thr,
+    hall_thr,
+    non_max_fac,
+    collision_frequency,
+):
     nx, ny, nz = rho.shape
-    mask = np.zeros((nx,ny,nz), np.bool_)
+    mask = np.zeros((nx, ny, nz), np.bool_)
     for i in prange(nx):
         for j in range(ny):
             for k in range(nz):
                 # grad L
-                gx = (rho[min(i+1,nx-1),j,k] - rho[max(i-1,0),j,k])/(2*dx)
-                gy = (rho[i,min(j+1,ny-1),k] - rho[i,max(j-1,0),k])/(2*dy)
-                gz = (rho[i,j,min(k+1,nz-1)] - rho[i,j,max(k-1,0),k])/(2*dz)
-                grad_rho = np.sqrt(gx*gx + gy*gy + gz*gz)
-                L_grad = rho[i,j,k]/(grad_rho+1e-30)
+                gx = (rho[min(i + 1, nx - 1), j, k] - rho[max(i - 1, 0), j, k]) / (
+                    2 * dx
+                )
+                gy = (rho[i, min(j + 1, ny - 1), k] - rho[i, max(j - 1, 0), k]) / (
+                    2 * dy
+                )
+                gz = (rho[i, j, min(k + 1, nz - 1)] - rho[i, j, max(k - 1, 0), k]) / (
+                    2 * dz
+                )
+                grad_rho = np.sqrt(gx * gx + gy * gy + gz * gz)
+                L_grad = rho[i, j, k] / (grad_rho + 1e-30)
                 # vth and ν_ei
-                Te = press[i,j,k]/(rho[i,j,k]+1e-30)
-                vth = np.sqrt(kB*Te/m_e)
-                Kn = (vth/(collision_frequency[i,j,k]+1e-30))/(L_grad+1e-30)
-                Hall = (e_charge*Bmag[i,j,k]/m_e)/(collision_frequency[i,j,k]+1e-30)
-                if L_grad < grad_thr or Kn > knud_thr or Hall > hall_thr*non_max_fac:
-                    mask[i,j,k] = True
+                Te = press[i, j, k] / (rho[i, j, k] + 1e-30)
+                vth = np.sqrt(kB * Te / m_e)
+                Kn = (vth / (collision_frequency[i, j, k] + 1e-30)) / (L_grad + 1e-30)
+                Hall = (e_charge * Bmag[i, j, k] / m_e) / (
+                    collision_frequency[i, j, k] + 1e-30
+                )
+                if L_grad < grad_thr or Kn > knud_thr or Hall > hall_thr * non_max_fac:
+                    mask[i, j, k] = True
     return mask
 
-#======================================
+
+# ======================================
 # Polynomial bump weight
-#======================================
+# ======================================
 def bump_weight(shape, width):
     w = np.ones(shape, dtype=np.float64)
     dims = len(shape)
     for d in range(dims):
         size = shape[d]
-        idx = [slice(None)]*dims
+        idx = [slice(None)] * dims
         # lower
         idx[d] = slice(0, width)
-        arr = np.arange(width)/width
-        taper = 1 - arr**3*(10 - 15*arr + 6*arr**2)
-        w[tuple(idx)] *= taper.reshape([-1 if dd==d else 1 for dd in range(dims)])
+        arr = np.arange(width) / width
+        taper = 1 - arr**3 * (10 - 15 * arr + 6 * arr**2)
+        w[tuple(idx)] *= taper.reshape([-1 if dd == d else 1 for dd in range(dims)])
         # upper
-        idx[d] = slice(size-width, size)
-        arr = np.arange(width)/width
-        taper = 1 - arr[::-1]**3*(10 - 15*arr[::-1] + 6*arr[::-1]**2)
-        w[tuple(idx)] *= taper.reshape([-1 if dd==d else 1 for dd in range(dims)])
+        idx[d] = slice(size - width, size)
+        arr = np.arange(width) / width
+        taper = 1 - arr[::-1] ** 3 * (10 - 15 * arr[::-1] + 6 * arr[::-1] ** 2)
+        w[tuple(idx)] *= taper.reshape([-1 if dd == d else 1 for dd in range(dims)])
     return w
 
-#======================================
+
+# ======================================
 # Hybrid Controller
-#======================================
+# ======================================
 class HybridController(PhysicsModule):
     """Orchestrates hybrid fluid–PIC simulations, managing coupling and transitions.
 
     Relativistic and quantum corrections are approximate and error handling is
     minimal."""
 
-    def __init__(self, config: HybridConfig,
-                 fluid_solver: FluidSolverHighOrder,
-                 pic_solver: WarpXWrapper,
-                 circuit_model,
-                 radiation_model: RadiationModel,
-                 collision_model: CollisionModel,
-                 sheath_model: PlasmaSheathFormation,
-                 field_manager: FieldManager):
+    def __init__(
+        self,
+        config: HybridConfig,
+        fluid_solver: FluidSolverHighOrder,
+        pic_solver: WarpXWrapper,
+        circuit_model,
+        radiation_model: RadiationModel,
+        collision_model: CollisionModel,
+        sheath_model: PlasmaSheathFormation,
+        field_manager: FieldManager,
+    ):
         """Initializes the HybridController with configuration and physics modules."""
         try:
             self.config = config
@@ -163,7 +189,9 @@ class HybridController(PhysicsModule):
             self.transition_history: List[Dict[str, float]] = []
             self.energy_history: List[Dict[str, float]] = []
 
-            logger.info(f"HybridController initialized with buffer={self.buffer}, blend={self.blend_width}")
+            logger.info(
+                f"HybridController initialized with buffer={self.buffer}, blend={self.blend_width}"
+            )
 
         except Exception as e:
             logger.error(f"Error initializing HybridController: {e}")
@@ -173,32 +201,39 @@ class HybridController(PhysicsModule):
         """Applies the hybrid coupling and advances the simulation by one time step."""
         try:
             # 0. Update non-LTE populations
-            with caliper.annotate('non_lte'):
+            with caliper.annotate("non_lte"):
                 self._update_non_lte(state, dt)
             # 1. Apply sheath boundary conditions
-            with caliper.annotate('sheath_bc'):
+            with caliper.annotate("sheath_bc"):
                 self.apply_boundary_conditions(state, dt)
 
             # 2. Compute transition mask
-            with caliper.annotate('compute_mask'):
+            with caliper.annotate("compute_mask"):
                 collision_frequency = self.compute_collision_frequency(state)
                 mask = compute_transition_mask(
                     state.density,
                     state.velocity,
                     state.pressure,
                     np.linalg.norm(state.field_manager.get_B(), axis=3),
-                    state.dx, state.dy, state.dz,
-                    self.grad_thr, self.knud_thr, self.hall_thr, self.non_max_fac,
-                    collision_frequency
+                    state.dx,
+                    state.dy,
+                    state.dz,
+                    self.grad_thr,
+                    self.knud_thr,
+                    self.hall_thr,
+                    self.non_max_fac,
+                    collision_frequency,
                 )
                 regions = self._select_regions(mask)
 
                 # Record transition diagnostics
                 vol_frac = float(mask.sum()) / mask.size if mask.size else 0.0
-                self.transition_history.append({'vol_frac': vol_frac, 'n_regions': len(regions)})
+                self.transition_history.append(
+                    {"vol_frac": vol_frac, "n_regions": len(regions)}
+                )
 
             # 3. Hybrid coupling
-            with caliper.annotate('hybrid_coupling'):
+            with caliper.annotate("hybrid_coupling"):
                 if not regions:
                     # Fluid-only step
                     self.fluid_only_step(state, dt)
@@ -207,14 +242,26 @@ class HybridController(PhysicsModule):
                     self.hybrid_step(state, regions, dt)
 
             # Record energy partition after the step
-            fluid_E = self.fluid.get_total_energy() if hasattr(self.fluid, 'get_total_energy') else 0.0
-            pic_E = self.pic.get_total_energy() if hasattr(self.pic, 'get_total_energy') else 0.0
-            self.energy_history.append({'fluid': float(fluid_E),
-                                        'pic': float(pic_E),
-                                        'total': float(fluid_E + pic_E)})
+            fluid_E = (
+                self.fluid.get_total_energy()
+                if hasattr(self.fluid, "get_total_energy")
+                else 0.0
+            )
+            pic_E = (
+                self.pic.get_total_energy()
+                if hasattr(self.pic, "get_total_energy")
+                else 0.0
+            )
+            self.energy_history.append(
+                {
+                    "fluid": float(fluid_E),
+                    "pic": float(pic_E),
+                    "total": float(fluid_E + pic_E),
+                }
+            )
 
             # 4. Auto-tune threshold
-            with caliper.annotate('post_step'):
+            with caliper.annotate("post_step"):
                 self._auto_tune_threshold(mask)
 
             self.time += dt
@@ -238,9 +285,9 @@ class HybridController(PhysicsModule):
             ne = state.density / 1.67e-27  # Assuming proton mass
             Te = state.electron_temperature
             nu = self.collision.nu_ei_spitzer(ne, Te)
-            if hasattr(self.collision, 'nu_molecular'):
+            if hasattr(self.collision, "nu_molecular"):
                 nu += self.collision.nu_molecular(ne, Te)
-            if hasattr(self.collision, 'nu_dust'):
+            if hasattr(self.collision, "nu_dust"):
                 nu += self.collision.nu_dust(ne, Te)
             return nu
         except Exception as e:
@@ -250,8 +297,8 @@ class HybridController(PhysicsModule):
     def _update_non_lte(self, state: SimulationState, dt: float):
         """Simple relaxation model for non-LTE effects."""
         try:
-            Te = getattr(state, 'electron_temperature', None)
-            Ti = getattr(state, 'ion_temperature', None)
+            Te = getattr(state, "electron_temperature", None)
+            Ti = getattr(state, "ion_temperature", None)
             if Te is None or Ti is None:
                 return
             delta = Te - Ti
@@ -269,8 +316,8 @@ class HybridController(PhysicsModule):
                 for j in range(sy):
                     for k in range(sz):
                         v = vel[i][j][k]
-                        s2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2]
-                        gamma = 1.0 / math.sqrt(max(1e-30, 1.0 - s2 / (c*c)))
+                        s2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2]
+                        gamma = 1.0 / math.sqrt(max(1e-30, 1.0 - s2 / (c * c)))
                         v[0] /= gamma
                         v[1] /= gamma
                         v[2] /= gamma
@@ -281,7 +328,7 @@ class HybridController(PhysicsModule):
         """Adds a small Fermi pressure term as a quantum correction."""
         try:
             rho = state.density
-            pf = (rho + 1e-30)**(5.0/3.0)
+            pf = (rho + 1e-30) ** (5.0 / 3.0)
             state.pressure += 0.01 * pf
         except Exception as e:
             logger.error(f"Error applying quantum correction: {e}")
@@ -296,7 +343,7 @@ class HybridController(PhysicsModule):
             self._apply_quantum_correction(state)
 
             # 2. Circuit update
-            #I = self.fluid.compute_total_current()
+            # I = self.fluid.compute_total_current()
             I = self.field_manager.get_J()
             # Pass the fluid current and zero back‑EMF to the circuit model.
             voltage = (
@@ -358,12 +405,16 @@ class HybridController(PhysicsModule):
 
         try:
             data = {
-                'density': state.density[region],
-                'velocity': state.velocity[region],
-                'electron_temperature': state.electron_temperature[region],
-                'ion_temperature': state.ion_temperature[region],
-                'E': state.field_manager.get_E()[:, region[0], region[1], region[2]],  # Assuming E is (3, nx, ny, nz)
-                'B': state.field_manager.get_B()[:, region[0], region[1], region[2]]   # Assuming B is (3, nx, ny, nz)
+                "density": state.density[region],
+                "velocity": state.velocity[region],
+                "electron_temperature": state.electron_temperature[region],
+                "ion_temperature": state.ion_temperature[region],
+                "E": state.field_manager.get_E()[
+                    :, region[0], region[1], region[2]
+                ],  # Assuming E is (3, nx, ny, nz)
+                "B": state.field_manager.get_B()[
+                    :, region[0], region[1], region[2]
+                ],  # Assuming B is (3, nx, ny, nz)
             }
             return data
         except Exception as e:
@@ -374,14 +425,27 @@ class HybridController(PhysicsModule):
         """Selects connected regions in the transition mask for PIC simulation."""
         try:
             labeled, n = label(mask)
-            regs=[]
-            for lab in range(1,n+1):
-                pts = np.argwhere(labeled==lab)
+            regs = []
+            for lab in range(1, n + 1):
+                pts = np.argwhere(labeled == lab)
                 imin, jmin, kmin = pts.min(axis=0)
-                imax, jmax, kmax = pts.max(axis=0)+1
-                regs.append((slice(max(0,imin-self.buffer), min(mask.shape[0],imax+self.buffer)),
-                             slice(max(0,jmin-self.buffer), min(mask.shape[1],jmax+self.buffer)),
-                             slice(max(0,kmin-self.buffer), min(mask.shape[2],kmax+self.buffer))))
+                imax, jmax, kmax = pts.max(axis=0) + 1
+                regs.append(
+                    (
+                        slice(
+                            max(0, imin - self.buffer),
+                            min(mask.shape[0], imax + self.buffer),
+                        ),
+                        slice(
+                            max(0, jmin - self.buffer),
+                            min(mask.shape[1], jmax + self.buffer),
+                        ),
+                        slice(
+                            max(0, kmin - self.buffer),
+                            min(mask.shape[2], kmax + self.buffer),
+                        ),
+                    )
+                )
             return regs
         except Exception as e:
             logger.error(f"Error selecting regions: {e}")
@@ -395,7 +459,9 @@ class HybridController(PhysicsModule):
             for it in range(self.max_iters):
                 fb = self.pic.step(fluid_state, dt_sub, region, it)
                 if fb_last is not None:
-                    diff = np.linalg.norm(fb['momentum_density']-fb_last['momentum_density'])
+                    diff = np.linalg.norm(
+                        fb["momentum_density"] - fb_last["momentum_density"]
+                    )
                     if diff < self.coupling_tol:
                         break
                 fb_last = fb
@@ -410,18 +476,24 @@ class HybridController(PhysicsModule):
             for sl in regions:
                 rho = fluid_state.density[sl]
                 vel = fluid_state.velocity[sl]
-                if 'momentum_density' in fb[sl] and 'pressure_density' in fb[sl]:
-                    dv = (fb[sl]['momentum_density'] - rho[...,None]*vel)/(rho[...,None]+1e-30)
-                    dp = fb[sl]['pressure_density'] - fluid_state.pressure[sl]
+                if "momentum_density" in fb[sl] and "pressure_density" in fb[sl]:
+                    dv = (fb[sl]["momentum_density"] - rho[..., None] * vel) / (
+                        rho[..., None] + 1e-30
+                    )
+                    dp = fb[sl]["pressure_density"] - fluid_state.pressure[sl]
                     # filter
                     for c in range(3):
-                        dv[...,c] = gaussian_filter(dv[...,c], sigma=self.filter_sigma)
-                        dp       = gaussian_filter(dp, sigma=self.filter_sigma)
+                        dv[..., c] = gaussian_filter(
+                            dv[..., c], sigma=self.filter_sigma
+                        )
+                        dp = gaussian_filter(dp, sigma=self.filter_sigma)
                     bw = bump_weight(rho.shape, self.blend_width)
-                    fluid_state.velocity[sl] += dv * bw[...,None]
+                    fluid_state.velocity[sl] += dv * bw[..., None]
                     fluid_state.pressure[sl] += dp * bw
                 else:
-                    logger.warning(f"Feedback data missing for region {sl}. Skipping feedback application.")
+                    logger.warning(
+                        f"Feedback data missing for region {sl}. Skipping feedback application."
+                    )
         except Exception as e:
             logger.error(f"Error applying feedback: {e}")
             raise
@@ -431,8 +503,8 @@ class HybridController(PhysicsModule):
         try:
             E_post = self.fluid.get_total_energy()
             dE = E_pre - E_post
-            if abs(dE)>1e-12:
-                corr = dE / self.fluid.state['density'].size
+            if abs(dE) > 1e-12:
+                corr = dE / self.fluid.state["density"].size
                 self.fluid.increment_internal_energy(corr)
                 logger.info(f"Energy corrected by {dE:.3e}")
         except Exception as e:
@@ -442,13 +514,15 @@ class HybridController(PhysicsModule):
     def _auto_tune_threshold(self, mask):
         """Dynamically adjusts the transition thresholds based on the volume fraction of the PIC region."""
         try:
-            vol_frac = mask.sum()/mask.size
+            vol_frac = mask.sum() / mask.size
             target = self.target_vol_frac
-            if vol_frac>1.2*target:
+            if vol_frac > 1.2 * target:
                 self.grad_thr *= 1.05
-            elif vol_frac<0.8*target:
+            elif vol_frac < 0.8 * target:
                 self.grad_thr *= 0.95
-            logger.info(f"Threshold tuned: grad_thr={self.grad_thr:.3e}, vol%%={vol_frac*100:.2f}")
+            logger.info(
+                f"Threshold tuned: grad_thr={self.grad_thr:.3e}, vol%%={vol_frac*100:.2f}"
+            )
         except Exception as e:
             logger.error(f"Error during auto-tuning: {e}")
             raise
@@ -463,9 +537,10 @@ class HybridController(PhysicsModule):
             logger.error(f"Error during finalization: {e}")
             raise
 
-#======================================
+
+# ======================================
 # Asynchronous Overlapped Controller
-#======================================
+# ======================================
 class AsyncHybridController(HybridController):
     """Asynchronous hybrid controller running fluid and PIC solvers concurrently.
 
@@ -487,7 +562,8 @@ class AsyncHybridController(HybridController):
         try:
             while True:
                 item = self._q.get()
-                if item is None: break
+                if item is None:
+                    break
                 state, dt = item
                 state_new = self.fluid.step_state(state, dt)
                 self._q.put(state_new)
@@ -499,13 +575,22 @@ class AsyncHybridController(HybridController):
         try:
             while True:
                 item = self._q.get()
-                if item is None: break
+                if item is None:
+                    break
                 state = item
                 mask = compute_transition_mask(
-                    state['density'], state['velocity'], state['pressure'],
-                    np.linalg.norm(state['magnetic'],axis=3),
-                    self.fluid.dx, self.fluid.dy, self.fluid.dz,
-                    self.grad_thr, self.knud_thr, self.hall_thr, self.non_max_fac)
+                    state["density"],
+                    state["velocity"],
+                    state["pressure"],
+                    np.linalg.norm(state["magnetic"], axis=3),
+                    self.fluid.dx,
+                    self.fluid.dy,
+                    self.fluid.dz,
+                    self.grad_thr,
+                    self.knud_thr,
+                    self.hall_thr,
+                    self.non_max_fac,
+                )
                 regs = self._select_regions(mask)
                 results = [(r, self._run_pic_subcycles(r, state)) for r in regs]
                 self._q.put(results)

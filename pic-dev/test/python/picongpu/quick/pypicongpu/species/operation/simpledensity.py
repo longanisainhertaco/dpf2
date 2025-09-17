@@ -199,10 +199,16 @@ class TestSimpleDensity(unittest.TestCase):
         self.assertEqual(context["profile"], self.sd.profile.get_rendering_context())
 
         # species with lowest ratio must be placed as first, which is species1
-        self.assertEqual(context["placed_species_initial"], self.species1.get_rendering_context())
+        self.assertEqual(
+            context["placed_species_initial"], self.species1.get_rendering_context()
+        )
 
-        copied_species_names = list(map(lambda d: d["name"], context["placed_species_copied"]))
-        self.assertEqual({"species2", "species3", "species4"}, set(copied_species_names))
+        copied_species_names = list(
+            map(lambda d: d["name"], context["placed_species_copied"])
+        )
+        self.assertEqual(
+            {"species2", "species3", "species4"}, set(copied_species_names)
+        )
 
     def test_rendering_minimal(self):
         """minimal example for rendering"""
@@ -230,5 +236,7 @@ class TestSimpleDensity(unittest.TestCase):
         self.assertEqual(1, context["ppc"])
         self.assertEqual(context["profile"], sd.profile.get_rendering_context())
 
-        self.assertEqual(context["placed_species_initial"], species.get_rendering_context())
+        self.assertEqual(
+            context["placed_species_initial"], species.get_rendering_context()
+        )
         self.assertEqual(context["placed_species_copied"], [])

@@ -35,7 +35,9 @@ class BaseWidget(widgets.VBox):
 
         return decorated_member_fun
 
-    def __init__(self, plot_mpl_cls, run_dir_options=None, fig=None, output_widget=None, **kwargs):
+    def __init__(
+        self, plot_mpl_cls, run_dir_options=None, fig=None, output_widget=None, **kwargs
+    ):
         """
         Parameters
         ----------
@@ -86,7 +88,9 @@ class BaseWidget(widgets.VBox):
         # widgets for selecting the simulation and the simulation step
         # dependent on the derived class which widget it should be
         # use the simulation labels of the plot_mpl visualizer from picongpu
-        self.sim_drop = self._create_sim_dropdown(sorted(list(self.label_path_lut.keys())))
+        self.sim_drop = self._create_sim_dropdown(
+            sorted(list(self.label_path_lut.keys()))
+        )
         self.sim_drop.observe(self._handle_run_dir_selection_callback, names="value")
 
         self.sim_time_slider = widgets.SelectionSlider(

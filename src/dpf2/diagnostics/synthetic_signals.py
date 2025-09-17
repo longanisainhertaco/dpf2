@@ -132,7 +132,7 @@ def _apply_instrument_response(
             for j, b in enumerate(impulse):
                 full[i + j] += a * b
         start = (m - 1) // 2
-        conv = full[start:start + n]
+        conv = full[start : start + n]
     return [float(v) for v in conv]
 
 
@@ -311,4 +311,3 @@ __all__ = [
     "neutron_tof_signal",
     "angular_neutron_spectrum",
 ]
-

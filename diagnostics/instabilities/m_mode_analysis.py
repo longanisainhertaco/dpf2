@@ -30,8 +30,9 @@ def fft_m_modes(field: np.ndarray, theta_axis: int = -1) -> np.ndarray:
     return np.abs(fft) / n_theta
 
 
-def growth_rate(time_series: Iterable[np.ndarray], dt: float, m: int,
-                theta_axis: int = -1) -> float:
+def growth_rate(
+    time_series: Iterable[np.ndarray], dt: float, m: int, theta_axis: int = -1
+) -> float:
     """Estimate exponential growth rate for mode ``m``.
 
     Parameters
@@ -56,10 +57,13 @@ def growth_rate(time_series: Iterable[np.ndarray], dt: float, m: int,
     return float(slope)
 
 
-def analyze_instabilities(time_series: Iterable[np.ndarray], dt: float,
-                          ez_series: Iterable[float] | None = None,
-                          thresholds: Dict[str, float] | None = None,
-                          theta_axis: int = -1) -> Dict[str, Any]:
+def analyze_instabilities(
+    time_series: Iterable[np.ndarray],
+    dt: float,
+    ez_series: Iterable[float] | None = None,
+    thresholds: Dict[str, float] | None = None,
+    theta_axis: int = -1,
+) -> Dict[str, Any]:
     """Analyse m=0 and m=1 modes and detect instability onsets.
 
     Parameters

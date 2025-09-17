@@ -156,7 +156,9 @@ def azimuthal_decomposition(field: np.ndarray, axis: int = -1) -> np.ndarray:
     return np.asarray(coeff)
 
 
-def growth_rate(previous: Sequence[float], current: Sequence[float], dt: float) -> np.ndarray:
+def growth_rate(
+    previous: Sequence[float], current: Sequence[float], dt: float
+) -> np.ndarray:
     """Estimate exponential growth rates between two spectra.
 
     The growth rate for each mode is computed using ``ln(A1/A0) / dt``

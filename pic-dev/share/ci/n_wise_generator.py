@@ -10,7 +10,9 @@ import math
 import random
 
 parser = argparse.ArgumentParser(description="Generate tesing pairs")
-parser.add_argument("-n", dest="n_pairs", default=1, action="store", help="number of tuple elements")
+parser.add_argument(
+    "-n", dest="n_pairs", default=1, action="store", help="number of tuple elements"
+)
 # Note: If a stage contains to less jobs the number of jobs per stage can be
 # larger than the value configured by the user!
 parser.add_argument(
@@ -313,7 +315,9 @@ for i in range(rounds):
 
     parameters = [used_compilers, backends, operating_system, boost_libs, examples]
 
-    for value in enumerate(AllPairs(parameters, filter_func=is_valid_combination, n=n_pairs)):
+    for value in enumerate(
+        AllPairs(parameters, filter_func=is_valid_combination, n=n_pairs)
+    ):
         job_list.append(value)
 
 # set seed to be deterministic in each CI run
@@ -349,16 +353,29 @@ for stage in range(num_stages):
             v_cuda_hip_str = "" if v_cuda_hip == 0 else str(v_cuda_hip)
             os_name = pairs[2][0]
             os_version = get_version(pairs[2])
-            image_prefix = "_run" if folder == "pmacc" or folder == "unit" else "_compile"
+            image_prefix = (
+                "_run" if folder == "pmacc" or folder == "unit" else "_compile"
+            )
             job_name = (
-                compiler + "_" + backend + v_cuda_hip_str + "_boost" + boost_version + "_" + folder.replace("/", ".")
+                compiler
+                + "_"
+                + backend
+                + v_cuda_hip_str
+                + "_boost"
+                + boost_version
+                + "_"
+                + folder.replace("/", ".")
             )
             print(job_name + ":")
             print("  stage: job_{}".format(stage))
             print("  variables:")
             print("    CI_CONTAINER_NAME: '" + os_name + str(os_version) + "'")
             if backend == "cuda":
-                print("    CUDA_CONTAINER_VERSION: '" + v_cuda_hip_str.replace(".", "") + "'")
+                print(
+                    "    CUDA_CONTAINER_VERSION: '"
+                    + v_cuda_hip_str.replace(".", "")
+                    + "'"
+                )
             if backend == "hip":
                 print("    HIP_CONTAINER_VERSION: '" + v_cuda_hip_str + "'")
             print("    PIC_TEST_CASE_FOLDER: '" + folder + "'")
@@ -371,7 +388,9 @@ for stage in range(num_stages):
                 print("    DISABLE_OpenPMD: 'yes'")
             print("  before_script:")
             if backend == "hip":
-                print("    - wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -")
+                print(
+                    "    - wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -"
+                )
             if backend == "cuda":
                 print(
                     "    - apt-key adv --fetch-keys "
@@ -380,6 +399,8 @@ for stage in range(num_stages):
                     "/x86_64/3bf863cc.pub"
                 )
             print("    - apt-get update -qq")
-            print("    - apt-get install -y -qq libopenmpi-dev openmpi-bin openssh-server")
+            print(
+                "    - apt-get install -y -qq libopenmpi-dev openmpi-bin openssh-server"
+            )
             print("  extends: " + get_base_image(pairs[0], pairs[1]) + image_prefix)
             print("")

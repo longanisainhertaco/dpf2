@@ -6,7 +6,9 @@ import typeguard
 @typeguard.typechecked
 def validate(relativeAbundanceErrorThreshold: float = 0.01) -> bool:
     # read in Atomic Physics Data
-    series = opmd.Series("binningOpenPMD/atomicStateBinning_000025.bp", opmd.Access.read_only)
+    series = opmd.Series(
+        "binningOpenPMD/atomicStateBinning_000025.bp", opmd.Access.read_only
+    )
     i = series.iterations[25]
     binning = i.meshes["Binning"]
     binning_component = binning["\vScalar"]
@@ -23,7 +25,10 @@ def validate(relativeAbundanceErrorThreshold: float = 0.01) -> bool:
     # check state has more than expected deviation if abundance is above 10^-5
     mask = mean_reference > 1.0e-5
     result = np.all(
-        np.abs((binning_data / np.expand_dims(np.sum(binning_data, axis=1), axis=-1)) - mean_reference)[mask]
+        np.abs(
+            (binning_data / np.expand_dims(np.sum(binning_data, axis=1), axis=-1))
+            - mean_reference
+        )[mask]
         < relativeAbundanceErrorThreshold
     )
 

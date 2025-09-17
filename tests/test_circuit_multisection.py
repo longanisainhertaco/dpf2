@@ -121,7 +121,9 @@ def test_multisection_crowbar_iv_trace():
         sim_currents.append(circuit.get_current())
         sim_voltages.append(circuit.get_voltage())
 
-    assert np.allclose(np.abs(sim_currents), [abs(c) for c in currents[1:]], rtol=3e-1, atol=1e-2)
+    assert np.allclose(
+        np.abs(sim_currents), [abs(c) for c in currents[1:]], rtol=3e-1, atol=1e-2
+    )
     assert np.allclose(sim_voltages, voltages[1:], rtol=3e-1, atol=1e-2)
     assert len(circuit.plasma_inductance_history) == len(times) - 1
 
@@ -130,6 +132,8 @@ def test_multisection_crowbar_iv_trace():
     circuit._crowbar_resistance()
     assert any(circuit._crowbar_engaged)
 
-    cs = CouplingState(Lp=0.0, emf=0.0, current=circuit.get_current(), voltage=circuit.get_voltage())
+    cs = CouplingState(
+        Lp=0.0, emf=0.0, current=circuit.get_current(), voltage=circuit.get_voltage()
+    )
     res = circuit.step(cs, back_emf=5.0, dt=dt)
     assert res.back_reaction == 5.0

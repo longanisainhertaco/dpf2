@@ -53,5 +53,9 @@ def test_hall_mhd_circuit_radiation_energy_flux_conservation():
     energy = total_energy()
     flux = np.sum(state.B, axis=(0, 1, 2))
 
-    assert np.isclose(energy, energy0, rtol=1e-6), f"Energy drifted by {energy - energy0:.3e}"
-    assert np.allclose(flux, flux0, rtol=1e-6, atol=1e-12), f"Flux drifted by {flux - flux0}"
+    assert np.isclose(
+        energy, energy0, rtol=1e-6
+    ), f"Energy drifted by {energy - energy0:.3e}"
+    assert np.allclose(
+        flux, flux0, rtol=1e-6, atol=1e-12
+    ), f"Flux drifted by {flux - flux0}"

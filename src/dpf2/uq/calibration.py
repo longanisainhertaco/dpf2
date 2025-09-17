@@ -134,10 +134,7 @@ def nested_calibration(
         return -0.5 * np.dot(resid, resid)
 
     # Draw initial live points uniformly within bounds
-    live = [
-        [rng.uniform(l, u) for l, u in zip(lower, upper)]
-        for _ in range(n_live)
-    ]
+    live = [[rng.uniform(l, u) for l, u in zip(lower, upper)] for _ in range(n_live)]
     logl = [log_like(p) for p in live]
 
     collected: list[list[float]] = []
@@ -278,7 +275,9 @@ def emcee_calibrate_mass_current(
     try:  # pragma: no cover - dependency may be optional
         import emcee  # type: ignore
     except Exception as exc:  # pragma: no cover - import error path
-        raise RuntimeError("emcee is required for emcee_calibrate_mass_current") from exc
+        raise RuntimeError(
+            "emcee is required for emcee_calibrate_mass_current"
+        ) from exc
 
     if bounds is None:
         bounds = {"mass_factor": (0.5, 1.5), "current_factor": (0.5, 1.5)}
@@ -355,8 +354,7 @@ def dynesty_calibrate_mass_current(
         resid_current = (current_data - curr_pred) / sigma_current
         resid_tof = (tof_data - tof_pred) / sigma_tof
         return -0.5 * (
-            np.dot(resid_current, resid_current)
-            + np.dot(resid_tof, resid_tof)
+            np.dot(resid_current, resid_current) + np.dot(resid_tof, resid_tof)
         )
 
     sampler = dynesty.NestedSampler(
@@ -519,4 +517,3 @@ __all__ = [
     "dynesty_calibrate_waveform",
     "calibrate_waveform",
 ]
-

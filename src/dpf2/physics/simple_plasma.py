@@ -10,9 +10,11 @@ from typing import Any, Callable
 try:  # pragma: no cover - exercised when radiation package is present
     from ..radiation.multigroup import MultiGroupDiffusion  # type: ignore
 except Exception:  # pragma: no cover - fallback for test environment
+
     class MultiGroupDiffusion:  # type: ignore
         def couple(self, energies, dt):
             return energies
+
 
 from ..core.bases import PlasmaSolverBase, CouplingState
 

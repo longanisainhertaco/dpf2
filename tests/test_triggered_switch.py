@@ -50,8 +50,12 @@ def test_triggered_switch_and_matrix_assembly():
 def test_branching_network_matrix_assembly():
     """Multiple segments and a switch form a small branched network."""
 
-    seg1 = TransmissionLineSegment(0, 1, length=1.0, L_per_m=1.0, R_per_m=1.0, C_per_m=0.0)
-    seg2 = TransmissionLineSegment(1, 2, length=1.0, L_per_m=0.0, R_per_m=2.0, C_per_m=0.0)
+    seg1 = TransmissionLineSegment(
+        0, 1, length=1.0, L_per_m=1.0, R_per_m=1.0, C_per_m=0.0
+    )
+    seg2 = TransmissionLineSegment(
+        1, 2, length=1.0, L_per_m=0.0, R_per_m=2.0, C_per_m=0.0
+    )
     sw = TriggeredSwitch(0, 2, closed=True, R_on=5.0, R_off=5.0)
 
     R, L, C = assemble_matrices([seg1, seg2], [sw], t=0.0)
@@ -82,4 +86,3 @@ def test_branching_network_matrix_assembly():
     assert np.allclose(R, expected_R)
     assert np.allclose(L, expected_L)
     assert np.allclose(C, np.zeros((3, 3)))
-

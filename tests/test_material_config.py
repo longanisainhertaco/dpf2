@@ -12,5 +12,6 @@ def test_component_materials_use_materialref():
 
 def test_unknown_material_validation():
     with pytest.raises(ValueError):
-        MaterialConfig._validate_material_ids(MaterialConfig, {"anode": MaterialRef(material_id="bad")})
-
+        MaterialConfig._validate_material_ids(
+            MaterialConfig, {"anode": MaterialRef(material_id="bad")}
+        )

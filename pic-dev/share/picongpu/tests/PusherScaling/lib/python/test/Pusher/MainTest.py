@@ -45,10 +45,14 @@ class Comparison:
         i = series.iterations[indices[0]]
 
         if len(series.iterations) == 1:
-            raise ValueError("There is just 1 iteration in the series \n make sure, there are at least two")
+            raise ValueError(
+                "There is just 1 iteration in the series \n make sure, there are at least two"
+            )
 
         elif len(np.array(i.particles)) != 1:
-            raise ValueError("There is not only 1 particle in the series \n make sure, there is only least one")
+            raise ValueError(
+                "There is not only 1 particle in the series \n make sure, there is only least one"
+            )
 
         else:
             # read parameters of the simulation
@@ -144,8 +148,10 @@ class Comparison:
 
         # coordinate transformation to reposition the origin at the center of
         # the circle
-        x_poss, y_poss, x_offSet, y_offSet = correct_starting_values_for_technical_details(
-            x_poss, y_poss, x_offSet, y_offSet, R_c, halfStepPhase
+        x_poss, y_poss, x_offSet, y_offSet = (
+            correct_starting_values_for_technical_details(
+                x_poss, y_poss, x_offSet, y_offSet, R_c, halfStepPhase
+            )
         )
 
         self.period = period
@@ -188,7 +194,9 @@ class Comparison:
         return total_phasediff, timestep
 
 
-def correct_starting_values_for_technical_details(x_poss, y_poss, x_offSet, y_offSet, R_c, halfStepPhase):
+def correct_starting_values_for_technical_details(
+    x_poss, y_poss, x_offSet, y_offSet, R_c, halfStepPhase
+):
     """The particle is initialized at the arbitary position (5, 32) in the x-y-plane (some arbitrary z which is irrelevant for our computation...).
     So we have to shift the coordinates in a form, that the initialization point is exactly on the circle with the radius of the particle trajectory with its center at the origin.
     This shifting is done by the transformation (subtraction of the initialization coordinates and radius).

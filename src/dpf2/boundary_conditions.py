@@ -16,12 +16,16 @@ try:  # pragma: no cover - during early import core_schema may not be ready
     from .core_schema import ConfigSectionBase, to_camel_case
 except Exception:  # pragma: no cover - fall back to minimal placeholders
     ConfigSectionBase = object  # type: ignore
+
     def to_camel_case(name: str) -> str:  # type: ignore
         return name
+
+
 from dpf2.diagnostics import OutputField
 
 # ---------------------------------------------------------------------------
 # Lightweight kinetic sheath model used by Hall-MHD unit tests
+
 
 class KineticSheath:
     """Evolve ion/electron fluxes at a boundary.
@@ -49,7 +53,9 @@ class KineticSheath:
         self.last_impurity_flux = 0.0
         self.last_thickness = 0.0
 
-    def evolve(self, ni: float, ne: float, Te: float, dt: float) -> tuple[float, float, float]:
+    def evolve(
+        self, ni: float, ne: float, Te: float, dt: float
+    ) -> tuple[float, float, float]:
         """Return ``(thickness, impurity_flux, ion_flux)``.
 
         ``ni``/``ne`` are ion and electron number densities, ``Te`` is the
@@ -100,21 +106,11 @@ class BoundaryConditions(ConfigSectionBase):
     x_low: BoundaryTypeEnum = Field(
         ..., alias="xLow", metadata={"group": "X", "category": "BoundaryConditions"}
     )
-    x_high: BoundaryTypeEnum = Field(
-        ..., alias="xHigh", metadata={"group": "X"}
-    )
-    y_low: BoundaryTypeEnum = Field(
-        ..., alias="yLow", metadata={"group": "Y"}
-    )
-    y_high: BoundaryTypeEnum = Field(
-        ..., alias="yHigh", metadata={"group": "Y"}
-    )
-    z_low: BoundaryTypeEnum = Field(
-        ..., alias="zLow", metadata={"group": "Z"}
-    )
-    z_high: BoundaryTypeEnum = Field(
-        ..., alias="zHigh", metadata={"group": "Z"}
-    )
+    x_high: BoundaryTypeEnum = Field(..., alias="xHigh", metadata={"group": "X"})
+    y_low: BoundaryTypeEnum = Field(..., alias="yLow", metadata={"group": "Y"})
+    y_high: BoundaryTypeEnum = Field(..., alias="yHigh", metadata={"group": "Y"})
+    z_low: BoundaryTypeEnum = Field(..., alias="zLow", metadata={"group": "Z"})
+    z_high: BoundaryTypeEnum = Field(..., alias="zHigh", metadata={"group": "Z"})
 
     _alias_map: ClassVar[Dict[str, str]] = {
         "xLow": "x_low",
@@ -126,14 +122,18 @@ class BoundaryConditions(ConfigSectionBase):
     }
 
     # -- Optional extensions --------------------------------------------
-    excluded_faces: Optional[List[Literal[
-        "xLow",
-        "xHigh",
-        "yLow",
-        "yHigh",
-        "zLow",
-        "zHigh",
-    ]]] = None
+    excluded_faces: Optional[
+        List[
+            Literal[
+                "xLow",
+                "xHigh",
+                "yLow",
+                "yHigh",
+                "zLow",
+                "zHigh",
+            ]
+        ]
+    ] = None
 
     absorbing_layer_thickness_cells: Optional[int] = Field(
         4,
@@ -159,19 +159,21 @@ class BoundaryConditions(ConfigSectionBase):
         alias="pmlProfile",
     )
 
-    ghost_zone_extrapolation: Optional[Literal[
-        "constant",
-        "linear",
-        "parabolic",
-    ]] = Field("constant", alias="ghostZoneExtrapolation")
+    ghost_zone_extrapolation: Optional[
+        Literal[
+            "constant",
+            "linear",
+            "parabolic",
+        ]
+    ] = Field("constant", alias="ghostZoneExtrapolation")
 
     field_extrapolation_overrides: Optional[
         Dict[str, Literal["constant", "linear", "parabolic"]]
     ] = Field(None, alias="fieldExtrapolationOverrides")
 
-    boundary_field_overrides: Optional[
-        Dict[str, Dict[str, BoundaryTypeEnum]]
-    ] = Field(None, alias="boundaryFieldOverrides")
+    boundary_field_overrides: Optional[Dict[str, Dict[str, BoundaryTypeEnum]]] = Field(
+        None, alias="boundaryFieldOverrides"
+    )
 
     conflict_resolution_policy: Literal[
         "prefer_geometry",
@@ -217,9 +219,13 @@ class BoundaryConditions(ConfigSectionBase):
         return [n for n, f in self.model_fields.items() if f.is_required()]
 
     def get_field_metadata(self) -> Dict[str, Dict[str, Any]]:
-        return {n: field.json_schema_extra or {} for n, field in self.model_fields.items()}
+        return {
+            n: field.json_schema_extra or {} for n, field in self.model_fields.items()
+        }
 
-    def normalize_units(self, spatial_units: Literal["cm", "m"]) -> "BoundaryConditions":
+    def normalize_units(
+        self, spatial_units: Literal["cm", "m"]
+    ) -> "BoundaryConditions":
         # this model has no dimensional fields to scale
         return self
 
@@ -252,12 +258,17 @@ class BoundaryConditions(ConfigSectionBase):
                     raise ValueError(f"{face} must not be set when excluded")
 
         if geometry == "2D_RZ":
-            if values.y_low != BoundaryTypeEnum.REFLECTING or values.y_high != BoundaryTypeEnum.REFLECTING:
+            if (
+                values.y_low != BoundaryTypeEnum.REFLECTING
+                or values.y_high != BoundaryTypeEnum.REFLECTING
+            ):
                 if values.conflict_resolution_policy == "prefer_geometry":
-                    values = values.model_copy(update={
-                        "y_low": BoundaryTypeEnum.REFLECTING,
-                        "y_high": BoundaryTypeEnum.REFLECTING,
-                    })
+                    values = values.model_copy(
+                        update={
+                            "y_low": BoundaryTypeEnum.REFLECTING,
+                            "y_high": BoundaryTypeEnum.REFLECTING,
+                        }
+                    )
                 elif values.conflict_resolution_policy == "error":
                     raise ValueError("2D_RZ geometry requires reflecting Y boundaries")
                 # prefer_override leaves as is
@@ -266,14 +277,21 @@ class BoundaryConditions(ConfigSectionBase):
                 changed = False
                 for field, mapping in overrides.items():
                     for face, btype in list(mapping.items()):
-                        if face in {"yLow", "yHigh"} and btype != BoundaryTypeEnum.REFLECTING:
+                        if (
+                            face in {"yLow", "yHigh"}
+                            and btype != BoundaryTypeEnum.REFLECTING
+                        ):
                             if values.conflict_resolution_policy == "prefer_geometry":
                                 mapping[face] = BoundaryTypeEnum.REFLECTING
                                 changed = True
                             elif values.conflict_resolution_policy == "error":
-                                raise ValueError("2D_RZ geometry requires reflecting Y overrides")
+                                raise ValueError(
+                                    "2D_RZ geometry requires reflecting Y overrides"
+                                )
                 if changed:
-                    values = values.model_copy(update={"boundary_field_overrides": overrides})
+                    values = values.model_copy(
+                        update={"boundary_field_overrides": overrides}
+                    )
 
         if values.boundary_field_overrides:
             allowed_fields = {f.value for f in OutputField}
@@ -284,7 +302,11 @@ class BoundaryConditions(ConfigSectionBase):
                     if face not in valid_faces:
                         raise ValueError(f"invalid face name {face}")
 
-        for low_name, high_name in [("x_low", "x_high"), ("y_low", "y_high"), ("z_low", "z_high")]:
+        for low_name, high_name in [
+            ("x_low", "x_high"),
+            ("y_low", "y_high"),
+            ("z_low", "z_high"),
+        ]:
             low = getattr(values, low_name)
             high = getattr(values, high_name)
             if BoundaryTypeEnum.PERIODIC in (low, high) and low != high:

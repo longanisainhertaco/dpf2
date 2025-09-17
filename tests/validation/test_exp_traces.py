@@ -7,7 +7,9 @@ from dpf2.circuit_solver import run_circuit_simulation
 
 
 def test_z_machine_traces():
-    ref_path = Path(__file__).resolve().parents[2] / "ReferenceMaterial/z_machine_traces.json"
+    ref_path = (
+        Path(__file__).resolve().parents[2] / "ReferenceMaterial/z_machine_traces.json"
+    )
     reference = json.loads(ref_path.read_text())
 
     cc = CircuitConfig(L_ext=1.0, R_ext=1.0, C_ext=1.0, V0=1.0, switch_delay=0.0)

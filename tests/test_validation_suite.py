@@ -7,6 +7,7 @@ from dpf2.validation_suite import ValidationSuite
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False
@@ -25,7 +26,10 @@ def base_data(tmp_path: Path):
         "datasetDirectory": d,
         "datasetFormat": "csv",
         "observableFileMap": {"I(t)": f1, "Yn": f2},
-        "observableFormatSpec": {"I(t)": {"time": "t", "value": "I"}, "Yn": {"time": "i", "value": "y"}},
+        "observableFormatSpec": {
+            "I(t)": {"time": "t", "value": "I"},
+            "Yn": {"time": "i", "value": "y"},
+        },
         "validationTargets": ["I(t)", "Yn"],
         "observableTolerances": {"I(t)": 0.1, "Yn": 0.2},
     }

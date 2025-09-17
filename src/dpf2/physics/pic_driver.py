@@ -15,7 +15,9 @@ if TYPE_CHECKING:  # pragma: no cover - for typing only
 class PicDriver(Protocol):
     """Minimal interface for an external PIC driver."""
 
-    def step(self, state: "MHDState", current: float, dt: float) -> Tuple[float, float, float]:
+    def step(
+        self, state: "MHDState", current: float, dt: float
+    ) -> Tuple[float, float, float]:
         """Advance the PIC model."""
 
     def exchange_fields(
@@ -64,7 +66,9 @@ class PhysicalPICDriver:
         self.last_eta = np.zeros((1,))
         self.last_spectrum = np.zeros(0)
 
-    def step(self, state: "MHDState", current: float, dt: float) -> Tuple[float, float, float]:
+    def step(
+        self, state: "MHDState", current: float, dt: float
+    ) -> Tuple[float, float, float]:
         voltage = current * self.field_coeff
         self.pic.step(state, dt, current, voltage)
         pos = np.asarray(self.pic.positions)
@@ -84,9 +88,7 @@ class PhysicalPICDriver:
             except Exception:  # pragma: no cover - optional FFT
                 spectrum = np.zeros(0)
             self.last_spectrum = spectrum
-            self.last_wave_power = (
-                float(np.sum(spectrum ** 2)) if len(spectrum) else 0.0
-            )
+            self.last_wave_power = float(np.sum(spectrum**2)) if len(spectrum) else 0.0
             self.last_axial_E = float(np.mean(self.pic.E))
         else:
             self.last_eta = None
@@ -189,6 +191,7 @@ try:  # pragma: no cover - exercised when WarpX dependency is present
                 pass
 
 except Exception:  # pragma: no cover - fallback when WarpX is unavailable
+
     class WarpXPICDriver(PicDriver):  # type: ignore[misc]
         """Fallback stub used when WarpX is not installed."""
 

@@ -1,4 +1,5 @@
 """Command line interface for running UQ calibration routines."""
+
 from __future__ import annotations
 
 import argparse

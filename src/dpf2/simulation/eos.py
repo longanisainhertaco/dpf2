@@ -3,9 +3,11 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 import numpy as np
+
 try:  # pragma: no cover - optional SciPy dependency
     from scipy.interpolate import RegularGridInterpolator
 except ModuleNotFoundError:  # pragma: no cover
+
     class RegularGridInterpolator:  # type: ignore[misc]
         """Very small fallback interpolator when SciPy is unavailable."""
 
@@ -36,18 +38,18 @@ except ModuleNotFoundError:  # pragma: no cover
                 )
                 result.append(val)
             return np.array(result)
+
+
 try:  # optional dependency
     import h5py
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    raise ImportError(
-        "h5py is required; install dpf2[warpx]"
-    ) from exc
+    raise ImportError("h5py is required; install dpf2[warpx]") from exc
 
 logger = logging.getLogger(__name__)
 
 
 def parse_mixture_fractions(
-    mixture_fractions: Union[str, Dict[str, float], None]
+    mixture_fractions: Union[str, Dict[str, float], None],
 ) -> Dict[str, float]:
     """Parse mixture fraction definitions into a normalised dictionary.
 
@@ -77,9 +79,7 @@ def parse_mixture_fractions(
                 ) from exc
             species = species.strip()
             if not species:
-                raise ValueError(
-                    "Species name in mixture fractions cannot be empty"
-                )
+                raise ValueError("Species name in mixture fractions cannot be empty")
             try:
                 parsed[species] = float(frac)
             except (TypeError, ValueError) as exc:
@@ -110,6 +110,7 @@ def parse_mixture_fractions(
 
     return parsed
 
+
 class TabulatedEOS:
     """
     Tabulated Equation of State (EOS) for plasma simulations.
@@ -138,13 +139,13 @@ class TabulatedEOS:
         """
 
         def _load_table(path: Union[str, Path]):
-            with h5py.File(path, 'r') as f:
-                if not all(key in f for key in ['rho', 'T', 'p', 'e']):
+            with h5py.File(path, "r") as f:
+                if not all(key in f for key in ["rho", "T", "p", "e"]):
                     raise ValueError("EOS table is missing required datasets.")
-                rho_grid = f['rho'][:]
-                T_grid = f['T'][:]
-                p_table = f['p'][:]
-                e_table = f['e'][:]
+                rho_grid = f["rho"][:]
+                T_grid = f["T"][:]
+                p_table = f["p"][:]
+                e_table = f["e"][:]
                 if not (
                     rho_grid.ndim == 1
                     and T_grid.ndim == 1
@@ -153,7 +154,8 @@ class TabulatedEOS:
                 ):
                     raise ValueError("EOS table has incorrect dimensions.")
                 if p_table.shape != (len(rho_grid), len(T_grid)) or e_table.shape != (
-                    len(rho_grid), len(T_grid)
+                    len(rho_grid),
+                    len(T_grid),
                 ):
                     raise ValueError("EOS table has inconsistent dimensions.")
             return rho_grid, T_grid, p_table, e_table
@@ -179,10 +181,13 @@ class TabulatedEOS:
                         "filename must be a path or mapping when mixture_fractions are provided"
                     )
 
-                missing_files = [sp for sp, path in species_files.items() if not path.is_file()]
+                missing_files = [
+                    sp for sp, path in species_files.items() if not path.is_file()
+                ]
                 if missing_files:
                     raise ValueError(
-                        "Missing EOS data for species: " + ", ".join(sorted(missing_files))
+                        "Missing EOS data for species: "
+                        + ", ".join(sorted(missing_files))
                     )
 
                 for idx, (species, path) in enumerate(species_files.items()):
@@ -214,8 +219,12 @@ class TabulatedEOS:
                 self.p_table = p_tab
                 self.e_table = e_tab
                 logger.info(f"EOS table loaded from {filename}")
-            self.p_interp = RegularGridInterpolator((self.rho_grid, self.T_grid), self.p_table)
-            self.e_interp = RegularGridInterpolator((self.rho_grid, self.T_grid), self.e_table)
+            self.p_interp = RegularGridInterpolator(
+                (self.rho_grid, self.T_grid), self.p_table
+            )
+            self.e_interp = RegularGridInterpolator(
+                (self.rho_grid, self.T_grid), self.e_table
+            )
         except Exception as e:
             logger.error(f"Error loading EOS table: {e}")
             raise
@@ -255,7 +264,6 @@ class TabulatedEOS:
             raise
 
     def ion_energy(self, rho, T):
-
         """Return ion internal energy for the given density and temperature.
 
         Parameters

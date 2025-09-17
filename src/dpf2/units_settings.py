@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator
 
 
-
 from .core_schema import ConfigSectionBase, to_camel_case
 
 
@@ -39,13 +38,19 @@ class UnitsSettings(ConfigSectionBase):
 
     # Conversion and output flags
     auto_convert_on_load: bool = Field(
-        True, alias="autoConvertOnLoad", description="Normalize YAML/JSON input values to internal units"
+        True,
+        alias="autoConvertOnLoad",
+        description="Normalize YAML/JSON input values to internal units",
     )
     normalize_to_internal: bool = Field(
-        True, alias="normalizeToInternal", description="Convert all runtime values to solver base units"
+        True,
+        alias="normalizeToInternal",
+        description="Convert all runtime values to solver base units",
     )
     unit_validation_policy: Literal["strict", "warn", "ignore"] = Field(
-        "strict", alias="unitValidationPolicy", description="How to handle invalid or unknown units"
+        "strict",
+        alias="unitValidationPolicy",
+        description="How to handle invalid or unknown units",
     )
 
     # Output & UI scaling
@@ -78,7 +83,9 @@ class UnitsSettings(ConfigSectionBase):
 
     # Hash of full config
     units_config_hash: Optional[str] = Field(
-        None, alias="unitsConfigHash", description="Stable hash of all unit config values"
+        None,
+        alias="unitsConfigHash",
+        description="Stable hash of all unit config values",
     )
 
     # ------------------------------------------------------------------
@@ -102,7 +109,10 @@ class UnitsSettings(ConfigSectionBase):
 
     @classmethod
     def get_field_metadata(cls) -> Dict[str, Dict[str, Any]]:
-        return {name: (field.json_schema_extra or field.metadata or {}) for name, field in cls.model_fields.items()}
+        return {
+            name: (field.json_schema_extra or field.metadata or {})
+            for name, field in cls.model_fields.items()
+        }
 
     def normalize_units(self) -> Dict[str, float]:
         """Return unit scaling map based on current settings."""
@@ -160,13 +170,37 @@ class UnitsSettings(ConfigSectionBase):
             for k, v in values.unit_resolution_overrides.items():
                 if k not in allowed_keys or v <= 0:
                     raise ValueError("invalid unit_resolution_overrides entry")
-        known_units = {"m", "cm", "s", "ms", "us", "ns", "kA", "A", "MA", "V", "kV", "J", "keV", "eV", "T", "kV/cm"}
-        for mapping in [values.preferred_output_units, values.preferred_output_units_file]:
+        known_units = {
+            "m",
+            "cm",
+            "s",
+            "ms",
+            "us",
+            "ns",
+            "kA",
+            "A",
+            "MA",
+            "V",
+            "kV",
+            "J",
+            "keV",
+            "eV",
+            "T",
+            "kV/cm",
+        }
+        for mapping in [
+            values.preferred_output_units,
+            values.preferred_output_units_file,
+        ]:
             if mapping:
                 for u in mapping.values():
                     if not any(u == ku or u.endswith(ku) for ku in known_units):
-                        raise ValueError(f"unsupported unit '{u}' in preferred output units")
-        values = values.model_copy(update={"units_config_hash": values.hash_units_config()})
+                        raise ValueError(
+                            f"unsupported unit '{u}' in preferred output units"
+                        )
+        values = values.model_copy(
+            update={"units_config_hash": values.hash_units_config()}
+        )
         return values
 
 

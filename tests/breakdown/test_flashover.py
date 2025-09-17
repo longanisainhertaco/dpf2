@@ -13,18 +13,23 @@ from dpf2.geometry import (
 from dpf2.dpf_config import BreakdownModel
 from dpf2.synthetic_diagnostics import flashover_delay_stats, flashover_jitter_stats
 
+
 def test_conditioning_curve_monotonic():
     vals = [conditioning_curve(i, 0.1) for i in range(5)]
     assert vals[0] == 1.0
     assert all(v2 <= v1 for v1, v2 in zip(vals, vals[1:]))
 
+
 def test_stochastic_delay_reproducible_and_conditioned():
-    params = FlashoverParameters(field_threshold=10.0, sigma=0.1, conditioning=0.2, seed=123)
+    params = FlashoverParameters(
+        field_threshold=10.0, sigma=0.1, conditioning=0.2, seed=123
+    )
     d1 = seea_stochastic_delay(5.0, params, shot=0)
     d2 = seea_stochastic_delay(5.0, params, shot=0)
     assert d1 == d2
     d_conditioned = seea_stochastic_delay(5.0, params, shot=5)
     assert d_conditioned < d1
+
 
 def test_triple_junction_field_map():
     base = triple_junction_field("unknown")
@@ -35,13 +40,17 @@ def test_triple_junction_field_map():
 
 def test_triple_junction_enhancement_geometry_ratio():
     base = triple_junction_field("mather")
-    enhanced = triple_junction_enhancement("mather", anode_radius=1.0, cathode_radius=2.0)
+    enhanced = triple_junction_enhancement(
+        "mather", anode_radius=1.0, cathode_radius=2.0
+    )
     assert enhanced > base
+
 
 def test_breakdown_model_exposes_parameters():
     bm = BreakdownModel(type="flashover", seea_sigma=0.2, conditioning_alpha=0.1)
     assert bm.seea_sigma == 0.2
     assert bm.conditioning_alpha == 0.1
+
 
 def test_flashover_delay_stats():
     stats = flashover_delay_stats([1.0, 3.0, 5.0])
@@ -51,7 +60,9 @@ def test_flashover_delay_stats():
 
 
 def test_holdoff_voltage_evolves_and_geometry_factor():
-    params = FlashoverParameters(field_threshold=10.0, sigma=0.0, conditioning=0.1, seed=123)
+    params = FlashoverParameters(
+        field_threshold=10.0, sigma=0.0, conditioning=0.1, seed=123
+    )
     h0 = holdoff_voltage("mather", params, shot=0)
     h5 = holdoff_voltage("mather", params, shot=5)
     h_geom = holdoff_voltage("tapered", params, shot=0)
@@ -60,7 +71,9 @@ def test_holdoff_voltage_evolves_and_geometry_factor():
 
 
 def test_flashover_jitter_stats():
-    params = FlashoverParameters(field_threshold=10.0, sigma=0.2, conditioning=0.0, seed=1)
+    params = FlashoverParameters(
+        field_threshold=10.0, sigma=0.2, conditioning=0.0, seed=1
+    )
     series = holdoff_series("mather", params, shots=5)
     stats = flashover_jitter_stats(series)
     assert stats["count"] == 5

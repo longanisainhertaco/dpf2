@@ -50,7 +50,10 @@ class BaseLaser:
 
     def _compute_pulse_init(self):
         pulse_init = (
-            -2.0 * self.centroid_position[1] / (self.propagation_direction[1] * constants.c) / self.duration
+            -2.0
+            * self.centroid_position[1]
+            / (self.propagation_direction[1] * constants.c)
+            / self.duration
         )  # unit: multiple of laser pulse duration
         # @todo extend this to other propagation directions than +y
         if pulse_init < 3.0:

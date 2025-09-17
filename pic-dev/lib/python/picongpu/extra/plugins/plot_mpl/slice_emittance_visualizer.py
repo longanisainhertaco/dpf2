@@ -91,7 +91,9 @@ class Visualizer(BaseVisualizer):
         self.ax.autoscale_view(True, True, True)
         self.ax.set_xlabel(r"y-slice [$\mathrm{\mu m}$]")
         self.ax.set_ylabel(r"emittance [$\mathrm{\pi mm mrad}$]")
-        self.ax.set_title("slice emittance for species " + species + ", filter = " + species_filter)
+        self.ax.set_title(
+            "slice emittance for species " + species + ", filter = " + species_filter
+        )
 
     def _legend(self):
         # draw the legend only for those lines for which there is data.
@@ -162,7 +164,9 @@ if __name__ == "__main__":
             print("Species filter was not given, will use", filtr)
 
         fig, ax = plt.subplots(1, 1)
-        Visualizer(path, ax).visualize(iteration=iteration, species=species, species_filter=filtr)
+        Visualizer(path, ax).visualize(
+            iteration=iteration, species=species, species_filter=filtr
+        )
         plt.show()
 
     main()

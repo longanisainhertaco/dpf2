@@ -21,7 +21,9 @@ class TestSpecies(unittest.TestCase):
             upper_boundary_conditions=["open", "open", "periodic"],
         )
         solver = picmi.ElectromagneticSolver(method="Yee", grid=grid)
-        sim = picmi.Simulation(time_step_size=1.39e-16, max_steps=int(2048), solver=solver)
+        sim = picmi.Simulation(
+            time_step_size=1.39e-16, max_steps=int(2048), solver=solver
+        )
 
         laser = picmi.GaussianLaser(
             0.8e-6,
@@ -30,7 +32,11 @@ class TestSpecies(unittest.TestCase):
             a0=8,
             propagation_direction=[0, 1, 0],
             polarization_direction=[1, 0, 0],
-            centroid_position=[0.5 * grid.upper_bound[0], -10 * 5.0e-15 / c, 0.5 * grid.upper_bound[2]],
+            centroid_position=[
+                0.5 * grid.upper_bound[0],
+                -10 * 5.0e-15 / c,
+                0.5 * grid.upper_bound[2],
+            ],
             focal_position=[
                 0.5 * grid.upper_bound[0],
                 4.62e-5,

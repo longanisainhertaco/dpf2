@@ -13,14 +13,16 @@ def test_load_cad_geometry(tmp_path):
 
 
 def test_load_unstructured_mesh(tmp_path):
-    content = "\n".join([
-        "3",
-        "0 0 0",
-        "1 0 0",
-        "0 1 0",
-        "1",
-        "0 1 2",
-    ])
+    content = "\n".join(
+        [
+            "3",
+            "0 0 0",
+            "1 0 0",
+            "0 1 0",
+            "1",
+            "0 1 2",
+        ]
+    )
     path = tmp_path / "mesh.txt"
     path.write_text(content)
     loaded = load_unstructured_mesh(path)

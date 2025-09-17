@@ -1,4 +1,5 @@
 """2D cylindrical mesh utilities."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ import numpy as np
 @dataclass
 class MeshCell:
     """Represents a single cell in the 2D mesh."""
+
     r_index: int
     z_index: int
     r_center: float
@@ -28,7 +30,9 @@ class Mesh2D:
         Number of cells in the r and z directions.
     """
 
-    def __init__(self, r_min: float, r_max: float, z_min: float, z_max: float, nr: int, nz: int) -> None:
+    def __init__(
+        self, r_min: float, r_max: float, z_min: float, z_max: float, nr: int, nz: int
+    ) -> None:
         self.r = np.linspace(r_min, r_max, nr + 1)
         self.z = np.linspace(z_min, z_max, nz + 1)
         self.dr = self.r[1] - self.r[0]

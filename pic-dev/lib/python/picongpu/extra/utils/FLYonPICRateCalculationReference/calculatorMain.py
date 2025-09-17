@@ -59,7 +59,9 @@ if __name__ == "__main__":
     lowerStateLevelVectorBoundBound = (1, 0, 2, 0, 0, 0, 1, 0, 0, 0)
     upperStateLevelVectorBoundBound = (1, 0, 1, 0, 0, 0, 1, 0, 1, 0)
     # 1/s
-    frequencyPhoton = energyDiffLowerUpper / const.physical_constants["Planck constant in eV/Hz"][0]
+    frequencyPhoton = (
+        energyDiffLowerUpper / const.physical_constants["Planck constant in eV/Hz"][0]
+    )
 
     print("cross sections:")
     print("- bound-free")
@@ -131,13 +133,19 @@ if __name__ == "__main__":
 
     print("- bound-free field")
     # in unit electric field atomic units
-    nEff = boundfreefield.BoundFreeFieldTransitions.n_eff_numpy(screenedCharge, ionizationEnergy_ADK)
-    fieldStrengthMaxADKRate = 4.0 * screenedCharge**3 / (3.0 * nEff**3 * (4.0 * nEff - 3.0))
+    nEff = boundfreefield.BoundFreeFieldTransitions.n_eff_numpy(
+        screenedCharge, ionizationEnergy_ADK
+    )
+    fieldStrengthMaxADKRate = (
+        4.0 * screenedCharge**3 / (3.0 * nEff**3 * (4.0 * nEff - 3.0))
+    )
     print(
         "\t ADK:\n \t\t fieldStrength: {0:.4e}\n\t\t F_maxADK: {1:.4e}\n\t\t F_crit_BSI: {2:.4e}".format(
             fieldStrength,
             fieldStrengthMaxADKRate,
-            boundfreefield.BoundFreeFieldTransitions.F_crit_BSI(screenedCharge, ionizationEnergy_ADK),
+            boundfreefield.BoundFreeFieldTransitions.F_crit_BSI(
+                screenedCharge, ionizationEnergy_ADK
+            ),
         )
     )
 
@@ -145,7 +153,9 @@ if __name__ == "__main__":
         "\t ADK rate(numpy) : {0:.9e} * 1/(3.3e-17s)".format(
             np.float32(
                 boundfreefield.BoundFreeFieldTransitions.ADKRate_numpy(
-                    np.float32(screenedCharge), np.float32(ionizationEnergy_ADK), np.float32(fieldStrength)
+                    np.float32(screenedCharge),
+                    np.float32(ionizationEnergy_ADK),
+                    np.float32(fieldStrength),
                 )
                 * 3.3e-17
                 / boundfreefield.atomic_unit["time"]
@@ -156,7 +166,9 @@ if __name__ == "__main__":
         "\t ADK rate(mpmath): "
         + mp.nstr(
             boundfreefield.BoundFreeFieldTransitions.ADKRate_mpmath(
-                mp.mpf(screenedCharge), mp.mpf(ionizationEnergy_ADK), mp.mpf(fieldStrength)
+                mp.mpf(screenedCharge),
+                mp.mpf(ionizationEnergy_ADK),
+                mp.mpf(fieldStrength),
             )
             * mp.mpf(3.3e-17)
             / mp.mpf(boundfreefield.atomic_unit["time"]),

@@ -43,8 +43,8 @@ from .utils.pydantic_compat import model_validator
 from .units_settings import UnitsSettings
 
 
-
 # --- helpers -----------------------------------------------------------------
+
 
 def to_camel_case(string: str) -> str:
     parts = string.split("_")
@@ -84,15 +84,26 @@ TimeVoltageProfile = List[Tuple[float, float]]
 
 # --- nested models -----------------------------------------------------------
 
+
 class BreakdownModel(ConfigSectionBase):
     config_section_id: ClassVar[Literal["breakdown"]] = "breakdown"
 
     type: Literal["FN", "CL", "stochastic_delay", "field_threshold"]
     field_threshold: Optional[float] = Field(
-        None, json_schema_extra={"units": "kV/cm", "category": "InitialConditions", "group": "Breakdown"}
+        None,
+        json_schema_extra={
+            "units": "kV/cm",
+            "category": "InitialConditions",
+            "group": "Breakdown",
+        },
     )
     breakdown_delay: Optional[float] = Field(
-        None, json_schema_extra={"units": "ns", "category": "InitialConditions", "group": "Breakdown"}
+        None,
+        json_schema_extra={
+            "units": "ns",
+            "category": "InitialConditions",
+            "group": "Breakdown",
+        },
     )
     stochastic_seed: Optional[int] = None
 
@@ -113,17 +124,32 @@ class PaschenModel(ConfigSectionBase):
     config_section_id: ClassVar[Literal["paschen"]] = "paschen"
 
     insulator_gap_cm: float = Field(
-        ..., json_schema_extra={"units": "cm", "category": "InitialConditions", "group": "Breakdown"}
+        ...,
+        json_schema_extra={
+            "units": "cm",
+            "category": "InitialConditions",
+            "group": "Breakdown",
+        },
     )
     gas_pressure_torr: float = Field(
-        ..., json_schema_extra={"units": "Torr", "category": "InitialConditions", "group": "Breakdown"}
+        ...,
+        json_schema_extra={
+            "units": "Torr",
+            "category": "InitialConditions",
+            "group": "Breakdown",
+        },
     )
     material: str
     paschen_curve_model: Literal["empirical", "semi-empirical", "analytic", "tabulated"]
     paschen_data_path: Optional[Path] = None
     paschen_curve_data_version: Optional[str] = None
     knee_voltage_override: Optional[float] = Field(
-        None, json_schema_extra={"units": "kV", "category": "InitialConditions", "group": "Breakdown"}
+        None,
+        json_schema_extra={
+            "units": "kV",
+            "category": "InitialConditions",
+            "group": "Breakdown",
+        },
     )
 
     model_config = ConfigDict(extra="forbid")
@@ -139,61 +165,111 @@ class PaschenModel(ConfigSectionBase):
 
     @model_validator(mode="after")
     def check_paschen(cls, values: "PaschenModel") -> "PaschenModel":
-        if values.paschen_curve_model == "tabulated" and values.paschen_data_path is None:
-            raise ValueError("paschen_data_path must be provided when paschen_curve_model is 'tabulated'")
+        if (
+            values.paschen_curve_model == "tabulated"
+            and values.paschen_data_path is None
+        ):
+            raise ValueError(
+                "paschen_data_path must be provided when paschen_curve_model is 'tabulated'"
+            )
         return values
 
 
 # --- main model --------------------------------------------------------------
 
+
 class InitialConditions(ConfigSectionBase):
     config_section_id: ClassVar[Literal["initial"]] = "initial"
 
     temperature: float = Field(
-        ..., json_schema_extra={"units": "K", "category": "InitialConditions", "group": "Thermal"}
+        ...,
+        json_schema_extra={
+            "units": "K",
+            "category": "InitialConditions",
+            "group": "Thermal",
+        },
     )
     density: float = Field(
-        ..., json_schema_extra={"units": "kg/m³", "category": "InitialConditions", "group": "Thermal"}
+        ...,
+        json_schema_extra={
+            "units": "kg/m³",
+            "category": "InitialConditions",
+            "group": "Thermal",
+        },
     )
     gas_type: Literal["D2", "DT", "He", "Ne", "Ar", "Xe"] = Field(
-        ..., alias="gasType", json_schema_extra={"category": "InitialConditions", "group": "Gas"}
+        ...,
+        alias="gasType",
+        json_schema_extra={"category": "InitialConditions", "group": "Gas"},
     )
     sheath_type: Literal["slab", "gaussian"] = Field(
-        ..., alias="sheathType", json_schema_extra={"category": "InitialConditions", "group": "Gas"}
+        ...,
+        alias="sheathType",
+        json_schema_extra={"category": "InitialConditions", "group": "Gas"},
     )
 
     sheath_velocity_profile: TimeVoltageProfile = Field(
-        ..., alias="sheathVelocityProfile", json_schema_extra={"units": ["cm", "cm/us"], "category": "InitialConditions", "group": "Sheath"}
+        ...,
+        alias="sheathVelocityProfile",
+        json_schema_extra={
+            "units": ["cm", "cm/us"],
+            "category": "InitialConditions",
+            "group": "Sheath",
+        },
     )
     current_profile: TimeVoltageProfile = Field(
-        ..., alias="currentProfile", json_schema_extra={"units": ["us", "kA"], "category": "InitialConditions", "group": "Sheath"}
+        ...,
+        alias="currentProfile",
+        json_schema_extra={
+            "units": ["us", "kA"],
+            "category": "InitialConditions",
+            "group": "Sheath",
+        },
     )
 
-    preionization_method: Optional[Literal["UV", "beta_source", "external_discharge"]] = Field(
-        None, alias="preionizationMethod"
-    )
+    preionization_method: Optional[
+        Literal["UV", "beta_source", "external_discharge"]
+    ] = Field(None, alias="preionizationMethod")
     preionization_intensity: Optional[float] = Field(
-        None, alias="preionizationIntensity", json_schema_extra={"units": "photons/cm³/s", "category": "InitialConditions", "group": "Gas"}
+        None,
+        alias="preionizationIntensity",
+        json_schema_extra={
+            "units": "photons/cm³/s",
+            "category": "InitialConditions",
+            "group": "Gas",
+        },
     )
     preionization_duration_ns: Optional[float] = Field(
-        None, alias="preionizationDurationNs", json_schema_extra={"units": "ns", "category": "InitialConditions", "group": "Gas"}
+        None,
+        alias="preionizationDurationNs",
+        json_schema_extra={
+            "units": "ns",
+            "category": "InitialConditions",
+            "group": "Gas",
+        },
     )
-    preionization_profile: Optional[Literal["uniform", "gaussian", "localized"]] = Field(
-        None, alias="preionizationProfile"
+    preionization_profile: Optional[Literal["uniform", "gaussian", "localized"]] = (
+        Field(None, alias="preionizationProfile")
     )
     enable_dynamic_ionization_rate: bool = Field(
         ..., alias="enableDynamicIonizationRate"
     )
 
     custom_gas_properties: Optional[Dict[str, float]] = Field(
-        None, alias="customGasProperties", json_schema_extra={"category": "InitialConditions", "group": "Gas"}
+        None,
+        alias="customGasProperties",
+        json_schema_extra={"category": "InitialConditions", "group": "Gas"},
     )
 
     breakdown_model: BreakdownModel = Field(
-        ..., alias="breakdownModel", json_schema_extra={"category": "InitialConditions", "group": "Breakdown"}
+        ...,
+        alias="breakdownModel",
+        json_schema_extra={"category": "InitialConditions", "group": "Breakdown"},
     )
     paschen_model: PaschenModel = Field(
-        ..., alias="paschenModel", json_schema_extra={"category": "InitialConditions", "group": "Breakdown"}
+        ...,
+        alias="paschenModel",
+        json_schema_extra={"category": "InitialConditions", "group": "Breakdown"},
     )
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -202,7 +278,6 @@ class InitialConditions(ConfigSectionBase):
         populate_by_name=True,
         allow_population_by_field_name=True,
     )
-
 
     @classmethod
     def with_defaults(cls):
@@ -223,7 +298,10 @@ class InitialConditions(ConfigSectionBase):
         if values.gas_type in {"D2", "DT"} and values.temperature <= 1e4:
             raise ValueError("temperature must be > 1e4 K for deuterium gases")
         if values.preionization_method is not None:
-            if values.preionization_intensity is None or values.preionization_duration_ns is None:
+            if (
+                values.preionization_intensity is None
+                or values.preionization_duration_ns is None
+            ):
                 raise ValueError(
                     "preionization_intensity and preionization_duration_ns required when method set"
                 )
@@ -233,4 +311,3 @@ class InitialConditions(ConfigSectionBase):
 
 
 __all__ = ["InitialConditions", "BreakdownModel", "PaschenModel"]
-

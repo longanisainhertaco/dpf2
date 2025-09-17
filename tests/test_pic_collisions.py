@@ -1,4 +1,3 @@
-
 import importlib.util
 from pathlib import Path
 
@@ -15,7 +14,9 @@ import random
 
 import pytest
 
-module_path = Path(__file__).resolve().parent.parent / "src/dpf2/simulation/warp_piclibrary.py"
+module_path = (
+    Path(__file__).resolve().parent.parent / "src/dpf2/simulation/warp_piclibrary.py"
+)
 spec = importlib.util.spec_from_file_location("warp_pic", module_path)
 warp_pic = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(warp_pic)
@@ -65,7 +66,9 @@ def _arrays_close(a, b, tol=1e-12):
 def test_apply_collisions_scatter_velocities():
     random.seed(1)
     warp = SimpleWarpX()
-    handler = PICCollisionHandler(lambda ne, Te, Z=1.0, **k: 100.0, species_pairs=[("e", "i")])
+    handler = PICCollisionHandler(
+        lambda ne, Te, Z=1.0, **k: 100.0, species_pairs=[("e", "i")]
+    )
 
     v_e_before = warp.get_particle_container("e").get_velocities()
     v_i_before = warp.get_particle_container("i").get_velocities()
@@ -87,7 +90,9 @@ def test_no_collisions_when_zero_probability():
     """Collisions should leave velocities unchanged when the rate is zero."""
     random.seed(1)
     warp = SimpleWarpX()
-    handler = PICCollisionHandler(lambda ne, Te, Z=1.0, **k: 0.0, species_pairs=[("e", "i")])
+    handler = PICCollisionHandler(
+        lambda ne, Te, Z=1.0, **k: 0.0, species_pairs=[("e", "i")]
+    )
 
     v_e_before = warp.get_particle_container("e").get_velocities()
     v_i_before = warp.get_particle_container("i").get_velocities()

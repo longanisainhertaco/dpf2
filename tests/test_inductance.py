@@ -21,7 +21,9 @@ from dpf2.physics.inductance import (
 def test_axial_inductance_matches_coaxial_expression() -> None:
     geom = CoaxialGeometry(anode_radius=0.01, cathode_radius=0.05, anode_length=0.2)
     z = 0.12
-    expected = mu_0 / (2.0 * math.pi) * z * math.log(geom.cathode_radius / geom.anode_radius)
+    expected = (
+        mu_0 / (2.0 * math.pi) * z * math.log(geom.cathode_radius / geom.anode_radius)
+    )
     assert math.isclose(axial_inductance(z, geom), expected, rel_tol=1e-12)
 
 
@@ -34,10 +36,7 @@ def test_radial_inductance_matches_log_scaling() -> None:
     )
     r = 0.02
     expected = (
-        mu_0
-        * geom.pinch_span
-        / (2.0 * math.pi)
-        * math.log(geom.cathode_radius / r)
+        mu_0 * geom.pinch_span / (2.0 * math.pi) * math.log(geom.cathode_radius / r)
     )
     assert math.isclose(radial_inductance(r, geom), expected, rel_tol=1e-12)
 
@@ -69,7 +68,9 @@ def test_dynamic_inductance_derivatives() -> None:
     r = 0.03
     L, dL_dz, dL_dr = dynamic_inductance_with_derivatives(z, r, geom)
     assert math.isclose(L, dynamic_inductance(z, r, geom), rel_tol=1e-12)
-    expected_dz = mu_0 / (2.0 * math.pi) * math.log(geom.cathode_radius / geom.anode_radius)
+    expected_dz = (
+        mu_0 / (2.0 * math.pi) * math.log(geom.cathode_radius / geom.anode_radius)
+    )
     assert math.isclose(dL_dz, expected_dz, rel_tol=1e-12)
     expected_dr = -geom.radial_gradient_scale / r
     assert math.isclose(dL_dr, expected_dr, rel_tol=1e-12)

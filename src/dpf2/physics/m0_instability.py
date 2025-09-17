@@ -49,7 +49,9 @@ class MZeroInstability:
         rate = np.abs(mu_0 * curr / (2 * pi * rad)) / np.sqrt(mu_0 * dens)
         if self.comm is not None and MPI is not None:
             gathered = self.comm.allgather(rate)
-            rate = np.concatenate([np.asarray(g, dtype=float) for g in gathered], axis=0)
+            rate = np.concatenate(
+                [np.asarray(g, dtype=float) for g in gathered], axis=0
+            )
         return rate
 
     def evolve(self, amplitude: Any, dt: float):
@@ -59,10 +61,9 @@ class MZeroInstability:
         self.amplitude = evolved
         return evolved
 
-
-
     def anomalous_resistivity(self, J: np.ndarray):
         eta = self.amplitude if self.amplitude is not None else np.zeros(J.shape[:-1])
         return eta, np.zeros_like(J)
+
 
 __all__ = ["MZeroInstability"]

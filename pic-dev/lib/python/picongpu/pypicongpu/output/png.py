@@ -84,7 +84,9 @@ class Png(Plugin):
         """Return the serialized representation of the object."""
 
         # Transform customNormalizationSI into a list of dictionaries
-        custom_normalization_si_serialized = [{"value": val} for val in self.custom_normalization_si]
+        custom_normalization_si_serialized = [
+            {"value": val} for val in self.custom_normalization_si
+        ]
 
         return {
             "species": self.species.get_rendering_context(),

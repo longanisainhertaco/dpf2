@@ -19,3 +19,20 @@ web/uploads/
 # Benchmark artifacts
 docs/performance/*.png
 docs/performance/run_manifest.json
+
+# Conflict resolution artifacts (temporary)
+*.orig
+conflict_report.txt
+auto_resolution.txt
+conflicted_files.txt
+merge_result.txt
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Testing
+.coverage
+.pytest_cache/
+.tox/

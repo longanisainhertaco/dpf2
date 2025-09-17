@@ -6,6 +6,7 @@ error.  At runtime the helpers load these files and perform predictions while
 enforcing out-of-distribution checks to prevent evaluations outside the
 training hull.
 """
+
 from __future__ import annotations
 
 import json
@@ -49,8 +50,10 @@ class LinearSurrogate:
     def _predict_single(self, val: float) -> float:
         lo, hi = self.domain
         dist = self._mahalanobis(val)
-        if val < lo or val > hi or (
-            self.ood_threshold is not None and dist > self.ood_threshold
+        if (
+            val < lo
+            or val > hi
+            or (self.ood_threshold is not None and dist > self.ood_threshold)
         ):
             raise OutOfDomainError(
                 f"Input {val} outside training range [{lo}, {hi}] (distance={dist:.2f})"
@@ -121,8 +124,10 @@ class ONNXLinearSurrogate:
     def _predict_single(self, val: float) -> float:
         lo, hi = self.domain
         dist = self._mahalanobis(val)
-        if val < lo or val > hi or (
-            self.ood_threshold is not None and dist > self.ood_threshold
+        if (
+            val < lo
+            or val > hi
+            or (self.ood_threshold is not None and dist > self.ood_threshold)
         ):
             raise OutOfDomainError(
                 f"Input {val} outside training range [{lo}, {hi}] (distance={dist:.2f})"

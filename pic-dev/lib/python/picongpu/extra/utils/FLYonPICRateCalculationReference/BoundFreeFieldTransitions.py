@@ -18,8 +18,13 @@ mp.mp.dps = 200
 
 # dictionary of atomic units (AU) - values in SI units
 atomic_unit = {
-    "electric field": sc.m_e**2 * sc.e**5 / (sc.hbar**4 * (4 * sc.pi * sc.epsilon_0) ** 3),
-    "intensity": sc.m_e**4 / (8 * sc.pi * sc.alpha * sc.hbar**9) * sc.e**12 / (4 * sc.pi * sc.epsilon_0) ** 6,
+    "electric field": sc.m_e**2
+    * sc.e**5
+    / (sc.hbar**4 * (4 * sc.pi * sc.epsilon_0) ** 3),
+    "intensity": sc.m_e**4
+    / (8 * sc.pi * sc.alpha * sc.hbar**9)
+    * sc.e**12
+    / (4 * sc.pi * sc.epsilon_0) ** 6,
     "energy": sc.m_e * sc.e**4 / (sc.hbar**2 * (4 * sc.pi * sc.epsilon_0) ** 2),
     "time": sc.hbar**3 * (4 * sc.pi * sc.epsilon_0) ** 2 / sc.m_e / sc.e**4,
 }
@@ -92,7 +97,10 @@ class BoundFreeFieldTransitions:
         print("\t\t gamowFactor: {:.4e}".format(gamowFactor))
 
         rate = (
-            F * np.float32(D**2.0 * gamowFactor) * np.sqrt((3.0 * nEff**3.0 * F) / (np.pi * Z**3.0)) / (8.0 * np.pi * Z)
+            F
+            * np.float32(D**2.0 * gamowFactor)
+            * np.sqrt((3.0 * nEff**3.0 * F) / (np.pi * Z**3.0))
+            / (8.0 * np.pi * Z)
         )
         print("\t\t rate[AU]: {:.6}".format(rate))
         return rate
@@ -121,7 +129,9 @@ class BoundFreeFieldTransitions:
         rate = (
             (F * D ** mp.mpf(2))
             / (mp.mpf(8) * mp.pi * Z)
-            * mp.exp(-(mp.mpf(2) * Z ** mp.mpf(3)) / (mp.mpf(3) * nEff ** mp.mpf(3) * F))
+            * mp.exp(
+                -(mp.mpf(2) * Z ** mp.mpf(3)) / (mp.mpf(3) * nEff ** mp.mpf(3) * F)
+            )
             * mp.sqrt((mp.mpf(3) * nEff ** mp.mpf(3) * F) / (mp.pi * Z ** mp.mpf(3)))
         )
 

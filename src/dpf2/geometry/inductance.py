@@ -7,7 +7,9 @@ import math
 MU0 = 4e-7 * math.pi
 
 
-def coaxial_inductance(inner_radius: float, outer_radius: float, length: float, *, n: int = 1000) -> float:
+def coaxial_inductance(
+    inner_radius: float, outer_radius: float, length: float, *, n: int = 1000
+) -> float:
     """Return inductance of a straight coaxial plasma column."""
 
     dr = (outer_radius - inner_radius) / max(n - 1, 1)
@@ -31,7 +33,7 @@ def loop_mutual_inductance(r1: float, r2: float, separation: float) -> float:
         Axial separation between the loop centres in metres.
     """
 
-    return MU0 * math.pi * r1 ** 2 * r2 ** 2 / (2 * (r1 ** 2 + separation ** 2) ** 1.5)
+    return MU0 * math.pi * r1**2 * r2**2 / (2 * (r1**2 + separation**2) ** 1.5)
 
 
 __all__ = ["coaxial_inductance", "loop_mutual_inductance"]

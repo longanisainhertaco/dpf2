@@ -1,10 +1,12 @@
 """MUSCL-Hancock scheme for MHD."""
+
 from __future__ import annotations
 
 from ..gpu_utils import xp
 
 try:  # pragma: no cover - optional GPU backend
     import cupy as cp  # type: ignore
+
     _minmod_kernel = cp.ElementwiseKernel(
         "float64 a, float64 b",
         "float64 out",
@@ -39,7 +41,9 @@ class MUSCLHancock:
     def _minmod(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
         if _minmod_kernel is not None:
             return _minmod_kernel(a, b)  # type: ignore[no-untyped-call]
-        return np.where(np.sign(a) == np.sign(b), np.sign(a) * np.minimum(np.abs(a), np.abs(b)), 0.0)
+        return np.where(
+            np.sign(a) == np.sign(b), np.sign(a) * np.minimum(np.abs(a), np.abs(b)), 0.0
+        )
 
     def _slope(self, U: np.ndarray) -> np.ndarray:
         """Return slope-limited gradients using the configured limiter."""
@@ -148,7 +152,11 @@ class MUSCLHancock:
                 (S_R[:, None] <= 0),
                 F_R,
                 (
-                    (S_R[:, None] * F_L - S_L[:, None] * F_R + S_L[:, None] * S_R[:, None] * (U_R - U_L))
+                    (
+                        S_R[:, None] * F_L
+                        - S_L[:, None] * F_R
+                        + S_L[:, None] * S_R[:, None] * (U_R - U_L)
+                    )
                     / (S_R - S_L)[:, None]
                 ),
             ),

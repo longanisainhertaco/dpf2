@@ -175,7 +175,9 @@ class TestRenderer(unittest.TestCase):
     def test_get_rendered_template(self):
         """sanity-check the rendering engine"""
         self.assertEqual("", Renderer.get_rendered_template({}, ""))
-        self.assertEqual("", Renderer.get_rendered_template({"yes": False}, "{{#yes}}xxx{{/yes}}"))
+        self.assertEqual(
+            "", Renderer.get_rendered_template({"yes": False}, "{{#yes}}xxx{{/yes}}")
+        )
         self.assertEqual(
             "xyz",
             Renderer.get_rendered_template(

@@ -48,12 +48,18 @@ ACCESSORS = {
 
 
 def symbol_to_string(symbol):
-    return str(symbol) if not isinstance(symbol, tuple) else "[" + ",".join(map(str, symbol)) + "]"
+    return (
+        str(symbol)
+        if not isinstance(symbol, tuple)
+        else "[" + ",".join(map(str, symbol)) + "]"
+    )
 
 
 def generate_preamble(attribute_mapping):
     return [
-        {"statement": f"auto const {symbol_to_string(symbol)} = {ACCESSORS.get(attribute, by_bracket(attribute))};"}
+        {
+            "statement": f"auto const {symbol_to_string(symbol)} = {ACCESSORS.get(attribute, by_bracket(attribute))};"
+        }
         for symbol, attribute in attribute_mapping.items()
     ]
 

@@ -56,7 +56,9 @@ if matplotlib.__version__ not in tested_matplotlib_version:
     warning_msg = """The matplotlib version differs from that used during
                      development. This might cause the output to appear
                      different.
-                     Version used: {}, tested versions {}""".format(matplotlib.__version__, tested_matplotlib_version)
+                     Version used: {}, tested versions {}""".format(
+        matplotlib.__version__, tested_matplotlib_version
+    )
     warnings.warn(warning_msg)
 
 # ------ argsparse --------
@@ -65,7 +67,9 @@ The following part of the code describes the shell user interface.
 Several command line options are defined, f.e. the path to the input,
 windows or storing options, labels, etc..
 """
-parser = argparse.ArgumentParser(description=__doc__, epilog="For further questions please contact Richard Pausch.")
+parser = argparse.ArgumentParser(
+    description=__doc__, epilog="For further questions please contact Richard Pausch."
+)
 
 # Path to input files (several are possible) - necessary argument
 parser.add_argument(
@@ -386,13 +390,37 @@ for myfile in args.path2Data:
             / (np.log(omega_max_data) - np.log(omega_min_data))
             * data.shape[1]
         )
-        theta_max_index = int((theta_max_draw - theta_min_data) / (theta_max_data - theta_min_data) * data.shape[0])
-        theta_min_index = int((theta_min_draw - theta_min_data) / (theta_max_data - theta_min_data) * data.shape[0])
+        theta_max_index = int(
+            (theta_max_draw - theta_min_data)
+            / (theta_max_data - theta_min_data)
+            * data.shape[0]
+        )
+        theta_min_index = int(
+            (theta_min_draw - theta_min_data)
+            / (theta_max_data - theta_min_data)
+            * data.shape[0]
+        )
     else:
-        omega_max_index = int((omega_max_draw - omega_min_data) / (omega_max_data - omega_min_data) * data.shape[1])
-        omega_min_index = int((omega_min_draw - omega_min_data) / (omega_max_data - omega_min_data) * data.shape[1])
-        theta_max_index = int((theta_max_draw - theta_min_data) / (theta_max_data - theta_min_data) * data.shape[0])
-        theta_min_index = int((theta_min_draw - theta_min_data) / (theta_max_data - theta_min_data) * data.shape[0])
+        omega_max_index = int(
+            (omega_max_draw - omega_min_data)
+            / (omega_max_data - omega_min_data)
+            * data.shape[1]
+        )
+        omega_min_index = int(
+            (omega_min_draw - omega_min_data)
+            / (omega_max_data - omega_min_data)
+            * data.shape[1]
+        )
+        theta_max_index = int(
+            (theta_max_draw - theta_min_data)
+            / (theta_max_data - theta_min_data)
+            * data.shape[0]
+        )
+        theta_min_index = int(
+            (theta_min_draw - theta_min_data)
+            / (theta_max_data - theta_min_data)
+            * data.shape[0]
+        )
 
     # reduction to zoomed values
     dataZoomed = data[theta_min_index:theta_max_index, omega_min_index:omega_max_index]
@@ -409,7 +437,9 @@ for myfile in args.path2Data:
         sigma_theta = args.smooth[1]
         len_omega_smooth = int(5.0 * sigma_omega)
         len_theta_smooth = int(5.0 * sigma_theta)
-        dataZoomed = smooth.smooth2D(dataZoomed, sigma_omega, len_omega_smooth, sigma_theta, len_theta_smooth)
+        dataZoomed = smooth.smooth2D(
+            dataZoomed, sigma_omega, len_omega_smooth, sigma_theta, len_theta_smooth
+        )
 
     # figure environment (is needed to be deleted for next file)
     FG = plt.figure("Plot Radiation", figsize=(window_width, window_height))

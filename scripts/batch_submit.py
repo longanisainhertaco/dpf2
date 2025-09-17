@@ -1,4 +1,5 @@
 """Generate a simple batch submission script for parameter sweeps."""
+
 from __future__ import annotations
 
 import argparse
@@ -8,12 +9,18 @@ import textwrap
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", required=True, help="Configuration file used by the sweep")
-    parser.add_argument("--param", required=True, help="Parameter name passed to parameter_sweep.py")
+    parser.add_argument(
+        "--config", required=True, help="Configuration file used by the sweep"
+    )
+    parser.add_argument(
+        "--param", required=True, help="Parameter name passed to parameter_sweep.py"
+    )
     parser.add_argument(
         "--values", nargs="+", required=True, help="Values supplied to the sweep script"
     )
-    parser.add_argument("--outfile", type=Path, default=Path("submit.sh"), help="Output script path")
+    parser.add_argument(
+        "--outfile", type=Path, default=Path("submit.sh"), help="Output script path"
+    )
     parser.add_argument("--nprocs", type=int, default=1, help="Number of MPI ranks")
     parser.add_argument("--nodes", type=int, default=1, help="Number of nodes")
     parser.add_argument("--gpus", type=int, default=0, help="GPUs per node")

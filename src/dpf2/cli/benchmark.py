@@ -65,6 +65,7 @@ def run(case: str, benchmark_dir: str, output: str) -> None:
     """Execute ``case`` and overlay results against references."""
     import hashlib
     import subprocess
+
     try:  # pragma: no cover - optional dependency
         import h5py
     except Exception:  # pragma: no cover - stubbed in tests
@@ -83,7 +84,7 @@ def run(case: str, benchmark_dir: str, output: str) -> None:
     ref_t, ref_i = _load_waveform(reference)
     sim_i = np.interp(ref_t, time, current)
     err = sim_i - ref_i
-    rmse = float(np.sqrt(np.mean(err ** 2)))
+    rmse = float(np.sqrt(np.mean(err**2)))
     max_ref = float(np.max(np.abs(ref_i))) or 1.0
     rmse_pct = rmse / max_ref * 100.0
 
@@ -115,15 +116,20 @@ def run(case: str, benchmark_dir: str, output: str) -> None:
         ax.set_xlabel("time (s)")
         ax.set_ylabel("current (A)")
         ax.legend()
-        ax.text(0.98, 0.02, f"Grade: {grade}", transform=ax.transAxes, ha="right", va="bottom")
+        ax.text(
+            0.98,
+            0.02,
+            f"Grade: {grade}",
+            transform=ax.transAxes,
+            ha="right",
+            va="bottom",
+        )
         fig.tight_layout()
         fig.savefig(out_root / "overlay.png")
         plt.close(fig)
 
     if h5py is not None:  # pragma: no cover - optional in tests
-        commit = (
-            subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-        )
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
         cfg_hash = hashlib.sha256(deck.read_bytes()).hexdigest()
         with h5py.File(out_root / "results.h5", "w") as f:
             f.create_dataset("time", data=np.array(time))
@@ -180,7 +186,7 @@ def match_benchmark(config_path: str, sim_path: str, outdir: str) -> None:
 
     sim_interp = np.interp(bench_t, sim_t, sim_v)
     err = sim_interp - bench_v
-    rmse = float(np.sqrt(np.mean(err ** 2)))
+    rmse = float(np.sqrt(np.mean(err**2)))
     max_ref = float(np.max(np.abs(bench_v))) or 1.0
     rmse_pct = rmse / max_ref * 100.0
     passed = (

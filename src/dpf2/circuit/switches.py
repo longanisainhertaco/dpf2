@@ -88,7 +88,9 @@ class TriggeredSwitch:
             try:
                 jitter = np.random.normal(0.0, self.jitter_std, len(self.trigger_times))  # type: ignore[arg-type]
             except Exception:
-                jitter = [random.gauss(0.0, self.jitter_std) for _ in self.trigger_times]
+                jitter = [
+                    random.gauss(0.0, self.jitter_std) for _ in self.trigger_times
+                ]
             self.trigger_times = [t + j for t, j in zip(self.trigger_times, jitter)]
         self.trigger_times = sorted(self.trigger_times)
 
@@ -100,7 +102,10 @@ class TriggeredSwitch:
         idempotent so calling it multiple times with the same ``t`` is safe.
         """
 
-        while self._next_trigger < len(self.trigger_times) and t >= self.trigger_times[self._next_trigger]:
+        while (
+            self._next_trigger < len(self.trigger_times)
+            and t >= self.trigger_times[self._next_trigger]
+        ):
             self.closed = not self.closed
             self._closed_since = t if self.closed else None
             self._next_trigger += 1

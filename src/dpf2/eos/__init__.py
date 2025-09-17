@@ -21,6 +21,7 @@ try:  # pragma: no cover - optional SciPy dependency
     from scipy.interpolate import RegularGridInterpolator
     from scipy.optimize import root_scalar
 except ModuleNotFoundError:  # pragma: no cover
+
     class RegularGridInterpolator:  # type: ignore[misc]
         """Very small fallback interpolator when SciPy is unavailable."""
 
@@ -69,6 +70,7 @@ except ModuleNotFoundError:  # pragma: no cover
                 a, fa = c, fc
         return type("_Result", (), {"root": c})()
 
+
 try:
     from ..core_schema import EOSModel
 except Exception:  # pragma: no cover - minimal fallback without pydantic
@@ -79,7 +81,9 @@ except Exception:  # pragma: no cover - minimal fallback without pydantic
         TABULATED = "tabulated"
         REAL_GAS = "real_gas"
 
+
 import json
+
 try:  # pragma: no cover - optional h5py dependency
     import h5py  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
@@ -205,7 +209,9 @@ class TabulatedEOS:
                     e = w * e_i
                 else:
                     if not (np.allclose(rho, rho_i) and np.allclose(T, T_i)):
-                        raise ValueError("Species tables must share the same rho/T grid")
+                        raise ValueError(
+                            "Species tables must share the same rho/T grid"
+                        )
                     p += w * p_i
                     e += w * e_i
 
@@ -233,7 +239,9 @@ class TabulatedEOS:
                 np.array(data["e"]),
             )
         if path.suffix in {".h5", ".hdf5"}:
-            if h5py is None:  # pragma: no cover - exercised in environments without h5py
+            if (
+                h5py is None
+            ):  # pragma: no cover - exercised in environments without h5py
                 raise ModuleNotFoundError("h5py is required for tabulated EOS")
             with h5py.File(path, "r") as f:  # type: ignore[assignment]
                 return (
@@ -311,4 +319,3 @@ def create_eos(
             raise ValueError("RealGasEOS requires mixture_fractions")
         return RealGasEOS(Path(table_path), mixture_fractions=mixture_fractions)
     raise ValueError(f"Unsupported EOS model: {model}")
-

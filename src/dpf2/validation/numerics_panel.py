@@ -7,6 +7,7 @@ results to ``synthetic_diagnostics/numerics``.  When supplied with a
 :class:`~dpf2.diagnostics.quality_dashboard.QualityDashboard` instance the
 metrics are also evaluated against pass/fail thresholds.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -71,7 +72,10 @@ class NumericsPanel:
 # ---------------------------------------------------------------------------
 # Helper functions
 
-def compute_metrics(B_num: np.ndarray, B_ref: np.ndarray) -> dict[str, float | list[float]]:
+
+def compute_metrics(
+    B_num: np.ndarray, B_ref: np.ndarray
+) -> dict[str, float | list[float]]:
     """Return basic diagnostic metrics for a magnetic field."""
 
     diff = B_num - B_ref

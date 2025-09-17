@@ -62,7 +62,9 @@ class PhaseSpace:
         # checks if PICMISpecies instance exists in the dictionary. If yes, it returns the corresponding PyPIConGPUSpecies instance.
         # self.species refers to the species attribute of the class  PhaseSpace(picmistandard.PICMI_PhaseSpace).
         if dict_species_picmi_to_pypicongpu.get(self.species) is None:
-            raise ValueError(f"Species {self.species} is not mapped to a PyPIConGPUSpecies.")
+            raise ValueError(
+                f"Species {self.species} is not mapped to a PyPIConGPUSpecies."
+            )
 
     def __init__(
         self,

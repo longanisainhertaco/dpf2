@@ -22,7 +22,9 @@ def insulator_sleeve_area(inner_radius: float, length: float) -> float:
     return 2.0 * math.pi * inner_radius * length
 
 
-def ablation_mass_energy_source(ablation_rate: float, area: float, latent_heat: float) -> tuple[float, float]:
+def ablation_mass_energy_source(
+    ablation_rate: float, area: float, latent_heat: float
+) -> tuple[float, float]:
     """Compute mass and energy source due to insulator ablation.
 
     Parameters

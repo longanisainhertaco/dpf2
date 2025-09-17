@@ -50,7 +50,11 @@ class FindTime(object):
 
         data_file_path = os.path.join(sim_output_dir, self.data_file)
         if not os.path.isfile(data_file_path):
-            raise IOError("The file {} does not exist.\nDid the simulation already run?".format(data_file_path))
+            raise IOError(
+                "The file {} does not exist.\nDid the simulation already run?".format(
+                    data_file_path
+                )
+            )
 
         return data_file_path
 
@@ -121,7 +125,9 @@ class FindTime(object):
 
         implemented_methods = ["previous", "closest", "next"]
         if method not in implemented_methods:
-            raise ValueError("The method needs to be one of: {}".format(implemented_methods))
+            raise ValueError(
+                "The method needs to be one of: {}".format(implemented_methods)
+            )
 
         if iterations is None:
             guess = t / self.dt

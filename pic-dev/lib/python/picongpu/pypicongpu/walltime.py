@@ -27,4 +27,6 @@ class Walltime(RenderedObject, pydantic.BaseModel):
         hours, rest = divmod(self.walltime, HOUR)
         minutes, rest = divmod(rest, MINUTE)
         seconds, _ = divmod(rest, SECOND)
-        return {"walltime": "{:d}:{:02d}:{:02d}".format(hours, minutes, seconds)}  # @todo: might be cluster specific
+        return {
+            "walltime": "{:d}:{:02d}:{:02d}".format(hours, minutes, seconds)
+        }  # @todo: might be cluster specific

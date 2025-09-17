@@ -27,16 +27,22 @@ class ParallelSettings(ConfigSectionBase):
     )
 
     mpi_ranks: int = Field(..., ge=1, metadata={"units": "ranks", "group": "MPI"})
-    gpu_backend: Literal["CUDA", "HIP", "None"] = Field(..., alias="gpuBackend", metadata={"group": "GPU"})
+    gpu_backend: Literal["CUDA", "HIP", "None"] = Field(
+        ..., alias="gpuBackend", metadata={"group": "GPU"}
+    )
     use_multithreading: bool = True
     decomposition_strategy: Literal["slices", "blocks", "auto", "manual"] = "auto"
-    amr_refinement_criteria: Literal["gradient", "current_density", "manual"] = "gradient"
+    amr_refinement_criteria: Literal["gradient", "current_density", "manual"] = (
+        "gradient"
+    )
 
     threads_per_rank: Optional[int] = Field(None, metadata={"units": "threads"})
     bind_to_core: Optional[bool] = Field(True)
     gpu_device_ids: Optional[List[int]] = Field(default_factory=list)
     total_available_gpus: Optional[int] = None
-    gpu_partition_strategy: Literal["1-per-rank", "shared", "auto", "round_robin", "affinity_map"] = "auto"
+    gpu_partition_strategy: Literal[
+        "1-per-rank", "shared", "auto", "round_robin", "affinity_map"
+    ] = "auto"
     gpu_node_affinity: Optional[Dict[int, List[int]]] = None
     tile_size: Optional[Tuple[int, int, int]] = Field(None, metadata={"units": "cells"})
     buffer_pool_size_MB: Optional[int] = Field(None, metadata={"units": "MB"})
@@ -80,14 +86,21 @@ class ParallelSettings(ConfigSectionBase):
 
     @classmethod
     def get_field_metadata(cls) -> Dict[str, Dict[str, Any]]:
-        return {name: (field.json_schema_extra or field.metadata or {}) for name, field in cls.model_fields.items()}
+        return {
+            name: (field.json_schema_extra or field.metadata or {})
+            for name, field in cls.model_fields.items()
+        }
 
-    def normalize_units(self, unit_map: Optional[Dict[str, float]]) -> "ParallelSettings":
+    def normalize_units(
+        self, unit_map: Optional[Dict[str, float]]
+    ) -> "ParallelSettings":
         if unit_map is None:
             return self
         update: Dict[str, Any] = {}
         if self.buffer_pool_size_MB is not None and "MB" in unit_map:
-            update["buffer_pool_size_MB"] = int(self.buffer_pool_size_MB * unit_map["MB"])
+            update["buffer_pool_size_MB"] = int(
+                self.buffer_pool_size_MB * unit_map["MB"]
+            )
         if self.tile_size is not None and "cells" in unit_map:
             scale = unit_map["cells"]
             update["tile_size"] = tuple(int(x * scale) for x in self.tile_size)
@@ -143,17 +156,25 @@ class ParallelSettings(ConfigSectionBase):
             raise ValueError("gpu_device_ids required when GPU backend is enabled")
         if values.gpu_backend == "HIP" and values.pinned_memory:
             warnings.warn("HIP backend does not support pinned memory")
-        if values.threads_per_rank and values.threads_per_rank > 1 and not values.use_multithreading:
+        if (
+            values.threads_per_rank
+            and values.threads_per_rank > 1
+            and not values.use_multithreading
+        ):
             warnings.warn("threads_per_rank > 1 but multithreading disabled")
         if (
             values.decomposition_strategy == "manual"
             and values.amr_refinement_criteria != "manual"
         ):
-            raise ValueError("manual decomposition requires manual AMR refinement criteria")
+            raise ValueError(
+                "manual decomposition requires manual AMR refinement criteria"
+            )
         if values.tile_size is not None:
             if len(values.tile_size) != 3 or any(t <= 0 for t in values.tile_size):
                 raise ValueError("tile_size must be three positive integers")
-        values = values.model_copy(update={"parallel_config_hash": values.hash_parallel_config()})
+        values = values.model_copy(
+            update={"parallel_config_hash": values.hash_parallel_config()}
+        )
         return values
 
 

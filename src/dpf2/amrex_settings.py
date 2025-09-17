@@ -44,7 +44,9 @@ class ElectrodeGeometry(ConfigSectionBase):
     mesh_file: Optional[Path] = None
     mesh_file_units: Optional[Literal["cm", "m"]] = "cm"
     material_tagging_enabled: bool = False
-    reentrant_depth: Optional[float] = Field(None, ge=0.0, description="Depth of re-entrant feature [m]")
+    reentrant_depth: Optional[float] = Field(
+        None, ge=0.0, description="Depth of re-entrant feature [m]"
+    )
     taper_angle: Optional[float] = Field(
         None, ge=0.0, le=90.0, description="Taper angle for tapered electrodes [deg]"
     )
@@ -84,7 +86,11 @@ class ElectrodeGeometry(ConfigSectionBase):
         return self
 
     def summarize(self) -> str:
-        bar = f"{self.cathode_type}({self.cathode_bar_count})" if self.cathode_bar_count else self.cathode_type
+        bar = (
+            f"{self.cathode_type}({self.cathode_bar_count})"
+            if self.cathode_bar_count
+            else self.cathode_type
+        )
         return f"{bar}, {self.anode_shape} anode"
 
 
@@ -108,10 +114,14 @@ class AmrexSettings(ConfigSectionBase):
     stencil_order: int = Field(2, ge=2, le=6)
     solver_tolerance: float = Field(1e-8)
     embedded_boundary: bool = Field(False)
-    embedded_boundary_extrapolation: Optional[Literal["none", "linear", "parabolic"]] = "none"
+    embedded_boundary_extrapolation: Optional[
+        Literal["none", "linear", "parabolic"]
+    ] = "none"
     flux_limiter_enabled: bool = Field(False)
     numerical_damping_factor: Optional[float] = Field(None, ge=0.0, le=1.0)
-    enabled_field_solvers: List[Literal["Poisson", "HLLC", "Diffusion"]] = Field(default_factory=list)
+    enabled_field_solvers: List[Literal["Poisson", "HLLC", "Diffusion"]] = Field(
+        default_factory=list
+    )
     gradient_method: Optional[Literal["PLM", "PPM", "WENO", "linear"]] = "PLM"
     interpolation_order: Optional[int] = Field(2, ge=1, le=5)
 
@@ -123,7 +133,9 @@ class AmrexSettings(ConfigSectionBase):
     # Electrode and material settings
     electrode_geometry: ElectrodeGeometry
     electrode_material: Literal["Cu", "W", "Al", "Mo"] = "Cu"
-    erosion_mechanisms_enabled: List[Literal["thermal", "sputtering"]] = Field(default_factory=list)
+    erosion_mechanisms_enabled: List[Literal["thermal", "sputtering"]] = Field(
+        default_factory=list
+    )
     material_properties_override: Optional[
         Dict[
             Literal[
@@ -202,29 +214,51 @@ class AmrexSettings(ConfigSectionBase):
             raise ValueError("tile_size_override cannot exceed max_grid_size")
 
         if values.tile_size_override is not None:
-            if len(values.tile_size_override) != 3 or any(t <= 0 for t in values.tile_size_override):
+            if len(values.tile_size_override) != 3 or any(
+                t <= 0 for t in values.tile_size_override
+            ):
                 raise ValueError("tile_size_override must be three positive integers")
         if values.coarse_block_size is not None:
-            if len(values.coarse_block_size) != 3 or any(b <= 0 for b in values.coarse_block_size):
+            if len(values.coarse_block_size) != 3 or any(
+                b <= 0 for b in values.coarse_block_size
+            ):
                 raise ValueError("coarse_block_size must be three positive integers")
         if values.tile_size_override and values.coarse_block_size:
             for t, b in zip(values.tile_size_override, values.coarse_block_size):
                 if b % t != 0:
-                    raise ValueError("coarse_block_size must be divisible by tile_size_override")
+                    raise ValueError(
+                        "coarse_block_size must be divisible by tile_size_override"
+                    )
         if values.coarse_block_size:
             for b in values.coarse_block_size:
                 if b % values.amr_coarsening_ratio != 0:
-                    raise ValueError("coarse_block_size must be divisible by amr_coarsening_ratio")
+                    raise ValueError(
+                        "coarse_block_size must be divisible by amr_coarsening_ratio"
+                    )
         if len(set(values.enabled_field_solvers)) != len(values.enabled_field_solvers):
             raise ValueError("enabled_field_solvers contains duplicates")
-        allowed_keys = {"thermal_conductivity", "resistivity", "emissivity", "yield_strength"}
+        allowed_keys = {
+            "thermal_conductivity",
+            "resistivity",
+            "emissivity",
+            "yield_strength",
+        }
         if values.material_properties_override:
             for k in values.material_properties_override:
                 if k not in allowed_keys:
-                    raise ValueError("material_properties_override contains invalid key")
-        if not values.embedded_boundary and values.embedded_boundary_extrapolation not in (None, "none"):
-            raise ValueError("embedded_boundary_extrapolation requires embedded_boundary")
-        values = values.model_copy(update={"amrex_config_hash": values.hash_amrex_config()})
+                    raise ValueError(
+                        "material_properties_override contains invalid key"
+                    )
+        if (
+            not values.embedded_boundary
+            and values.embedded_boundary_extrapolation not in (None, "none")
+        ):
+            raise ValueError(
+                "embedded_boundary_extrapolation requires embedded_boundary"
+            )
+        values = values.model_copy(
+            update={"amrex_config_hash": values.hash_amrex_config()}
+        )
         return values
 
 

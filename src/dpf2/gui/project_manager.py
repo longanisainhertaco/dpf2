@@ -14,6 +14,7 @@ import json
 from typing import Any, Callable, Dict, Iterable, List, Tuple
 
 import numpy as np
+
 try:  # pragma: no cover - optional dependency for circuit visualisation
     import networkx as nx
 except Exception:  # pragma: no cover
@@ -292,7 +293,9 @@ class ProjectManager:
             vals = sorted(metrics.keys())
             y = [metrics[v].get("yield", 0.0) for v in vals]
             e = [
-                metrics[v].get("wall_plug_efficiency", metrics[v].get("efficiency", 0.0))
+                metrics[v].get(
+                    "wall_plug_efficiency", metrics[v].get("efficiency", 0.0)
+                )
                 for v in vals
             ]
             s = [metrics[v].get("spot_size", 0.0) for v in vals]
@@ -427,9 +430,7 @@ class ProjectManager:
             except Exception as exc:  # pragma: no cover
                 raise RuntimeError("Geometry translation not supported") from exc
 
-    def rotate_geometry(
-        self, label: str, rotation: Tuple[float, float, float]
-    ) -> None:
+    def rotate_geometry(self, label: str, rotation: Tuple[float, float, float]) -> None:
         """Rotate a stored geometry by ``(rx, ry, rz)`` degrees."""
 
         geom = self.geometries.get(label)
@@ -476,7 +477,12 @@ class ProjectManager:
             raise RuntimeError("Unsupported geometry object")
 
         mesh = go.Mesh3d(
-            x=verts[:, 0], y=verts[:, 1], z=verts[:, 2], i=faces[:, 0], j=faces[:, 1], k=faces[:, 2]
+            x=verts[:, 0],
+            y=verts[:, 1],
+            z=verts[:, 2],
+            i=faces[:, 0],
+            j=faces[:, 1],
+            k=faces[:, 2],
         )
         fig = go.Figure(data=[mesh])
         fig.update_layout(scene_aspectmode="data")
@@ -514,7 +520,9 @@ class ProjectManager:
         for u, v in self.circuit.edges:
             edge_x.extend([pos[u][0], pos[v][0], None])
             edge_y.extend([pos[u][1], pos[v][1], None])
-        node_trace = go.Scatter(x=x, y=y, mode="markers+text", text=list(self.circuit.nodes))
+        node_trace = go.Scatter(
+            x=x, y=y, mode="markers+text", text=list(self.circuit.nodes)
+        )
         edge_trace = go.Scatter(x=edge_x, y=edge_y, mode="lines")
         fig = go.Figure(data=[edge_trace, node_trace])
         fig.update_xaxes(visible=False)
@@ -534,7 +542,9 @@ class ProjectManager:
         time_bins = [0.0, 1e-7, 2e-7]
 
         class _FlatEDF:
-            def energy_distribution(self, angle_deg: float):  # pragma: no cover - GUI helper
+            def energy_distribution(
+                self, angle_deg: float
+            ):  # pragma: no cover - GUI helper
                 return [0.0, 1.0], [1.0, 1.0]
 
         cross_section = lambda e: 1.0

@@ -76,7 +76,9 @@ def deviation_charge_conservation(series, iteration):
         if fieldName[-14:] == "_chargeDensity":
             # load species density
             # load species density
-            species_Density = iteration.meshes[fieldName][opmd.Mesh_Record_Component.SCALAR][:]
+            species_Density = iteration.meshes[fieldName][
+                opmd.Mesh_Record_Component.SCALAR
+            ][:]
             series.flush()
             # choose norm to be the maximal charge density of all species
             norm = np.max([norm, np.amax(np.abs(species_Density))])
@@ -97,7 +99,9 @@ def deviation_charge_conservation(series, iteration):
 
     if is2D:
         # compute divergence of electric field according to Yee scheme
-        div = (Ex[1:, 1:] - Ex[1:, :-1]) / CELL_WIDTH + (Ey[1:, 1:] - Ey[:-1, 1:]) / CELL_HEIGHT
+        div = (Ex[1:, 1:] - Ex[1:, :-1]) / CELL_WIDTH + (
+            Ey[1:, 1:] - Ey[:-1, 1:]
+        ) / CELL_HEIGHT
 
         # compute difference between electric field divergence and charge
         # density
@@ -183,7 +187,9 @@ if __name__ == "__main__":
 
     ax2 = plt.subplot(122)
     ax2.set_xlabel(r"$t\,[\Delta t]$", fontsize=20)
-    ax2.set_ylabel(r"$\left<|d|\right> \pm \sigma_d\,[\rho_\mathrm{max}(0)]$", fontsize=20)
+    ax2.set_ylabel(
+        r"$\left<|d|\right> \pm \sigma_d\,[\rho_\mathrm{max}(0)]$", fontsize=20
+    )
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
     # always use scientific notation
@@ -205,7 +211,9 @@ if __name__ == "__main__":
         for iteration in series.iterations:
             if iteration >= first_step and (iteration <= last_step or last_step == -1):
                 print("load iteration {:d}".format(iteration))
-                cc_max, mean_abs, std, norm = deviation_charge_conservation(series, series.iterations[iteration])
+                cc_max, mean_abs, std, norm = deviation_charge_conservation(
+                    series, series.iterations[iteration]
+                )
                 data_tmp = np.array([[iteration, cc_max, mean_abs, std, norm]])
                 if collect_results is None:
                     collect_results = data_tmp

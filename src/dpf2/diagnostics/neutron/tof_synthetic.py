@@ -6,7 +6,9 @@ from typing import Sequence, List, Tuple, Mapping, Any
 from ..detector_models import apply_irf
 
 
-def cross_correlate(a: Sequence[float], b: Sequence[float], dt: float) -> Tuple[List[float], List[float]]:
+def cross_correlate(
+    a: Sequence[float], b: Sequence[float], dt: float
+) -> Tuple[List[float], List[float]]:
     """Return cross-correlation of sequences ``a`` and ``b``.
 
     Parameters
@@ -38,7 +40,10 @@ def cross_correlate(a: Sequence[float], b: Sequence[float], dt: float) -> Tuple[
 
 
 def cross_correlation_with_iv(
-    counts: Sequence[float], current: Sequence[float], voltage: Sequence[float], dt: float
+    counts: Sequence[float],
+    current: Sequence[float],
+    voltage: Sequence[float],
+    dt: float,
 ) -> Tuple[List[float], List[float]]:
     """Cross-correlate ``counts`` with the ``I*V`` power history.
 
@@ -121,5 +126,6 @@ def synthetic_tof_from_iv(
             counts = [0.0] * (-shift) + counts[:shift]
         times = [t - best_lag for t in times]
     return times, counts
+
 
 __all__ = ["synthetic_tof_from_iv", "cross_correlation_with_iv", "cross_correlate"]

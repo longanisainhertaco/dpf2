@@ -49,7 +49,11 @@ def test_threshold_logging(monkeypatch):
     cfg = DPFConfig.with_defaults()
     sc = cfg.simulation_control
     cfg = cfg.model_copy(
-        update={"simulation_control": sc.model_copy(update={"time_end": sc.time_start + 1e-9})}
+        update={
+            "simulation_control": sc.model_copy(
+                update={"time_end": sc.time_start + 1e-9}
+            )
+        }
     )
     engine = SimulationEngine(cfg)
 

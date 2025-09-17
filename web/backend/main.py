@@ -32,7 +32,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 AUDIT_LOG = BASE_DIR / "audit.log"
 UPLOAD_DIR = BASE_DIR / "uploads"
 SNAPSHOT_DIR = BASE_DIR / "snapshots"
-logging.basicConfig(level=logging.INFO, filename=str(AUDIT_LOG), format="%(asctime)s %(message)s")
+logging.basicConfig(
+    level=logging.INFO, filename=str(AUDIT_LOG), format="%(asctime)s %(message)s"
+)
 logger = logging.getLogger("dpf-web")
 
 users = {
@@ -144,14 +146,17 @@ async def run_simulation(req: RunRequest, user=Depends(get_current_user)):
                 mfp=0.01,
                 tau_e=1e-9,
             )
-            payload = {k: reg[k] for k in [
-                "S",
-                "beta",
-                "M_A",
-                "R_m",
-                "K_n",
-                "omega_ce_tau_e",
-            ]}
+            payload = {
+                k: reg[k]
+                for k in [
+                    "S",
+                    "beta",
+                    "M_A",
+                    "R_m",
+                    "K_n",
+                    "omega_ce_tau_e",
+                ]
+            }
             await broadcast_regime(payload)
         await broadcast_diagnostics(run_id, {"status": "completed"})
 
@@ -160,7 +165,9 @@ async def run_simulation(req: RunRequest, user=Depends(get_current_user)):
 
 
 @app.post("/update/{run_id}")
-async def update_simulation(run_id: str, req: UpdateRequest, user=Depends(get_current_user)):
+async def update_simulation(
+    run_id: str, req: UpdateRequest, user=Depends(get_current_user)
+):
     """Receive live parameter updates for a running simulation."""
     logger.info(
         "action=update user=%s run_id=%s voltage=%s pressure=%s",
@@ -169,7 +176,9 @@ async def update_simulation(run_id: str, req: UpdateRequest, user=Depends(get_cu
         req.voltage,
         req.pressure,
     )
-    await broadcast_diagnostics(run_id, {"voltage": req.voltage, "pressure": req.pressure})
+    await broadcast_diagnostics(
+        run_id, {"voltage": req.voltage, "pressure": req.pressure}
+    )
     return {"status": "updated"}
 
 
@@ -178,7 +187,10 @@ async def run_sweep(req: SweepRequest, user=Depends(get_current_user)):
     cfg = DPFConfig.model_validate(req.config)
     run_id = dispatch_to_hpc(cfg, user["username"])
     logger.info(
-        "action=sweep user=%s run_id=%s param=%s", user["username"], run_id, req.parameter
+        "action=sweep user=%s run_id=%s param=%s",
+        user["username"],
+        run_id,
+        req.parameter,
     )
 
     async def _mock_sweep() -> None:
@@ -251,8 +263,12 @@ def create_lab_manifest_bundle(req: LabBundleRequest, user=Depends(get_current_u
     seeds = [random.randint(0, 2**32 - 1) for _ in req.runs]
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
         export_manifest_bundle(req.runs, tmp.name, seeds=seeds)
-        logger.info("action=lab_bundle user=%s runs=%d", user["username"], len(req.runs))
-        return FileResponse(tmp.name, media_type="application/zip", filename="manifest_bundle.zip")
+        logger.info(
+            "action=lab_bundle user=%s runs=%d", user["username"], len(req.runs)
+        )
+        return FileResponse(
+            tmp.name, media_type="application/zip", filename="manifest_bundle.zip"
+        )
 
 
 @app.websocket("/ws/progress/{run_id}")

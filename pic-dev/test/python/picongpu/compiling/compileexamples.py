@@ -35,7 +35,9 @@ class TestExamplesMeta(type):
                 # So, we need to eagerly evaluate the `example` variable
                 # which we achieve via an immediately evaluated lambda expression.
                 # Please excuse my C++ dialect.
-                lambda example: lambda self: self.build_simulation(self.load_example_script(example / "main.py"))
+                lambda example: lambda self: self.build_simulation(
+                    self.load_example_script(example / "main.py")
+                )
             )(example)
         return type.__new__(cls, name, bases, dict)
 

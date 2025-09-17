@@ -77,16 +77,20 @@ def check_params(num_iterations):
                 ) = ts.get_field(iteration=i, field=field, coord=coord)
         for field in fields:
             for coord in coords:
-                field_param["field_epsilon_relative"] *= np.abs(field_param[f"{field}{coord}"])
+                field_param["field_epsilon_relative"] *= np.abs(
+                    field_param[f"{field}{coord}"]
+                )
                 value = field_data[field][coord]
                 # Check if the field values are within a tolerance range
                 if not np.logical_and(
                     np.less_equal(
-                        field_param[f"{field}{coord}"] - field_param["field_epsilon_relative"],
+                        field_param[f"{field}{coord}"]
+                        - field_param["field_epsilon_relative"],
                         value,
                     ),
                     np.greater_equal(
-                        field_param[f"{field}{coord}"] + field_param["field_epsilon_relative"],
+                        field_param[f"{field}{coord}"]
+                        + field_param["field_epsilon_relative"],
                         value,
                     ),
                 ).all():
@@ -112,7 +116,9 @@ def check_params(num_iterations):
         for density in densities:
             density_data[density] = {}
             density_data[density], info = ts.get_field(iteration=i, field=density)
-            relative_error = field_param["density_epsilon_relative"] * np.abs(field_param[f"{density}"])
+            relative_error = field_param["density_epsilon_relative"] * np.abs(
+                field_param[f"{density}"]
+            )
             value = density_data[density]
             # Check if the density values are within a tolerance range
             if not np.logical_and(

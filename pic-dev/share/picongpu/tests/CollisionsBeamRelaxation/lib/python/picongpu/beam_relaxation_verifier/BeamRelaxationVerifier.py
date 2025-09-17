@@ -24,7 +24,11 @@ def plot_with_std(ax, x, y, y_std, label=None):
 
 
 def _get_debug_data(sim_path, collider_id):
-    debug_file_path = Path(sim_path) / "simOutput" / f"debug_values_collider_{collider_id}_species_pair_0.dat"
+    debug_file_path = (
+        Path(sim_path)
+        / "simOutput"
+        / f"debug_values_collider_{collider_id}_species_pair_0.dat"
+    )
     debug_data = None
     with open(debug_file_path, "r") as f:
         debug_data = np.loadtxt(
@@ -60,12 +64,21 @@ class BeamRelaxationVerifier:
         self.dt = self.series.iterations[0].dt * self.series.iterations[0].time_unit_SI
 
         collider_id_map = {"equal": 0, "lessIons": 1, "moreIons": 2}
-        self.debug_values = {ratio: _get_debug_data(sim_output_path, collider_id_map[ratio]) for ratio in self.ratios}
-        debug_file_path = Path(sim_output_path) / "simOutput" / "average_debye_length_for_collisions.dat"
+        self.debug_values = {
+            ratio: _get_debug_data(sim_output_path, collider_id_map[ratio])
+            for ratio in self.ratios
+        }
+        debug_file_path = (
+            Path(sim_output_path)
+            / "simOutput"
+            / "average_debye_length_for_collisions.dat"
+        )
         self.average_debye_present = True
         try:
             with open(debug_file_path, "r") as f:
-                self.debug_values["all"] = np.loadtxt(f, dtype=[("iteration", np.uint32), ("debye_length", np.float64)])
+                self.debug_values["all"] = np.loadtxt(
+                    f, dtype=[("iteration", np.uint32), ("debye_length", np.float64)]
+                )
         except FileNotFoundError:
             print("No average debye length output present")
             self.average_debye_present = False
@@ -93,18 +106,24 @@ class BeamRelaxationVerifier:
                 "moreIons": (64, 96),
             }
             for ratio in self.ratios:
-                e_vperp_mrc = iteration.meshes[species_prefix[ratio]["e"] + "_" + vperp_field_name][
-                    api.Mesh_Record_Component.SCALAR
+                e_vperp_mrc = iteration.meshes[
+                    species_prefix[ratio]["e"] + "_" + vperp_field_name
+                ][api.Mesh_Record_Component.SCALAR]
+                local_array_dict["e_vperp"][ratio] = e_vperp_mrc[
+                    :, x_cell_range[ratio][0] : x_cell_range[ratio][1]
                 ]
-                local_array_dict["e_vperp"][ratio] = e_vperp_mrc[:, x_cell_range[ratio][0] : x_cell_range[ratio][1]]
-                e_vx_mrc = iteration.meshes[species_prefix[ratio]["e"] + "_" + vx_field_name][
-                    api.Mesh_Record_Component.SCALAR
+                e_vx_mrc = iteration.meshes[
+                    species_prefix[ratio]["e"] + "_" + vx_field_name
+                ][api.Mesh_Record_Component.SCALAR]
+                local_array_dict["e_vx"][ratio] = e_vx_mrc[
+                    :, x_cell_range[ratio][0] : x_cell_range[ratio][1]
                 ]
-                local_array_dict["e_vx"][ratio] = e_vx_mrc[:, x_cell_range[ratio][0] : x_cell_range[ratio][1]]
-                i_vx_mrc = iteration.meshes[species_prefix[ratio]["i"] + "_" + vx_field_name][
-                    api.Mesh_Record_Component.SCALAR
+                i_vx_mrc = iteration.meshes[
+                    species_prefix[ratio]["i"] + "_" + vx_field_name
+                ][api.Mesh_Record_Component.SCALAR]
+                local_array_dict["i_vx"][ratio] = i_vx_mrc[
+                    :, x_cell_range[ratio][0] : x_cell_range[ratio][1]
                 ]
-                local_array_dict["i_vx"][ratio] = i_vx_mrc[:, x_cell_range[ratio][0] : x_cell_range[ratio][1]]
 
             self.series.flush()
 
@@ -112,24 +131,30 @@ class BeamRelaxationVerifier:
                 local_array_dict["e_vperp"][ratio] *= iteration.meshes[
                     species_prefix[ratio]["e"] + "_" + vperp_field_name
                 ][api.Mesh_Record_Component.SCALAR].unit_SI
-                local_array_dict["e_vx"][ratio] *= iteration.meshes[species_prefix[ratio]["e"] + "_" + vx_field_name][
-                    api.Mesh_Record_Component.SCALAR
-                ].unit_SI
-                local_array_dict["i_vx"][ratio] *= iteration.meshes[species_prefix[ratio]["i"] + "_" + vx_field_name][
-                    api.Mesh_Record_Component.SCALAR
-                ].unit_SI
+                local_array_dict["e_vx"][ratio] *= iteration.meshes[
+                    species_prefix[ratio]["e"] + "_" + vx_field_name
+                ][api.Mesh_Record_Component.SCALAR].unit_SI
+                local_array_dict["i_vx"][ratio] *= iteration.meshes[
+                    species_prefix[ratio]["i"] + "_" + vx_field_name
+                ][api.Mesh_Record_Component.SCALAR].unit_SI
 
             if n_cells is not None:
                 for quantity, ratio in itertools.product(self.quantities, self.ratios):
-                    local_array_dict[quantity][ratio] = np.ravel(local_array_dict[quantity][ratio])[0:n_cells]
+                    local_array_dict[quantity][ratio] = np.ravel(
+                        local_array_dict[quantity][ratio]
+                    )[0:n_cells]
 
             for ratio in self.ratios:
-                local_array_dict["e_vperp"][ratio] = np.sqrt(local_array_dict["e_vperp"][ratio])
+                local_array_dict["e_vperp"][ratio] = np.sqrt(
+                    local_array_dict["e_vperp"][ratio]
+                )
 
             for quantity, ratio in itertools.product(self.quantities, self.ratios):
                 data = local_array_dict[quantity][ratio]
                 self.calculated_data["mean"][quantity][ratio][i] = np.average(data)
-                self.calculated_data["std_mean"][quantity][ratio][i] = np.std(data) / np.sqrt(data.size)
+                self.calculated_data["std_mean"][quantity][ratio][i] = np.std(
+                    data
+                ) / np.sqrt(data.size)
                 self.calculated_data["std_dist"][quantity][ratio][i] = np.std(data)
 
     def plot(self, to_file=False, file_name=None, smilei_loader=None):

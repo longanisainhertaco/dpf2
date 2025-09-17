@@ -21,7 +21,7 @@ def _hash_file(path: Path) -> str:
 
 
 def capture_dataset_metadata(
-    datasets: Mapping[str, Mapping[str, Mapping[str, object]]]
+    datasets: Mapping[str, Mapping[str, Mapping[str, object]]],
 ) -> dict[str, dict[str, dict[str, str]]]:
     """Compute hashes and attach DOI/version for referenced datasets.
 
@@ -41,7 +41,9 @@ def capture_dataset_metadata(
             doi = info.get("doi")
             version = info.get("version")
             if path is None or doi is None or version is None:
-                raise ValueError("dataset metadata requires 'path', 'doi' and 'version'")
+                raise ValueError(
+                    "dataset metadata requires 'path', 'doi' and 'version'"
+                )
             p = Path(path)
             h = _hash_file(p)
             logger.info(

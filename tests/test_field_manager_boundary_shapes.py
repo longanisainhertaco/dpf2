@@ -9,7 +9,9 @@ if not hasattr(np, "ndarray"):
 
 # Import FieldManager directly from the source file to avoid triggering package
 # level imports that require heavy dependencies.
-utils_path = Path(__file__).resolve().parents[1] / "src" / "dpf2" / "simulation" / "utils.py"
+utils_path = (
+    Path(__file__).resolve().parents[1] / "src" / "dpf2" / "simulation" / "utils.py"
+)
 spec = importlib.util.spec_from_file_location("field_utils", utils_path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -22,6 +24,7 @@ mesh_module = importlib.util.module_from_spec(mesh_spec)
 sys.modules[mesh_spec.name] = mesh_module
 mesh_spec.loader.exec_module(mesh_module)
 Mesh3D = mesh_module.Mesh3D
+
 
 def test_apply_boundary_conditions_preserves_shape_and_updates_boundaries():
     nx = ny = nz = 4

@@ -40,7 +40,9 @@ def test_slurm_submit_options(tmp_path, monkeypatch):
     assert "-N" in cmd and cmd[cmd.index("-N") + 1] == "2"
     assert "--nodelist" in cmd and cmd[cmd.index("--nodelist") + 1] == "node1,node2"
     assert "--gpus" in cmd and cmd[cmd.index("--gpus") + 1] == "2"
-    assert "--dependency" in cmd and cmd[cmd.index("--dependency") + 1] == "afterok:11:22"
+    assert (
+        "--dependency" in cmd and cmd[cmd.index("--dependency") + 1] == "afterok:11:22"
+    )
     # The job script is wrapped for staging so we only verify the tail
     # contains the expected script arguments.
     assert cmd[-4:] == ["--foo", "bar", "--restart", "chkpt.dat"]
@@ -153,9 +155,7 @@ def test_hdf5_manifest_written(tmp_path, monkeypatch):
     jm = JobManager("slurm")
 
     monkeypatch.setattr(JobManager, "_wrap_staging", lambda self, js, si, so: js)
-    monkeypatch.setattr(
-        "subprocess.run", lambda *a, **kw: type("R", (), {})()
-    )
+    monkeypatch.setattr("subprocess.run", lambda *a, **kw: type("R", (), {})())
 
     manifest_h5 = tmp_path / "run_manifest.h5"
     cfg = {"x": 1}
@@ -174,4 +174,3 @@ def test_hdf5_manifest_written(tmp_path, monkeypatch):
         assert grp.attrs["container_hash"] == "abc123"
         assert json.loads(grp.attrs["config"]) == cfg
         assert "git_commit" in grp.attrs
-

@@ -16,7 +16,9 @@ import h5py
 class SmileiThermalization:
     def __init__(self, sim_path):
         self.sim = happi.Open(sim_path)
-        self.times = np.double(self.sim.ParticleBinning(diagNumber=0, units=["fs"]).getTimes())
+        self.times = np.double(
+            self.sim.ParticleBinning(diagNumber=0, units=["fs"]).getTimes()
+        )
         self.e_T_mean = np.empty_like(self.times)
         self.i_T_mean = np.empty_like(self.times)
         self.e_T_std_mean = np.empty_like(self.e_T_mean)
@@ -27,7 +29,10 @@ class SmileiThermalization:
         self.unit_length = cs.c / self.sim.namelist.Main.reference_angular_frequency_SI
         self.pairs = ["ei", "ee", "ii"]
         collider_id_map = {"ei": 0, "ee": 1, "ii": 2}
-        self.debug_values = {pair: self._load_debug_output(sim_path, collider_id_map[pair]) for pair in self.pairs}
+        self.debug_values = {
+            pair: self._load_debug_output(sim_path, collider_id_map[pair])
+            for pair in self.pairs
+        }
 
     def calculate_temperatures(self):
         n_e_m = self.sim.ParticleBinning(9, units=["1/m^3"]).get()

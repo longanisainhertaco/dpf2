@@ -1,4 +1,5 @@
 """Ensure Singularity definition files build successfully."""
+
 from __future__ import annotations
 
 import shutil

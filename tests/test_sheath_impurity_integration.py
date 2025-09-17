@@ -6,14 +6,19 @@ import types
 sys.modules.setdefault("pydantic", pydantic_stub)
 sys.modules.setdefault("pydantic.dataclasses", pydantic_stub.dataclasses)
 import numpy as _real_np
+
 sys.modules["numpy"] = _real_np
 scipy_constants = types.SimpleNamespace(mu_0=1.0)
 sys.modules.setdefault("scipy", types.SimpleNamespace(constants=scipy_constants))
 sys.modules.setdefault("scipy.constants", scipy_constants)
 chem_stub = types.ModuleType("dpf2.chemistry")
+
+
 class _Saha:
     def ionization_state(self, rho, T):
         return np.zeros_like(rho)
+
+
 chem_stub.ChemistryModel = object
 chem_stub.SahaEquilibrium = _Saha
 sys.modules.setdefault("dpf2.chemistry", chem_stub)
@@ -23,21 +28,31 @@ core_stub.ConfigSectionBase = object
 core_stub.to_camel_case = lambda s: s
 sys.modules.setdefault("dpf2.core_schema", core_stub)
 rad_stub = types.ModuleType("dpf2.radiation")
+
+
 class _Rad: ...
+
+
 rad_stub.RadiationBase = _Rad
 sys.modules.setdefault("dpf2.radiation", rad_stub)
 diag_stub = types.ModuleType("dpf2.diagnostics")
+
+
 class _Output: ...
+
+
 diag_stub.OutputField = _Output
 sys.modules.setdefault("dpf2.diagnostics", diag_stub)
 
 from dpf2.boundary_conditions import KineticSheath
 from dpf2.hall_mhd_solver import HallMHDSolver, MHDState
+
 sys.modules["numpy"] = _real_np
 
 
 def _state(shape=(4, 4, 4)):
     import numpy as np  # ensure real numpy
+
     rho = np.ones(shape)
     mom = np.zeros(shape + (3,))
     B = np.zeros(shape + (3,))

@@ -129,7 +129,9 @@ class grid:
 
         return grid_x, grid_y, grid_z
 
-    def current_density_field(self, W_grid_x, W_grid_y, W_grid_z, start_coord, end_coord, Q, params, shape):
+    def current_density_field(
+        self, W_grid_x, W_grid_y, W_grid_z, start_coord, end_coord, Q, params, shape
+    ):
         """Calculates the current density in the x, y, and z directions on the
         grid using the current deposition vector(field) W_grid_x,y,z.
 
@@ -155,10 +157,14 @@ class grid:
         half_width = (self.order + 1) * 1 / 2
 
         # determine start x
-        start = np.min([start_coord - half_width, end_coord - half_width], axis=0).astype(int)
+        start = np.min(
+            [start_coord - half_width, end_coord - half_width], axis=0
+        ).astype(int)
 
         # determine end x
-        end = np.min([start_coord + half_width + 1, end_coord + half_width + 1], axis=0).astype(int)
+        end = np.min(
+            [start_coord + half_width + 1, end_coord + half_width + 1], axis=0
+        ).astype(int)
 
         # additive to transform the minimal grid index of the current density
         # to the equivalent index of the simulation grid.
@@ -176,7 +182,8 @@ class grid:
             for j in range(start[1], end[1], 1):
                 for i in range(start[0], end[0], 1):
                     j_grid_x[k + r[2]][j + r[1]][i + r[0]] = (
-                        x_factor * norm * W_grid_x[k][j][i] + j_grid_x[k + r[2]][j + r[1]][i + r[0] - 1]
+                        x_factor * norm * W_grid_x[k][j][i]
+                        + j_grid_x[k + r[2]][j + r[1]][i + r[0] - 1]
                     )
 
         y_factor = combined_factors * params["cell_height"]
@@ -184,7 +191,8 @@ class grid:
             for j in range(start[1], end[1], 1):
                 for i in range(start[0], end[0], 1):
                     j_grid_y[k + r[2]][j + r[1]][i + r[0]] = (
-                        y_factor * norm * W_grid_y[k][j][i] + j_grid_y[k + r[2]][j + r[1] - 1][i + r[0]]
+                        y_factor * norm * W_grid_y[k][j][i]
+                        + j_grid_y[k + r[2]][j + r[1] - 1][i + r[0]]
                     )
 
         z_factor = combined_factors * params["cell_depth"]
@@ -192,7 +200,8 @@ class grid:
             for j in range(start[1], end[1], 1):
                 for i in range(start[0], end[0], 1):
                     j_grid_z[k + r[2]][j + r[1]][i + r[0]] = (
-                        z_factor * norm * W_grid_z[k][j][i] + j_grid_y[k + r[2] - 1][j + r[1]][i + r[0]]
+                        z_factor * norm * W_grid_z[k][j][i]
+                        + j_grid_y[k + r[2] - 1][j + r[1]][i + r[0]]
                     )
 
         return j_grid_x, j_grid_y, j_grid_z

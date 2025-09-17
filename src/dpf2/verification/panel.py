@@ -8,6 +8,7 @@ file.  When supplied with a
 :class:`~dpf2.diagnostics.quality_dashboard.QualityDashboard` instance the
 metrics are also evaluated against pass/fail thresholds.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from . import mms
 
 # ---------------------------------------------------------------------------
 # Helper functions
+
 
 def _divergence(B: np.ndarray) -> np.ndarray:
     """Compute a simple discrete divergence."""
@@ -79,7 +81,9 @@ def _flatten(arr) -> list[float]:
     return [float(arr)]
 
 
-def compute_metrics(B_num: np.ndarray, B_ref: np.ndarray) -> dict[str, float | list[float]]:
+def compute_metrics(
+    B_num: np.ndarray, B_ref: np.ndarray
+) -> dict[str, float | list[float]]:
     """Return basic diagnostic metrics for a magnetic field."""
     diff = B_num - B_ref
     l1 = float(np.mean(np.abs(diff)))
@@ -131,7 +135,9 @@ class VerificationPanel:
     quality: QualityDashboard | None = None
 
     # --------------------------------------------------------------
-    def run_brio_wu(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+    def run_brio_wu(
+        self, sizes: Iterable[int] = (16, 32, 64)
+    ) -> dict[str, list[float]]:
         """Execute Brio--Wu shock tube at multiple resolutions."""
         l1: list[float] = []
         divs: list[float] = []
@@ -169,7 +175,9 @@ class VerificationPanel:
         }
 
     # --------------------------------------------------------------
-    def run_orszag_tang(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+    def run_orszag_tang(
+        self, sizes: Iterable[int] = (16, 32, 64)
+    ) -> dict[str, list[float]]:
         """Execute Orszag--Tang vortex at multiple resolutions."""
         l1: list[float] = []
         divs: list[float] = []
@@ -188,7 +196,9 @@ class VerificationPanel:
             _ = scheme.limiter
             _ = mhd.gamma
             perturb = 0.1 * np.sin(4 * np.pi * X) / n
-            B_num = B_ref + np.stack((perturb, perturb, np.zeros_like(perturb)), axis=-1)
+            B_num = B_ref + np.stack(
+                (perturb, perturb, np.zeros_like(perturb)), axis=-1
+            )
             metrics = compute_metrics(B_num, B_ref)
             l1.append(metrics["l1_error"])
             divs.append(metrics["divB_norm"])
@@ -209,7 +219,9 @@ class VerificationPanel:
         }
 
     # --------------------------------------------------------------
-    def run_mms_scalar_advection(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+    def run_mms_scalar_advection(
+        self, sizes: Iterable[int] = (16, 32, 64)
+    ) -> dict[str, list[float]]:
         """Manufactured solution for scalar advection."""
         l1: list[float] = []
         passed = True
@@ -232,7 +244,9 @@ class VerificationPanel:
             "passed": passed,
         }
 
-    def run_mms_resistive_diffusion(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+    def run_mms_resistive_diffusion(
+        self, sizes: Iterable[int] = (16, 32, 64)
+    ) -> dict[str, list[float]]:
         """Manufactured solution for resistive diffusion."""
         l1: list[float] = []
         passed = True
@@ -255,7 +269,9 @@ class VerificationPanel:
             "passed": passed,
         }
 
-    def run_mms_ideal_mhd(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+    def run_mms_ideal_mhd(
+        self, sizes: Iterable[int] = (16, 32, 64)
+    ) -> dict[str, list[float]]:
         """Manufactured solution for ideal MHD."""
         l1: list[float] = []
         divs: list[float] = []

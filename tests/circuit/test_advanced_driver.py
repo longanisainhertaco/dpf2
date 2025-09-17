@@ -40,9 +40,7 @@ def _make_config() -> CircuitConfig:
             "V0": 1.0,
             "switch_delay": 0.0,
             "segments": [
-                SegmentConfig(
-                    length=1.0, L=1.0, R=0.0, C=0.0, from_node=0, to_node=1
-                )
+                SegmentConfig(length=1.0, L=1.0, R=0.0, C=0.0, from_node=0, to_node=1)
             ],
             "switches": [
                 SwitchConfig(
@@ -54,9 +52,7 @@ def _make_config() -> CircuitConfig:
                     r_off=1e6,
                 )
             ],
-            "crowbar_stages": [
-                {"resistance": 0.1, "trigger": 100.0}
-            ],
+            "crowbar_stages": [{"resistance": 0.1, "trigger": 100.0}],
             "trigger_jitter_stddev": 5.0,
         }
     )

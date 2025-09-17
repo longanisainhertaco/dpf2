@@ -62,4 +62,3 @@ def test_solver_update_with_periodic_boundaries():
     speeds = [model.max_speed(state[1][1][1], d) for d in ["x", "y", "z"]]
     expected = min(vol / (a * v) if v > 0 else np.inf for a, v in zip(areas, speeds))
     assert np.isclose(dt_geo, expected)
-

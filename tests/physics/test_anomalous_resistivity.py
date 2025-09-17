@@ -77,4 +77,3 @@ def test_wave_power_voltage_spike_eta_correlation():
     assert solver.last_lh_power == pytest.approx(power)
     ratio = log_impedance_ratio(eta, 1.0, 1.0, 1.0)
     assert ratio.shape == eta.shape
-

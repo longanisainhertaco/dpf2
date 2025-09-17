@@ -50,4 +50,3 @@ def test_basic_stability():
         state = solver.step(state, 0.02)
     assert np.all(np.isfinite(state.rho))
     assert np.all(np.isfinite(state.energy))
-

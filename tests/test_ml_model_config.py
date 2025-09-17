@@ -7,6 +7,7 @@ from dpf2.ml_model_config import MLModelConfig
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False

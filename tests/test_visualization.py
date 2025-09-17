@@ -46,4 +46,3 @@ def test_sheath_velocity_field_matches_internal():
     vel = sheath_velocity_field(1.0, 0.2, 0.0)
     assert np.allclose(vel.u, b.u)
     assert np.allclose(vel.v, b.v)
-

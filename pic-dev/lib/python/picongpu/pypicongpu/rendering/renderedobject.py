@@ -95,22 +95,30 @@ class RenderedObject:
             )
         )
 
-        logging.debug("found {} schemas in {}".format(len(all_json_files), schemas_path))
+        logging.debug(
+            "found {} schemas in {}".format(len(all_json_files), schemas_path)
+        )
 
         for json_file_path in all_json_files:
             with open(json_file_path, "r") as infile:
                 schema = json.load(infile)
             if "$id" not in schema:
-                logging.error("cant load schema, has no URI ($id) set: {}".format(json_file_path))
+                logging.error(
+                    "cant load schema, has no URI ($id) set: {}".format(json_file_path)
+                )
                 continue
             uri = schema["$id"]
             if type(uri) is not str:
                 raise TypeError("URI ($id) must be string: {}".format(json_file_path))
 
-            resource = referencing.Resource(contents=schema, specification=referencing.jsonschema.DRAFT202012)
+            resource = referencing.Resource(
+                contents=schema, specification=referencing.jsonschema.DRAFT202012
+            )
 
             # registries are immutable, every call will return new instance and leave old instance unchanged
-            RenderedObject._registry = RenderedObject._registry.with_resource(uri, resource)
+            RenderedObject._registry = RenderedObject._registry.with_resource(
+                uri, resource
+            )
 
         # crawl all added resources
         RenderedObject._registry = RenderedObject._registry.crawl()
@@ -164,7 +172,9 @@ class RenderedObject:
         try:
             schema = RenderedObject._registry.contents(uri)
         except referencing.exceptions.NoSuchResource:
-            raise referencing.exceptions.NoSuchResource("schema not found for FQN {}: URI {}".format(fqn, uri))
+            raise referencing.exceptions.NoSuchResource(
+                "schema not found for FQN {}: URI {}".format(fqn, uri)
+            )
 
         # validate schema
         validator = jsonschema.Draft202012Validator(schema=schema)
@@ -173,10 +183,19 @@ class RenderedObject:
         # there are schemas that are valid but not an object -> skip checks
         if type(schema) is dict:
             if "unevaluatedProperties" not in schema:
-                logging.warning("schema does not explicitly forbid unevaluated properties: {}".format(fqn))
+                logging.warning(
+                    "schema does not explicitly forbid unevaluated properties: {}".format(
+                        fqn
+                    )
+                )
             # special exemption for custom user input which is never evaluated
-            elif schema["unevaluatedProperties"] and fqn != "picongpu.pypicongpu.customuserinput.CustomUserInput":
-                logging.warning("schema supports unevaluated properties: {}".format(fqn))
+            elif (
+                schema["unevaluatedProperties"]
+                and fqn != "picongpu.pypicongpu.customuserinput.CustomUserInput"
+            ):
+                logging.warning(
+                    "schema supports unevaluated properties: {}".format(fqn)
+                )
         else:
             logging.warning("schema is not dict: {}".format(fqn))
 
@@ -187,7 +206,9 @@ class RenderedObject:
         return all required content for rendering as a dict
         :return: content as dictionary
         """
-        raise NotImplementedError("called parent _get_serialized of parent RenderedObject")
+        raise NotImplementedError(
+            "called parent _get_serialized of parent RenderedObject"
+        )
 
     def get_rendering_context(self) -> dict | None:
         """
@@ -220,7 +241,9 @@ class RenderedObject:
         """
 
         schema = RenderedObject._get_schema_from_class(type_to_check)
-        validator = jsonschema.Draft202012Validator(schema=schema, registry=RenderedObject._registry)
+        validator = jsonschema.Draft202012Validator(
+            schema=schema, registry=RenderedObject._registry
+        )
 
         # raises on error
         validator.validate(context)
@@ -324,6 +347,8 @@ class SelfRegisteringRenderedObject(RenderedObject, SelfRegistering):
             self._registered_class,
             {
                 "typeID": {name: name == self._name for name in self._names},
-                "data": RenderedObject.check_context_for_type(self.__class__, super().get_rendering_context()),
+                "data": RenderedObject.check_context_for_type(
+                    self.__class__, super().get_rendering_context()
+                ),
             },
         )

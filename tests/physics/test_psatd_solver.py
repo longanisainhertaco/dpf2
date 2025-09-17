@@ -23,7 +23,9 @@ def test_psatd_solver_divergence(deposition):
 
 
 def test_psatd_pml_reflection():
-    solver = PSATDSolver(num_cells=64, length=1.0, boundary="PML", pml_cells=4, pml_sigma=2.0)
+    solver = PSATDSolver(
+        num_cells=64, length=1.0, boundary="PML", pml_cells=4, pml_sigma=2.0
+    )
     rho = np.zeros(64)
     rho[0] = 1.0
     E, _ = solver.solve(rho)

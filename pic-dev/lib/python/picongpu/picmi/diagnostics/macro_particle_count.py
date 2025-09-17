@@ -43,9 +43,16 @@ class MacroParticleCount:
         self.species = species
         self.period = period
 
-    def check(self, dict_species_picmi_to_pypicongpu: dict[PICMISpecies, PyPIConGPUSpecies], *args, **kwargs):
+    def check(
+        self,
+        dict_species_picmi_to_pypicongpu: dict[PICMISpecies, PyPIConGPUSpecies],
+        *args,
+        **kwargs,
+    ):
         if self.species not in dict_species_picmi_to_pypicongpu.keys():
             raise ValueError(f"Species {self.species} is not known to Simulation")
         pypicongpu_species = dict_species_picmi_to_pypicongpu.get(self.species)
         if pypicongpu_species is None:
-            raise ValueError(f"Species {self.species} is not mapped to a PyPIConGPUSpecies.")
+            raise ValueError(
+                f"Species {self.species} is not mapped to a PyPIConGPUSpecies."
+            )

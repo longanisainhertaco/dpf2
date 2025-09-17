@@ -98,7 +98,10 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
                             )
                 if not elements and m.cells:
                     elements = m.cells[0].data.tolist()
-                result: Dict[str, Any] = {"nodes": m.points.tolist(), "elements": elements}
+                result: Dict[str, Any] = {
+                    "nodes": m.points.tolist(),
+                    "elements": elements,
+                }
                 if materials:
                     result["materials"] = materials
                 if getattr(m, "cell_sets", None):
@@ -163,7 +166,11 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
                     for _ in range(npts):
                         x, y, z = next(it).split()[:3]
                         nodes.append([float(x), float(y), float(z)])
-                elif up.startswith("POLYGONS") or up.startswith("TRIANGLE") or up.startswith("TRIANGLES"):
+                elif (
+                    up.startswith("POLYGONS")
+                    or up.startswith("TRIANGLE")
+                    or up.startswith("TRIANGLES")
+                ):
                     parts = ln.split()
                     ntri = int(parts[1])
                     for _ in range(ntri):
@@ -176,7 +183,12 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
                     ln = next(it).strip()
                     if ln.upper().startswith("SCALARS"):
                         name = ln.split()[1].lower()
-                        if name in {"material", "materials", "gmsh:physical", "cell_tags"}:
+                        if name in {
+                            "material",
+                            "materials",
+                            "gmsh:physical",
+                            "cell_tags",
+                        }:
                             ln = next(it).strip()
                             vals: List[str] = []
                             if not ln.upper().startswith("LOOKUP_TABLE"):
@@ -211,7 +223,9 @@ def load_unstructured_mesh(path: Path) -> Dict[str, Any]:
     n_nodes = int(lines[0])
     nodes = [list(map(float, ln.split())) for ln in lines[1 : 1 + n_nodes]]
     n_elem = int(lines[1 + n_nodes])
-    elements = [list(map(int, ln.split())) for ln in lines[2 + n_nodes : 2 + n_nodes + n_elem]]
+    elements = [
+        list(map(int, ln.split())) for ln in lines[2 + n_nodes : 2 + n_nodes + n_elem]
+    ]
     return {"nodes": nodes, "elements": elements}
 
 

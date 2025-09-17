@@ -18,8 +18,11 @@ import numpy as np
 
 @converts_to(
     Gaussian,
-    conversions={"vacuum_cells_front": lambda self, _: int(self.vacuum_front / self.cell_size[1])},
-    preamble=lambda self, grid: setattr(self, "cell_size", grid.get_cell_size()) or self.check(),
+    conversions={
+        "vacuum_cells_front": lambda self, _: int(self.vacuum_front / self.cell_size[1])
+    },
+    preamble=lambda self, grid: setattr(self, "cell_size", grid.get_cell_size())
+    or self.check(),
     ignore=["check"],
 )
 @typeguard.typechecked
@@ -99,12 +102,19 @@ class GaussianDistribution(Distribution):
         z += -0.5 * self.cell_size[2]
 
         # The last term undoes the shift to the cell origin.
-        vacuum_y = int(self.vacuum_front / self.cell_size[1]) * self.cell_size[1] - 0.5 * self.cell_size[1]
+        vacuum_y = (
+            int(self.vacuum_front / self.cell_size[1]) * self.cell_size[1]
+            - 0.5 * self.cell_size[1]
+        )
 
         # We do this to get the correct shape after broadcasting:
         exponent = 0 * (x + y + z)
-        exponent[y < self.center_front] = np.abs((y - self.center_front) / self.sigma_front)[y < self.center_front]
-        exponent[y >= self.center_rear] = np.abs((y - self.center_rear) / self.sigma_rear)[y >= self.center_rear]
+        exponent[y < self.center_front] = np.abs(
+            (y - self.center_front) / self.sigma_front
+        )[y < self.center_front]
+        exponent[y >= self.center_rear] = np.abs(
+            (y - self.center_rear) / self.sigma_rear
+        )[y >= self.center_rear]
 
         result = np.exp(self.factor * exponent**self.power)
         result[y < vacuum_y] = 0.0

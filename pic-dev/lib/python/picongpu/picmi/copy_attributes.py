@@ -40,7 +40,10 @@ def _sanitize_conversions(conversions, from_instance, to_instance):
             )
             raise ValueError(message)
 
-    return {name: _value_generator(old) if isinstance(old, str) else old for name, old in conversions.items()}
+    return {
+        name: _value_generator(old) if isinstance(old, str) else old
+        for name, old in conversions.items()
+    }
 
 
 def _value_generator(name):
@@ -133,12 +136,18 @@ def converts_to(
             if preamble:
                 preamble(self, *args, **kwargs)
             local_conversions = {
-                key: value
-                if isinstance(value, str)
-                # Python binds lambdas by reference, so if we were to use the seemingly obvious implementation,
-                # all lambdas in this dictionary would use the last value of `value`.
-                # That is why we need to force immediate evaluation:
-                else (lambda local_value: lambda self: local_value(self, *args, **kwargs))(value)
+                key: (
+                    value
+                    if isinstance(value, str)
+                    # Python binds lambdas by reference, so if we were to use the seemingly obvious implementation,
+                    # all lambdas in this dictionary would use the last value of `value`.
+                    # That is why we need to force immediate evaluation:
+                    else (
+                        lambda local_value: lambda self: local_value(
+                            self, *args, **kwargs
+                        )
+                    )(value)
+                )
                 for key, value in (conversions or {}).items()
             }
             return copy_attributes(
@@ -156,15 +165,23 @@ def converts_to(
     return decorator
 
 
-def default_converts_to(to_class, conversions=None, preamble=None, remove_prefix="", ignore=tuple()):
+def default_converts_to(
+    to_class, conversions=None, preamble=None, remove_prefix="", ignore=tuple()
+):
     return converts_to(
         to_class,
         conversions=conversions,
         preamble=preamble
-        or (lambda self, *args, **kwargs: self.check(*args, **kwargs) if has_attribute(self, "check") else None),
+        or (
+            lambda self, *args, **kwargs: (
+                self.check(*args, **kwargs) if has_attribute(self, "check") else None
+            )
+        ),
         remove_prefix=remove_prefix or "picongpu_",
         ignore=ignore or ("check",),
-        default_converter=lambda self, *args, **kwargs: self.get_as_pypicongpu(*args, **kwargs)
-        if has_attribute(self, "get_as_pypicongpu")
-        else self,
+        default_converter=lambda self, *args, **kwargs: (
+            self.get_as_pypicongpu(*args, **kwargs)
+            if has_attribute(self, "get_as_pypicongpu")
+            else self
+        ),
     )

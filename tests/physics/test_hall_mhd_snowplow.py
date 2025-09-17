@@ -14,7 +14,7 @@ def test_coaxial_inductance_reference():
     B = math.sqrt(L_ref) * model.current
     p = 1.0
     rho = 1.0
-    energy = p / (model.gamma - 1.0) + 0.5 * B ** 2
+    energy = p / (model.gamma - 1.0) + 0.5 * B**2
     state = np.array([rho, 0.0, 0.0, 0.0, energy, 0.0, B, 0.0, 0.0])
     L_calc = model.plasma_inductance(state)
     assert abs(L_calc - L_ref) / L_ref < 0.05

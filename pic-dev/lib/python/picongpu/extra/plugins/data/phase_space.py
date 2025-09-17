@@ -121,7 +121,11 @@ class PhaseSpaceData(DataReader):
             )
 
         iteration_str = "%T"
-        data_file_name = self.data_file_prefix.format(species, species_filter, ps, iteration_str) + "." + file_ext
+        data_file_name = (
+            self.data_file_prefix.format(species, species_filter, ps, iteration_str)
+            + "."
+            + file_ext
+        )
         return os.path.join(output_dir, data_file_name)
 
     def get_iterations(self, ps, species, species_filter="all", file_ext="h5"):
@@ -148,14 +152,18 @@ class PhaseSpaceData(DataReader):
         An array with unsigned integers.
         """
         # get the regular expression matching all available files
-        data_file_path = self.get_data_path(ps, species, species_filter, file_ext=file_ext)
+        data_file_path = self.get_data_path(
+            ps, species, species_filter, file_ext=file_ext
+        )
 
         series = opmd.Series(data_file_path, opmd.Access.read_only)
         iterations = [key for key, _ in series.iterations.items()]
 
         return iterations
 
-    def _get_for_iteration(self, iteration, ps, species, species_filter="all", file_ext="h5", **kwargs):
+    def _get_for_iteration(
+        self, iteration, ps, species, species_filter="all", file_ext="h5", **kwargs
+    ):
         """
         Get a phase space histogram.
 
@@ -189,7 +197,9 @@ class PhaseSpaceData(DataReader):
         If a single iteration is requested, return the tuple (ps, ps_meta).
         """
 
-        data_file_path = self.get_data_path(ps, species, species_filter, file_ext=file_ext)
+        data_file_path = self.get_data_path(
+            ps, species, species_filter, file_ext=file_ext
+        )
         series = opmd.Series(data_file_path, opmd.Access.read_only)
         available_iterations = [key for key, _ in series.iterations.items()]
 
@@ -238,7 +248,9 @@ class PhaseSpaceData(DataReader):
 
             it.close()
 
-            ps_meta = PhaseSpaceMeta(species, species_filter, ps, ps_cut.shape, extent, dV)
+            ps_meta = PhaseSpaceMeta(
+                species, species_filter, ps, ps_cut.shape, extent, dV
+            )
             ret.append((ps_cut, ps_meta))
 
         if len(iteration) == 1:

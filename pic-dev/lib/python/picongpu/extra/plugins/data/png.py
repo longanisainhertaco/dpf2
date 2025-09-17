@@ -101,7 +101,11 @@ class PNGData(DataReader):
             if slice_point is None:
                 # determine slice point manually as the slice point of the
                 # first png file in alphabetical order
-                slice_point = [f.split("_")[3] for f in sorted(os.listdir(output_dir)) if f.endswith(".png")][0]
+                slice_point = [
+                    f.split("_")[3]
+                    for f in sorted(os.listdir(output_dir))
+                    if f.endswith(".png")
+                ][0]
                 slice_point = float(slice_point)
 
             data_file_name = (
@@ -125,7 +129,9 @@ class PNGData(DataReader):
 
             return data_file_path
 
-    def get_iterations(self, species, species_filter="all", axis=None, slice_point=None):
+    def get_iterations(
+        self, species, species_filter="all", axis=None, slice_point=None
+    ):
         """
         Return an array of iterations with available png files.
 
@@ -157,7 +163,15 @@ class PNGData(DataReader):
 
         return np.array(sorted(iters))
 
-    def _get_for_iteration(self, iteration, species, species_filter="all", axis=None, slice_point=None, **kwargs):
+    def _get_for_iteration(
+        self,
+        iteration,
+        species,
+        species_filter="all",
+        axis=None,
+        slice_point=None,
+        **kwargs,
+    ):
         """
         Get an array representation of a PNG file.
 
@@ -185,7 +199,9 @@ class PNGData(DataReader):
         if multiple iterations were requested, otherwise a 3d array
         of shape height x width x 3.
         """
-        available_iterations = self.get_iterations(species, species_filter, axis, slice_point)
+        available_iterations = self.get_iterations(
+            species, species_filter, axis, slice_point
+        )
 
         if iteration is not None:
             if not isinstance(iteration, collectionsAbc.Iterable):
@@ -201,6 +217,9 @@ class PNGData(DataReader):
             # iteration is None, so we use all available data
             iteration = available_iterations
 
-        imgs = [imread(self.get_data_path(species, species_filter, axis, slice_point, it)) for it in iteration]
+        imgs = [
+            imread(self.get_data_path(species, species_filter, axis, slice_point, it))
+            for it in iteration
+        ]
 
         return np.array(imgs).squeeze()

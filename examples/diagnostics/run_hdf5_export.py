@@ -1,4 +1,5 @@
 """Example of running synthetic diagnostics and exporting to HDF5."""
+
 from pathlib import Path
 
 from dpf2.synthetic_diagnostics import (

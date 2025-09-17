@@ -4,7 +4,6 @@ import pytest
 from dpf2.synthetic_diagnostics import (
     SyntheticDiagnostics,
     SyntheticInstrument,
-
     run_diagnostic_calculations,
     export_diagnostic_data,
 )
@@ -14,6 +13,7 @@ import h5py_stub as h5py
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False
@@ -44,9 +44,7 @@ def test_noise_model_requires_parameters():
 def test_detector_file_required_if_response_applied():
     data = base_data()
     data["applyTimeResponse"] = True
-    data["instrumentOverrides"] = {
-        "TOF1": {"samplingOverrideNs": 0.5}
-    }
+    data["instrumentOverrides"] = {"TOF1": {"samplingOverrideNs": 0.5}}
     data["detectorIds"] = ["TOF1"]
     with pytest.raises(ValueError):
         SyntheticDiagnostics.model_validate(data)
@@ -54,9 +52,7 @@ def test_detector_file_required_if_response_applied():
 
 def test_per_instrument_override_validation():
     data = base_data()
-    data["instrumentOverrides"] = {
-        "BAD": {"responseFile": "resp.csv"}
-    }
+    data["instrumentOverrides"] = {"BAD": {"responseFile": "resp.csv"}}
     data["detectorIds"] = ["GOOD"]
     with pytest.raises(ValueError):
         SyntheticDiagnostics.model_validate(data)
@@ -124,10 +120,15 @@ syntheticDiagnostics:
 def test_hash_stability_on_toggle_change():
     cfg1 = SyntheticDiagnostics.with_defaults()
     cfg2 = SyntheticDiagnostics.with_defaults()
-    assert cfg1.hash_synthetic_diagnostics_config() == cfg2.hash_synthetic_diagnostics_config()
+    assert (
+        cfg1.hash_synthetic_diagnostics_config()
+        == cfg2.hash_synthetic_diagnostics_config()
+    )
     cfg2 = cfg2.model_copy(update={"synthetic_current_waveform_enabled": False})
-    assert cfg1.hash_synthetic_diagnostics_config() != cfg2.hash_synthetic_diagnostics_config()
-
+    assert (
+        cfg1.hash_synthetic_diagnostics_config()
+        != cfg2.hash_synthetic_diagnostics_config()
+    )
 
 
 def test_run_and_export(tmp_path):
@@ -199,4 +200,3 @@ def test_new_diagnostics(tmp_path):
     export_diagnostic_data(data, cfg_h5, tmp_path)
     with h5py.File(tmp_path / "rcf_image.h5", "r") as fh:
         assert fh["rcf_image"].shape[0] == len(data["rcf_image"])
-

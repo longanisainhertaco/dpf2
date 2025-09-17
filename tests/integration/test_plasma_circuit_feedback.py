@@ -5,6 +5,7 @@ from dpf2.simulation.circuit import CircuitModel
 class DummyFieldManager:
     def __init__(self, *args, **kwargs):
         pass
+
     def get_J(self):
         return 0.0
 

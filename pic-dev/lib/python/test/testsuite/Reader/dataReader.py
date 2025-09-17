@@ -206,7 +206,9 @@ class DataReader(rF.ReadFiles):
             raise ValueError("{} is not in the direction".format(step_direction))
 
         if len(all_files) >= 2 and p_type is None and "step" not in parameter:
-            raise ValueError("The parameter could be found more than once. Please use the parameter p_type for this")
+            raise ValueError(
+                "The parameter could be found more than once. Please use the parameter p_type for this"
+            )
 
         if "step" == parameter and step_direction is None:
             result = np.loadtxt(self._direction + all_files[0])[:, 0]

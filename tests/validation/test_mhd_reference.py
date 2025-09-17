@@ -7,7 +7,9 @@ from dpf2.mesh import Mesh3D
 
 
 def test_shock_tube_matches_reference():
-    ref_path = Path(__file__).resolve().parents[2] / "ReferenceMaterial/mhd_shock_tube.json"
+    ref_path = (
+        Path(__file__).resolve().parents[2] / "ReferenceMaterial/mhd_shock_tube.json"
+    )
     rho_ref = np.array(json.loads(ref_path.read_text())["rho"])
     gamma = 1.4
     model = ResistiveMHD(gamma=gamma)

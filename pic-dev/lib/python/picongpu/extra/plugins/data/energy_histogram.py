@@ -73,7 +73,11 @@ class EnergyHistogramData(DataReader):
             species + self.data_file_prefix + species_filter + self.data_file_suffix,
         )
         if not os.path.isfile(data_file_path):
-            raise IOError("The file {} does not exist.\nDid the simulation already run?".format(data_file_path))
+            raise IOError(
+                "The file {} does not exist.\nDid the simulation already run?".format(
+                    data_file_path
+                )
+            )
 
         return data_file_path
 
@@ -97,9 +101,13 @@ class EnergyHistogramData(DataReader):
         data_file_path = self.get_data_path(species, species_filter)
 
         # the first column contains the iterations
-        return pd.read_csv(data_file_path, usecols=(0,), delimiter=" ", dtype=np.uint64).values[:, 0]
+        return pd.read_csv(
+            data_file_path, usecols=(0,), delimiter=" ", dtype=np.uint64
+        ).values[:, 0]
 
-    def _get_for_iteration(self, iteration, species, species_filter="all", include_overflow=False, **kwargs):
+    def _get_for_iteration(
+        self, iteration, species, species_filter="all", include_overflow=False, **kwargs
+    ):
         """
         Get a histogram for a given iteration.
 

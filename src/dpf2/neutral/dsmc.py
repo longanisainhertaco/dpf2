@@ -125,7 +125,9 @@ class DSMC:
         try:
             rel = manifest["lxcat"][dataset_id][species]
         except KeyError as exc:  # pragma: no cover - configuration error
-            raise ValueError(f"unknown LXCat dataset {dataset_id!r} for {species!r}") from exc
+            raise ValueError(
+                f"unknown LXCat dataset {dataset_id!r} for {species!r}"
+            ) from exc
         table = load_lxcat_table(Path(rel))
         return cls(
             table,
@@ -155,7 +157,10 @@ class DSMC:
             p = self._collision_probability(g, dt)
             if random.random() < p:
                 # Simple 1D scattering: exchange velocities
-                self.velocities[i], self.velocities[j] = self.velocities[j], self.velocities[i]
+                self.velocities[i], self.velocities[j] = (
+                    self.velocities[j],
+                    self.velocities[i],
+                )
 
     # ------------------------------------------------------------------
     def gas_source(self, t: float) -> float:
@@ -164,7 +169,14 @@ class DSMC:
             return self.puff_rate
         return 0.0
 
-    def run(self, dt: float, *, t: float = 0.0, plasma_density: float = 0.0, ionization_rate: float = 1.0) -> float:
+    def run(
+        self,
+        dt: float,
+        *,
+        t: float = 0.0,
+        plasma_density: float = 0.0,
+        ionization_rate: float = 1.0,
+    ) -> float:
         """Advance the particle system by ``dt`` seconds and return density.
 
         A tiny hybrid DSMC–fluid update is performed: a user supplied gas

@@ -10,6 +10,7 @@ from dpf2.eos.ideal_gas import IdealGasEOS
 
 logger = logging.getLogger(__name__)
 
+
 def select_eos(
     backend: str,
     table_file: Optional[str] = None,
@@ -40,9 +41,11 @@ def select_eos(
     if mixture_fractions is not None:
         fractions = parse_mixture_fractions(mixture_fractions)
 
-    if backend == 'tabulated':
+    if backend == "tabulated":
         if table_file is None:
-            logger.error("Tabulated EOS backend selected, but 'table_file' not provided.")
+            logger.error(
+                "Tabulated EOS backend selected, but 'table_file' not provided."
+            )
             raise ValueError("Missing 'table_file' for tabulated EOS backend.")
 
         try:
@@ -59,7 +62,7 @@ def select_eos(
             logger.error(f"Failed to instantiate TabulatedEOS: {e}")
             raise
 
-    elif backend == 'ideal_gas':
+    elif backend == "ideal_gas":
         try:
             eos_instance = IdealGasEOS(**kwargs)
             logger.info("Instantiated IdealGasEOS")

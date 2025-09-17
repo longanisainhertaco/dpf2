@@ -17,7 +17,9 @@ class _DummyPlasmaSolver:
 
 def test_dsmc_coupling_and_knudsen(tmp_path):
     # Load cross sections from the LXCat manifest entry
-    dsmc = DSMC.from_lxcat("Ar", "dummy", knudsen_number=0.1, velocities=[1000.0, -1000.0])
+    dsmc = DSMC.from_lxcat(
+        "Ar", "dummy", knudsen_number=0.1, velocities=[1000.0, -1000.0]
+    )
     dsmc2 = DSMC.from_lxcat("Ar", "dummy", knudsen_number=0.2)
 
     n1 = dsmc.compute_neutral_density()

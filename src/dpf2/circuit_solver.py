@@ -9,6 +9,7 @@ available:
 
 All quantities are in SI units.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,9 +18,11 @@ from typing import Tuple, Any, Callable
 import numpy as np
 import math
 import random
+
 try:  # pragma: no cover - optional dependency
     from scipy.integrate import solve_ivp  # type: ignore
 except Exception:  # pragma: no cover - very small fallback integrator
+
     def solve_ivp(fun, t_span, y0, t_eval=None, method=None):
         t0, tf = t_span
         if t_eval is None:
@@ -29,23 +32,28 @@ except Exception:  # pragma: no cover - very small fallback integrator
         for k in range(1, len(t_eval)):
             dt = t_eval[k] - t_eval[k - 1]
             y[:, k] = y[:, k - 1] + dt * np.array(fun(t_eval[k - 1], y[:, k - 1]))
+
         class Res:
             pass
+
         res = Res()
         res.y = y
         return res
+
 
 if hasattr(np, "Array") and not hasattr(getattr(np, "Array"), "__radd__"):
     # Enhance test numpy stub with reverse addition to support ``float + Array``
     np.Array.__radd__ = lambda self, other: self.__add__(other)
 
 if not hasattr(np, "asarray"):
+
     def _asarray(a, dtype=None):
         return np.array(a)
 
     np.asarray = _asarray  # type: ignore
 
 if not hasattr(np, "interp"):
+
     def _interp(x, xp, fp, left=None, right=None):
         # Very small linear interpolation supporting monotonic xp
         for i in range(len(xp) - 1):
@@ -145,7 +153,9 @@ class CircuitSolver:
         return sol.y[1]
 
     # ------------------------------------------------------------------
-    def solve(self, t_end: float, dt: float, method: str = "analytical") -> Tuple[np.ndarray, np.ndarray]:
+    def solve(
+        self, t_end: float, dt: float, method: str = "analytical"
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute current over ``[0, t_end]``.
 
         Parameters
@@ -438,4 +448,3 @@ def run_circuit_simulation(
         np.array(im_hist),
         np.array(vm_hist),
     )
-

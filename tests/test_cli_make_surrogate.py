@@ -14,7 +14,9 @@ def test_make_surrogate_cli(tmp_path, monkeypatch):
     np.savetxt(csv_path, data, delimiter=",")
     outdir = tmp_path / "models"
     runner = CliRunner()
-    result = runner.invoke(main, ["make-surrogate", "--data", str(csv_path), "--outdir", str(outdir)])
+    result = runner.invoke(
+        main, ["make-surrogate", "--data", str(csv_path), "--outdir", str(outdir)]
+    )
     assert result.exit_code == 0
     assert (outdir / "yield_model.json").exists()
     assert (outdir / "yield_model.onnx").exists()

@@ -49,7 +49,12 @@ class TestSpecies(unittest.TestCase):
         self.const_density_ratio = DensityRatio()
         self.const_density_ratio.ratio = 4.2
         self.const_ground_state_ionization = GroundStateIonization(
-            ionization_model_list=[BSI(ionization_electron_species=self.electron, ionization_current=None_())]
+            ionization_model_list=[
+                BSI(
+                    ionization_electron_species=self.electron,
+                    ionization_current=None_(),
+                )
+            ]
         )
 
         self.const_element_properties = ElementProperties()
@@ -250,13 +255,17 @@ class TestSpecies(unittest.TestCase):
         self.assertEqual("myname", context["name"])
         self.assertEqual(species.get_cxx_typename(), context["typename"])
         self.assertEqual(3, len(context["attributes"]))
-        attribute_names = list(map(lambda attr_obj: attr_obj["picongpu_name"], context["attributes"]))
+        attribute_names = list(
+            map(lambda attr_obj: attr_obj["picongpu_name"], context["attributes"])
+        )
         self.assertEqual(
             [Position.PICONGPU_NAME, Momentum.PICONGPU_NAME, Weighting.PICONGPU_NAME],
             attribute_names,
         )
 
-        self.assertEqual(self.const_mass.get_rendering_context(), context["constants"]["mass"])
+        self.assertEqual(
+            self.const_mass.get_rendering_context(), context["constants"]["mass"]
+        )
         self.assertEqual(
             self.const_density_ratio.get_rendering_context(),
             context["constants"]["density_ratio"],
@@ -283,7 +292,9 @@ class TestSpecies(unittest.TestCase):
             "element_properties": self.const_element_properties,
         }
 
-        for enabled_vector in itertools.product((0, 1), repeat=len(expected_const_by_name)):
+        for enabled_vector in itertools.product(
+            (0, 1), repeat=len(expected_const_by_name)
+        ):
             species = Species()
             species.name = "myname"
             species.attributes = [Position(), Momentum()]
@@ -297,7 +308,9 @@ class TestSpecies(unittest.TestCase):
                     species.constants.append(expected_const_by_name[const_name])
 
             context = species.get_rendering_context()
-            self.assertEqual(set(expected_const_by_name.keys()), set(context["constants"].keys()))
+            self.assertEqual(
+                set(expected_const_by_name.keys()), set(context["constants"].keys())
+            )
 
             for const_name, enabled in enabled_by_name.items():
                 self.assertTrue(const_name in context["constants"])

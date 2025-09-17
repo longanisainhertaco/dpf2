@@ -9,7 +9,9 @@ from dpf2.physics.neutral_gas import NeutralGasFluid
 @pytest.mark.benchmark
 @pytest.mark.parametrize("steps", [100])
 def test_neutral_transport_benchmark(benchmark, steps):
-    fluid = NeutralGasFluid(rho=0.0, volume=1.0, mass_flow_rate=1e-6, puff_start=0.0, puff_end=1e-3)
+    fluid = NeutralGasFluid(
+        rho=0.0, volume=1.0, mass_flow_rate=1e-6, puff_start=0.0, puff_end=1e-3
+    )
 
     def run():
         t = 0.0

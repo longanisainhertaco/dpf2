@@ -32,7 +32,12 @@ class TestGrid3D(unittest.TestCase):
         self.assertSequenceEqual((1.2, 2.3, 4.5), g.cell_size_si)
         self.assertSequenceEqual((6, 7, 8), g.cell_cnt)
         self.assertSequenceEqual(
-            (BoundaryCondition.PERIODIC, BoundaryCondition.ABSORBING, BoundaryCondition.PERIODIC), g.boundary_condition
+            (
+                BoundaryCondition.PERIODIC,
+                BoundaryCondition.ABSORBING,
+                BoundaryCondition.PERIODIC,
+            ),
+            g.boundary_condition,
         )
 
     def test_types(self):
@@ -51,11 +56,23 @@ class TestGrid3D(unittest.TestCase):
         with self.assertRaises(typeguard.TypeCheckError):
             g.cell_cnt = (6, 7, 16781123173.12637183)
         with self.assertRaises(typeguard.TypeCheckError):
-            g.boundary_condition = ("open", BoundaryCondition.ABSORBING, BoundaryCondition.PERIODIC)
+            g.boundary_condition = (
+                "open",
+                BoundaryCondition.ABSORBING,
+                BoundaryCondition.PERIODIC,
+            )
         with self.assertRaises(typeguard.TypeCheckError):
-            g.boundary_condition = (BoundaryCondition.PERIODIC, 1, BoundaryCondition.PERIODIC)
+            g.boundary_condition = (
+                BoundaryCondition.PERIODIC,
+                1,
+                BoundaryCondition.PERIODIC,
+            )
         with self.assertRaises(typeguard.TypeCheckError):
-            g.boundary_condition = (BoundaryCondition.PERIODIC, BoundaryCondition.ABSORBING, {})
+            g.boundary_condition = (
+                BoundaryCondition.PERIODIC,
+                BoundaryCondition.ABSORBING,
+                {},
+            )
         with self.assertRaises(typeguard.TypeCheckError):
             # list not accepted - tuple needed
             g.n_gpus = [1, 1, 1]

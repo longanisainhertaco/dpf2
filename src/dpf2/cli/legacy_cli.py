@@ -1,4 +1,5 @@
 """Command line interface for the DPF simulator."""
+
 from __future__ import annotations
 
 import argparse
@@ -15,13 +16,22 @@ from .lab import write_manifest
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="dpf2", description="Dense Plasma Focus simulator")
+    parser = argparse.ArgumentParser(
+        prog="dpf2", description="Dense Plasma Focus simulator"
+    )
     sub = parser.add_subparsers(dest="command")
 
     sim = sub.add_parser("simulate", help="Run a simulation")
     sim.add_argument("config", type=Path, help="Path to JSON/YAML configuration")
-    sim.add_argument("-o", "--output", type=Path, default=Path("results.json"), help="Output file")
-    sim.add_argument("--method", choices=["analytical", "ode"], default="analytical", help="Circuit solver method")
+    sim.add_argument(
+        "-o", "--output", type=Path, default=Path("results.json"), help="Output file"
+    )
+    sim.add_argument(
+        "--method",
+        choices=["analytical", "ode"],
+        default="analytical",
+        help="Circuit solver method",
+    )
     sim.add_argument(
         "--pinch-model",
         choices=["analytic", "semi-analytic", "mhd"],
@@ -57,8 +67,14 @@ def main(argv: list[str] | None = None) -> None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(results.to_dict(), indent=2))
         if args.lab_mode:
-            ppc = getattr(getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None)
-            cfg_dict = cfg.model_dump(mode="python") if hasattr(cfg, "model_dump") else cfg.__dict__
+            ppc = getattr(
+                getattr(cfg, "warpx_settings", None), "max_particles_per_cell", None
+            )
+            cfg_dict = (
+                cfg.model_dump(mode="python")
+                if hasattr(cfg, "model_dump")
+                else cfg.__dict__
+            )
             write_manifest(
                 args.output.parent,
                 config_paths=[str(args.config)],

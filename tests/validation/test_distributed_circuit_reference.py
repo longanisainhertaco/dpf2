@@ -10,7 +10,10 @@ from dpf2.circuit.distributed import (
 
 
 def test_assemble_matrices_reference():
-    ref_path = Path(__file__).resolve().parents[2] / "ReferenceMaterial/distributed_circuit.json"
+    ref_path = (
+        Path(__file__).resolve().parents[2]
+        / "ReferenceMaterial/distributed_circuit.json"
+    )
     data = json.loads(ref_path.read_text())
     seg = TransmissionLineSegment(
         from_node=0,

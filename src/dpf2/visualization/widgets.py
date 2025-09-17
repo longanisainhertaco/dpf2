@@ -5,6 +5,7 @@ animation in real time.  The widgets are intentionally lightweight so
 that they can be used in example notebooks without heavy dependencies
 beyond ``ipywidgets``.
 """
+
 from __future__ import annotations
 
 from typing import Any

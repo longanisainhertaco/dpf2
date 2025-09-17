@@ -4,6 +4,7 @@ These helpers load data from HDF5 files produced by the diagnostic classes
 and generate simple matplotlib plots.  The functions return the ``Axes`` used
 which allows callers to further customise or save the figures.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,9 +12,7 @@ from pathlib import Path
 try:  # Optional dependency
     import matplotlib.pyplot as plt
 except Exception as exc:  # pragma: no cover - optional dependency
-    raise ImportError(
-        "matplotlib is required for plotting diagnostics"
-    ) from exc
+    raise ImportError("matplotlib is required for plotting diagnostics") from exc
 
 import h5py
 
@@ -60,5 +59,6 @@ def plot_neutron_tof(h5, name: str, ax=None):
     ax.set_xlabel("time [s]")
     ax.set_ylabel("counts")
     return ax
+
 
 __all__ = ["plot_interferometry", "plot_xray_signal", "plot_neutron_tof"]

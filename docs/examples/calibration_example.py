@@ -21,4 +21,3 @@ nested_samples = nested_calibration(model, bounds, data, n_live=20, n_iter=200, 
 
 print("MCMC mean:", float(np.mean(mcmc_samples["a"])))
 print("Nested mean:", float(np.mean(nested_samples["a"])))
-

@@ -26,7 +26,7 @@ class MockPicDriver(PicDriver):
     def step(self, current: float, dt: float):
         # Collapse radius proportional to current and accumulate kinetic energy
         self.radius = max(1e-3, self.radius - current * dt * 1e-8)
-        self.energy += current ** 2 * dt * 1e-6
+        self.energy += current**2 * dt * 1e-6
         return self.radius, self.energy
 
 

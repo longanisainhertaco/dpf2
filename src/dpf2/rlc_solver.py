@@ -26,6 +26,7 @@ import numpy as np
 
 try:  # pragma: no cover - cupy optional
     import cupy as cp  # type: ignore
+
     _currents_kernel = cp.ElementwiseKernel(
         "float64 prev, float64 vi, float64 vj, float64 R, float64 L, float64 dt",
         "float64 out",
@@ -46,7 +47,11 @@ try:  # pragma: no cover - GPU backend optional
 except Exception:  # pragma: no cover - fallback when numba unavailable
     cuda = None
 
-from .circuit.distributed import TransmissionLineSegment, TriggeredSwitch, assemble_matrices
+from .circuit.distributed import (
+    TransmissionLineSegment,
+    TriggeredSwitch,
+    assemble_matrices,
+)
 from .core.bases import PlasmaSolverBase
 
 # Re-export for legacy tests
@@ -56,10 +61,16 @@ from .core.bases import PlasmaSolverBase
 try:  # pragma: no cover - imported in real application
     from dpf2.circuit_solver import run_circuit_simulation  # type: ignore
 except Exception:  # pragma: no cover - simplified test environment
+
     def run_circuit_simulation(*args, **kwargs):  # type: ignore
         raise RuntimeError("circuit_solver not available in minimal test environment")
 
-__all__ = ["run_circuit_simulation", "solve_distributed_circuit", "DistributedRLCSolution"]
+
+__all__ = [
+    "run_circuit_simulation",
+    "solve_distributed_circuit",
+    "DistributedRLCSolution",
+]
 
 
 @dataclass
@@ -77,7 +88,6 @@ class DistributedRLCSolution:
     branch_currents: Any
     node_voltages: Any
     reflections: Any | None = None
-
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +152,7 @@ def solve_distributed_circuit(
                 Y_off = -1.0 / Z0
             else:
                 Y_self = (1.0 / Z0) * (cosh_gl / sinh_gl)  # coth
-                Y_off = -(1.0 / Z0) * (1.0 / sinh_gl)      # -csch
+                Y_off = -(1.0 / Z0) * (1.0 / sinh_gl)  # -csch
             i = node_index[seg.from_node]
             j = node_index[seg.to_node]
             Y[i, i] += Y_self
@@ -302,7 +312,9 @@ def solve_distributed_circuit(
     class _Branch:
         __slots__ = ("from_node", "to_node", "L", "R", "delay_steps")
 
-        def __init__(self, from_node: int, to_node: int, L: float, R: float, delay_steps: int = 0):
+        def __init__(
+            self, from_node: int, to_node: int, L: float, R: float, delay_steps: int = 0
+        ):
             self.from_node = from_node
             self.to_node = to_node
             self.L = L
@@ -339,7 +351,13 @@ def solve_distributed_circuit(
                     branches.append(br)
         for sw in switches:
             branches.append(
-                _Branch(sw.from_node, sw.to_node, sw.L_parasitic or 1e-12, sw.resistance(t), 0)
+                _Branch(
+                    sw.from_node,
+                    sw.to_node,
+                    sw.L_parasitic or 1e-12,
+                    sw.resistance(t),
+                    0,
+                )
             )
         if plasma_L != 0.0:
             branches.append(_Branch(src, ground, plasma_L or 1e-12, 0.0, 0))

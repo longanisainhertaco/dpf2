@@ -75,7 +75,9 @@ class _BaseLaser(Laser):
     """laser will be initialized pulse_init times of duration (unitless)"""
 
     # Huygens surface position (common to all lasers)
-    huygens_surface_positions = util.build_typesafe_property(typing.List[typing.List[int]])
+    huygens_surface_positions = util.build_typesafe_property(
+        typing.List[typing.List[int]]
+    )
     """Position in cells of the Huygens surface relative to start/
        edge(negative numbers) of the total domain"""
 
@@ -88,10 +90,16 @@ class _BaseLaser(Laser):
             "phase": self.phi0,
             "E0_si": self.E0,
             "pulse_init": self.pulse_init,
-            "propagation_direction": list(map(lambda x: {"component": x}, self.propagation_direction)),
+            "propagation_direction": list(
+                map(lambda x: {"component": x}, self.propagation_direction)
+            ),
             "polarization_type": self.polarization_type.get_cpp_str(),
-            "polarization_direction": list(map(lambda x: {"component": x}, self.polarization_direction)),
-            "huygens_surface_positions": _get_huygens_surface_serialized(self.huygens_surface_positions),
+            "polarization_direction": list(
+                map(lambda x: {"component": x}, self.polarization_direction)
+            ),
+            "huygens_surface_positions": _get_huygens_surface_serialized(
+                self.huygens_surface_positions
+            ),
         }
 
 
@@ -118,15 +126,21 @@ class GaussianLaser(_BaseLaser):
         if [] == self.laguerre_phases:
             raise ValueError("Laguerre phases MUST NOT be empty.")
         if len(self.laguerre_phases) != len(self.laguerre_modes):
-            raise ValueError("Laguerre modes and Laguerre phases MUST BE arrays of equal length.")
+            raise ValueError(
+                "Laguerre modes and Laguerre phases MUST BE arrays of equal length."
+            )
         if len(list(filter(lambda x: x < 0, self.laguerre_modes))) > 0:
             logging.warning("Laguerre mode magnitudes SHOULD BE positive definite.")
 
         # Build on the common fields
         return self._get_common_serialized_fields() | {
             "waist_si": self.waist,
-            "laguerre_modes": list(map(lambda x: {"single_laguerre_mode": x}, self.laguerre_modes)),
-            "laguerre_phases": list(map(lambda x: {"single_laguerre_phase": x}, self.laguerre_phases)),
+            "laguerre_modes": list(
+                map(lambda x: {"single_laguerre_mode": x}, self.laguerre_modes)
+            ),
+            "laguerre_phases": list(
+                map(lambda x: {"single_laguerre_phase": x}, self.laguerre_phases)
+            ),
             "modenumber": len(self.laguerre_modes) - 1,
         }
 
@@ -212,14 +226,20 @@ class FromOpenPMDPulseLaser(Laser):
     """Polarization axis name in the OpenPMD file"""
     propagationAxisOpenPMD = util.build_typesafe_property(str)
     """Propagation axis name in the OpenPMD file"""
-    huygens_surface_positions = util.build_typesafe_property(typing.List[typing.List[int]])
+    huygens_surface_positions = util.build_typesafe_property(
+        typing.List[typing.List[int]]
+    )
     """Position in cells of the Huygens surface relative to start/
        edge(negative numbers) of the total domain"""
 
     def _get_serialized(self) -> dict:
         return {
-            "propagation_direction": list(map(lambda x: {"component": x}, self.propagation_direction)),
-            "polarization_direction": list(map(lambda x: {"component": x}, self.polarization_direction)),
+            "propagation_direction": list(
+                map(lambda x: {"component": x}, self.propagation_direction)
+            ),
+            "polarization_direction": list(
+                map(lambda x: {"component": x}, self.polarization_direction)
+            ),
             "file_path": self.file_path,
             "iteration": self.iteration,
             "dataset_name": self.dataset_name,
@@ -227,5 +247,7 @@ class FromOpenPMDPulseLaser(Laser):
             "time_offset_si": self.time_offset_si,
             "polarisationAxisOpenPMD": self.polarisationAxisOpenPMD,
             "propagationAxisOpenPMD": self.propagationAxisOpenPMD,
-            "huygens_surface_positions": _get_huygens_surface_serialized(self.huygens_surface_positions),
+            "huygens_surface_positions": _get_huygens_surface_serialized(
+                self.huygens_surface_positions
+            ),
         }

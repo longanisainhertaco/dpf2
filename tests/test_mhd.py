@@ -11,8 +11,8 @@ def test_conservative_variables():
     U = model.conservative_variables(primitives)
 
     rho, vx, vy, vz, p, Bx, By, Bz = primitives
-    kinetic = 0.5 * rho * (vx ** 2 + vy ** 2 + vz ** 2)
-    magnetic = 0.5 * (Bx ** 2 + By ** 2 + Bz ** 2)
+    kinetic = 0.5 * rho * (vx**2 + vy**2 + vz**2)
+    magnetic = 0.5 * (Bx**2 + By**2 + Bz**2)
     energy = p / (model.gamma - 1.0) + kinetic + magnetic
     expected = np.array([rho, rho * vx, rho * vy, rho * vz, energy, Bx, By, Bz, 0.0])
 
@@ -25,46 +25,52 @@ def test_flux_function():
     U = model.conservative_variables(primitives)
 
     rho, vx, vy, vz, p, Bx, By, Bz = primitives
-    B2 = Bx ** 2 + By ** 2 + Bz ** 2
+    B2 = Bx**2 + By**2 + Bz**2
     total_p = p + 0.5 * B2
     Bdotv = Bx * vx + By * vy + Bz * vz
     E = U[4]
 
-    expected_x = np.array([
-        rho * vx,
-        rho * vx * vx + total_p - Bx ** 2,
-        rho * vy * vx - Bx * By,
-        rho * vz * vx - Bx * Bz,
-        (E + total_p) * vx - Bx * Bdotv,
-        0.0,
-        vy * Bx - vx * By,
-        vz * Bx - vx * Bz,
-        0.0,
-    ])
+    expected_x = np.array(
+        [
+            rho * vx,
+            rho * vx * vx + total_p - Bx**2,
+            rho * vy * vx - Bx * By,
+            rho * vz * vx - Bx * Bz,
+            (E + total_p) * vx - Bx * Bdotv,
+            0.0,
+            vy * Bx - vx * By,
+            vz * Bx - vx * Bz,
+            0.0,
+        ]
+    )
 
-    expected_y = np.array([
-        rho * vy,
-        rho * vx * vy - By * Bx,
-        rho * vy * vy + total_p - By ** 2,
-        rho * vz * vy - By * Bz,
-        (E + total_p) * vy - By * Bdotv,
-        vx * By - vy * Bx,
-        0.0,
-        vz * By - vy * Bz,
-        0.0,
-    ])
+    expected_y = np.array(
+        [
+            rho * vy,
+            rho * vx * vy - By * Bx,
+            rho * vy * vy + total_p - By**2,
+            rho * vz * vy - By * Bz,
+            (E + total_p) * vy - By * Bdotv,
+            vx * By - vy * Bx,
+            0.0,
+            vz * By - vy * Bz,
+            0.0,
+        ]
+    )
 
-    expected_z = np.array([
-        rho * vz,
-        rho * vx * vz - Bz * Bx,
-        rho * vy * vz - Bz * By,
-        rho * vz * vz + total_p - Bz ** 2,
-        (E + total_p) * vz - Bz * Bdotv,
-        vx * Bz - vz * Bx,
-        vy * Bz - vz * By,
-        0.0,
-        0.0,
-    ])
+    expected_z = np.array(
+        [
+            rho * vz,
+            rho * vx * vz - Bz * Bx,
+            rho * vy * vz - Bz * By,
+            rho * vz * vz + total_p - Bz**2,
+            (E + total_p) * vz - Bz * Bdotv,
+            vx * Bz - vz * Bx,
+            vy * Bz - vz * By,
+            0.0,
+            0.0,
+        ]
+    )
 
     assert np.allclose(model.flux_function(U, "x"), expected_x)
     assert np.allclose(model.flux_function(U, "y"), expected_y)
@@ -95,7 +101,7 @@ def test_source_terms():
 
     rho, vx, vy, vz, p, Bx, By, Bz = primitives
     B = np.array([Bx, By, Bz])
-    B2 = Bx ** 2 + By ** 2 + Bz ** 2
+    B2 = Bx**2 + By**2 + Bz**2
     expected = np.zeros_like(U)
     expected[4] += eta * B2
     expected[5:8] -= eta * B
@@ -117,9 +123,7 @@ def test_source_terms():
     r = 2.0
     p_th = model._pressure(U)
     expected[0] += -rho * vx / r
-    expected[1] += (
-        rho * (vy ** 2 + vz ** 2) + 0.5 * (By ** 2 + Bz ** 2) - Bx ** 2 + p_th
-    ) / r
+    expected[1] += (rho * (vy**2 + vz**2) + 0.5 * (By**2 + Bz**2) - Bx**2 + p_th) / r
     E = U[4]
     expected[4] += ((E + p_th + 0.5 * B2) * vx - Bx * (B @ v)) / r
 
@@ -135,9 +139,7 @@ def test_shock_capturing_and_energy_closure():
     U_right = model.conservative_variables(right)
     U = np.vstack([U_left, U_right])
     dx = 1.0
-    dt = 0.1 * dx / max(
-        model.max_speed(U_left, "x"), model.max_speed(U_right, "x")
-    )
+    dt = 0.1 * dx / max(model.max_speed(U_left, "x"), model.max_speed(U_right, "x"))
 
     div0 = abs(U[1, 5] - U[0, 5])
 
@@ -166,4 +168,3 @@ def test_shock_capturing_and_energy_closure():
     # Divergence cleaning reduces magnetic divergence
     div1 = abs(U[1, 5] - U[0, 5])
     assert div1 < div0
-

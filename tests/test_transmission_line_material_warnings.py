@@ -25,8 +25,12 @@ def _load_distributed():
     sys.modules["dpf2.core"] = core_pkg
     sys.modules["dpf2.core.bases"] = bases_pkg
 
-    module_path = Path(__file__).resolve().parent.parent / "src/dpf2/circuit/distributed.py"
-    spec = importlib.util.spec_from_file_location("dpf2.circuit.distributed", module_path)
+    module_path = (
+        Path(__file__).resolve().parent.parent / "src/dpf2/circuit/distributed.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "dpf2.circuit.distributed", module_path
+    )
     mod = importlib.util.module_from_spec(spec)
     sys.modules["dpf2.circuit.distributed"] = mod
     spec.loader.exec_module(mod)
@@ -54,4 +58,3 @@ def test_warns_when_material_tables_missing():
         "dpf2",
     ]:
         sys.modules.pop(name, None)
-

@@ -9,6 +9,7 @@ import json
 
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -30,6 +31,7 @@ TOLERANCES = {
     "energy_diff": 1e5,
 }
 
+
 def run_dataset(dataset_dir: Path, out_dir: Path) -> dict[str, float]:
     cfg = DPFConfig.with_defaults()
     engine = SimulationEngine(cfg)
@@ -41,7 +43,9 @@ def run_dataset(dataset_dir: Path, out_dir: Path) -> dict[str, float]:
 
     circuit = engine._setup_circuit()
     dIdt = np.gradient(current, t)
-    voltage = circuit.circuit.V0 - circuit.circuit.R * current - circuit.circuit.L * dIdt
+    voltage = (
+        circuit.circuit.V0 - circuit.circuit.R * current - circuit.circuit.L * dIdt
+    )
     neutron = np.column_stack([t, np.full_like(t, results.neutron_yield)])
 
     sim_outputs = {
@@ -72,6 +76,7 @@ def run_dataset(dataset_dir: Path, out_dir: Path) -> dict[str, float]:
 
     return metrics
 
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -93,6 +98,7 @@ def main() -> None:
         metrics[dataset.name] = run_dataset(dataset, args.out)
 
     print(json.dumps(metrics, indent=2))
+
 
 if __name__ == "__main__":
     main()

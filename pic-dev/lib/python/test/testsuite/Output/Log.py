@@ -130,7 +130,9 @@ def errorLog(direction: str = None):
                 does not exist, the current working directory is used.
     """
 
-    direction = cD.checkDirection(variable="resultDirection", direction=direction, errorhandling=True)
+    direction = cD.checkDirection(
+        variable="resultDirection", direction=direction, errorhandling=True
+    )
 
     lt = localtime()
     date = strftime("date: %d.%m.%Y", lt)

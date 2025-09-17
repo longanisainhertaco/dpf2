@@ -7,6 +7,7 @@ from dpf2.postprocessing_settings import PostprocessingSettings
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False

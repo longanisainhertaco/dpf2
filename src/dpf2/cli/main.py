@@ -443,7 +443,11 @@ def simulate(
                     voltage = default_voltage
             else:
                 voltage = _validate_range(
-                    "voltage", voltage, 1000.0, 100000.0, "Check the units (volts).",
+                    "voltage",
+                    voltage,
+                    1000.0,
+                    100000.0,
+                    "Check the units (volts).",
                 )
 
             # Prompt and validate segment length
@@ -1212,9 +1216,7 @@ def diagnostics(
                 states, dt, calibration_file=rogowski_cal
             )
         if bdot:
-            outputs["bdot"] = bdot_signal(
-                states, radius, dt, calibration_file=bdot_cal
-            )
+            outputs["bdot"] = bdot_signal(states, radius, dt, calibration_file=bdot_cal)
 
         if anisotropy_plot:
             angles = [0.0, 90.0, 180.0]
@@ -1283,12 +1285,16 @@ def export_neutron_summary(angles: str, distance: float, outfile: str) -> None:
     ang_list = [float(a) for a in angles.split(",") if a]
 
     class _FlatEDF:
-        def energy_distribution(self, angle_deg: float):  # pragma: no cover - simple stub
+        def energy_distribution(
+            self, angle_deg: float
+        ):  # pragma: no cover - simple stub
             return [0.0, 1.0], [1.0, 1.0]
 
     cross_section = lambda e: 1.0
     time_bins = [0.0, 1e-7, 2e-7]
-    dets = simulate_tof_detectors(_FlatEDF(), cross_section, ang_list, distance, time_bins)
+    dets = simulate_tof_detectors(
+        _FlatEDF(), cross_section, ang_list, distance, time_bins
+    )
     save_tof_hdf5(outfile, time_bins, dets)
     click.echo(f"HDF5 summary written to {outfile}")
 
@@ -1349,9 +1355,7 @@ def index(output: str, package: str, source_root: str | None) -> None:
 
         entries = build_code_index(package, root)
         write_markdown_index(entries, Path(output))
-        click.echo(
-            f"Indexed {len(entries)} modules from {root} into {output}"
-        )
+        click.echo(f"Indexed {len(entries)} modules from {root} into {output}")
     except click.ClickException:
         raise
     except Exception as exc:  # pragma: no cover - defensive
@@ -1359,7 +1363,72 @@ def index(output: str, package: str, source_root: str | None) -> None:
 
 
 from .benchmark import benchmark, match_benchmark
+
 main.add_command(match_benchmark)
 main.add_command(benchmark)
+
+
+@main.command("resolve-conflicts")
+@click.option("--pr", type=int, help="Pull request number to check")
+@click.option("--auto", is_flag=True, help="Attempt automatic resolution")
+@click.option(
+    "--strategy",
+    type=click.Choice(["ours", "theirs", "smart"]),
+    default="smart",
+    help="Conflict resolution strategy",
+)
+@click.option(
+    "--install-hooks",
+    is_flag=True,
+    help="Install pre-commit hooks for conflict prevention",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+def resolve_conflicts_cmd(
+    pr: int | None, auto: bool, strategy: str, install_hooks: bool, verbose: bool
+) -> None:
+    """Detect and resolve merge conflicts in pull requests."""
+    try:
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        # Find the conflict resolution script
+        script_path = (
+            Path(__file__).resolve().parents[3] / "scripts" / "resolve_conflicts.py"
+        )
+
+        if not script_path.exists():
+            raise click.ClickException(
+                format_error(
+                    "CONFLICTS",
+                    "Conflict resolution script not found",
+                    f"Expected script at {script_path}",
+                )
+            )
+
+        # Build command arguments
+        cmd = [sys.executable, str(script_path)]
+
+        if pr is not None:
+            cmd.extend(["--pr", str(pr)])
+        if auto:
+            cmd.append("--auto")
+        if strategy != "smart":
+            cmd.extend(["--strategy", strategy])
+        if install_hooks:
+            cmd.append("--install-hooks")
+        if verbose:
+            cmd.append("--verbose")
+
+        # Execute the script
+        result = subprocess.run(cmd, cwd=Path.cwd())
+
+        if result.returncode != 0:
+            sys.exit(result.returncode)
+
+    except Exception as e:
+        raise click.ClickException(format_error("CONFLICTS", str(e)))
+
+
 if __name__ == "__main__":
     main()

@@ -101,6 +101,7 @@ def advance_plasmas_with_circuit(
             return list(ex.map(_run, tasks))
     return [_run(t) for t in tasks]
 
+
 __all__ = [
     "AnalyticPinchModel",
     "PinchResult",

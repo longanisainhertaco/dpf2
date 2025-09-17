@@ -32,7 +32,9 @@ class SetChargeState(Operation):
         pass
 
     def check_preconditions(self) -> None:
-        assert self.species.has_constant_of_type(GroundStateIonization), "BoundElectrons requires GroundStateIonization"
+        assert self.species.has_constant_of_type(
+            GroundStateIonization
+        ), "BoundElectrons requires GroundStateIonization"
 
         if self.charge_state < 0:
             raise ValueError("charge state must be > 0")

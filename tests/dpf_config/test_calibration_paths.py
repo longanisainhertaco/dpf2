@@ -72,4 +72,3 @@ def test_calibration_paths_default_none(tmp_path):
         assert d.bdot_calibration_path is None
         assert d.sxr_calibration_path is None
         assert d.neutron_tof_calibration_path is None
-

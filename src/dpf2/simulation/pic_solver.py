@@ -42,15 +42,16 @@ from .collision_model import (
 )
 
 # Configure logger
-logger = logging.getLogger('pic_solver')
+logger = logging.getLogger("pic_solver")
 logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
 logger.addHandler(ch)
 
-#-----------------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------------
 # Instability and resistivity models
-#-----------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
 class MZeroInstability:
     """Simple exponential m=0 instability growth model."""
 
@@ -129,9 +130,10 @@ class LHDIResistivity:
             logger.info(f"LHDI spike amplitude: {spike:.3e}")
         return E
 
-#-----------------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------------
 # PIC Solver Class
-#-----------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------
 class PICSolver(PhysicsModule):
     """Classical PIC solver with optional WarpX coupling.
 
@@ -141,10 +143,10 @@ class PICSolver(PhysicsModule):
     """
 
     # Physical and solver constants
-    c = 299_792_458.0            # Speed of light in vacuum (m/s)
-    epsilon0 = 8.854187817e-12   # Vacuum permittivity (F/m)
-    mu0 = 4 * np.pi * 1e-7       # Vacuum permeability (H/m)
-    k_B = 1.380649e-23           # Boltzmann constant (J/K)
+    c = 299_792_458.0  # Speed of light in vacuum (m/s)
+    epsilon0 = 8.854187817e-12  # Vacuum permittivity (F/m)
+    mu0 = 4 * np.pi * 1e-7  # Vacuum permeability (H/m)
+    k_B = 1.380649e-23  # Boltzmann constant (J/K)
 
     # PML and Maxwell solver defaults
     pml_thickness = 10
@@ -153,7 +155,7 @@ class PICSolver(PhysicsModule):
     default_shape = (1, 1, 1)
 
     # Miscellaneous constants
-    ionization_energy = 13.6     # eV, used for Bethe-Bloch stopping
+    ionization_energy = 13.6  # eV, used for Bethe-Bloch stopping
 
     def __init__(
         self,
@@ -176,14 +178,18 @@ class PICSolver(PhysicsModule):
         self.max_dt = config.max_dt
         self.em = config.electromag
         self.boundary_conditions = config.boundary_conditions
-        bc_map = {'periodic': 0, 'reflecting': 1, 'absorbing': 2}
+        bc_map = {"periodic": 0, "reflecting": 1, "absorbing": 2}
         self.bc_codes = (
-            bc_map.get(self.boundary_conditions.get('x', 'reflecting'), 1),
-            bc_map.get(self.boundary_conditions.get('y', 'reflecting'), 1),
-            bc_map.get(self.boundary_conditions.get('z', 'reflecting'), 1),
+            bc_map.get(self.boundary_conditions.get("x", "reflecting"), 1),
+            bc_map.get(self.boundary_conditions.get("y", "reflecting"), 1),
+            bc_map.get(self.boundary_conditions.get("z", "reflecting"), 1),
         )
         self.bc_periodic = tuple(code == 0 for code in self.bc_codes)
-        self.dt = config.dt if config.dt else 0.5 * min(self.dx, self.dy, self.dz) / PICSolver.c
+        self.dt = (
+            config.dt
+            if config.dt
+            else 0.5 * min(self.dx, self.dy, self.dz) / PICSolver.c
+        )
         self.use_warpx = config.use_warpx
         self.unity_params = config.unity_params or {}
         self.vdf_bins = config.vdf_bins
@@ -191,8 +197,14 @@ class PICSolver(PhysicsModule):
         self.subgrid_resolution = config.subgrid_resolution
         self.amr = config.amr
         self.density_threshold = config.density_threshold
-        self.electron_temperature = getattr(config, 'electron_temperature', 1e6)
-        self.levels = [{'grid_shape': tuple(config.grid_shape), 'grid_spacing': tuple(config.grid_spacing), 'offset': (0, 0, 0)}]
+        self.electron_temperature = getattr(config, "electron_temperature", 1e6)
+        self.levels = [
+            {
+                "grid_shape": tuple(config.grid_shape),
+                "grid_spacing": tuple(config.grid_spacing),
+                "offset": (0, 0, 0),
+            }
+        ]
         self.heating_grid = 0.0
         self.species = {}
         self.vdf = {}
@@ -206,16 +218,24 @@ class PICSolver(PhysicsModule):
         # which allows coupling to Hall‑MHD solvers.
         self.pic_driver = driver
         self.collisions: List[CollisionProcess] = []
-        self.collisions.extend([
-            BetheBlochStopping('ion', Z_eff=1, I_mean_ev=PICSolver.ionization_energy),
-            ElectronIonCollision(), ElectronNeutralCollision(),
-            IonizationProcess(), RecombinationProcess()
-        ])
+        self.collisions.extend(
+            [
+                BetheBlochStopping(
+                    "ion", Z_eff=1, I_mean_ev=PICSolver.ionization_energy
+                ),
+                ElectronIonCollision(),
+                ElectronNeutralCollision(),
+                IonizationProcess(),
+                RecombinationProcess(),
+            ]
+        )
         self.enable_quantum = config.enable_quantum
         self.enable_radiation = config.enable_radiation
         self.quantum_model: Optional[Callable[["PICSolver"], None]] = None
         self.radiation_model: Optional[Callable[["PICSolver"], None]] = None
-        self.mesh_adapter: Optional[Callable[[], None]] = self.refine_grid if config.enable_mesh_adaptivity else None
+        self.mesh_adapter: Optional[Callable[[], None]] = (
+            self.refine_grid if config.enable_mesh_adaptivity else None
+        )
         self.warpx = (
             WarpXWrapper(
                 config.grid_shape,
@@ -242,15 +262,21 @@ class PICSolver(PhysicsModule):
         self.voltage_spikes: List[float] = []
         self.quality = quality
         self.step_count = 0
-        logger.info('PIC solver initialized')
+        logger.info("PIC solver initialized")
 
     def add_species(self, name, charge, mass, positions, velocities):
         """Adds a new particle species to the simulation."""
         try:
-            if name in self.species: raise ValueError(f"Species {name} exists")
+            if name in self.species:
+                raise ValueError(f"Species {name} exists")
             pos, vel = np.array(positions, float), np.array(velocities, float)
             assert pos.shape == vel.shape and pos.shape[1] == 3
-            self.species[name] = {'q': charge, 'm': mass, 'pos': pos, 'vel': vel} # Store species data
+            self.species[name] = {
+                "q": charge,
+                "m": mass,
+                "pos": pos,
+                "vel": vel,
+            }  # Store species data
             self.vdf[name] = np.zeros((self.vdf_bins,) * 3)
             logger.info(f"Added species {name} N={pos.shape[0]}")
         except Exception as e:
@@ -268,9 +294,9 @@ class PICSolver(PhysicsModule):
         """Enable lower-hybrid drift instability resistivity."""
         self.lhdi_model = LHDIResistivity(coeff)
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # Boris pusher
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     @njit(parallel=True, fastmath=True)
     def boris_push_numba(self, pos, vel, q, m, dt, E, B, origin, dxyz, bc, dims):
         """
@@ -290,55 +316,97 @@ class PICSolver(PhysicsModule):
                 1=reflecting, 2=absorbing).
             dims: Grid dimensions (nx, ny, nz).
         """
-        nx,ny,nz=dims; dx,dy,dz=dxyz; ox,oy,oz=origin
+        nx, ny, nz = dims
+        dx, dy, dz = dxyz
+        ox, oy, oz = origin
         for idx in prange(pos.shape[0]):
-            x,y,z=pos[idx]; xi=(x-ox)/dx; yi=(y-oy)/dy; zi=(z-oz)/dz
-            i0,j0,k0=int(np.floor(xi)),int(np.floor(yi)),int(np.floor(zi))
-            fx,fy,fz=xi-i0,yi-j0,zi-k0
-            Ex=Ey=Ez=Bx=By=Bz=0.0
-            for di in (0,1):
-                wx=(1-fx) if di==0 else fx; ii=(i0+di)%nx if bc[0]==0 else i0+di
-                if ii<0 or ii>=nx: continue
-                for dj in (0,1):
-                    wy=(1-fy) if dj==0 else fy; jj=(j0+dj)%ny if bc[1]==0 else j0+dj
-                    if jj<0 or jj>=ny: continue
-                    for dk in (0,1):
-                        wz=(1-fz) if dk==0 else fz; kk=(k0+dk)%nz if bc[2]==0 else k0+dk
-                        if kk<0 or kk>=nz: continue
-                        w=wx*wy*wz
-                        Ex+=w*E[0,ii,jj,kk]; Ey+=w*E[1,ii,jj,kk]; Ez+=w*E[2,ii,jj,kk]
-                        Bx+=w*B[0,ii,jj,kk]; By+=w*B[1,ii,jj,kk]; Bz+=w*B[2,ii,jj,kk]
-            vx,vy,vz=vel[idx]
-            gamma=math.sqrt(1+(vx*vx+vy*vy+vz*vz)/PICSolver.c**2)
-            ux,uy,uz=gamma*vx,gamma*vy,gamma*vz
-            ux+=q/m*Ex*(dt*0.5); uy+=q/m*Ey*(dt*0.5); uz+=q/m*Ez*(dt*0.5)
-            gamma_star=math.sqrt(1+(ux*ux+uy*uy+uz*uz)/PICSolver.c**2)
-            coeff=(q/m)*(dt*0.5)/gamma_star
-            tx,ty,tz=coeff*Bx,coeff*By,coeff*Bz
-            upr_x=ux+(uy*tz-uz*ty); upr_y=uy+(uz*tx-ux*tz); upr_z=uz+(ux*ty-uy*tx)
-            s_den=1+tx*tx+ty*ty+tz*tz; sx,sy,sz=2*tx/s_den,2*ty/s_den,2*tz/s_den
-            uxp=ux+(upr_y*sz-upr_z*sy); uyp=uy+(upr_z*sx-upr_x*sz); uzp=uz+(upr_x*sy-upr_y*sx)
-            ux_new=uxp+q/m*Ex*(dt*0.5); uy_new=uyp+q/m*Ey*(dt*0.5); uz_new=uzp+q/m*Ez*(dt*0.5)
-            g_new=math.sqrt(1+(ux_new*ux_new+uy_new*uy_new+uz_new*uz_new)/PICSolver.c**2)
-            vel[idx,0]=ux_new/g_new; vel[idx,1]=uy_new/g_new; vel[idx,2]=uz_new/g_new
-            pos[idx,0]+=vel[idx,0]*dt; pos[idx,1]+=vel[idx,1]*dt; pos[idx,2]+=vel[idx,2]*dt
-            for d,(low,high,length) in enumerate(((ox,ox+nx*dx,nx*dx),(oy,oy+ny*dy,ny*dy),(oz,oz+nz*dz,nz*dz))):
-                b=bc[d]
-                if b==0:  # periodic
-                    if pos[idx,d]<low: pos[idx,d]+=length
-                    if pos[idx,d]>=high: pos[idx,d]-=length
-                elif b==1:  # reflecting
-                    if pos[idx,d]<low:
-                        pos[idx,d]=2*low-pos[idx,d]; vel[idx,d]=-vel[idx,d]
-                    if pos[idx,d]>high:
-                        pos[idx,d]=2*high-pos[idx,d]; vel[idx,d]=-vel[idx,d]
-                elif b==2:  # absorbing
-                    if pos[idx,d]<low or pos[idx,d]>high:
-                        pos[idx,d]=np.nan; vel[idx,d]=0.0
+            x, y, z = pos[idx]
+            xi = (x - ox) / dx
+            yi = (y - oy) / dy
+            zi = (z - oz) / dz
+            i0, j0, k0 = int(np.floor(xi)), int(np.floor(yi)), int(np.floor(zi))
+            fx, fy, fz = xi - i0, yi - j0, zi - k0
+            Ex = Ey = Ez = Bx = By = Bz = 0.0
+            for di in (0, 1):
+                wx = (1 - fx) if di == 0 else fx
+                ii = (i0 + di) % nx if bc[0] == 0 else i0 + di
+                if ii < 0 or ii >= nx:
+                    continue
+                for dj in (0, 1):
+                    wy = (1 - fy) if dj == 0 else fy
+                    jj = (j0 + dj) % ny if bc[1] == 0 else j0 + dj
+                    if jj < 0 or jj >= ny:
+                        continue
+                    for dk in (0, 1):
+                        wz = (1 - fz) if dk == 0 else fz
+                        kk = (k0 + dk) % nz if bc[2] == 0 else k0 + dk
+                        if kk < 0 or kk >= nz:
+                            continue
+                        w = wx * wy * wz
+                        Ex += w * E[0, ii, jj, kk]
+                        Ey += w * E[1, ii, jj, kk]
+                        Ez += w * E[2, ii, jj, kk]
+                        Bx += w * B[0, ii, jj, kk]
+                        By += w * B[1, ii, jj, kk]
+                        Bz += w * B[2, ii, jj, kk]
+            vx, vy, vz = vel[idx]
+            gamma = math.sqrt(1 + (vx * vx + vy * vy + vz * vz) / PICSolver.c**2)
+            ux, uy, uz = gamma * vx, gamma * vy, gamma * vz
+            ux += q / m * Ex * (dt * 0.5)
+            uy += q / m * Ey * (dt * 0.5)
+            uz += q / m * Ez * (dt * 0.5)
+            gamma_star = math.sqrt(1 + (ux * ux + uy * uy + uz * uz) / PICSolver.c**2)
+            coeff = (q / m) * (dt * 0.5) / gamma_star
+            tx, ty, tz = coeff * Bx, coeff * By, coeff * Bz
+            upr_x = ux + (uy * tz - uz * ty)
+            upr_y = uy + (uz * tx - ux * tz)
+            upr_z = uz + (ux * ty - uy * tx)
+            s_den = 1 + tx * tx + ty * ty + tz * tz
+            sx, sy, sz = 2 * tx / s_den, 2 * ty / s_den, 2 * tz / s_den
+            uxp = ux + (upr_y * sz - upr_z * sy)
+            uyp = uy + (upr_z * sx - upr_x * sz)
+            uzp = uz + (upr_x * sy - upr_y * sx)
+            ux_new = uxp + q / m * Ex * (dt * 0.5)
+            uy_new = uyp + q / m * Ey * (dt * 0.5)
+            uz_new = uzp + q / m * Ez * (dt * 0.5)
+            g_new = math.sqrt(
+                1
+                + (ux_new * ux_new + uy_new * uy_new + uz_new * uz_new) / PICSolver.c**2
+            )
+            vel[idx, 0] = ux_new / g_new
+            vel[idx, 1] = uy_new / g_new
+            vel[idx, 2] = uz_new / g_new
+            pos[idx, 0] += vel[idx, 0] * dt
+            pos[idx, 1] += vel[idx, 1] * dt
+            pos[idx, 2] += vel[idx, 2] * dt
+            for d, (low, high, length) in enumerate(
+                (
+                    (ox, ox + nx * dx, nx * dx),
+                    (oy, oy + ny * dy, ny * dy),
+                    (oz, oz + nz * dz, nz * dz),
+                )
+            ):
+                b = bc[d]
+                if b == 0:  # periodic
+                    if pos[idx, d] < low:
+                        pos[idx, d] += length
+                    if pos[idx, d] >= high:
+                        pos[idx, d] -= length
+                elif b == 1:  # reflecting
+                    if pos[idx, d] < low:
+                        pos[idx, d] = 2 * low - pos[idx, d]
+                        vel[idx, d] = -vel[idx, d]
+                    if pos[idx, d] > high:
+                        pos[idx, d] = 2 * high - pos[idx, d]
+                        vel[idx, d] = -vel[idx, d]
+                elif b == 2:  # absorbing
+                    if pos[idx, d] < low or pos[idx, d] > high:
+                        pos[idx, d] = np.nan
+                        vel[idx, d] = 0.0
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # Charge & Current deposition
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     def deposit_charge(self):
         """Deposits particle charge onto the grid."""
         try:
@@ -346,24 +414,33 @@ class PICSolver(PhysicsModule):
             vol = self.dx * self.dy * self.dz
             bcx, bcy, bcz = self.bc_periodic
             for spc in self.species.values():  # Loop over species
-                q, pos = spc['q'], spc['pos']
+                q, pos = spc["q"], spc["pos"]
                 for p in pos:
-                    xi, yi, zi = (p[0] - self.origin[0]) / self.dx, (p[1] - self.origin[1]) / self.dy, (p[2] - self.origin[2]) / self.dz
+                    xi, yi, zi = (
+                        (p[0] - self.origin[0]) / self.dx,
+                        (p[1] - self.origin[1]) / self.dy,
+                        (p[2] - self.origin[2]) / self.dz,
+                    )
                     i0, j0, k0 = int(np.floor(xi)), int(np.floor(yi)), int(np.floor(zi))
                     fx, fy, fz = xi - i0, yi - j0, zi - k0
                     for di in (0, 1):
-                        wx = (1 - fx) if di == 0 else fx; ii = (i0 + di) % self.nx if bcx else i0 + di
+                        wx = (1 - fx) if di == 0 else fx
+                        ii = (i0 + di) % self.nx if bcx else i0 + di
                         if ii < 0 or ii >= self.nx:
                             continue
                         for dj in (0, 1):
-                            wy = (1 - fy) if dj == 0 else fy; jj = (j0 + dj) % self.ny if bcy else j0 + dj
+                            wy = (1 - fy) if dj == 0 else fy
+                            jj = (j0 + dj) % self.ny if bcy else j0 + dj
                             if jj < 0 or jj >= self.ny:
                                 continue
                             for dk in (0, 1):
-                                wz = (1 - fz) if dk == 0 else fz; kk = (k0 + dk) % self.nz if bcz else k0 + dk
+                                wz = (1 - fz) if dk == 0 else fz
+                                kk = (k0 + dk) % self.nz if bcz else k0 + dk
                                 if kk < 0 or kk >= self.nz:
                                     continue
-                                self.field_manager.rho[ii, jj, kk] += q * (wx * wy * wz) / vol
+                                self.field_manager.rho[ii, jj, kk] += (
+                                    q * (wx * wy * wz) / vol
+                                )
         except Exception as e:
             logger.error(f"Error depositing charge: {e}")
 
@@ -374,27 +451,40 @@ class PICSolver(PhysicsModule):
             vol = self.dx * self.dy * self.dz
             bcx, bcy, bcz = self.bc_periodic
             for spc in self.species.values():  # Loop over species
-                q, pos, vel = spc['q'], spc['pos'], spc['vel']
+                q, pos, vel = spc["q"], spc["pos"], spc["vel"]
                 for p, v in zip(pos, vel):
-                    xi, yi, zi = (p[0] - self.origin[0]) / self.dx, (p[1] - self.origin[1]) / self.dy, (p[2] - self.origin[2]) / self.dz
+                    xi, yi, zi = (
+                        (p[0] - self.origin[0]) / self.dx,
+                        (p[1] - self.origin[1]) / self.dy,
+                        (p[2] - self.origin[2]) / self.dz,
+                    )
                     i0, j0, k0 = int(np.floor(xi)), int(np.floor(yi)), int(np.floor(zi))
                     fx, fy, fz = xi - i0, yi - j0, zi - k0
                     for di in (0, 1):
-                        wx = (1 - fx) if di == 0 else fx; ii = (i0 + di) % self.nx if bcx else i0 + di
+                        wx = (1 - fx) if di == 0 else fx
+                        ii = (i0 + di) % self.nx if bcx else i0 + di
                         if ii < 0 or ii >= self.nx:
                             continue
                         for dj in (0, 1):
-                            wy = (1 - fy) if dj == 0 else fy; jj = (j0 + dj) % self.ny if bcy else j0 + dj
+                            wy = (1 - fy) if dj == 0 else fy
+                            jj = (j0 + dj) % self.ny if bcy else j0 + dj
                             if jj < 0 or jj >= self.ny:
                                 continue
                             for dk in (0, 1):
-                                wz = (1 - fz) if dk == 0 else fz; kk = (k0 + dk) % self.nz if bcz else k0 + dk
+                                wz = (1 - fz) if dk == 0 else fz
+                                kk = (k0 + dk) % self.nz if bcz else k0 + dk
                                 if kk < 0 or kk >= self.nz:
                                     continue
                                 w = wx * wy * wz
-                                self.field_manager.J[0, ii, jj, kk] += q * v[0] * w / vol
-                                self.field_manager.J[1, ii, jj, kk] += q * v[1] * w / vol
-                                self.field_manager.J[2, ii, jj, kk] += q * v[2] * w / vol
+                                self.field_manager.J[0, ii, jj, kk] += (
+                                    q * v[0] * w / vol
+                                )
+                                self.field_manager.J[1, ii, jj, kk] += (
+                                    q * v[1] * w / vol
+                                )
+                                self.field_manager.J[2, ii, jj, kk] += (
+                                    q * v[2] * w / vol
+                                )
         except Exception as e:
             logger.error(f"Error depositing current: {e}")
 
@@ -405,20 +495,23 @@ class PICSolver(PhysicsModule):
             J = self.field_manager.get_J()
             for c in range(3):
                 for ax in range(3):
-                    J[c] = np.apply_along_axis(lambda arr: np.convolve(arr, kernel, 'same'), ax, J[c]) # Apply filter along each axis
+                    J[c] = np.apply_along_axis(
+                        lambda arr: np.convolve(arr, kernel, "same"), ax, J[c]
+                    )  # Apply filter along each axis
             self.field_manager.update_J(J)
         except Exception as e:
             logger.error(f"Error filtering current: {e}")
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # PML, field update, divergence cleaning
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     def _init_pml(self):
         """Initializes the Perfectly Matched Layer (PML) parameters."""
         t = PICSolver.pml_thickness
-        prof = PICSolver.pml_sigma_max * (np.linspace(0, 1, t)**2)
+        prof = PICSolver.pml_sigma_max * (np.linspace(0, 1, t) ** 2)
         self.pml_sigma_e = np.zeros(self.nz)
-        self.pml_sigma_e[:t] = prof[::-1]; self.pml_sigma_e[-t:] = prof
+        self.pml_sigma_e[:t] = prof[::-1]
+        self.pml_sigma_e[-t:] = prof
         self.pml_sigma_b = self.pml_sigma_e.copy()
 
     def _apply_pml(self):
@@ -441,18 +534,26 @@ class PICSolver(PhysicsModule):
             rho = self.field_manager.get_rho()
             E = self.field_manager.get_E()
             rho_hat = np.fft.fftn(rho / PICSolver.epsilon0)
-            divE = (np.gradient(E[0], self.dx, axis=0) +
-                    np.gradient(E[1], self.dy, axis=1) +
-                    np.gradient(E[2], self.dz, axis=2))
+            divE = (
+                np.gradient(E[0], self.dx, axis=0)
+                + np.gradient(E[1], self.dy, axis=1)
+                + np.gradient(E[2], self.dz, axis=2)
+            )
             divE_hat = np.fft.fftn(divE)
             kx = 2 * np.pi * np.fft.fftfreq(self.nx, self.dx)
             ky = 2 * np.pi * np.fft.fftfreq(self.ny, self.dy)
             kz = 2 * np.pi * np.fft.fftfreq(self.nz, self.dz)
             k2 = np.add.outer(np.add.outer(kx**2, ky**2), kz**2)
             k2[0, 0, 0] = 1
-            phi_hat = (divE_hat - rho_hat) / (-k2)  # Solve Poisson equation in Fourier space
+            phi_hat = (divE_hat - rho_hat) / (
+                -k2
+            )  # Solve Poisson equation in Fourier space
             for i, arr in enumerate((kx, ky, kz)):
-                grad_phi = np.fft.ifftn(1j * arr.reshape([arr.size if j == i else 1 for j in range(3)]) * phi_hat).real
+                grad_phi = np.fft.ifftn(
+                    1j
+                    * arr.reshape([arr.size if j == i else 1 for j in range(3)])
+                    * phi_hat
+                ).real
                 E[i] -= grad_phi
             self.field_manager.update_E(E)
         except Exception as e:
@@ -466,19 +567,35 @@ class PICSolver(PhysicsModule):
             rho = self.field_manager.get_rho()
             J = self.field_manager.get_J()
             n = np.abs(rho)
-            eta_spitzer = spitzer_resistivity(n, np.full_like(n, self.electron_temperature), 1.0)
+            eta_spitzer = spitzer_resistivity(
+                n, np.full_like(n, self.electron_temperature), 1.0
+            )
             eta_anom = np.zeros_like(n)
             if self.warpx:
                 E, B = self.warpx.step(rho, J, E, B, self.dt)
             else:
                 # FDTD update
-                curlE = np.array([(np.roll(E[2], -1, 1) - E[2]) / self.dy - (np.roll(E[1], -1, 2) - E[1]) / self.dz,
-                                  (np.roll(E[0], -1, 2) - E[0]) / self.dz - (np.roll(E[2], -1, 0) - E[2]) / self.dx,
-                                  (np.roll(E[1], -1, 0) - E[1]) / self.dx - (np.roll(E[0], -1, 1) - E[0]) / self.dy])
+                curlE = np.array(
+                    [
+                        (np.roll(E[2], -1, 1) - E[2]) / self.dy
+                        - (np.roll(E[1], -1, 2) - E[1]) / self.dz,
+                        (np.roll(E[0], -1, 2) - E[0]) / self.dz
+                        - (np.roll(E[2], -1, 0) - E[2]) / self.dx,
+                        (np.roll(E[1], -1, 0) - E[1]) / self.dx
+                        - (np.roll(E[0], -1, 1) - E[0]) / self.dy,
+                    ]
+                )
                 B -= self.dt * curlE
-                curlB = np.array([(np.roll(B[2], -1, 1) - B[2]) / self.dy - (np.roll(B[1], -1, 2) - B[1]) / self.dz,
-                                  (np.roll(B[0], -1, 2) - B[0]) / self.dz - (np.roll(B[2], -1, 0) - B[2]) / self.dx,
-                                  (np.roll(B[1], -1, 0) - B[1]) / self.dx - (np.roll(E[0], -1, 1) - E[0]) / self.dy])
+                curlB = np.array(
+                    [
+                        (np.roll(B[2], -1, 1) - B[2]) / self.dy
+                        - (np.roll(B[1], -1, 2) - B[1]) / self.dz,
+                        (np.roll(B[0], -1, 2) - B[0]) / self.dz
+                        - (np.roll(B[2], -1, 0) - B[2]) / self.dx,
+                        (np.roll(B[1], -1, 0) - B[1]) / self.dx
+                        - (np.roll(E[0], -1, 1) - E[0]) / self.dy,
+                    ]
+                )
                 E += self.dt * (PICSolver.c**2 * curlB - J / PICSolver.epsilon0)
                 self._apply_pml()  # Apply PML damping
             if self.anomalous_resistivity_model:
@@ -512,22 +629,26 @@ class PICSolver(PhysicsModule):
             logger.error(f"Error solving fields: {e}")
             raise
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # Diagnostics: VDF, moments, spatial diagnostics
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     def calculate_vdf(self):
         """Calculates the velocity distribution function (VDF) for each species."""
         try:
             for name, spc in self.species.items():
                 vdf = np.zeros((self.vdf_bins,) * 3)
                 dv = 2 * self.max_vel / self.vdf_bins  # Velocity bin size
-                for v in spc['vel']:
+                for v in spc["vel"]:
                     ix = int((v[0] + self.max_vel) // dv)
                     iy = int((v[1] + self.max_vel) // dv)
                     iz = int((v[2] + self.max_vel) // dv)
-                    if 0 <= ix < self.vdf_bins and 0 <= iy < self.vdf_bins and 0 <= iz < self.vdf_bins:
+                    if (
+                        0 <= ix < self.vdf_bins
+                        and 0 <= iy < self.vdf_bins
+                        and 0 <= iz < self.vdf_bins
+                    ):
                         vdf[ix, iy, iz] += 1
-                self.vdf[name] = vdf / (len(spc['vel']) * dv**3)
+                self.vdf[name] = vdf / (len(spc["vel"]) * dv**3)
         except Exception as e:
             logger.error(f"Error calculating VDF: {e}")
 
@@ -535,9 +656,13 @@ class PICSolver(PhysicsModule):
         """Calculates velocity moments (average velocity, temperature) for each species."""
         try:
             for name, spc in self.species.items():
-                vel = spc['vel']
+                vel = spc["vel"]
                 avg_vel = np.mean(vel, axis=0)  # Average velocity
-                temp = np.mean(np.sum((vel - avg_vel)**2, axis=1)) * spc['m'] / (3 * PICSolver.k_B)
+                temp = (
+                    np.mean(np.sum((vel - avg_vel) ** 2, axis=1))
+                    * spc["m"]
+                    / (3 * PICSolver.k_B)
+                )
                 logger.info(f"Species {name}: <v>={avg_vel}, T={temp:.3e} K")
         except Exception as e:
             logger.error(f"Error calculating moments: {e}")
@@ -546,24 +671,37 @@ class PICSolver(PhysicsModule):
         """Calculates spatial diagnostics (density distribution) for each species."""
         try:
             for name, spc in self.species.items():
-                pos = spc['pos']
-                subgrid_shape = (self.nx // self.subgrid_resolution[0],
-                                 self.ny // self.subgrid_resolution[1],
-                                 self.nz // self.subgrid_resolution[2])
+                pos = spc["pos"]
+                subgrid_shape = (
+                    self.nx // self.subgrid_resolution[0],
+                    self.ny // self.subgrid_resolution[1],
+                    self.nz // self.subgrid_resolution[2],
+                )
                 density = np.zeros(subgrid_shape)
                 for p in pos:  # Loop over particles
-                    idx = (int((p[0] - self.origin[0]) // (self.dx * self.subgrid_resolution[0])),
-                           int((p[1] - self.origin[1]) // (self.dy * self.subgrid_resolution[1])),
-                           int((p[2] - self.origin[2]) // (self.dz * self.subgrid_resolution[2])))
+                    idx = (
+                        int(
+                            (p[0] - self.origin[0])
+                            // (self.dx * self.subgrid_resolution[0])
+                        ),
+                        int(
+                            (p[1] - self.origin[1])
+                            // (self.dy * self.subgrid_resolution[1])
+                        ),
+                        int(
+                            (p[2] - self.origin[2])
+                            // (self.dz * self.subgrid_resolution[2])
+                        ),
+                    )
                     if all(0 <= i < s for i, s in zip(idx, subgrid_shape)):
                         density[idx] += 1
                 logger.info(f"Species {name}: spatial diagnostics calculated.")
         except Exception as e:
             logger.error(f"Error calculating spatial diagnostics: {e}")
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # AMR
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     def refine_grid(self):
         """Refines the grid based on particle density."""
         try:
@@ -572,9 +710,9 @@ class PICSolver(PhysicsModule):
             rho = self.field_manager.get_rho()
             new_levels = []
             for level in self.levels:
-                grid_shape = level['grid_shape']
-                grid_spacing = level['grid_spacing']
-                offset = level['offset']
+                grid_shape = level["grid_shape"]
+                grid_spacing = level["grid_spacing"]
+                offset = level["offset"]
                 if any(s < 4 for s in grid_shape):
                     continue  # Minimum grid size
                 new_grid_shape = tuple(s // 2 for s in grid_shape)
@@ -582,24 +720,46 @@ class PICSolver(PhysicsModule):
                 for i in range(2):
                     for j in range(2):
                         for k in range(2):
-                            new_offset = (offset[0] + i * new_grid_shape[0],
-                                          offset[1] + j * new_grid_shape[1],
-                                          offset[2] + k * new_grid_shape[2])  # New offset
-                            if np.mean(rho[new_offset[0]:new_offset[0]+new_grid_shape[0],
-                                                new_offset[1]:new_offset[1]+new_grid_shape[1],
-                                                new_offset[2]:new_offset[2]+new_grid_shape[2]]) > self.density_threshold:
-                                new_levels.append({'grid_shape': new_grid_shape,
-                                                   'grid_spacing': new_grid_spacing,
-                                                   'offset': new_offset})
+                            new_offset = (
+                                offset[0] + i * new_grid_shape[0],
+                                offset[1] + j * new_grid_shape[1],
+                                offset[2] + k * new_grid_shape[2],
+                            )  # New offset
+                            if (
+                                np.mean(
+                                    rho[
+                                        new_offset[0] : new_offset[0]
+                                        + new_grid_shape[0],
+                                        new_offset[1] : new_offset[1]
+                                        + new_grid_shape[1],
+                                        new_offset[2] : new_offset[2]
+                                        + new_grid_shape[2],
+                                    ]
+                                )
+                                > self.density_threshold
+                            ):
+                                new_levels.append(
+                                    {
+                                        "grid_shape": new_grid_shape,
+                                        "grid_spacing": new_grid_spacing,
+                                        "offset": new_offset,
+                                    }
+                                )
             self.levels.extend(new_levels)
             logger.info(f"AMR: grid refined to {len(self.levels)} levels.")
         except Exception as e:
             logger.error(f"Error refining grid: {e}")
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # Main step
-    #-------------------------------------------------------------------------------------
-    def step(self, current: float = 0.0, voltage: float = 0.0, energy_tracker: EnergyTracker | None = None, refinement_cb: Optional[Callable[[Dict[str, Any]], Dict[str, int]]] = None):
+    # -------------------------------------------------------------------------------------
+    def step(
+        self,
+        current: float = 0.0,
+        voltage: float = 0.0,
+        energy_tracker: EnergyTracker | None = None,
+        refinement_cb: Optional[Callable[[Dict[str, Any]], Dict[str, int]]] = None,
+    ):
         """Advances the PIC simulation by one time step."""
         try:
             if self.warpx is not None:
@@ -616,7 +776,11 @@ class PICSolver(PhysicsModule):
                     ppc = 0.0
                     try:
                         npart = sum(
-                            len(self.warpx.warp.get_particle_container(n).get_positions())
+                            len(
+                                self.warpx.warp.get_particle_container(
+                                    n
+                                ).get_positions()
+                            )
                             for n in self.warpx.species
                         )
                         ppc = npart / (self.nx * self.ny * self.nz)
@@ -673,26 +837,41 @@ class PICSolver(PhysicsModule):
             axial_E = float(np.mean(E[2]))
             self.axial_E_history.append(axial_E)
             for name, spc in self.species.items():  # Loop over species
-                self.boris_push_numba(spc['pos'], spc['vel'], spc['q'], spc['m'], self.dt,
-                                      E, B, self.origin, (self.dx, self.dy, self.dz),
-                                      self.bc_codes, (self.nx, self.ny, self.nz))
+                self.boris_push_numba(
+                    spc["pos"],
+                    spc["vel"],
+                    spc["q"],
+                    spc["m"],
+                    self.dt,
+                    E,
+                    B,
+                    self.origin,
+                    (self.dx, self.dy, self.dz),
+                    self.bc_codes,
+                    (self.nx, self.ny, self.nz),
+                )
             self.apply_collisions()
             beam_energy_keV = 0.0
             for spc in self.species.values():
-                if spc['q'] > 0 and spc['vel'].size:
-                    vz = spc['vel'][:, 2]
-                    eng = 0.5 * spc['m'] * vz ** 2
+                if spc["q"] > 0 and spc["vel"].size:
+                    vz = spc["vel"][:, 2]
+                    eng = 0.5 * spc["m"] * vz**2
                     pos = eng[eng > 0]
                     if pos.size:
                         beam_energy_keV = float(np.mean(pos) / 1.602176634e-16)
                     break
             self.beam_energy_history.append(beam_energy_keV)
+
             class _MonoBeam(IonBeamEDF):
                 def __init__(self, e_keV: float):
                     self.e_keV = e_keV
+
                 def energy_distribution(self, angle_deg: float):
                     return [0.0, self.e_keV], [0.0, 1.0]
-            yields, _ = compute_beam_target_yield(_MonoBeam(beam_energy_keV), bosch_hale_dd, [0.0], 1.0, [0.0, 1.0])
+
+            yields, _ = compute_beam_target_yield(
+                _MonoBeam(beam_energy_keV), bosch_hale_dd, [0.0], 1.0, [0.0, 1.0]
+            )
             self.beam_yield_history.append(float(yields[0]) if yields else 0.0)
             if self.enable_quantum and self.quantum_model:
                 self.quantum_model()
@@ -706,40 +885,49 @@ class PICSolver(PhysicsModule):
             self.stream_to_unity()
             length = self.nz * self.dz
             emf = axial_E * length
-            self.coupling_state = CouplingState(emf=emf, current=current, voltage=voltage, back_reaction=emf)
+            self.coupling_state = CouplingState(
+                emf=emf, current=current, voltage=voltage, back_reaction=emf
+            )
             self.history.append(self.coupling_state)
             if energy_tracker is not None:
                 cell_volume = self.dx * self.dy * self.dz
                 ke = 0.0
                 for spc in self.species.values():
-                    ke += 0.5 * spc['m'] * np.sum(np.linalg.norm(spc['vel'], axis=1) ** 2)
-                fe = 0.5 * PICSolver.epsilon0 * np.sum(E ** 2) * cell_volume
-                fm = 0.5 / PICSolver.mu0 * np.sum(B ** 2) * cell_volume
+                    ke += (
+                        0.5 * spc["m"] * np.sum(np.linalg.norm(spc["vel"], axis=1) ** 2)
+                    )
+                fe = 0.5 * PICSolver.epsilon0 * np.sum(E**2) * cell_volume
+                fm = 0.5 / PICSolver.mu0 * np.sum(B**2) * cell_volume
                 energy_tracker.add(capacitor=fe, magnetic=fm, kinetic=ke)
             if self.quality:
                 self.step_count += 1
                 cell_size = min(self.dx, self.dy, self.dz)
                 cell_volume = self.dx * self.dy * self.dz
-                total_particles = sum(spc['pos'].shape[0] for spc in self.species.values())
+                total_particles = sum(
+                    spc["pos"].shape[0] for spc in self.species.values()
+                )
                 ppc = total_particles / (self.nx * self.ny * self.nz)
                 max_v = 0.0
                 for spc in self.species.values():
-                    speeds = np.linalg.norm(spc['vel'], axis=1)
+                    speeds = np.linalg.norm(spc["vel"], axis=1)
                     if speeds.size:
                         max_v = max(max_v, float(np.max(speeds)))
                 cfl = max_v * self.dt / cell_size if cell_size > 0 else 0.0
                 ne = 0.0
                 Te = 0.0
                 for spc in self.species.values():
-                    if spc['q'] < 0 and spc['pos'].size:
-                        ne = spc['pos'].shape[0] / (self.nx * self.ny * self.nz * cell_volume)
-                        ke = 0.5 * spc['m'] * np.mean(np.sum(spc['vel']**2, axis=1))
+                    if spc["q"] < 0 and spc["pos"].size:
+                        ne = spc["pos"].shape[0] / (
+                            self.nx * self.ny * self.nz * cell_volume
+                        )
+                        ke = 0.5 * spc["m"] * np.mean(np.sum(spc["vel"] ** 2, axis=1))
                         Te = (2.0 / 3.0) * ke / PICSolver.k_B
                         break
                 e = 1.602176634e-19
                 lambda_D = (
                     np.sqrt(PICSolver.epsilon0 * PICSolver.k_B * Te / (ne * e**2))
-                    if ne > 0 else float("inf")
+                    if ne > 0
+                    else float("inf")
                 )
                 amr_level = None
                 if amr_stats is not None:
@@ -751,10 +939,8 @@ class PICSolver(PhysicsModule):
                     ppc,
                     cfl,
                     lambda_D,
-
                     divergence_error=getattr(self, "divergence_error", 0.0),
                     energy_drift=getattr(self, "energy_drift", 0.0),
-
                 )
         except Exception as e:
             logger.error(f"Error during PIC step: {e}")
@@ -777,12 +963,23 @@ class PICSolver(PhysicsModule):
             rho = self.field_manager.get_rho()
             max_v = 0.0
             for spc in self.species.values():  # Loop over species
-                max_v = max(max_v, np.max(np.linalg.norm(spc['vel'], axis=1)))
-            cfl_dt = 0.5 * min(self.dx, self.dy, self.dz) / max_v if max_v > 0 else float('inf')
+                max_v = max(max_v, np.max(np.linalg.norm(spc["vel"], axis=1)))
+            cfl_dt = (
+                0.5 * min(self.dx, self.dy, self.dz) / max_v
+                if max_v > 0
+                else float("inf")
+            )
             plasma_dt = 0.0
             for spc in self.species.values():
-                if spc['q'] != 0:
-                    plasma_dt = min(plasma_dt, np.sqrt(PICSolver.epsilon0 * spc['m'] / (spc['q']**2 * np.max(rho))))  # Plasma frequency
+                if spc["q"] != 0:
+                    plasma_dt = min(
+                        plasma_dt,
+                        np.sqrt(
+                            PICSolver.epsilon0
+                            * spc["m"]
+                            / (spc["q"] ** 2 * np.max(rho))
+                        ),
+                    )  # Plasma frequency
             new_dt = min(cfl_dt, plasma_dt)
             if self.max_dt is not None:
                 new_dt = min(new_dt, self.max_dt)
@@ -799,7 +996,7 @@ class PICSolver(PhysicsModule):
             B = self.field_manager.get_B()
             ke = 0.0
             for spc in self.species.values():  # Loop over species
-                ke += 0.5 * spc['m'] * np.sum(np.linalg.norm(spc['vel'], axis=1)**2)
+                ke += 0.5 * spc["m"] * np.sum(np.linalg.norm(spc["vel"], axis=1) ** 2)
             fe = 0.5 * PICSolver.epsilon0 * np.sum(E**2) * self.dx * self.dy * self.dz
             fm = 0.5 / PICSolver.mu0 * np.sum(B**2) * self.dx * self.dy * self.dz
             logger.info(f"Total energy: KE={ke:.3e} J, FE={fe:.3e} J, FM={fm:.3e} J")
@@ -812,9 +1009,9 @@ class PICSolver(PhysicsModule):
         """Return coupling information for circuit solvers."""
         return self.coupling_state
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # Diagnostics
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     def compute_energy_spectra(self, species: Optional[str] = None, bins: int = 50):
         """Compute kinetic-energy spectra for particles.
 
@@ -831,18 +1028,20 @@ class PICSolver(PhysicsModule):
         names = [species] if species else list(self.species.keys())
         for name in names:
             spc = self.species[name]
-            m = spc['m']
-            vel = spc['vel']
+            m = spc["m"]
+            vel = spc["vel"]
             energy = 0.5 * m * np.sum(vel**2, axis=1)
             hist, edges = np.histogram(energy, bins=bins)
             results[name] = (edges, hist)
         return results[species] if species else results
 
-    def compute_phase_space(self, species: str, x_dim: int = 0, v_dim: int = 0, bins: int = 50):
+    def compute_phase_space(
+        self, species: str, x_dim: int = 0, v_dim: int = 0, bins: int = 50
+    ):
         """Compute a phase-space histogram for a given species."""
         spc = self.species[species]
-        x = spc['pos'][:, x_dim]
-        v = spc['vel'][:, v_dim]
+        x = spc["pos"][:, x_dim]
+        v = spc["vel"][:, v_dim]
         H, xedges, vedges = np.histogram2d(x, v, bins=bins)
         return xedges, vedges, H
 
@@ -858,15 +1057,15 @@ class PICSolver(PhysicsModule):
         """Attach a mesh-adaptivity callback."""
         self.mesh_adapter = lambda: adapter(self)
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # Unity streaming
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     def stream_to_unity(self):
         """Streams data to Unity for real-time visualization."""
         try:
             if self.unity_ws is None:
                 return
-            data = {'time': 0.0, 'current': 0.0, 'slice': [], 'particles': []}
+            data = {"time": 0.0, "current": 0.0, "slice": [], "particles": []}
             # ... (implementation for streaming data) ...
             self.unity_ws.send(json.dumps(data))
         except Exception as e:
@@ -877,17 +1076,20 @@ class PICSolver(PhysicsModule):
         try:
             while True:
                 import time
-                self.unity_ws.send(json.dumps({'heartbeat': True}))
+
+                self.unity_ws.send(json.dumps({"heartbeat": True}))
                 time.sleep(1)
         except Exception as e:
             logger.error(f"Error in Unity heartbeat: {e}")
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # Validation utilities
-    #-------------------------------------------------------------------------------------
-    def _load_reference_current(self, device: str, data_dir: Optional[Path] = None) -> np.ndarray:
-        base = Path(data_dir) if data_dir else Path('data/validation') / device
-        data = np.loadtxt(base / 'current.csv', delimiter=',', skiprows=1)
+    # -------------------------------------------------------------------------------------
+    def _load_reference_current(
+        self, device: str, data_dir: Optional[Path] = None
+    ) -> np.ndarray:
+        base = Path(data_dir) if data_dir else Path("data/validation") / device
+        data = np.loadtxt(base / "current.csv", delimiter=",", skiprows=1)
         return data[:, 1]
 
     def validate_spike(self, device: str, data_dir: Optional[Path] = None) -> float:
@@ -896,32 +1098,32 @@ class PICSolver(PhysicsModule):
         sim = synthetic_signals.current_waveform(self.history)
         n = min(len(ref), len(sim))
         if n == 0:
-            return float('inf')
+            return float("inf")
         return float(np.sqrt(np.mean((np.array(sim[:n]) - ref[:n]) ** 2)))
 
     def validate_pf1000_and_mjolnir(self) -> Dict[str, float]:
         """Validate against PF-1000 and MJOLNIR spike data using synthetic diagnostics."""
         results: Dict[str, float] = {}
-        for dev in ('PF1000', 'MJOLNIR'):
+        for dev in ("PF1000", "MJOLNIR"):
             try:
                 results[dev] = self.validate_spike(dev)
             except Exception:
-                results[dev] = float('inf')
+                results[dev] = float("inf")
         return results
 
     def validate_mjolnir_beam_target(self, data_dir: Optional[Path] = None) -> float:
         """Return absolute error between simulated and reference beam-target yield."""
-        base = Path(data_dir) if data_dir else Path('data/validation') / 'MJOLNIR'
-        data = np.loadtxt(base / 'neutron_yield.csv', delimiter=',', skiprows=1)
+        base = Path(data_dir) if data_dir else Path("data/validation") / "MJOLNIR"
+        data = np.loadtxt(base / "neutron_yield.csv", delimiter=",", skiprows=1)
         ref = float(np.max(data[:, 1]))
         if not self.beam_yield_history:
-            return float('inf')
+            return float("inf")
         sim = float(np.max(self.beam_yield_history))
         return float(abs(sim - ref))
 
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     # UQ & V&V
-    #-------------------------------------------------------------------------------------
+    # -------------------------------------------------------------------------------------
     def run_uq_simulation(self, n_samples=100):
         """Runs an Uncertainty Quantification (UQ) simulation."""
         try:
@@ -965,8 +1167,8 @@ class PICSolver(PhysicsModule):
         try:
             # ADIOS2 no-op; use HDF5 for particles
             self.warpx.read_checkpoint(h5file)
-            with h5py.File(h5file, 'r') as f:
-                grp = f['particles']
+            with h5py.File(h5file, "r") as f:
+                grp = f["particles"]
                 for name in self.species:
                     pos = grp[f"{name}_pos"][:]
                     vel = grp[f"{name}_vel"][:]

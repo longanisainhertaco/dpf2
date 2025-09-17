@@ -6,6 +6,7 @@ from dpf2.cli.main import simulate
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False
@@ -43,7 +44,9 @@ def test_yaml_round_trip_and_summary_output(tmp_path):
             __import__("yaml")
         return
     yaml_path = tmp_path / "d.yml"
-    yaml.safe_dump({"deviceProfiles": cfg.model_dump(by_alias=True)}, open(yaml_path, "w"))
+    yaml.safe_dump(
+        {"deviceProfiles": cfg.model_dump(by_alias=True)}, open(yaml_path, "w")
+    )
     loaded = yaml.safe_load(open(yaml_path))
     cfg2 = DeviceProfiles.model_validate(loaded["deviceProfiles"])
     assert cfg2.model_dump(by_alias=True) == cfg.model_dump(by_alias=True)
@@ -64,7 +67,9 @@ def test_hash_changes_on_geometry_change():
     cfg = DeviceProfiles.with_defaults()
     base_hash = cfg.device_profiles_config_hash
     data = cfg.model_dump(by_alias=True)
-    data["devices"]["PF1000"]["anodeLengthCm"] = cfg.devices["PF1000"].anode_length_cm * 2
+    data["devices"]["PF1000"]["anodeLengthCm"] = (
+        cfg.devices["PF1000"].anode_length_cm * 2
+    )
     cfg2 = DeviceProfiles.model_validate(data)
     assert base_hash != cfg2.device_profiles_config_hash
 
@@ -73,9 +78,7 @@ def test_insulator_material_is_materialref():
     cfg = DeviceProfiles.with_defaults()
     sleeve = cfg.devices["PF1000"].insulator_sleeve
     assert cfg.devices["PF1000"].insulator_material is not None
-    assert (
-        cfg.devices["PF1000"].insulator_material.material_id == "alumina"
-    )
+    assert cfg.devices["PF1000"].insulator_material.material_id == "alumina"
     assert sleeve is not None and sleeve.material is not None
     assert sleeve.material.material_id == "alumina"
 

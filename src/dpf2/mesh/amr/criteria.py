@@ -20,7 +20,7 @@ def plasma_gradient_refinement(field: np.ndarray, threshold: float) -> np.ndarra
                 up = arr[i][j + 1 if j < ny - 1 else ny - 1]
                 gx = float(right) - float(left)
                 gy = float(up) - float(down)
-                mag = (gx ** 2 + gy ** 2) ** 0.5 * 0.5
+                mag = (gx**2 + gy**2) ** 0.5 * 0.5
                 mask[i][j] = mag > threshold
     else:
         nx = len(arr)
@@ -70,7 +70,7 @@ def current_density_refinement(current: np.ndarray, threshold: float) -> np.ndar
         plane_mask = []
         for vec in plane:
             mag2 = sum(float(c) ** 2 for c in vec)
-            plane_mask.append(mag2 ** 0.5 > threshold)
+            plane_mask.append(mag2**0.5 > threshold)
         mask.append(plane_mask)
     return np.array(mask)
 
@@ -87,7 +87,9 @@ def current_gradient_refinement(current: np.ndarray, threshold: float) -> np.nda
     return plasma_gradient_refinement(mag, threshold)
 
 
-def wavefront_refinement(field: np.ndarray, prev_field: np.ndarray, threshold: float) -> np.ndarray:
+def wavefront_refinement(
+    field: np.ndarray, prev_field: np.ndarray, threshold: float
+) -> np.ndarray:
     """Tag cells where the change between two fields exceeds ``threshold``."""
     if field is None or prev_field is None:
         raise ValueError("Both current and previous fields are required")

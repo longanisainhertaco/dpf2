@@ -3,7 +3,13 @@ import pathlib
 import sys
 import numpy as np
 
-MODULE_PATH = pathlib.Path(__file__).resolve().parents[1] / "src" / "dpf2" / "solvers" / "muscl_hancock.py"
+MODULE_PATH = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src"
+    / "dpf2"
+    / "solvers"
+    / "muscl_hancock.py"
+)
 spec = importlib.util.spec_from_file_location("muscl_hancock", MODULE_PATH)
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module

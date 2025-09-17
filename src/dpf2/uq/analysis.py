@@ -1,4 +1,5 @@
 """Post-processing helpers for uncertainty quantification."""
+
 from __future__ import annotations
 
 from typing import Callable, Dict, Sequence
@@ -50,7 +51,7 @@ def sobol_indices(
             indices[name] = 0.0
             continue
         cov = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y)) / len(x)
-        indices[name] = (cov ** 2) / (var_x * var_y)
+        indices[name] = (cov**2) / (var_x * var_y)
     return indices
 
 

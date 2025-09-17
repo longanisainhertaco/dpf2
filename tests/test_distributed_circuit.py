@@ -1,4 +1,3 @@
-
 import sys
 from pathlib import Path
 import importlib.util
@@ -17,12 +16,20 @@ sys.modules.setdefault("dpf2", pkg)
 sys.modules.setdefault("dpf2.simulation", sim_pkg)
 
 utils_stub = types.ModuleType("dpf2.simulation.utils")
+
+
 class SimulationState:
     """Minimal simulation state used for circuit tests."""
+
     pass
+
+
 class FieldManager:
     """Placeholder field manager."""
+
     pass
+
+
 utils_stub.SimulationState = SimulationState
 utils_stub.FieldManager = FieldManager
 sys.modules["dpf2.simulation.utils"] = utils_stub
@@ -35,14 +42,22 @@ sys.modules["dpf2.simulation.constants"] = const_stub
 core_stub = types.ModuleType("dpf2.core")
 bases_stub = types.ModuleType("dpf2.core.bases")
 
+
 class CouplingState:
     """Lightweight replacement for the real ``CouplingState`` dataclass."""
 
-    def __init__(self, Lp: float = 0.0, emf: float = 0.0, current: float = 0.0, voltage: float = 0.0):
+    def __init__(
+        self,
+        Lp: float = 0.0,
+        emf: float = 0.0,
+        current: float = 0.0,
+        voltage: float = 0.0,
+    ):
         self.Lp = Lp
         self.emf = emf
         self.current = current
         self.voltage = voltage
+
 
 bases_stub.CouplingState = CouplingState
 core_stub.bases = bases_stub
@@ -140,10 +155,10 @@ def test_distributed_segments_match_lumped_and_energy_conserved():
     Cs = lumped.Cs
 
     initial_energy = 0.5 * (C_main + Cs) * (params["V0"] ** 2)
-    dissipated = sum((I ** 2) * R_tot * dt for I in curr_l)
+    dissipated = sum((I**2) * R_tot * dt for I in curr_l)
     final_I = curr_l[-1]
     final_V = volt_l[-1]
-    stored = 0.5 * (C_main + Cs) * (final_V ** 2) + 0.5 * L_tot * (final_I ** 2)
+    stored = 0.5 * (C_main + Cs) * (final_V**2) + 0.5 * L_tot * (final_I**2)
 
     assert np.isclose(initial_energy, stored + dissipated, rtol=1e-2)
 
@@ -303,8 +318,12 @@ def test_lumped_vs_distributed_segments_and_energy():
 def test_switch_alias_import():
     """Compatibility layer should expose ``Switch`` as an alias."""
 
-    module_path = Path(__file__).resolve().parent.parent / "src/dpf2/distributed_circuit.py"
-    spec = importlib.util.spec_from_file_location("dpf2.distributed_circuit", module_path)
+    module_path = (
+        Path(__file__).resolve().parent.parent / "src/dpf2/distributed_circuit.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "dpf2.distributed_circuit", module_path
+    )
     mod = importlib.util.module_from_spec(spec)
     sys.modules["dpf2.distributed_circuit"] = mod
     spec.loader.exec_module(mod)
@@ -322,12 +341,20 @@ def test_branched_network_current_split_and_energy():
 
     segments = [
         # Series inductor between the capacitor and the branching node
-        TransmissionLineSegment(0, 1, length=1.0, L_per_m=L_series, R_per_m=0.0, C_per_m=0.0),
+        TransmissionLineSegment(
+            0, 1, length=1.0, L_per_m=L_series, R_per_m=0.0, C_per_m=0.0
+        ),
         # Two identical branches in parallel
-        TransmissionLineSegment(1, 2, length=1.0, L_per_m=L_branch, R_per_m=0.0, C_per_m=0.0),
-        TransmissionLineSegment(1, 2, length=1.0, L_per_m=L_branch, R_per_m=0.0, C_per_m=0.0),
+        TransmissionLineSegment(
+            1, 2, length=1.0, L_per_m=L_branch, R_per_m=0.0, C_per_m=0.0
+        ),
+        TransmissionLineSegment(
+            1, 2, length=1.0, L_per_m=L_branch, R_per_m=0.0, C_per_m=0.0
+        ),
         # Capacitor from source to ground providing the initial energy
-        TransmissionLineSegment(0, 2, length=1.0, L_per_m=0.0, R_per_m=0.0, C_per_m=C_main),
+        TransmissionLineSegment(
+            0, 2, length=1.0, L_per_m=0.0, R_per_m=0.0, C_per_m=C_main
+        ),
     ]
 
     res = solve_distributed_circuit(segments, None, V0=V0, t_end=1e-7, dt=1e-9)
@@ -338,7 +365,9 @@ def test_branched_network_current_split_and_energy():
     assert np.allclose(branch1, branch2, rtol=1e-3, atol=1e-6)
 
     # Total energy in the lossless system should remain constant
-    L_vals = np.array([segments[0].totals()[0], segments[1].totals()[0], segments[2].totals()[0]])
+    L_vals = np.array(
+        [segments[0].totals()[0], segments[1].totals()[0], segments[2].totals()[0]]
+    )
     initial = 0.5 * C_main * V0**2
     final = 0.5 * C_main * res.voltage[-1] ** 2 + 0.5 * sum(
         L_vals[i] * (res.branch_currents[-1, i] ** 2) for i in range(3)
@@ -360,8 +389,12 @@ def test_transmission_line_phase_and_attenuation_across_frequencies():
 
     f1 = 1e6
     f2 = 5e6
-    res1 = solve_distributed_circuit([seg], None, V0=1.0, t_end=5e-6, dt=1e-8, frequency=f1)
-    res2 = solve_distributed_circuit([seg], None, V0=1.0, t_end=5e-6, dt=1e-8, frequency=f2)
+    res1 = solve_distributed_circuit(
+        [seg], None, V0=1.0, t_end=5e-6, dt=1e-8, frequency=f1
+    )
+    res2 = solve_distributed_circuit(
+        [seg], None, V0=1.0, t_end=5e-6, dt=1e-8, frequency=f2
+    )
 
     def _measure(res, freq):
         vals_out = [row[1] for row in res.node_voltages]
@@ -416,6 +449,8 @@ def test_reflection_coefficient_frequency_dependence():
     assert abs(r1 - _manual(f1)) < 1e-12
     assert abs(r2 - _manual(f2)) < 1e-12
     assert not np.isclose(abs(r1), abs(r2))
+
+
 def _measure_amp_phase(node_voltages, t, freq):
     vals_out = [row[1] for row in node_voltages]
     vals_in = [row[0] for row in node_voltages]
@@ -441,11 +476,15 @@ def test_single_segment_reflection_and_phase():
     )
     freq = 1e7
     ZL = 25.0
-    sol = solve_distributed_circuit([seg], [], V0=1.0, t_end=2e-6, dt=1e-9, frequency=freq, Z_load=ZL)
+    sol = solve_distributed_circuit(
+        [seg], [], V0=1.0, t_end=2e-6, dt=1e-9, frequency=freq, Z_load=ZL
+    )
 
     gamma = seg.propagation_constant(freq)
     Z0 = seg.characteristic_impedance(freq)
-    H = 1.0 / (cmath.cosh(gamma * seg.length) + (Z0 / ZL) * cmath.sinh(gamma * seg.length))
+    H = 1.0 / (
+        cmath.cosh(gamma * seg.length) + (Z0 / ZL) * cmath.sinh(gamma * seg.length)
+    )
     amp_exp = abs(H)
     phase_exp = cmath.phase(H)
 
@@ -475,7 +514,9 @@ def test_two_segment_interface_reflection():
     )
     freq = 1e7
     ZL = seg2.characteristic_impedance(freq)
-    sol = solve_distributed_circuit([seg1, seg2], [], V0=1.0, t_end=2e-6, dt=1e-9, frequency=freq, Z_load=ZL)
+    sol = solve_distributed_circuit(
+        [seg1, seg2], [], V0=1.0, t_end=2e-6, dt=1e-9, frequency=freq, Z_load=ZL
+    )
 
     Z0_1 = seg1.characteristic_impedance(freq)
     Z0_2 = seg2.characteristic_impedance(freq)
@@ -503,4 +544,3 @@ def test_two_segment_interface_reflection():
     refl_int = (Z0_2 - Z0_1) / (Z0_2 + Z0_1)
     assert np.isclose(sol.reflections[0], refl_int, rtol=1e-6, atol=1e-6)
     assert np.isclose(sol.reflections[1], 0.0, atol=1e-12)
-

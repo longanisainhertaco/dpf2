@@ -1,6 +1,7 @@
 # solver_selector.py
 from .fluid_solver_high_order import FluidSolverHighOrder
 from .pic_solver import PICSolver
+
 # from .amrex_solver import FluidSolverAMReX  # Keep for potential future use, but comment out
 from .utils import FieldManager
 from typing import Dict, Any
@@ -9,7 +10,10 @@ from .models import PhysicsModule
 
 logger = logging.getLogger(__name__)
 
-def select_solver(backend: str, config: Dict[str, Any], field_manager: FieldManager) -> PhysicsModule:
+
+def select_solver(
+    backend: str, config: Dict[str, Any], field_manager: FieldManager
+) -> PhysicsModule:
     """
     Selects and returns a solver based on the specified backend.
 
@@ -25,17 +29,14 @@ def select_solver(backend: str, config: Dict[str, Any], field_manager: FieldMana
         ValueError: If an invalid backend is specified.
     """
     try:
-        if backend == 'high_order':
+        if backend == "high_order":
             solver = FluidSolverHighOrder(
                 geom=None,  # Geometry will be set later
                 config=config,
-                field_manager=field_manager  # Pass FieldManager to FluidSolverHighOrder
+                field_manager=field_manager,  # Pass FieldManager to FluidSolverHighOrder
             )
-        elif backend == 'pic':
-            solver = PICSolver(
-                config=config,
-                field_manager=field_manager
-            )
+        elif backend == "pic":
+            solver = PICSolver(config=config, field_manager=field_manager)
         # elif backend == 'amrex':  # Keep for potential future use, but comment out
         #     solver = FluidSolverAMReX(
         #         geom=None,  # Geometry will be set later
@@ -50,6 +51,7 @@ def select_solver(backend: str, config: Dict[str, Any], field_manager: FieldMana
     except Exception as e:
         logger.error(f"Error creating solver: {e}")
         raise
+
 
 def initialize_solver(solver: PhysicsModule, config: Dict[str, Any]) -> None:
     """

@@ -24,7 +24,9 @@ from __future__ import annotations
 import numpy as np
 
 
-def plasma_front_position(t: np.ndarray, sound_speed: float, r0: float = 0.0) -> np.ndarray:
+def plasma_front_position(
+    t: np.ndarray, sound_speed: float, r0: float = 0.0
+) -> np.ndarray:
     """Return the analytic position of the ion front.
 
     Parameters

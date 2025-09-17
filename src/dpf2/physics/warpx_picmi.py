@@ -14,6 +14,7 @@ import math
 import numpy as np
 
 from .pic_driver import PicDriver
+
 try:  # optional dependency for collisions
     from ..simulation.warp_piclibrary import PICCollisionHandler
 except Exception:  # pragma: no cover - collision support optional
@@ -51,8 +52,12 @@ class WarpXPicmiDriver(PicDriver):
             self.warp.step(1)
 
     # ------------------------------------------------------------------
-    def exchange_fields(self) -> Tuple[Tuple[np.ndarray, np.ndarray, np.ndarray],
-                                       Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    def exchange_fields(
+        self,
+    ) -> Tuple[
+        Tuple[np.ndarray, np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, np.ndarray],
+    ]:
         """Return the electric and magnetic field components from WarpX."""
         E = tuple(np.array(self.warp.get_field(comp)) for comp in ("Ex", "Ey", "Ez"))
         B = tuple(np.array(self.warp.get_field(comp)) for comp in ("Bx", "By", "Bz"))
@@ -85,7 +90,9 @@ class WarpXPicmiDriver(PicDriver):
         vel = np.array(container.get_velocities())
         radius = 0.0
         if len(pos):
-            radius = float(sum(math.sqrt(p[0] * p[0] + p[1] * p[1]) for p in pos) / len(pos))
+            radius = float(
+                sum(math.sqrt(p[0] * p[0] + p[1] * p[1]) for p in pos) / len(pos)
+            )
         mass = getattr(container, "mass", 1.0)
         kinetic = 0.0
         for v in vel:

@@ -29,7 +29,9 @@ class Drift(RenderedObject):
     from PICMI) are provided.
     """
 
-    direction_normalized = util.build_typesafe_property(typing.Tuple[float, float, float])
+    direction_normalized = util.build_typesafe_property(
+        typing.Tuple[float, float, float]
+    )
     """direction of drift, length of one"""
 
     gamma = util.build_typesafe_property(float)
@@ -68,7 +70,11 @@ class Drift(RenderedObject):
 
         vector_length = sum(map(lambda n: n**2, self.direction_normalized))
         if 1 != round(vector_length, 6):
-            raise ValueError("direction must be normalized (current length: {})".format(vector_length))
+            raise ValueError(
+                "direction must be normalized (current length: {})".format(
+                    vector_length
+                )
+            )
 
     def fill_from_velocity(self, velocity: typing.Tuple[float, float, float]) -> None:
         """
@@ -85,7 +91,9 @@ class Drift(RenderedObject):
         velocity_linear = math.sqrt(sum(map(lambda x: x**2, velocity)))
         if velocity_linear >= constants.speed_of_light:
             raise ValueError(
-                "linear velocity must be less than the speed of light (currently: {})".format(velocity_linear)
+                "linear velocity must be less than the speed of light (currently: {})".format(
+                    velocity_linear
+                )
             )
 
         gamma = math.sqrt(1 / (1 - (velocity_linear**2 / constants.speed_of_light**2)))
@@ -93,7 +101,9 @@ class Drift(RenderedObject):
         self.direction_normalized = tuple(map(lambda x: x / velocity_linear, velocity))
         self.gamma = gamma
 
-    def fill_from_gamma_velocity(self, gamma_velocity: typing.Tuple[float, float, float]) -> None:
+    def fill_from_gamma_velocity(
+        self, gamma_velocity: typing.Tuple[float, float, float]
+    ) -> None:
         """
         set attributes to represent given velocity vector multiplied with gamma
 
@@ -106,9 +116,13 @@ class Drift(RenderedObject):
             raise ValueError("velocity must not be zero")
 
         gamma_velocity_linear = math.sqrt(sum(map(lambda x: x**2, gamma_velocity)))
-        gamma = math.sqrt(1 + ((gamma_velocity_linear) ** 2 / constants.speed_of_light**2))
+        gamma = math.sqrt(
+            1 + ((gamma_velocity_linear) ** 2 / constants.speed_of_light**2)
+        )
 
-        self.direction_normalized = tuple(map(lambda x: x / gamma_velocity_linear, gamma_velocity))
+        self.direction_normalized = tuple(
+            map(lambda x: x / gamma_velocity_linear, gamma_velocity)
+        )
         self.gamma = gamma
 
     def _get_serialized(self) -> dict:

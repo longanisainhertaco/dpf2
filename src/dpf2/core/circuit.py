@@ -101,8 +101,7 @@ class RLCCircuitSolver(CircuitSolverBase):
 
         def rhs(I: float, V: float) -> tuple[float, float]:
             numerator = (
-                self.V0 + V_mutual - self.R_ext * I - V - emf - back_emf
-                - I * dLp_dt
+                self.V0 + V_mutual - self.R_ext * I - V - emf - back_emf - I * dLp_dt
             )
             dIdt = numerator / Ltot
             dVdt = -I / self.C_ext

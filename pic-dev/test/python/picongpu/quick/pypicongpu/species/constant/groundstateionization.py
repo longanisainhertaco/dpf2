@@ -7,8 +7,17 @@ License: GPLv3+
 
 from picongpu.pypicongpu.species import Species
 from picongpu.pypicongpu.species.attribute import Position, Momentum, BoundElectrons
-from picongpu.pypicongpu.species.constant import Mass, Charge, GroundStateIonization, ElementProperties
-from picongpu.pypicongpu.species.constant.ionizationmodel import BSI, BSIStarkShifted, ThomasFermi
+from picongpu.pypicongpu.species.constant import (
+    Mass,
+    Charge,
+    GroundStateIonization,
+    ElementProperties,
+)
+from picongpu.pypicongpu.species.constant.ionizationmodel import (
+    BSI,
+    BSIStarkShifted,
+    ThomasFermi,
+)
 from picongpu.pypicongpu.species.constant.ionizationcurrent import None_
 from picongpu.picmi import constants
 
@@ -34,9 +43,15 @@ class TestGroundStateIonization(unittest.TestCase):
 
         self.electron = electron
 
-        self.BSI_instance = BSI(ionization_electron_species=self.electron, ionization_current=None_())
-        self.BSIstark_instance = BSIStarkShifted(ionization_electron_species=self.electron, ionization_current=None_())
-        self.thomas_fermi_instance = ThomasFermi(ionization_electron_species=self.electron)
+        self.BSI_instance = BSI(
+            ionization_electron_species=self.electron, ionization_current=None_()
+        )
+        self.BSIstark_instance = BSIStarkShifted(
+            ionization_electron_species=self.electron, ionization_current=None_()
+        )
+        self.thomas_fermi_instance = ThomasFermi(
+            ionization_electron_species=self.electron
+        )
 
     def test_basic(self):
         """we may create basic Instance"""
@@ -57,7 +72,8 @@ class TestGroundStateIonization(unittest.TestCase):
         instance = GroundStateIonization(ionization_model_list=[])
 
         with self.assertRaisesRegex(
-            ValueError, ".*at least one ionization model must be specified if ground_state_ionization is not none.*"
+            ValueError,
+            ".*at least one ionization model must be specified if ground_state_ionization is not none.*",
         ):
             # but check throws error
             instance.check()
@@ -67,10 +83,16 @@ class TestGroundStateIonization(unittest.TestCase):
 
         # assignment is possible
         instance = GroundStateIonization(
-            ionization_model_list=[self.BSI_instance, self.BSIstark_instance, self.thomas_fermi_instance]
+            ionization_model_list=[
+                self.BSI_instance,
+                self.BSIstark_instance,
+                self.thomas_fermi_instance,
+            ]
         )
 
-        with self.assertRaisesRegex(ValueError, ".*ionization model group already represented: BSI.*"):
+        with self.assertRaisesRegex(
+            ValueError, ".*ionization model group already represented: BSI.*"
+        ):
             # but check throws
             instance.check()
 
@@ -78,31 +100,45 @@ class TestGroundStateIonization(unittest.TestCase):
         """check method of ionization models is called"""
 
         # creation is possible will only raise in check method
-        invalid_ionization_model = BSI(ionization_electron_species=None, ionization_current=None_())
+        invalid_ionization_model = BSI(
+            ionization_electron_species=None, ionization_current=None_()
+        )
 
         # assignment is allowed
-        instance = GroundStateIonization(ionization_model_list=[invalid_ionization_model])
-        with self.assertRaisesRegex(TypeError, ".*ionization_electron_species must be of type pypicongpu Species.*"):
+        instance = GroundStateIonization(
+            ionization_model_list=[invalid_ionization_model]
+        )
+        with self.assertRaisesRegex(
+            TypeError,
+            ".*ionization_electron_species must be of type pypicongpu Species.*",
+        ):
             # but check throws error
             instance.check()
 
     def test_species_dependencies(self):
         """correct return"""
         self.assertEqual(
-            GroundStateIonization(ionization_model_list=[self.BSI_instance]).get_species_dependencies(), [self.electron]
+            GroundStateIonization(
+                ionization_model_list=[self.BSI_instance]
+            ).get_species_dependencies(),
+            [self.electron],
         )
 
     def test_attribute_dependencies(self):
         """correct return"""
         self.assertEqual(
-            GroundStateIonization(ionization_model_list=[self.BSI_instance]).get_attribute_dependencies(),
+            GroundStateIonization(
+                ionization_model_list=[self.BSI_instance]
+            ).get_attribute_dependencies(),
             [BoundElectrons],
         )
 
     def test_constant_dependencies(self):
         """correct return"""
         self.assertEqual(
-            GroundStateIonization(ionization_model_list=[self.BSI_instance]).get_constant_dependencies(),
+            GroundStateIonization(
+                ionization_model_list=[self.BSI_instance]
+            ).get_constant_dependencies(),
             [ElementProperties],
         )
 
@@ -112,7 +148,9 @@ class TestGroundStateIonization(unittest.TestCase):
         electron = self.BSI_instance.ionization_electron_species
         electron.attributes = [Position(), Momentum()]
 
-        context = GroundStateIonization(ionization_model_list=[self.BSI_instance]).get_rendering_context()
+        context = GroundStateIonization(
+            ionization_model_list=[self.BSI_instance]
+        ).get_rendering_context()
 
         expected_context = {
             "ionization_model_list": [

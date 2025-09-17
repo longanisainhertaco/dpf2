@@ -49,8 +49,12 @@ class PNGWidget(BaseWidget):
         to the jupyter widgets responsible for adjusting those values.
         """
         self.species = widgets.Dropdown(description="Species", options=["e"], value="e")
-        self.species_filter = widgets.Dropdown(description="Species_filter", options=["all"], value="all")
-        self.axis = widgets.Dropdown(description="Axis", options=["yx", "yz"], value="yx")
+        self.species_filter = widgets.Dropdown(
+            description="Species_filter", options=["all"], value="all"
+        )
+        self.axis = widgets.Dropdown(
+            description="Axis", options=["yx", "yz"], value="yx"
+        )
 
         return {
             "species": self.species,

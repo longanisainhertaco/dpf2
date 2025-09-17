@@ -27,7 +27,12 @@ class TestNoBoundElectrons(unittest.TestCase):
         self.species1.name = "ion"
         self.species1.constants = [
             GroundStateIonization(
-                ionization_model_list=[BSI(ionization_electron_species=self.electron, ionization_current=None_())]
+                ionization_model_list=[
+                    BSI(
+                        ionization_electron_species=self.electron,
+                        ionization_current=None_(),
+                    )
+                ]
             )
         ]
 
@@ -92,4 +97,6 @@ class TestNoBoundElectrons(unittest.TestCase):
         self.assertEqual(1, len(nbe.attributes_by_species))
 
         self.assertEqual(1, len(nbe.attributes_by_species[self.species1]))
-        self.assertTrue(isinstance(nbe.attributes_by_species[self.species1][0], BoundElectrons))
+        self.assertTrue(
+            isinstance(nbe.attributes_by_species[self.species1][0], BoundElectrons)
+        )

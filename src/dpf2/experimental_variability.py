@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator
 
 
-
 # Local imports ---------------------------------------------------------------
 from .core_schema import ConfigSectionBase, UnitsSystem, UNIT_SCALE_MAP, to_camel_case
 
@@ -33,15 +32,13 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
     disable_all_variability: bool = Field(
         False, description="Disables all variability behavior across the model"
     )
-    variability_application_mode: Literal["single", "per_segment", "ensemble_only"] = "single"
+    variability_application_mode: Literal["single", "per_segment", "ensemble_only"] = (
+        "single"
+    )
 
     # -- Stochastic fields -------------------------------------------------
-    pressure_jitter_pct: float = Field(
-        0.0, metadata={"units": "%", "group": "Noise"}
-    )
-    trigger_jitter_ns: float = Field(
-        0.0, metadata={"units": "ns", "group": "Noise"}
-    )
+    pressure_jitter_pct: float = Field(0.0, metadata={"units": "%", "group": "Noise"})
+    trigger_jitter_ns: float = Field(0.0, metadata={"units": "ns", "group": "Noise"})
     erosion_multiplier: float = Field(
         1.0, metadata={"units": "scale", "group": "Aging"}
     )
@@ -62,18 +59,18 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
     erosion_profile_from_file: Optional[Path] = None
     erosion_model_type: Literal["scalar", "energy_weighted"] = "scalar"
 
-    time_varying_environment_model: Literal[
-        "none", "custom_script", "from_file"
-    ] = "none"
+    time_varying_environment_model: Literal["none", "custom_script", "from_file"] = (
+        "none"
+    )
     time_varying_profile_path: Optional[Path] = None
     time_varying_profile_schema: Literal["flat", "multi-var", "tabular"] = "flat"
     expected_profile_columns: Optional[List[str]] = Field(
         default_factory=lambda: ["t_ns", "pressure", "temperature"]
     )
     time_column_unit: Literal["ns", "us", "ms"] = "ns"
-    profile_conflict_policy: Literal[
-        "prefer_file", "prefer_scalar", "error"
-    ] = "prefer_file"
+    profile_conflict_policy: Literal["prefer_file", "prefer_scalar", "error"] = (
+        "prefer_file"
+    )
 
     # -- ML / ensemble flags ----------------------------------------------
     allow_ensemble_variation: bool = True
@@ -96,21 +93,35 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
         return [n for n, f in self.model_fields.items() if f.is_required()]
 
     def get_field_metadata(self) -> Dict[str, Dict[str, Any]]:
-        return {n: field.json_schema_extra or {} for n, field in self.model_fields.items()}
+        return {
+            n: field.json_schema_extra or {} for n, field in self.model_fields.items()
+        }
 
-    def normalize_units(self, base_units: UnitsSystem) -> "ExperimentalVariabilityModel":
+    def normalize_units(
+        self, base_units: UnitsSystem
+    ) -> "ExperimentalVariabilityModel":
         scale = UNIT_SCALE_MAP.get(base_units, 1.0)
         trig = self.trigger_jitter_ns * scale
         return self.model_copy(update={"trigger_jitter_ns": trig})
 
     def summarize(self) -> str:
-        dist = self.per_field_distributions.get("pressure_jitter_pct", self.distribution_model) if self.per_field_distributions else self.distribution_model
+        dist = (
+            self.per_field_distributions.get(
+                "pressure_jitter_pct", self.distribution_model
+            )
+            if self.per_field_distributions
+            else self.distribution_model
+        )
         erosion_desc = f"{self.erosion_multiplier}x"
         if self.erosion_profile_from_file:
             erosion_desc += f" ({self.erosion_model_type} override: {self.erosion_profile_from_file})"
         env_desc = "disabled"
         if self.time_varying_environment_model != "none":
-            path = self.time_varying_profile_path.name if self.time_varying_profile_path else "n/a"
+            path = (
+                self.time_varying_profile_path.name
+                if self.time_varying_profile_path
+                else "n/a"
+            )
             env_desc = f"enabled (env profile: {path}, schema = {self.time_varying_profile_schema})"
         ml_count = len(self.tagged_fields.get("ml", []))
         return (
@@ -138,13 +149,17 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
 
     # ------------------------------------------------------------------
     @model_validator(mode="after")
-    def check_rules(cls, values: "ExperimentalVariabilityModel") -> "ExperimentalVariabilityModel":
+    def check_rules(
+        cls, values: "ExperimentalVariabilityModel"
+    ) -> "ExperimentalVariabilityModel":
         if values.disable_all_variability:
-            values = values.model_copy(update={
-                "pressure_jitter_pct": 0.0,
-                "trigger_jitter_ns": 0.0,
-                "erosion_multiplier": 1.0,
-            })
+            values = values.model_copy(
+                update={
+                    "pressure_jitter_pct": 0.0,
+                    "trigger_jitter_ns": 0.0,
+                    "erosion_multiplier": 1.0,
+                }
+            )
 
         if not 0 <= values.pressure_jitter_pct <= 100:
             raise ValueError("pressure_jitter_pct must be between 0 and 100")
@@ -160,7 +175,9 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
 
         if values.time_varying_environment_model == "from_file":
             if values.time_varying_profile_path is None:
-                raise ValueError("time_varying_profile_path is required when environment model is 'from_file'")
+                raise ValueError(
+                    "time_varying_profile_path is required when environment model is 'from_file'"
+                )
             p = Path(values.time_varying_profile_path)
             if not (p.exists() or str(p).startswith("file:")):
                 raise ValueError("time_varying_profile_path must exist or be URI-valid")
@@ -184,7 +201,9 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
                     if mat[i][j] != mat[j][i]:
                         raise ValueError("jitter_correlation_matrix must be symmetric")
             if n != 3:
-                raise ValueError("jitter_correlation_matrix size must match stochastic field count")
+                raise ValueError(
+                    "jitter_correlation_matrix size must match stochastic field count"
+                )
 
         if values.tagged_fields:
             valid_fields = set(values.model_fields.keys())
@@ -194,7 +213,9 @@ class ExperimentalVariabilityModel(ConfigSectionBase):
                         raise ValueError(f"tagged field {f} not found")
 
         # Compute hash --------------------------------------------------
-        values = values.model_copy(update={"variability_config_hash": values.hash_variability()})
+        values = values.model_copy(
+            update={"variability_config_hash": values.hash_variability()}
+        )
         return values
 
 
@@ -230,7 +251,10 @@ class MonteCarloVariability:
             else self.model.distribution_model
         )
         params = self.model.distribution_params or {}
-        if self.model.per_field_distribution_params and field in self.model.per_field_distribution_params:
+        if (
+            self.model.per_field_distribution_params
+            and field in self.model.per_field_distribution_params
+        ):
             params = self.model.per_field_distribution_params[field]
 
         if field == "fill_pressure":
@@ -263,7 +287,9 @@ class MonteCarloVariability:
     def sample_fill_pressure(self, nominal: float) -> np.ndarray:
         return self._sample_scalar("fill_pressure", nominal)
 
-    def sample_geometry_tolerances(self, geometry: Dict[str, float]) -> List[Dict[str, float]]:
+    def sample_geometry_tolerances(
+        self, geometry: Dict[str, float]
+    ) -> List[Dict[str, float]]:
         samples: List[Dict[str, float]] = []
         for _ in range(self.realizations):
             g_sample: Dict[str, float] = {}
@@ -288,7 +314,9 @@ class MonteCarloVariability:
             cfg = base_config.model_copy(deep=True)
             cfg = cfg.model_copy(
                 update={
-                    "circuit_config": cfg.circuit_config.model_copy(update={"V0": voltage_samples[i]}),
+                    "circuit_config": cfg.circuit_config.model_copy(
+                        update={"V0": voltage_samples[i]}
+                    ),
                     "initial_conditions": cfg.initial_conditions.model_copy(
                         update={
                             "paschen_model": cfg.initial_conditions.paschen_model.model_copy(
@@ -296,7 +324,9 @@ class MonteCarloVariability:
                             )
                         }
                     ),
-                    "electrode_geometry": cfg.electrode_geometry.model_copy(update=geom_samples[i]),
+                    "electrode_geometry": cfg.electrode_geometry.model_copy(
+                        update=geom_samples[i]
+                    ),
                 }
             )
             configs.append(cfg)
@@ -304,4 +334,3 @@ class MonteCarloVariability:
 
 
 __all__ = ["ExperimentalVariabilityModel", "MonteCarloVariability"]
-

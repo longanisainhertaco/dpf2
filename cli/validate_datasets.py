@@ -10,4 +10,3 @@ from dpf2.cli.validate_datasets import main
 
 if __name__ == "__main__":  # pragma: no cover - script entry point
     raise SystemExit(main())
-

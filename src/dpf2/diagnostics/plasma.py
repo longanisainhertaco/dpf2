@@ -98,7 +98,9 @@ def save_density_temperature_map_hdf5(
 
     dens_arr = [[float(v) for v in row] for row in density]
     temp_arr = [[float(v) for v in row] for row in temperature]
-    if len(dens_arr) != len(temp_arr) or any(len(d) != len(t) for d, t in zip(dens_arr, temp_arr)):
+    if len(dens_arr) != len(temp_arr) or any(
+        len(d) != len(t) for d, t in zip(dens_arr, temp_arr)
+    ):
         raise ValueError("density and temperature must have the same shape")
 
     def _process(arr: Sequence[Sequence[float]]) -> list[list[float]]:
@@ -131,7 +133,9 @@ def save_density_temperature_map_hdf5(
         temp_ds.attrs["unitSI"] = 1.0
 
 
-def compute_eedf(energies: Sequence[float], bin_edges: Sequence[float]) -> tuple[list[float], list[float]]:
+def compute_eedf(
+    energies: Sequence[float], bin_edges: Sequence[float]
+) -> tuple[list[float], list[float]]:
     """Compute an electron energy distribution function (EEDF).
 
     Parameters
@@ -154,7 +158,9 @@ def compute_eedf(energies: Sequence[float], bin_edges: Sequence[float]) -> tuple
             if bin_edges[i] <= e < bin_edges[i + 1]:
                 counts[i] += 1
                 break
-    centers = [(bin_edges[i] + bin_edges[i + 1]) / 2.0 for i in range(len(bin_edges) - 1)]
+    centers = [
+        (bin_edges[i] + bin_edges[i + 1]) / 2.0 for i in range(len(bin_edges) - 1)
+    ]
     return centers, counts
 
 

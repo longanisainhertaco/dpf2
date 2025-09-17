@@ -21,7 +21,9 @@ def _load_config(dataset_dir: Path) -> Dict[str, Any]:
     return {}
 
 
-def compare_to_scaling(results: SimulationResults, dataset_dir: Path) -> Dict[str, float]:
+def compare_to_scaling(
+    results: SimulationResults, dataset_dir: Path
+) -> Dict[str, float]:
     """Compare simulation outputs to simple scaling law predictions.
 
     Parameters
@@ -54,7 +56,9 @@ def compare_to_scaling(results: SimulationResults, dataset_dir: Path) -> Dict[st
         n = float(law.get("n", 1.0))
         i_pred = k * v_peak**n
         metrics["current_pred_kA"] = i_pred
-        metrics["current_peak_error_pct"] = abs(i_peak - i_pred) / i_pred * 100.0 if i_pred else float("inf")
+        metrics["current_peak_error_pct"] = (
+            abs(i_peak - i_pred) / i_pred * 100.0 if i_pred else float("inf")
+        )
 
     if "neutron_yield_from_current" in cfg:
         law = cfg["neutron_yield_from_current"]
@@ -63,7 +67,9 @@ def compare_to_scaling(results: SimulationResults, dataset_dir: Path) -> Dict[st
         y_pred = k * (i_peak**n)
         metrics["neutron_yield_pred"] = y_pred
         if y_pred:
-            metrics["neutron_yield_error_pct"] = abs(results.neutron_yield - y_pred) / y_pred * 100.0
+            metrics["neutron_yield_error_pct"] = (
+                abs(results.neutron_yield - y_pred) / y_pred * 100.0
+            )
         else:
             metrics["neutron_yield_error_pct"] = float("inf")
 
@@ -112,7 +118,10 @@ def sweep_yield_scaling(
 
     if parameter == "initial_pressure":
         circuit = RLCCircuit(
-            L=cfg.inductance, R=cfg.resistance, C=cfg.capacitance, V0=cfg.charging_voltage
+            L=cfg.inductance,
+            R=cfg.resistance,
+            C=cfg.capacitance,
+            V0=cfg.charging_voltage,
         )
         solver = CircuitSolver(circuit)
         t, base_current = solver.solve(t_end=t_end, dt=dt)

@@ -3,7 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 from enum import Enum
 import random
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Literal, Sequence, Callable
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Literal,
+    Sequence,
+    Callable,
+)
 
 from pydantic import BaseModel, ConfigDict, Field
 from ..utils.pydantic_compat import model_validator
@@ -85,6 +95,7 @@ def apply_detector_response(
         return [float(v) for v in signal]
     return [float(response_fn(v)) for v in signal]
 
+
 __all__ = [
     "IonBeamEDF",
     "compute_neutron_yield",
@@ -138,7 +149,6 @@ __all__ = [
 ]
 
 
-
 # Local imports ---------------------------------------------------------------
 from ..core_schema import (
     ConfigSectionBase,
@@ -183,7 +193,9 @@ class OutputField(str, Enum):
 class DetectorArrayGenerator(ConfigSectionBase):
     """Procedural generation for detector arrays."""
 
-    config_section_id: ClassVar[Literal["detector_array_generator"]] = "detector_array_generator"
+    config_section_id: ClassVar[Literal["detector_array_generator"]] = (
+        "detector_array_generator"
+    )
 
     type: Literal["arc", "grid", "custom"]
     center: Tuple[float, float, float]
@@ -240,7 +252,9 @@ class Diagnostics(ConfigSectionBase):
 
     # -- Streaming controls ------------------------------------------------
     enable_runtime_observables_stream: bool = False
-    streaming_backend: Optional[Literal["websocket", "zmq", "file", "disabled"]] = "disabled"
+    streaming_backend: Optional[Literal["websocket", "zmq", "file", "disabled"]] = (
+        "disabled"
+    )
     stream_output_path: Optional[Path] = None
     streaming_protocol_version: Optional[str] = None
     streaming_transport_params: Optional[Dict[str, Any]] = None
@@ -255,7 +269,9 @@ class Diagnostics(ConfigSectionBase):
     sampling_unit: Literal["step", "time"] = "step"
     default_sampling_resolution: Optional[int] = None
     override_all_sampling: bool = False
-    sampling_time_window_ns: Optional[Tuple[float, float]] = Field(None, metadata={"units": "ns"})
+    sampling_time_window_ns: Optional[Tuple[float, float]] = Field(
+        None, metadata={"units": "ns"}
+    )
     sampling_strategy: Literal["fixed", "adaptive", "script"] = "fixed"
     sampling_profile_path: Optional[Path] = None
 
@@ -271,7 +287,9 @@ class Diagnostics(ConfigSectionBase):
 
     # -- Diagnostic toggles ------------------------------------------------
     beam_diagnostics: bool = False
-    beam_pulse_width_estimate_ns: Optional[float] = Field(None, metadata={"units": "ns"})
+    beam_pulse_width_estimate_ns: Optional[float] = Field(
+        None, metadata={"units": "ns"}
+    )
     enable_beam_convergence_tracking: bool = False
     enable_energy_tracking: bool = False
     enable_mhd_instability_tracking: bool = False
@@ -307,7 +325,9 @@ class Diagnostics(ConfigSectionBase):
     max_detector_count: int = 32
 
     # -- Angular & spectrum controls --------------------------------------
-    angular_diagnostics_resolution_deg: Optional[float] = Field(None, metadata={"units": "deg"})
+    angular_diagnostics_resolution_deg: Optional[float] = Field(
+        None, metadata={"units": "deg"}
+    )
     neutron_energy_bins_MeV: Optional[List[float]] = None
     enable_DT_yield_modeling: bool = False
     sxr_time_window_ns: Optional[float] = Field(None, metadata={"units": "ns"})
@@ -334,7 +354,10 @@ class Diagnostics(ConfigSectionBase):
         return [name for name, f in self.model_fields.items() if f.is_required()]
 
     def get_field_metadata(self) -> Dict[str, Dict[str, Any]]:
-        return {name: field.json_schema_extra or {} for name, field in self.model_fields.items()}
+        return {
+            name: field.json_schema_extra or {}
+            for name, field in self.model_fields.items()
+        }
 
     def normalize_units(self, units: UnitsSettings) -> "Diagnostics":
         unit_map = units.normalize_units()
@@ -344,15 +367,20 @@ class Diagnostics(ConfigSectionBase):
             bw = bw * scale
         tw = None
         if self.sampling_time_window_ns is not None:
-            tw = (self.sampling_time_window_ns[0] * scale, self.sampling_time_window_ns[1] * scale)
+            tw = (
+                self.sampling_time_window_ns[0] * scale,
+                self.sampling_time_window_ns[1] * scale,
+            )
         sxr_tw = self.sxr_time_window_ns
         if sxr_tw is not None:
             sxr_tw = sxr_tw * scale
-        return self.model_copy(update={
-            "beam_pulse_width_estimate_ns": bw,
-            "sampling_time_window_ns": tw,
-            "sxr_time_window_ns": sxr_tw,
-        })
+        return self.model_copy(
+            update={
+                "beam_pulse_width_estimate_ns": bw,
+                "sampling_time_window_ns": tw,
+                "sxr_time_window_ns": sxr_tw,
+            }
+        )
 
     def summarize(self) -> str:
         return (
@@ -377,38 +405,55 @@ class Diagnostics(ConfigSectionBase):
                 values.enable_neutron_tof_detectors,
             ]
             if any(toggles):
-                raise ValueError("all diagnostic toggles must be False when disable_all_diagnostics is True")
+                raise ValueError(
+                    "all diagnostic toggles must be False when disable_all_diagnostics is True"
+                )
         if values.diagnostic_mode == "minimal":
-            values = values.model_copy(update={
-                "beam_diagnostics": False,
-                "enable_sxr_detectors": False,
-                "enable_neutron_tof_detectors": False,
-                "wall_probe_array_config": None,
-            })
+            values = values.model_copy(
+                update={
+                    "beam_diagnostics": False,
+                    "enable_sxr_detectors": False,
+                    "enable_neutron_tof_detectors": False,
+                    "wall_probe_array_config": None,
+                }
+            )
         elif values.diagnostic_mode == "full":
-            values = values.model_copy(update={
-                "beam_diagnostics": True,
-                "enable_beam_convergence_tracking": True,
-                "enable_energy_tracking": True,
-                "enable_mhd_instability_tracking": True,
-                "enable_erosion_mapping": True,
-                "enable_failure_logging": True,
-                "enable_eedf_logging": True,
-                "enable_pitch_angle_tracking": True,
-                "enable_sxr_detectors": True,
-                "enable_neutron_tof_detectors": True,
-            })
-        if values.streaming_backend and values.streaming_backend != "disabled" and values.stream_output_path is None:
-            raise ValueError("stream_output_path must be set when streaming_backend is enabled")
+            values = values.model_copy(
+                update={
+                    "beam_diagnostics": True,
+                    "enable_beam_convergence_tracking": True,
+                    "enable_energy_tracking": True,
+                    "enable_mhd_instability_tracking": True,
+                    "enable_erosion_mapping": True,
+                    "enable_failure_logging": True,
+                    "enable_eedf_logging": True,
+                    "enable_pitch_angle_tracking": True,
+                    "enable_sxr_detectors": True,
+                    "enable_neutron_tof_detectors": True,
+                }
+            )
+        if (
+            values.streaming_backend
+            and values.streaming_backend != "disabled"
+            and values.stream_output_path is None
+        ):
+            raise ValueError(
+                "stream_output_path must be set when streaming_backend is enabled"
+            )
         if values.compression_backend == "blosc" and values.output_format == "HDF5":
             raise ValueError("blosc compression not supported with HDF5")
         if values.sxr_detector_models or values.neutron_tof_detectors:
-            names = [d.name for d in values.sxr_detector_models] + [d.name for d in values.neutron_tof_detectors]
+            names = [d.name for d in values.sxr_detector_models] + [
+                d.name for d in values.neutron_tof_detectors
+            ]
             if len(names) != len(set(names)):
                 raise ValueError("duplicate detector names are not allowed")
             if len(names) > values.max_detector_count:
                 raise ValueError("detector count exceeds max_detector_count")
-        if values.detector_array_generator and values.detector_array_generator.type == "arc":
+        if (
+            values.detector_array_generator
+            and values.detector_array_generator.type == "arc"
+        ):
             gen = values.detector_array_generator
             if gen.radius is None or gen.count is None:
                 raise ValueError("radius and count required for arc detector array")
@@ -428,5 +473,3 @@ class Diagnostics(ConfigSectionBase):
         obj = cls(**validated)
         setattr(obj, "_context", context)
         return obj
-
-

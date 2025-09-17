@@ -16,7 +16,9 @@ JtoeV = e**-1  # Conversion factor from Joules to eV
 
 
 def F1(z_q):
-    if z_q > 2.9e-6:  # below this value the integral is not accurate and we use the approximation for z_q << 1
+    if (
+        z_q > 2.9e-6
+    ):  # below this value the integral is not accurate and we use the approximation for z_q << 1
         integral = quad(lambda x: kv(5 / 3, x), z_q, np.inf)[0]
         return z_q * integral
     else:
@@ -33,7 +35,14 @@ def analytical_Propability(delta, gamma, Heff, dt):
     F1_result = F1(zq)
     F2_result = F2(zq)
     numerator = (
-        dt * e**2 * m_e * c * np.sqrt(3) * chi * (1 - delta) * (F1_result + 3 * delta * zq * chi / 2 * F2_result)
+        dt
+        * e**2
+        * m_e
+        * c
+        * np.sqrt(3)
+        * chi
+        * (1 - delta)
+        * (F1_result + 3 * delta * zq * chi / 2 * F2_result)
     )
     denominator = 2 * np.pi * gamma * delta * hbar**2 * eps0 * 4 * np.pi
     return numerator / denominator
@@ -53,7 +62,11 @@ def predictNumPhotons(gamma, Heff, dt, Ndt, Nelectrons):
     delta = np.logspace(-20, -0.0001, 100)
     P = 0
     for i in range(len(delta) - 1):
-        P += quad(lambda delta: analytical_Propability(delta, gamma, Heff, dt), delta[i], delta[i + 1])[0]
+        P += quad(
+            lambda delta: analytical_Propability(delta, gamma, Heff, dt),
+            delta[i],
+            delta[i + 1],
+        )[0]
     return P
 
 
@@ -63,4 +76,7 @@ def electron_energy(gamma):
 
 # Returns energy in eV without the rest mass energy
 def momentum_to_energy(momentum, mass):
-    return (np.sqrt((momentum * const.c) ** 2 + (mass * const.c**2) ** 2) - mass * const.c**2) * JtoeV
+    return (
+        np.sqrt((momentum * const.c) ** 2 + (mass * const.c**2) ** 2)
+        - mass * const.c**2
+    ) * JtoeV

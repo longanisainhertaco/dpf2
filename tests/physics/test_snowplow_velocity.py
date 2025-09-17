@@ -24,4 +24,3 @@ def test_snowplow_velocity():
     v_final = result.velocity[-1]
 
     assert 1e4 <= v_final <= 1e5
-

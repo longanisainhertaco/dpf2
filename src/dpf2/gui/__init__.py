@@ -10,6 +10,7 @@ __all__ = ["ProjectManager"]
 
 try:  # pragma: no cover - optional flask dependency
     from .dashboard import launch
+
     __all__.append("launch")
 except Exception:  # pragma: no cover - simplify when Flask missing
     logger.warning(
@@ -19,6 +20,7 @@ except Exception:  # pragma: no cover - simplify when Flask missing
 
 try:  # pragma: no cover - optional dash dependency
     from .interactive import launch as launch_dash
+
     __all__.append("launch_dash")
 except Exception:  # pragma: no cover - simplify when dash missing
     logger.warning(
@@ -28,6 +30,7 @@ except Exception:  # pragma: no cover - simplify when dash missing
 
 try:  # pragma: no cover - optional PyQt dependency
     from .qt_sweep import launch as launch_qt
+
     __all__.append("launch_qt")
 except Exception:  # pragma: no cover - simplify when PyQt missing
     logger.warning(

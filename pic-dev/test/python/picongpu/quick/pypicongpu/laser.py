@@ -179,7 +179,9 @@ class TestGaussianLaser(unittest.TestCase):
                 {"component": self.laser.propagation_direction[2]},
             ],
         )
-        self.assertEqual(context["polarization_type"], self.laser.polarization_type.get_cpp_str())
+        self.assertEqual(
+            context["polarization_type"], self.laser.polarization_type.get_cpp_str()
+        )
         self.assertEqual(
             context["polarization_direction"],
             [

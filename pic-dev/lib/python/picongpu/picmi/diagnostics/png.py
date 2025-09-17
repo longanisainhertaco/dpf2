@@ -120,21 +120,35 @@ class Png:
 
         # Validate EM field scaling for channels
         if self.em_field_scale_channel1 not in EMFieldScaleEnum:
-            raise ValueError(f"Invalid EM field scale for channel 1. Valid options are {list(EMFieldScaleEnum)}.")
+            raise ValueError(
+                f"Invalid EM field scale for channel 1. Valid options are {list(EMFieldScaleEnum)}."
+            )
         if self.em_field_scale_channel2 not in EMFieldScaleEnum:
-            raise ValueError(f"Invalid EM field scale for channel 2. Valid options are {list(EMFieldScaleEnum)}.")
+            raise ValueError(
+                f"Invalid EM field scale for channel 2. Valid options are {list(EMFieldScaleEnum)}."
+            )
         if self.em_field_scale_channel3 not in EMFieldScaleEnum:
-            raise ValueError(f"Invalid EM field scale for channel 3. Valid options are {list(EMFieldScaleEnum)}.")
+            raise ValueError(
+                f"Invalid EM field scale for channel 3. Valid options are {list(EMFieldScaleEnum)}."
+            )
 
         # Validate color scales for particle density and channels
         if self.pre_particle_density_color_scales not in ColorScaleEnum:
-            raise ValueError(f"Invalid color scale for particle density. Valid options are {list(ColorScaleEnum)}.")
+            raise ValueError(
+                f"Invalid color scale for particle density. Valid options are {list(ColorScaleEnum)}."
+            )
         if self.pre_channel1_color_scales not in ColorScaleEnum:
-            raise ValueError(f"Invalid color scale for channel 1. Valid options are {list(ColorScaleEnum)}.")
+            raise ValueError(
+                f"Invalid color scale for channel 1. Valid options are {list(ColorScaleEnum)}."
+            )
         if self.pre_channel2_color_scales not in ColorScaleEnum:
-            raise ValueError(f"Invalid color scale for channel 2. Valid options are {list(ColorScaleEnum)}.")
+            raise ValueError(
+                f"Invalid color scale for channel 2. Valid options are {list(ColorScaleEnum)}."
+            )
         if self.pre_channel3_color_scales not in ColorScaleEnum:
-            raise ValueError(f"Invalid color scale for channel 3. Valid options are {list(ColorScaleEnum)}.")
+            raise ValueError(
+                f"Invalid color scale for channel 3. Valid options are {list(ColorScaleEnum)}."
+            )
 
         if self.species not in dict_species_picmi_to_pypicongpu.keys():
             raise ValueError(f"Species {self.species} is not known to Simulation")
@@ -142,7 +156,9 @@ class Png:
         pypicongpu_species = dict_species_picmi_to_pypicongpu.get(self.species)
 
         if pypicongpu_species is None:
-            raise ValueError(f"Species {self.species} is not mapped to a PyPIConGPUSpecies.")
+            raise ValueError(
+                f"Species {self.species} is not mapped to a PyPIConGPUSpecies."
+            )
 
     def __init__(
         self,

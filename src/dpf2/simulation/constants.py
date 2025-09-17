@@ -9,9 +9,11 @@ across the project (e.g., consistently using scipy.constants).
 """
 
 import logging
+
 try:  # pragma: no cover - prefer SciPy when available
     import scipy.constants as const
 except ModuleNotFoundError:  # pragma: no cover - lightweight fallback
+
     class _Const:
         e = 1.0
         m_e = 1.0
@@ -23,31 +25,32 @@ except ModuleNotFoundError:  # pragma: no cover - lightweight fallback
         m_p = 1.0
         m_n = 1.0
         pi = 3.141592653589793
+
     const = _Const()
 logger = logging.getLogger(__name__)
 
 # Elementary charge (Coulombs)
 e = const.e
-e_charge = const.e # Alias sometimes used
+e_charge = const.e  # Alias sometimes used
 
 # Electron mass (kg)
 me = const.m_e
-m_e = const.m_e # Alias sometimes used
+m_e = const.m_e  # Alias sometimes used
 
 # Vacuum permittivity (F/m)
 epsilon0 = const.epsilon_0
-epsilon_0 = const.epsilon_0 # Alias sometimes used
+epsilon_0 = const.epsilon_0  # Alias sometimes used
 
 # Vacuum permeability (H/m)
 mu0 = const.mu_0
-mu_0 = const.mu_0 # Alias sometimes used
+mu_0 = const.mu_0  # Alias sometimes used
 
 # Speed of light (m/s)
 c = const.c
 
 # Boltzmann constant (J/K)
 kB = const.k
-k_B = const.k # Alias sometimes used
+k_B = const.k  # Alias sometimes used
 
 # Planck constant (J*s)
 h_planck = const.h

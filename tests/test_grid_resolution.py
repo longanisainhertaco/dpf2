@@ -39,8 +39,12 @@ def test_aspect_ratio_warning():
 
 def test_hash_stability_and_summary():
     cfg1 = GridResolution.with_defaults("2D_RZ")
-    cfg1 = GridResolution.model_validate(cfg1.model_dump(by_alias=True), context={"geometry": "2D_RZ"})
-    cfg2 = GridResolution.model_validate(cfg1.model_dump(by_alias=True), context={"geometry": "2D_RZ"})
+    cfg1 = GridResolution.model_validate(
+        cfg1.model_dump(by_alias=True), context={"geometry": "2D_RZ"}
+    )
+    cfg2 = GridResolution.model_validate(
+        cfg1.model_dump(by_alias=True), context={"geometry": "2D_RZ"}
+    )
     assert cfg1.grid_config_hash == cfg2.grid_config_hash
     summary = cfg1.summarize()
     assert cfg1.grid_config_hash[:6] in summary
@@ -68,4 +72,3 @@ def test_grid_centering_affects_odd_even_logic():
         warnings.simplefilter("always")
         GridResolution.model_validate(data, context={"geometry": "3D_Cartesian"})
         assert any("odd" in str(wi.message) for wi in w)
-

@@ -26,31 +26,37 @@ def test_conflicting_profile_policy(tmp_path: Path):
     path = tmp_path / "erosion.csv"
     path.write_text("data")
     data = ExperimentalVariabilityModel.with_defaults().model_dump()
-    data.update({
-        "erosion_multiplier": 1.2,
-        "erosion_profile_from_file": path,
-        "profile_conflict_policy": "error",
-    })
+    data.update(
+        {
+            "erosion_multiplier": 1.2,
+            "erosion_profile_from_file": path,
+            "profile_conflict_policy": "error",
+        }
+    )
     with pytest.raises(ValueError):
         ExperimentalVariabilityModel.model_validate(data)
 
 
 def test_missing_profile_path_raises():
     data = ExperimentalVariabilityModel.with_defaults().model_dump()
-    data.update({
-        "time_varying_environment_model": "from_file",
-        "time_varying_profile_path": None,
-    })
+    data.update(
+        {
+            "time_varying_environment_model": "from_file",
+            "time_varying_profile_path": None,
+        }
+    )
     with pytest.raises(ValueError):
         ExperimentalVariabilityModel.model_validate(data)
 
 
 def test_distribution_override_behavior():
     data = ExperimentalVariabilityModel.with_defaults().model_dump()
-    data.update({
-        "distribution_model": "uniform",
-        "per_field_distributions": {"trigger_jitter_ns": "normal"},
-    })
+    data.update(
+        {
+            "distribution_model": "uniform",
+            "per_field_distributions": {"trigger_jitter_ns": "normal"},
+        }
+    )
     cfg = ExperimentalVariabilityModel.model_validate(data)
     assert cfg.per_field_distributions["trigger_jitter_ns"] == "normal"
 

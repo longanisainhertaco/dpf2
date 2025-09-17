@@ -20,6 +20,7 @@ unit and integration tests throughout the code base.
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 try:  # pragma: no cover - prefer GPU acceleration when available
     import cupy as np  # type: ignore
 except Exception:  # pragma: no cover - fall back to numpy or a small stub
@@ -30,7 +31,11 @@ except Exception:  # pragma: no cover - fall back to numpy or a small stub
 
         np = types.SimpleNamespace(
             array=lambda x: list(x) if isinstance(x, (list, tuple)) else [x],
-            zeros=lambda shape: [[0.0] * shape[1] for _ in range(shape[0])] if isinstance(shape, tuple) else [0.0] * shape,
+            zeros=lambda shape: (
+                [[0.0] * shape[1] for _ in range(shape[0])]
+                if isinstance(shape, tuple)
+                else [0.0] * shape
+            ),
             sqrt=math.sqrt,
             dot=lambda a, b: sum(x * y for x, y in zip(a, b)),
             zeros_like=lambda arr: [0.0 for _ in arr],
@@ -46,9 +51,11 @@ except Exception:  # pragma: no cover - fall back to numpy or a small stub
 try:  # pragma: no cover - exercised when radiation package is present
     from ..radiation.multigroup import MultiGroupDiffusion  # type: ignore
 except Exception:  # pragma: no cover - fallback for stripped environments
+
     class MultiGroupDiffusion:  # type: ignore
         def couple(self, energies, dt):
             return energies
+
 
 from ..mesh import Mesh2D, Mesh3D
 
@@ -95,8 +102,8 @@ class ResistiveMHD:
         """
 
         rho, v_x, v_y, v_z, p, B_x, B_y, B_z = primitives
-        kinetic = 0.5 * rho * (v_x ** 2 + v_y ** 2 + v_z ** 2)
-        magnetic = 0.5 * (B_x ** 2 + B_y ** 2 + B_z ** 2)
+        kinetic = 0.5 * rho * (v_x**2 + v_y**2 + v_z**2)
+        magnetic = 0.5 * (B_x**2 + B_y**2 + B_z**2)
         energy = p / (self.gamma - 1.0) + kinetic + magnetic
         return np.array(
             [rho, rho * v_x, rho * v_y, rho * v_z, energy, B_x, B_y, B_z, 0.0]
@@ -109,8 +116,8 @@ class ResistiveMHD:
         v_x = m_x / rho
         v_y = m_y / rho
         v_z = m_z / rho
-        v2 = v_x ** 2 + v_y ** 2 + v_z ** 2
-        B2 = B_x ** 2 + B_y ** 2 + B_z ** 2
+        v2 = v_x**2 + v_y**2 + v_z**2
+        B2 = B_x**2 + B_y**2 + B_z**2
         return (E - 0.5 * rho * v2 - 0.5 * B2) * (self.gamma - 1.0)
 
     # ------------------------------------------------------------------
@@ -139,8 +146,7 @@ class ResistiveMHD:
             directions = ["x", "y", "z"]
             speeds = [self.max_speed(U, d) for d in directions]
             dt = min(
-                volume / (a * v) if v > 0 else np.inf
-                for a, v in zip(areas, speeds)
+                volume / (a * v) if v > 0 else np.inf for a, v in zip(areas, speeds)
             )
         else:  # Mesh2D treated as x-z
             spacings = [mesh.dr, mesh.dz]
@@ -176,38 +182,38 @@ class ResistiveMHD:
 
         if direction == "x":
             F[0] = m_x
-            F[1] = m_x * v_x + total_p - B_x ** 2
+            F[1] = m_x * v_x + total_p - B_x**2
             F[2] = m_y * v_x - B_x * B_y
             F[3] = m_z * v_x - B_x * B_z
             F[4] = (E + total_p) * v_x - B_x * Bdotv
             F[5] = psi
             F[6] = v_y * B_x - v_x * B_y
             F[7] = v_z * B_x - v_x * B_z
-            F[8] = self.c_h ** 2 * B_x
+            F[8] = self.c_h**2 * B_x
             return F
 
         if direction == "y":
             F[0] = m_y
             F[1] = m_x * v_y - B_y * B_x
-            F[2] = m_y * v_y + total_p - B_y ** 2
+            F[2] = m_y * v_y + total_p - B_y**2
             F[3] = m_z * v_y - B_y * B_z
             F[4] = (E + total_p) * v_y - B_y * Bdotv
             F[5] = v_x * B_y - v_y * B_x
             F[6] = psi
             F[7] = v_z * B_y - v_y * B_z
-            F[8] = self.c_h ** 2 * B_y
+            F[8] = self.c_h**2 * B_y
             return F
 
         if direction == "z":
             F[0] = m_z
             F[1] = m_x * v_z - B_z * B_x
             F[2] = m_y * v_z - B_z * B_y
-            F[3] = m_z * v_z + total_p - B_z ** 2
+            F[3] = m_z * v_z + total_p - B_z**2
             F[4] = (E + total_p) * v_z - B_z * Bdotv
             F[5] = v_x * B_z - v_z * B_x
             F[6] = v_y * B_z - v_z * B_y
             F[7] = psi
-            F[8] = self.c_h ** 2 * B_z
+            F[8] = self.c_h**2 * B_z
             return F
 
         raise ValueError("direction must be 'x', 'y' or 'z'")
@@ -226,9 +232,9 @@ class ResistiveMHD:
         }[direction]
         p = self._pressure(U)
         a = np.sqrt(self.gamma * p / rho)
-        B2 = B_x ** 2 + B_y ** 2 + B_z ** 2
+        B2 = B_x**2 + B_y**2 + B_z**2
         c_a = np.sqrt(B2 / rho)
-        return abs(v) + np.sqrt(a ** 2 + c_a ** 2)
+        return abs(v) + np.sqrt(a**2 + c_a**2)
 
     # ------------------------------------------------------------------
     # Radiation coupling
@@ -309,7 +315,7 @@ class ResistiveMHD:
         src[5:8] -= self.eta * B
 
         # Divergence cleaning damping
-        src[8] -= self.c_p ** 2 * psi
+        src[8] -= self.c_p**2 * psi
 
         # Anisotropic viscosity
         if grad_v is not None and (self.mu_parallel or self.mu_perp):
@@ -328,7 +334,9 @@ class ResistiveMHD:
             b_hat = B / (np.linalg.norm(B) + 1.0e-20)
             grad_para_T = np.dot(grad_T, b_hat) * b_hat
             grad_perp_T = grad_T - grad_para_T
-            heat_flux = -self.kappa_parallel * grad_para_T - self.kappa_perp * grad_perp_T
+            heat_flux = (
+                -self.kappa_parallel * grad_para_T - self.kappa_perp * grad_perp_T
+            )
             src[4] -= np.sum(heat_flux)
 
         # Geometric source terms (very simplified) for cylindrical coordinates
@@ -337,11 +345,12 @@ class ResistiveMHD:
             v_x, v_y, v_z = v
             p = self._pressure(U)
             src[0] += -rho * v_x / r
-            src[1] += (rho * (v_y ** 2 + v_z ** 2) + 0.5 * (B_y ** 2 + B_z ** 2) - B_x ** 2 + p) / r
+            src[1] += (
+                rho * (v_y**2 + v_z**2) + 0.5 * (B_y**2 + B_z**2) - B_x**2 + p
+            ) / r
             src[4] += ((E + p + 0.5 * B2) * v_x - B_x * (B @ v)) / r
 
         return src
 
 
 __all__ = ["ResistiveMHD"]
-

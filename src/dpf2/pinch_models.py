@@ -4,19 +4,24 @@ from dataclasses import dataclass
 from typing import Iterable, Any
 
 import numpy as np
+
 try:  # pragma: no cover - allow running without SciPy
     from scipy.integrate import solve_ivp
 except Exception:  # pragma: no cover
+
     def solve_ivp(fun, t_span, y0, t_eval, args=(), method="RK45"):
         y = np.zeros((len(y0), len(t_eval)))
         y[:, 0] = y0
         for i in range(len(t_eval) - 1):
             dt = t_eval[i + 1] - t_eval[i]
             y[:, i + 1] = y[:, i] + dt * np.asarray(fun(t_eval[i], y[:, i], *args))
+
         class _Sol:  # minimal result object
             def __init__(self, y):
                 self.y = y
+
         return _Sol(y)
+
 
 from .eos import RealGasEOS
 from .fusion import bosch_hale_dd
@@ -74,7 +79,9 @@ class PinchResult:
 class PinchModelBase:
     """Base interface for pinch dynamics models."""
 
-    def run(self, time: Iterable[float], current: Iterable[float]) -> PinchResult:  # pragma: no cover - interface
+    def run(
+        self, time: Iterable[float], current: Iterable[float]
+    ) -> PinchResult:  # pragma: no cover - interface
         raise NotImplementedError
 
 
@@ -89,18 +96,26 @@ class AnalyticPinchModel(PinchModelBase):
         t = np.asarray(time)
         I = np.asarray(current)
         radius = self.initial_radius * np.exp(-t / self.tau)
-        pressure = 0.5 * (I ** 2) * 1e-6  # arbitrary scaling
+        pressure = 0.5 * (I**2) * 1e-6  # arbitrary scaling
         temperature = 1e3 * (I / 1e4) ** 2
-        yield_integrand = (temperature / 1e3) ** 3 * I ** 2
+        yield_integrand = (temperature / 1e3) ** 3 * I**2
         neutron_yield = float(np.trapz(yield_integrand, t) * 1e-20)
         B = 4e-7 * np.pi * I / (2 * np.pi * radius)
         n = pressure / np.maximum(temperature, 1e-12) / 1.380649e-23
-        beta = np.array([plasma_beta(ni, Ti, Bi) for ni, Ti, Bi in zip(n, temperature, B)])
+        beta = np.array(
+            [plasma_beta(ni, Ti, Bi) for ni, Ti, Bi in zip(n, temperature, B)]
+        )
         vr = np.gradient(radius, t, edge_order=2)
-        alfven = np.array([alfven_mach_number(v, Bi, ni) for v, Bi, ni in zip(vr, B, n)])
+        alfven = np.array(
+            [alfven_mach_number(v, Bi, ni) for v, Bi, ni in zip(vr, B, n)]
+        )
         sigma = 1e5
-        rm = np.array([magnetic_reynolds_number(abs(v), r, sigma) for v, r in zip(vr, radius)])
-        s = np.array([lundquist_number(Bi, ni, r, sigma) for Bi, ni, r in zip(B, n, radius)])
+        rm = np.array(
+            [magnetic_reynolds_number(abs(v), r, sigma) for v, r in zip(vr, radius)]
+        )
+        s = np.array(
+            [lundquist_number(Bi, ni, r, sigma) for Bi, ni, r in zip(B, n, radius)]
+        )
         return PinchResult(
             t,
             radius,
@@ -135,11 +150,13 @@ class SemiAnalyticPinchModel(PinchModelBase):
         self.eos = RealGasEOS(gamma=gamma)
         self.zeff = zeff
 
-    def _dynamics(self, t: float, y: np.ndarray, current: np.ndarray, time: np.ndarray) -> np.ndarray:
+    def _dynamics(
+        self, t: float, y: np.ndarray, current: np.ndarray, time: np.ndarray
+    ) -> np.ndarray:
         r, vr, z, vz = y
         I = np.interp(t, time, current)
         # magnetic pressure term; avoid divide by zero
-        force_r = (1e-7 * I ** 2) / max(r, 1e-6)  # approx mu0/(2*pi)=2e-7, simplified
+        force_r = (1e-7 * I**2) / max(r, 1e-6)  # approx mu0/(2*pi)=2e-7, simplified
         acc_r = (force_r - self.ext_pressure * r) / self.mass - self.damping * vr
         acc_z = -self.ext_pressure / self.mass - self.damping * vz
         return np.array([vr, acc_r, vz, acc_z])
@@ -148,24 +165,34 @@ class SemiAnalyticPinchModel(PinchModelBase):
         t = np.asarray(time)
         I = np.asarray(current)
         y0 = [self.initial_radius, 0.0, self.initial_axial, 0.0]
-        sol = solve_ivp(self._dynamics, (t[0], t[-1]), y0, t_eval=t, args=(I, t), method="RK45")
+        sol = solve_ivp(
+            self._dynamics, (t[0], t[-1]), y0, t_eval=t, args=(I, t), method="RK45"
+        )
         r = sol.y[0]
         z = sol.y[2]
-        temperature = 1e3 * (I / 1e4) ** 2 + 0.1 * r ** -1
-        volume = np.pi * r ** 2 * z
+        temperature = 1e3 * (I / 1e4) ** 2 + 0.1 * r**-1
+        volume = np.pi * r**2 * z
         density = self.mass / np.maximum(volume, 1e-12)
         pressure = self.eos.pressure(density, temperature)
         n_i = density / (3.344e-27)  # deuterium ions per m^3
         reactivity = bosch_hale_dd(temperature / 1e3)
-        rate = 0.25 * n_i ** 2 * reactivity * volume
+        rate = 0.25 * n_i**2 * reactivity * volume
         neutron_yield = float(np.trapz(rate, t))
         B = 4e-7 * np.pi * I / (2 * np.pi * r)
-        beta = np.array([plasma_beta(ni, Ti, Bi) for ni, Ti, Bi in zip(n_i, temperature, B)])
+        beta = np.array(
+            [plasma_beta(ni, Ti, Bi) for ni, Ti, Bi in zip(n_i, temperature, B)]
+        )
         vr = sol.y[1]
-        alfven = np.array([alfven_mach_number(v, Bi, ni) for v, Bi, ni in zip(vr, B, n_i)])
+        alfven = np.array(
+            [alfven_mach_number(v, Bi, ni) for v, Bi, ni in zip(vr, B, n_i)]
+        )
         sigma = 1e5
-        rm = np.array([magnetic_reynolds_number(abs(v), rad, sigma) for v, rad in zip(vr, r)])
-        s = np.array([lundquist_number(Bi, ni, rad, sigma) for Bi, ni, rad in zip(B, n_i, r)])
+        rm = np.array(
+            [magnetic_reynolds_number(abs(v), rad, sigma) for v, rad in zip(vr, r)]
+        )
+        s = np.array(
+            [lundquist_number(Bi, ni, rad, sigma) for Bi, ni, rad in zip(B, n_i, r)]
+        )
         return PinchResult(
             t,
             r,
@@ -203,16 +230,16 @@ class SnowplowPinchModel(PinchModelBase):
         self._annulus_area = np.pi * (
             self.geometry.cathode_radius**2 - self.geometry.anode_radius**2
         )
-        self._rho0 = (
-            fill_pressure * species_mass / (k_B * max(fill_temperature, 1.0))
-        )
+        self._rho0 = fill_pressure * species_mass / (k_B * max(fill_temperature, 1.0))
         self._mass_floor = 1e-9
 
     def run(self, time: Iterable[float], current: Iterable[float]) -> PinchResult:
         t = np.asarray(time)
         I = np.asarray(current)
         if t.ndim != 1 or I.ndim != 1 or len(t) != len(I):
-            raise ValueError("time and current must be one-dimensional arrays of equal length")
+            raise ValueError(
+                "time and current must be one-dimensional arrays of equal length"
+            )
 
         geom = self.geometry
         radius = np.zeros_like(t)
@@ -373,7 +400,9 @@ class MHDPinchModel(PinchModelBase):
         energy = internal + 0.5 * np.sum(B**2, axis=-1)
         state = MHDState(rho=rho, mom=mom, energy=energy, B=B)
 
-        def diagnostics(s: MHDState) -> tuple[float, float, float, float, float, float, float, float]:
+        def diagnostics(
+            s: MHDState,
+        ) -> tuple[float, float, float, float, float, float, float, float]:
             v = s.mom / s.rho[..., None]
             vmag = np.sqrt(np.sum(v**2, axis=-1))
             kinetic = 0.5 * s.rho * vmag**2
@@ -392,7 +421,16 @@ class MHDPinchModel(PinchModelBase):
             sigma = 1e5
             rm = magnetic_reynolds_number(v_mean, rad, sigma)
             s_num = lundquist_number(B_mean, n_mean, rad, sigma)
-            return rad, float(np.mean(T)), float(np.mean(p)), float(np.sum(s.energy)), beta, alfven, rm, s_num
+            return (
+                rad,
+                float(np.mean(T)),
+                float(np.mean(p)),
+                float(np.sum(s.energy)),
+                beta,
+                alfven,
+                rm,
+                s_num,
+            )
 
         radius = []
         temperature = []
@@ -510,7 +548,9 @@ class HybridPinchModel(PinchModelBase):
         energy = internal + 0.5 * np.sum(B**2, axis=-1)
         state = MHDState(rho=rho, mom=mom, energy=energy, B=B)
 
-        def diagnostics(s: MHDState) -> tuple[float, float, float, float, float, float, float, float]:
+        def diagnostics(
+            s: MHDState,
+        ) -> tuple[float, float, float, float, float, float, float, float]:
             v = s.mom / s.rho[..., None]
             vmag = np.sqrt(np.sum(v**2, axis=-1))
             kinetic = 0.5 * s.rho * vmag**2
@@ -529,7 +569,16 @@ class HybridPinchModel(PinchModelBase):
             sigma = 1e5
             rm = magnetic_reynolds_number(v_mean, rad, sigma)
             s_num = lundquist_number(B_mean, n_mean, rad, sigma)
-            return rad, float(np.mean(T)), float(np.mean(p)), float(np.sum(s.energy)), beta, alfven, rm, s_num
+            return (
+                rad,
+                float(np.mean(T)),
+                float(np.mean(p)),
+                float(np.sum(s.energy)),
+                beta,
+                alfven,
+                rm,
+                s_num,
+            )
 
         radius: list[float] = []
         temperature: list[float] = []
@@ -595,4 +644,3 @@ class HybridPinchModel(PinchModelBase):
             magnetic_reynolds=np.asarray(rm_hist),
             lundquist=np.asarray(s_hist),
         )
-

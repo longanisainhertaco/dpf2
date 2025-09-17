@@ -18,7 +18,9 @@ def _serialize(spec):
             "stop": spec.stop if spec.stop is not None else -1,
             "step": spec.step if spec.step is not None else 1,
         }
-    raise ValueError(f"Unknown serialization for {spec=} as a time step specifier (--period argument).")
+    raise ValueError(
+        f"Unknown serialization for {spec=} as a time step specifier (--period argument)."
+    )
 
 
 @typeguard.typechecked

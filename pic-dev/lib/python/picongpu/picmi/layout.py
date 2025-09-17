@@ -20,10 +20,16 @@ class PseudoRandomLayout(picmistandard.PICMI_PseudoRandomLayout):
 
         if ok pass silently, raise on error
         """
-        assert self.n_macroparticles_per_cell is not None, "macroparticles per cell must be given"
-        assert self.n_macroparticles is None, "total number of macrosparticles not supported"
+        assert (
+            self.n_macroparticles_per_cell is not None
+        ), "macroparticles per cell must be given"
+        assert (
+            self.n_macroparticles is None
+        ), "total number of macrosparticles not supported"
 
-        assert self.n_macroparticles_per_cell > 0, "at least one particle per cell required"
+        assert (
+            self.n_macroparticles_per_cell > 0
+        ), "at least one particle per cell required"
 
         # Note: Call PICMI check interface once available upstream
 
@@ -44,7 +50,9 @@ class GriddedLayout(picmistandard.PICMI_GriddedLayout):
             if len(args) == 0:
                 args = (kwargs.pop("n_macroparticles_per_cell"),)
             else:
-                raise ValueError("You provided n_macroparticles_per_cell and an unnamed first arg.")
+                raise ValueError(
+                    "You provided n_macroparticles_per_cell and an unnamed first arg."
+                )
         super().__init__(*args, **kwargs)
         # The standard apparently has a typo in its interface.
         self.n_macroparticles_per_cell = self.n_macroparticle_per_cell
@@ -57,8 +65,12 @@ class GriddedLayout(picmistandard.PICMI_GriddedLayout):
 
         if ok pass silently, raise on error
         """
-        assert self.n_macroparticles_per_cell is not None, "macroparticles per cell must be given"
-        assert self.n_macroparticles_per_cell > 0, "at least one particle per cell required"
+        assert (
+            self.n_macroparticles_per_cell is not None
+        ), "macroparticles per cell must be given"
+        assert (
+            self.n_macroparticles_per_cell > 0
+        ), "at least one particle per cell required"
 
         # Note: Call PICMI check interface once available upstream
 

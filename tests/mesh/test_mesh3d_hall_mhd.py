@@ -10,14 +10,14 @@ def test_hall_mhd_ctu_update_on_mesh3d():
 
     left = np.array([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
     right = np.array([0.125, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0])
-    U = np.vstack([
-        model.conservative_variables(left),
-        model.conservative_variables(right),
-    ])
-
-    dt = 0.1 * mesh.dx / max(
-        model.max_speed(U[0], "x"), model.max_speed(U[1], "x")
+    U = np.vstack(
+        [
+            model.conservative_variables(left),
+            model.conservative_variables(right),
+        ]
     )
+
+    dt = 0.1 * mesh.dx / max(model.max_speed(U[0], "x"), model.max_speed(U[1], "x"))
     U_new = model.ctu_update(U, mesh, dt, periodic=True)
 
     assert U_new.shape == U.shape

@@ -12,6 +12,7 @@ except Exception:  # pragma: no cover - fallback values
     epsilon_0 = 8.854187817e-12
     e = 1.602176634e-19
 
+
 def compute_debye_length(temperature_eV: float, density_m3: float) -> float:
     """Return the electron Debye length in metres.
 
@@ -28,7 +29,10 @@ def compute_debye_length(temperature_eV: float, density_m3: float) -> float:
         raise ValueError("density_m3 must be positive")
     return math.sqrt(epsilon_0 * temperature_eV / (density_m3 * e))
 
-def plasma_inductance_circuit(voltage: float, current: float, resistance: float, dI_dt: float) -> float:
+
+def plasma_inductance_circuit(
+    voltage: float, current: float, resistance: float, dI_dt: float
+) -> float:
     r"""Compute effective inductance from circuit quantities.
 
     Implements :math:`L = (V - I R) / \dot{I}`.  ``dI_dt`` must be non-zero.
@@ -36,6 +40,7 @@ def plasma_inductance_circuit(voltage: float, current: float, resistance: float,
     if dI_dt == 0:
         raise ValueError("dI/dt must be non-zero")
     return (voltage - current * resistance) / dI_dt
+
 
 def check_thresholds(
     dt: float,
@@ -69,6 +74,7 @@ def check_thresholds(
         warnings.warn(msg)
     return warnings_list
 
+
 __all__ = [
     "compute_debye_length",
     "plasma_inductance_circuit",
@@ -94,7 +100,9 @@ class ThresholdDashboard:
     history: list[dict[str, float | str]] = field(default_factory=list)
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger(__name__))
 
-    def _status(self, value: float, threshold: float | None, *, higher_is_better: bool) -> str:
+    def _status(
+        self, value: float, threshold: float | None, *, higher_is_better: bool
+    ) -> str:
         if threshold is None:
             return "grey"
         if higher_is_better:
@@ -144,17 +152,13 @@ class ThresholdDashboard:
             json.dump(self.history, fh, indent=2)
 
         if statuses["cfl"] == "red" and self.max_cfl is not None:
-            self.logger.warning(
-                f"CFL above threshold: {cfl:g} > {self.max_cfl:g}"
-            )
+            self.logger.warning(f"CFL above threshold: {cfl:g} > {self.max_cfl:g}")
         if statuses["lambda_D_dx"] == "red" and self.min_lambda_D_dx is not None:
             self.logger.warning(
                 f"lambda_D/dx below threshold: {lambda_ratio:g} < {self.min_lambda_D_dx:g}"
             )
         if statuses["divB"] == "red" and self.max_divB is not None:
-            self.logger.warning(
-                f"divB above threshold: {divB:g} > {self.max_divB:g}"
-            )
+            self.logger.warning(f"divB above threshold: {divB:g} > {self.max_divB:g}")
         if self.abort_on_violation and any(s == "red" for s in statuses.values()):
             raise RuntimeError("Threshold violation")
         return statuses

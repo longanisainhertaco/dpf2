@@ -31,7 +31,9 @@ class DummyPinch(PinchModelBase):
     def run(self, time, current):
         t = np.array(list(time))
         zeros = np.array([0.0 for _ in t])
-        return PinchResult(time=t, radius=zeros, temperature=zeros, pressure=zeros, neutron_yield=0.0)
+        return PinchResult(
+            time=t, radius=zeros, temperature=zeros, pressure=zeros, neutron_yield=0.0
+        )
 
 
 def test_coupled_model_runs():

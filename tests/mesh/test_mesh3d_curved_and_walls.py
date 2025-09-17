@@ -13,9 +13,7 @@ def test_curved_surface_and_interpolation():
 
     g = 1
     field = [
-        [
-            [0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)
-        ]
+        [[0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)]
         for _ in range(mesh.nx + 2 * g)
     ]
     field[g][g][g] = 10.0
@@ -36,9 +34,7 @@ def test_curved_surface_interpolation_x():
     surface_fn = lambda y, z: 1 + 0.1 * math.sin(math.pi * y) * math.sin(math.pi * z)
     g = 1
     field = [
-        [
-            [0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)
-        ]
+        [[0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)]
         for _ in range(mesh.nx + 2 * g)
     ]
     field[g][g][g] = 10.0
@@ -57,9 +53,7 @@ def test_curved_surface_interpolation_y():
     surface_fn = lambda x, z: -0.1 * math.sin(math.pi * x) * math.sin(math.pi * z)
     g = 1
     field = [
-        [
-            [0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)
-        ]
+        [[0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)]
         for _ in range(mesh.nx + 2 * g)
     ]
     field[g][g][g] = 10.0
@@ -77,9 +71,7 @@ def test_reflective_and_absorbing_bc():
     mesh = Mesh3D(0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1, 1, 1)
     g = 1
     field = [
-        [
-            [0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)
-        ]
+        [[0.0 for _ in range(mesh.nz + 2 * g)] for _ in range(mesh.ny + 2 * g)]
         for _ in range(mesh.nx + 2 * g)
     ]
     field[1][1][1] = 5.0

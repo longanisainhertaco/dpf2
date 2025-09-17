@@ -5,10 +5,9 @@ from dpf2.solvers.axisymmetric_hlld import AxisymmetricHLLD
 
 def divergence(B_r, B_z, dr: float, dz: float):
     """Compute discrete divergence of the magnetic field."""
-    return (
-        (B_r[2:, 1:-1] - B_r[:-2, 1:-1]) / (2.0 * dr)
-        + (B_z[1:-1, 2:] - B_z[1:-1, :-2]) / (2.0 * dz)
-    )
+    return (B_r[2:, 1:-1] - B_r[:-2, 1:-1]) / (2.0 * dr) + (
+        B_z[1:-1, 2:] - B_z[1:-1, :-2]
+    ) / (2.0 * dz)
 
 
 @pytest.mark.skipif(not hasattr(np, "meshgrid"), reason="requires full numpy")

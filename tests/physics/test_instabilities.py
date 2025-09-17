@@ -1,7 +1,12 @@
 import numpy as np
 import pytest
 
-from dpf2.physics import LowerHybridDrift, MZeroInstability, PhysicalPICDriver, SimplePIC
+from dpf2.physics import (
+    LowerHybridDrift,
+    MZeroInstability,
+    PhysicalPICDriver,
+    SimplePIC,
+)
 from dpf2.hall_mhd_solver import HallMHDSolver, MHDState
 
 mu_0 = 4e-7 * np.pi
@@ -15,8 +20,6 @@ def _load_waveform(device: str, field: str):
         for line in f:
             values.append(float(line.split(",")[1]))
     return np.array(values)
-
-
 
 
 def _state_with_gradient(shape):
@@ -60,7 +63,6 @@ def test_m0_instability_pf1000_evolution():
     assert np.allclose(evolved, expected)
 
 
-
 def test_m0_instability_mjolnir_evolution():
     current_1d = _load_waveform("LLNL_MJOLNIR", "current")
     radius_1d = _load_waveform("LLNL_MJOLNIR", "radius") / 100.0
@@ -78,6 +80,7 @@ def test_m0_instability_mjolnir_evolution():
     expected = amp0 * np.exp(np.clip(rates, -50.0, 50.0))
     assert np.allclose(evolved, expected)
 
+
 @pytest.mark.skipif(not hasattr(np, "roll"), reason="requires full NumPy")
 def test_hall_mhd_instability_coupling():
     shape = (4, 4, 4)
@@ -90,12 +93,23 @@ def test_hall_mhd_instability_coupling():
     expected = amp_field[..., None] * J
     assert np.allclose(solver.last_E, expected)
 
+
 def test_pic_driver_beam_anisotropy():
-    pic = SimplePIC(charge=1.0, mass=1.0, length=1.0, positions=[0.0, 0.1, -0.1], velocities=[1e5, 1e5, 1.2e5])
+    pic = SimplePIC(
+        charge=1.0,
+        mass=1.0,
+        length=1.0,
+        positions=[0.0, 0.1, -0.1],
+        velocities=[1e5, 1e5, 1.2e5],
+    )
     driver = PhysicalPICDriver(pic)
-    state = MHDState(rho=np.ones((1,1,1)), mom=np.zeros((1,1,1,3)), energy=np.ones((1,1,1)), B=np.zeros((1,1,1,3)))
+    state = MHDState(
+        rho=np.ones((1, 1, 1)),
+        mom=np.zeros((1, 1, 1, 3)),
+        energy=np.ones((1, 1, 1)),
+        B=np.zeros((1, 1, 1, 3)),
+    )
     driver.step(state, current=1e5, dt=1e-9)
     pos, vel = driver.exchange_particles()
-    anis = np.var(vel[:,2]) / (np.var(vel[:,0]) + np.var(vel[:,1]) + 1e-30)
+    anis = np.var(vel[:, 2]) / (np.var(vel[:, 0]) + np.var(vel[:, 1]) + 1e-30)
     assert anis > 1e6
-

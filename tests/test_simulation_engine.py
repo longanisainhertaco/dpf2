@@ -3,17 +3,30 @@ import pydantic
 
 if not hasattr(pydantic.BaseModel, "parse_obj"):  # pragma: no cover - compatibility
     pydantic.BaseModel.parse_obj = classmethod(lambda cls, d: cls(**d))
-if not hasattr(pydantic.BaseModel, "model_validate"):  # pragma: no cover - compatibility
-    pydantic.BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+if not hasattr(
+    pydantic.BaseModel, "model_validate"
+):  # pragma: no cover - compatibility
+    pydantic.BaseModel.model_validate = classmethod(
+        lambda cls, d, **_: cls.parse_obj(d)
+    )
 
 from dpf2.dpf_config import DPFConfig
 from dpf2.simulation_engine import SimulationEngine, EnsembleResults
-from dpf2.experimental_variability import ExperimentalVariabilityModel, MonteCarloVariability
+from dpf2.experimental_variability import (
+    ExperimentalVariabilityModel,
+    MonteCarloVariability,
+)
 
 
 def test_engine_runs():
     cfg = DPFConfig.with_defaults()
-    cfg = cfg.model_copy(update={"simulation_control": cfg.simulation_control.model_copy(update={"time_end": 1e-6})})
+    cfg = cfg.model_copy(
+        update={
+            "simulation_control": cfg.simulation_control.model_copy(
+                update={"time_end": 1e-6}
+            )
+        }
+    )
     engine = SimulationEngine(cfg)
     results = engine.run()
     # basic shape checks
@@ -57,7 +70,13 @@ def test_engine_runs():
 
 def test_engine_ensemble_statistics():
     cfg = DPFConfig.with_defaults()
-    cfg = cfg.model_copy(update={"simulation_control": cfg.simulation_control.model_copy(update={"time_end": 1e-6})})
+    cfg = cfg.model_copy(
+        update={
+            "simulation_control": cfg.simulation_control.model_copy(
+                update={"time_end": 1e-6}
+            )
+        }
+    )
     var_cfg = ExperimentalVariabilityModel.with_defaults().model_copy(
         update={
             "pressure_jitter_pct": 5.0,
@@ -80,7 +99,9 @@ def test_engine_progress_callback():
     cfg = DPFConfig.with_defaults()
     cfg = cfg.model_copy(
         update={
-            "simulation_control": cfg.simulation_control.model_copy(update={"time_end": 1e-6})
+            "simulation_control": cfg.simulation_control.model_copy(
+                update={"time_end": 1e-6}
+            )
         }
     )
     engine = SimulationEngine(cfg)

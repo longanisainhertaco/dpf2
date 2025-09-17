@@ -13,7 +13,9 @@ def test_emcee_calibrate_waveform():
     true_mass = 1.1
     true_current = 0.9
     t_data = t_sim
-    current_true = true_current * np.interp(t_data, true_mass * t_sim, current_sim, left=0.0, right=0.0)
+    current_true = true_current * np.interp(
+        t_data, true_mass * t_sim, current_sim, left=0.0, right=0.0
+    )
     current_data = current_true + rng.normal(0, 0.01, size=t_data.shape)
     samples = emcee_calibrate_waveform(
         t_sim,

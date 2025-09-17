@@ -17,4 +17,5 @@ def import_config(path: Path) -> DPFConfig:
     path = Path(path)
     return DPFConfig.model_validate_json(path.read_text())
 
+
 __all__ = ["export_config", "import_config"]

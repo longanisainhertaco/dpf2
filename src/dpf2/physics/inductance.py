@@ -65,12 +65,16 @@ def _clip(value: float | np.ndarray, lo: float, hi: float) -> float | np.ndarray
     return np.clip(value, lo, hi)
 
 
-def axial_inductance(z: float | np.ndarray, geom: CoaxialGeometry) -> float | np.ndarray:
+def axial_inductance(
+    z: float | np.ndarray, geom: CoaxialGeometry
+) -> float | np.ndarray:
     z_eff = _clip(z, 0.0, geom.anode_length)
     return geom.axial_gradient * z_eff
 
 
-def radial_inductance(r: float | np.ndarray, geom: CoaxialGeometry) -> float | np.ndarray:
+def radial_inductance(
+    r: float | np.ndarray, geom: CoaxialGeometry
+) -> float | np.ndarray:
     r_min = 0.1 * geom.anode_radius
     r_eff = _clip(r, r_min, geom.cathode_radius)
     return geom.radial_gradient_scale * np.log(geom.cathode_radius / r_eff)
@@ -100,4 +104,3 @@ def dynamic_inductance_with_derivatives(
     dL_dz = geom.axial_gradient if 0.0 < z < geom.anode_length else 0.0
     dL_dr = -geom.radial_gradient_scale / r_eff
     return L, dL_dz, dL_dr
-

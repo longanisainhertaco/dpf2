@@ -43,10 +43,14 @@ def get_params(path):
     i = series.iterations[indices[0]]
 
     if len(series.iterations) == 1:
-        raise ValueError("There is just 1 iteration in the series make sure, there are at least two")
+        raise ValueError(
+            "There is just 1 iteration in the series make sure, there are at least two"
+        )
 
     elif len(np.array(i.particles)) != 2:
-        raise ValueError("There is more than one particle in the series make sure, there are exactly 2")
+        raise ValueError(
+            "There is more than one particle in the series make sure, there are exactly 2"
+        )
 
     else:
         # read the order of the assignment function
@@ -151,7 +155,11 @@ def compare(j_grid_x, j_grid_y, j_grid_z, J):
     epsilon = 1e-5
 
     # are the reference and simulated values the same? (within error margin)
-    if np.all(x_compare < epsilon) and np.all(y_compare < epsilon) and np.all(z_compare < epsilon):
+    if (
+        np.all(x_compare < epsilon)
+        and np.all(y_compare < epsilon)
+        and np.all(z_compare < epsilon)
+    ):
         print("simulation and reference coincide")
         return 0
     else:
@@ -184,9 +192,13 @@ def main(dataPath):
     compare_grid = grid(order)
 
     grid_x, grid_y, grid_z = compare_grid.create_grid()
-    start_koord, end_koord = compare_grid.particle_step(poss[0], poss[1], pos_offs[0], pos_offs[1])
+    start_koord, end_koord = compare_grid.particle_step(
+        poss[0], poss[1], pos_offs[0], pos_offs[1]
+    )
     # computation of current density by python reference implementation
-    W_grid_x, W_grid_y, W_grid_z = compare_grid.current_deposition_field(start_koord, end_koord, grid_x, grid_y, grid_z)
+    W_grid_x, W_grid_y, W_grid_z = compare_grid.current_deposition_field(
+        start_koord, end_koord, grid_x, grid_y, grid_z
+    )
 
     j_grid_x, j_grid_y, j_grid_z = compare_grid.current_density_field(
         W_grid_x, W_grid_y, W_grid_z, start_koord, end_koord, charge[0], params, shape

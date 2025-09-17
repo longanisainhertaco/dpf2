@@ -10,6 +10,7 @@ if TYPE_CHECKING:  # pragma: no cover - only for type checking
 
 logger = logging.getLogger(__name__)
 
+
 @njit(parallel=True, fastmath=True)
 def compute_strain_rate_tensor(velocity, dx, dy, dz, S_ij):
     """Computes the strain rate tensor using Numba for acceleration."""
@@ -36,6 +37,7 @@ def compute_strain_rate_tensor(velocity, dx, dy, dz, S_ij):
                 S_ij[i, j, k, 0, 2] = S_ij[i, j, k, 2, 0] = 0.5 * (dv_dz + dw_dx)
                 S_ij[i, j, k, 1, 2] = S_ij[i, j, k, 2, 1] = 0.5 * (du_dz + dw_dy)
 
+
 @njit(parallel=True, fastmath=True)
 def compute_laplacian(arr, dx, dy, dz, laplacian):
     """Computes the Laplacian of an array using Numba for acceleration."""
@@ -44,10 +46,11 @@ def compute_laplacian(arr, dx, dy, dz, laplacian):
         for j in range(1, ny - 1):
             for k in range(1, nz - 1):
                 laplacian[i, j, k] = (
-                    (arr[i + 1, j, k] - 2 * arr[i, j, k] + arr[i - 1, j, k]) / dx**2 +
-                    (arr[i, j + 1, k] - 2 * arr[i, j, k] + arr[i, j - 1, k]) / dy**2 +
-                    (arr[i, j, k + 1] - 2 * arr[i, j, k] + arr[i, j, k - 1]) / dz**2
+                    (arr[i + 1, j, k] - 2 * arr[i, j, k] + arr[i - 1, j, k]) / dx**2
+                    + (arr[i, j + 1, k] - 2 * arr[i, j, k] + arr[i, j - 1, k]) / dy**2
+                    + (arr[i, j, k + 1] - 2 * arr[i, j, k] + arr[i, j, k - 1]) / dz**2
                 )
+
 
 class TurbulenceModel(PhysicsModule):
     """RANS k-epsilon turbulence model with optional wall functions."""
@@ -84,12 +87,10 @@ class TurbulenceModel(PhysicsModule):
         # function logic, while ``log_law`` and ``power_law`` adjust the velocity
         # profile near solid boundaries.
         if self.wall_function_type not in self.VALID_WALL_FUNCTION_TYPES:
-            raise ValueError(
-                f"Unknown wall function type: {self.wall_function_type}"
-            )
+            raise ValueError(f"Unknown wall function type: {self.wall_function_type}")
         self.k = None  # Turbulent kinetic energy
         self.epsilon = None  # Dissipation rate
-        self.nu_t = None # Turbulent viscosity
+        self.nu_t = None  # Turbulent viscosity
         self.checkpoint_data = {}
         logger.info("TurbulenceModel initialized.")
 
@@ -139,7 +140,15 @@ class TurbulenceModel(PhysicsModule):
     def _compute_production(self, state: SimulationState, nu_t):
         """Computes the production of turbulent kinetic energy."""
         # Compute the strain rate tensor
-        S_ij = np.zeros((state.velocity.shape[0], state.velocity.shape[1], state.velocity.shape[2], 3, 3))
+        S_ij = np.zeros(
+            (
+                state.velocity.shape[0],
+                state.velocity.shape[1],
+                state.velocity.shape[2],
+                3,
+                3,
+            )
+        )
         compute_strain_rate_tensor(state.velocity, state.dx, state.dy, state.dz, S_ij)
         # Compute the magnitude of the strain rate tensor
         S = np.sqrt(2 * np.sum(S_ij**2, axis=(3, 4)))
@@ -162,7 +171,11 @@ class TurbulenceModel(PhysicsModule):
             P_comp = self.compressibility_beta * self.epsilon * C_comp
             P_k -= P_comp
         dk_dt = P_k - self.epsilon + D_k * laplacian_k
-        depsilon_dt = (self.C_epsilon1 * P_k - self.C_epsilon2 * self.epsilon) * np.where(self.k > 1e-30, self.epsilon / self.k, 0.0) + D_epsilon * laplacian_epsilon
+        depsilon_dt = (
+            self.C_epsilon1 * P_k - self.C_epsilon2 * self.epsilon
+        ) * np.where(
+            self.k > 1e-30, self.epsilon / self.k, 0.0
+        ) + D_epsilon * laplacian_epsilon
         self.k += dk_dt * dt
         self.epsilon += depsilon_dt * dt
         # Apply boundary conditions
@@ -203,9 +216,13 @@ class TurbulenceModel(PhysicsModule):
 
         # Basic validation of required state fields
         if state.velocity is None or state.viscosity is None or state.density is None:
-            raise ValueError("State must contain velocity, viscosity and density for wall functions")
+            raise ValueError(
+                "State must contain velocity, viscosity and density for wall functions"
+            )
         if self.k is None or self.epsilon is None:
-            raise ValueError("Turbulence fields k and epsilon must be initialized before applying wall functions")
+            raise ValueError(
+                "Turbulence fields k and epsilon must be initialized before applying wall functions"
+            )
 
         g = getattr(state, "ghost", 1)
         nu = state.viscosity / np.maximum(state.density, 1e-30)
@@ -233,12 +250,12 @@ class TurbulenceModel(PhysicsModule):
 
             for idx in (g, nx - g - 1):
                 k_cell = self.k[idx, :, :]
-                u_tau = (self.C_mu ** 0.25) * np.sqrt(k_cell)
+                u_tau = (self.C_mu**0.25) * np.sqrt(k_cell)
                 y_plus = y * u_tau / np.maximum(nu[idx, :, :], 1e-30)
                 u_plus = (1.0 / kappa) * np.log(np.maximum(E * y_plus, 1.0))
                 state.velocity[idx, :, :, 0] = u_plus * u_tau
-                self.k[idx, :, :] = u_tau ** 2 / np.sqrt(self.C_mu)
-                self.epsilon[idx, :, :] = (u_tau ** 3) / (kappa * y)
+                self.k[idx, :, :] = u_tau**2 / np.sqrt(self.C_mu)
+                self.epsilon[idx, :, :] = (u_tau**3) / (kappa * y)
 
         elif self.wall_function_type == "power_law":
             # Simple power-law relation (1/7th power law).  The wall velocity
@@ -250,7 +267,9 @@ class TurbulenceModel(PhysicsModule):
 
             boundary_pairs = ((g, g + 1), (nx - g - 1, nx - g - 2))
             for idx, interior in boundary_pairs:
-                state.velocity[idx, :, :, 0] = state.velocity[interior, :, :, 0] * factor
+                state.velocity[idx, :, :, 0] = (
+                    state.velocity[interior, :, :, 0] * factor
+                )
 
     def initialize(self):
         """
@@ -289,8 +308,8 @@ class TurbulenceModel(PhysicsModule):
         """Returns a dictionary of data to checkpoint."""
         try:
             self.checkpoint_data = {
-                'k': self.k.tolist(),
-                'epsilon': self.epsilon.tolist(),
+                "k": self.k.tolist(),
+                "epsilon": self.epsilon.tolist(),
                 # Add other data as needed
             }
             return self.checkpoint_data
@@ -301,7 +320,7 @@ class TurbulenceModel(PhysicsModule):
     def restart(self, data: Dict[str, Any]):
         """Restores data from a checkpoint."""
         try:
-            self.k = np.array(data.get('k', self.k))
-            self.epsilon = np.array(data.get('epsilon', self.epsilon))
+            self.k = np.array(data.get("k", self.k))
+            self.epsilon = np.array(data.get("epsilon", self.epsilon))
         except Exception as e:
             logger.error(f"Error during restart: {e}")

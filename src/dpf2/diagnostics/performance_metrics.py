@@ -15,6 +15,7 @@ import numpy as np
 
 try:  # pragma: no cover - matplotlib optional
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 except Exception:  # pragma: no cover - matplotlib may be absent
@@ -223,7 +224,9 @@ def reconstruct_plasma_inductance(
         denom = dI if abs(dI) > eps else eps
         Lp_circuit.append((V - resistance * I - I * dLp) / denom - external_inductance)
 
-    if plot_path is not None and plt is not None:  # pragma: no cover - plotting optional
+    if (
+        plot_path is not None and plt is not None
+    ):  # pragma: no cover - plotting optional
         plt.figure()
         plt.plot(time, Lp_field, label="from B-field")
         plt.plot(time, Lp_circuit, label="from circuit", linestyle="--")

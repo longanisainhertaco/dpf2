@@ -24,11 +24,13 @@ except Exception:  # pragma: no cover
 try:  # pragma: no cover - numba optional
     from numba import njit  # type: ignore
 except Exception:  # pragma: no cover
+
     def njit(*args, **kwargs):  # type: ignore[misc]
         def wrapper(func):
             return func
 
         return wrapper
+
 
 from .dpf_config import DPFConfig
 from .circuit_config import CircuitConfig
@@ -84,7 +86,11 @@ class SimulationResults:
             "temperature": self.temperature.tolist(),
             "pressure": self.pressure.tolist(),
             "neutron_yield": self.neutron_yield,
-            **({"axial_position": self.axial_position.tolist()} if self.axial_position is not None else {}),
+            **(
+                {"axial_position": self.axial_position.tolist()}
+                if self.axial_position is not None
+                else {}
+            ),
         }
         if self.energies is not None:
             data["energies"] = {k: v.tolist() for k, v in self.energies.items()}
@@ -234,13 +240,18 @@ class SimulationEngine:
         """
         try:
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
         except Exception:  # pragma: no cover - matplotlib optional
             return
 
         try:
-            base_shape = (getattr(solver, "nx", 0), getattr(solver, "ny", 0), getattr(solver, "nz", 0))
+            base_shape = (
+                getattr(solver, "nx", 0),
+                getattr(solver, "ny", 0),
+                getattr(solver, "nz", 0),
+            )
             if not all(base_shape):
                 return
             resolutions = [base_shape, tuple(2 * s for s in base_shape)]
@@ -263,7 +274,6 @@ class SimulationEngine:
         self,
         method: str = "analytical",
         pinch_model: str = "analytic",
-
         plasma_solver: PlasmaSolverBase | None = None,
         *,
         energy_csv: str | None = None,
@@ -305,12 +315,23 @@ class SimulationEngine:
             except Exception:  # pragma: no cover - PICSolver optional
                 PICSolver = None  # type: ignore
 
-            if 'PICSolver' in locals() and isinstance(plasma_solver, PICSolver):
-                dt = getattr(plasma_solver, 'dt', dt)
-                cell_size = min(getattr(plasma_solver, 'dx', cell_size), getattr(plasma_solver, 'dy', cell_size), getattr(plasma_solver, 'dz', cell_size))
-                total_cells = getattr(plasma_solver, 'nx', 1) * getattr(plasma_solver, 'ny', 1) * getattr(plasma_solver, 'nz', 1)
+            if "PICSolver" in locals() and isinstance(plasma_solver, PICSolver):
+                dt = getattr(plasma_solver, "dt", dt)
+                cell_size = min(
+                    getattr(plasma_solver, "dx", cell_size),
+                    getattr(plasma_solver, "dy", cell_size),
+                    getattr(plasma_solver, "dz", cell_size),
+                )
+                total_cells = (
+                    getattr(plasma_solver, "nx", 1)
+                    * getattr(plasma_solver, "ny", 1)
+                    * getattr(plasma_solver, "nz", 1)
+                )
                 try:
-                    total_particles = sum(spec['pos'].shape[0] for spec in getattr(plasma_solver, 'species', {}).values())
+                    total_particles = sum(
+                        spec["pos"].shape[0]
+                        for spec in getattr(plasma_solver, "species", {}).values()
+                    )
                 except Exception:
                     total_particles = 0
                 if total_cells > 0:
@@ -321,6 +342,7 @@ class SimulationEngine:
                         compute_debye_length,
                         check_thresholds,
                     )
+
                     ic = self.config.initial_conditions
                     debye = compute_debye_length(ic.temperature, ic.density)
                     max_dt = cell_size / PICSolver.c if cell_size > 0 else dt
@@ -393,7 +415,9 @@ class SimulationEngine:
                 coupling.emf = getattr(iface, "emf", 0.0)
                 coupling.mutual_inductance = getattr(iface, "mutual_inductance", 0.0)
                 br = getattr(iface, "back_reaction", 0.0)
-                if self.comm is not None and self.comm.size > 1:  # pragma: no cover - MPI
+                if (
+                    self.comm is not None and self.comm.size > 1
+                ):  # pragma: no cover - MPI
                     br = self.comm.allreduce(br, op=MPI.SUM)
                 coupling.back_reaction = br
 
@@ -476,13 +500,29 @@ class SimulationEngine:
 
             with energy_path.open("w", newline="") as f:
                 writer = csv.writer(f)
-                keys = ["capacitor", "inductive", "kinetic", "thermal", "magnetic", "radiative", "total"]
+                keys = [
+                    "capacitor",
+                    "inductive",
+                    "kinetic",
+                    "thermal",
+                    "magnetic",
+                    "radiative",
+                    "total",
+                ]
                 writer.writerow(["time"] + keys)
                 for i, ti in enumerate(t):
                     writer.writerow([ti] + [energies[k][i] for k in keys])
 
         # Emit summary table
-        keys = ["capacitor", "inductive", "kinetic", "thermal", "magnetic", "radiative", "total"]
+        keys = [
+            "capacitor",
+            "inductive",
+            "kinetic",
+            "thermal",
+            "magnetic",
+            "radiative",
+            "total",
+        ]
         print("Energy summary (J):")
         for k in keys:
             arr = energies[k]
@@ -565,7 +605,9 @@ class SimulationEngine:
         for ppc in ppc_values:
             for n in grid_sizes:
                 cfg = self.config.model_copy(deep=True)
-                if hasattr(cfg, "physics") and hasattr(cfg.physics, "particles_per_cell"):
+                if hasattr(cfg, "physics") and hasattr(
+                    cfg.physics, "particles_per_cell"
+                ):
                     cfg.physics.particles_per_cell = ppc
                 if hasattr(cfg, "grid_resolution"):
                     cfg.grid_resolution.nx = n
@@ -580,9 +622,7 @@ class SimulationEngine:
                 )
                 res = engine.run(method=method, pinch_model=pinch_model)
                 yields.append(res.neutron_yield)
-                logger.info(
-                    "ppc=%s grid=%s yield=%g", ppc, n, res.neutron_yield
-                )
+                logger.info("ppc=%s grid=%s yield=%g", ppc, n, res.neutron_yield)
 
         variance = float(np.var(yields)) if yields else 0.0
         out_dir = Path("synthetic_diagnostics/quality")
@@ -601,4 +641,3 @@ class SimulationEngine:
 
         logger.info("Yield variance across sweep: %g", variance)
         return {"yields": yields, "variance": variance}
-

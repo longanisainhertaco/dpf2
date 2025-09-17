@@ -6,6 +6,7 @@ parameter values and stores results as ``.npz`` files containing the time
 and current arrays.  The script focuses on circuit parameters but can be
 extended for other configuration fields.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,8 +26,12 @@ except Exception:  # pragma: no cover
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True, help="Base configuration file")
-    parser.add_argument("--param", type=str, required=True, help="Name of circuit parameter to vary")
+    parser.add_argument(
+        "--config", type=Path, required=True, help="Base configuration file"
+    )
+    parser.add_argument(
+        "--param", type=str, required=True, help="Name of circuit parameter to vary"
+    )
     parser.add_argument(
         "--values",
         type=float,

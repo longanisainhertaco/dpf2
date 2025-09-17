@@ -30,7 +30,9 @@ class DetectorLayout:
     names: Sequence[str] | None = None
 
     def __post_init__(self) -> None:
-        if isinstance(self.distance_m, Sequence) and not isinstance(self.distance_m, str):
+        if isinstance(self.distance_m, Sequence) and not isinstance(
+            self.distance_m, str
+        ):
             if len(self.distance_m) != len(self.angles):
                 raise ValueError("distance_m sequence must match number of angles")
             distances = [float(d) for d in self.distance_m]
@@ -144,7 +146,9 @@ def load_detector_layout(path: str | Path) -> DetectorLayout:
             data = json.load(f)
         dets = data.get("detectors", [])
         angles = [float(d["angle_deg"]) for d in dets]
-        distances = [float(d.get("distance_m", data.get("distance_m", 0.0))) for d in dets]
+        distances = [
+            float(d.get("distance_m", data.get("distance_m", 0.0))) for d in dets
+        ]
         names = [d.get("name") for d in dets]
         return DetectorLayout(angles=angles, distance_m=distances, names=names)
     if suffix == ".stl":

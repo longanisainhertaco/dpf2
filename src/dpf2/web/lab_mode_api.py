@@ -1,4 +1,5 @@
 """Utilities for managing lab-mode manifests via a simple API."""
+
 from __future__ import annotations
 
 import hashlib
@@ -18,7 +19,10 @@ def _config_hash(config: Mapping[str, object]) -> str:
 
 
 def generate_manifest(
-    config: Mapping[str, object], *, seed: int | None = None, diagnostics: Mapping[str, object] | None = None
+    config: Mapping[str, object],
+    *,
+    seed: int | None = None,
+    diagnostics: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Generate a single manifest describing a run.
 

@@ -46,12 +46,16 @@ class IonizationModel(pydantic.BaseModel, Constant):
 
         # check ionization electron species is actually pypicongpu species instance
         if not isinstance(self.ionization_electron_species, Species):
-            raise TypeError("ionization_electron_species must be of type pypicongpu Species")
+            raise TypeError(
+                "ionization_electron_species must be of type pypicongpu Species"
+            )
 
         # electron species must not be an ionizable
         if self.ionization_electron_species.has_constant_of_type(GroundStateIonization):
             raise ValueError(
-                "used electron species {} must not be ionizable itself".format(self.ionization_electron_species.name)
+                "used electron species {} must not be ionizable itself".format(
+                    self.ionization_electron_species.name
+                )
             )
 
         # test ionization current set if required

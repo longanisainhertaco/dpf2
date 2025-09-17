@@ -147,7 +147,9 @@ class Visualizer(BaseVisualizer):
             cmap=self.colors[idx],
         )
         # create the colorbar and a separate ax for it
-        self.colorbars[idx] = plt.colorbar(self.plt_obj[idx], cax=self.colorbar_axes[idx])
+        self.colorbars[idx] = plt.colorbar(
+            self.plt_obj[idx], cax=self.colorbar_axes[idx]
+        )
         self.colorbars[idx].solids.set_edgecolor("face")
         self.colorbars[idx].ax.text(
             0.5,
@@ -293,7 +295,9 @@ if __name__ == "__main__":
             print("Momentum term was not given, will use", momentum)
 
         _, ax = plt.subplots(1, 1)
-        Visualizer(path, ax).visualize(iteration=iteration, species=species, species_filter=filtr, ps=momentum)
+        Visualizer(path, ax).visualize(
+            iteration=iteration, species=species, species_filter=filtr, ps=momentum
+        )
         plt.show()
 
     main()

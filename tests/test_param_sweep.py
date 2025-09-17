@@ -1,4 +1,5 @@
 """Tests for parametric sweep utilities."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,6 +13,7 @@ from dpf2.optimization.param_sweep import (
     plot_yield_vs_S,
 )
 import pytest
+
 pytest.importorskip("matplotlib")
 
 

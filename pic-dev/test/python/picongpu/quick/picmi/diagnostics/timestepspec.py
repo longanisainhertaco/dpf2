@@ -62,7 +62,9 @@ TESTCASES_IN_STEPS = [
     (TimeStepSpec[10:12, 11], set([10, 11, 12])),
     (
         TimeStepSpec[20:50:10, ::7, 11],
-        set(inclusive_range(20, 50, 10)) | set(inclusive_range(0, INDEX_MAX, 7)) | set([11]),
+        set(inclusive_range(20, 50, 10))
+        | set(inclusive_range(0, INDEX_MAX, 7))
+        | set([11]),
     ),
     (TimeStepSpec[-10:], set(inclusive_range(INDEX_MAX - 10, INDEX_MAX))),
     (TimeStepSpec[:-10:], set(inclusive_range(0, INDEX_MAX - 10))),
@@ -116,7 +118,9 @@ TESTCASES_IN_SECONDS = [
     (TimeStepSpec[10:12, 11]("seconds"), set(inclusive_range(20, 24))),
     (
         TimeStepSpec[20:50:10, ::7, 11]("seconds"),
-        set(inclusive_range(40, 100, 20)) | set(inclusive_range(0, INDEX_MAX, 14)) | set([22]),
+        set(inclusive_range(40, 100, 20))
+        | set(inclusive_range(0, INDEX_MAX, 14))
+        | set([22]),
     ),
     (TimeStepSpec[-10:]("seconds"), set(inclusive_range(INDEX_MAX - 20, INDEX_MAX))),
     (TimeStepSpec[:-10:]("seconds"), set(inclusive_range(0, INDEX_MAX - 20))),
@@ -161,7 +165,9 @@ class TestTimeStepSpec(unittest.TestCase):
         for ts, indices in TESTCASES_IN_STEPS:
             with self.subTest(ts=ts, indices=indices):
                 self.assertEqual(
-                    _indices(TimeStepSpec(ts).get_as_pypicongpu(TIME_STEP_SIZE, INDEX_MAX)),
+                    _indices(
+                        TimeStepSpec(ts).get_as_pypicongpu(TIME_STEP_SIZE, INDEX_MAX)
+                    ),
                     indices,
                 )
 
@@ -170,7 +176,9 @@ class TestTimeStepSpec(unittest.TestCase):
         The unit conversion is done in get_as_pypicongpu, so we can only test in seconds here.
         """
         for ts_steps, indices_steps in TESTCASES_IN_STEPS + TESTCASES_IN_SECONDS:
-            for ts_seconds, indices_seconds in TESTCASES_IN_STEPS + TESTCASES_IN_SECONDS:
+            for ts_seconds, indices_seconds in (
+                TESTCASES_IN_STEPS + TESTCASES_IN_SECONDS
+            ):
                 ts = ts_steps + ts_seconds
                 indices = indices_steps | indices_seconds
                 with self.subTest(ts=ts, indices=indices):
@@ -181,16 +189,22 @@ class TestTimeStepSpec(unittest.TestCase):
 
     def test_dont_reset_unit_from_steps_to_seconds(self):
         ts = TimeStepSpec[:]("steps")
-        with self.assertRaisesRegex(ValueError, "Don't reset units on a TimeStepSpec. "):
+        with self.assertRaisesRegex(
+            ValueError, "Don't reset units on a TimeStepSpec. "
+        ):
             ts("seconds")
 
     def test_dont_reset_unit_from_seconds_to_steps(self):
         ts = TimeStepSpec[:]("seconds")
-        with self.assertRaisesRegex(ValueError, "Don't reset units on a TimeStepSpec. "):
+        with self.assertRaisesRegex(
+            ValueError, "Don't reset units on a TimeStepSpec. "
+        ):
             ts("steps")
 
     def test_dont_reset_unit_on_addition_result(self):
-        with self.assertRaisesRegex(ValueError, "Don't reset units on a TimeStepSpec. "):
+        with self.assertRaisesRegex(
+            ValueError, "Don't reset units on a TimeStepSpec. "
+        ):
             (TimeStepSpec[:] + TimeStepSpec[:])("seconds")
 
     def test_resetting_to_same_unit_is_fine(self):
@@ -209,7 +223,9 @@ class TestTimeStepSpec(unittest.TestCase):
             TimeStepSpec[:]("meters")
 
     def test_raises_on_negative_time_step_size(self):
-        with self.assertRaisesRegex(ValueError, "Time step size must be strictly positive."):
+        with self.assertRaisesRegex(
+            ValueError, "Time step size must be strictly positive."
+        ):
             TimeStepSpec[:]("seconds").get_as_pypicongpu(-1.0, 10)
 
     def test_rounding_in_unit_conversion(self):
@@ -224,12 +240,16 @@ class TestTimeStepSpec(unittest.TestCase):
                 lambda i: (
                     i >= floor(start / time_step_size)
                     and i < ceil(stop / time_step_size)
-                    and (i - floor(start / time_step_size)) % floor(step / time_step_size) == 0
+                    and (i - floor(start / time_step_size))
+                    % floor(step / time_step_size)
+                    == 0
                 ),
                 inclusive_range(INDEX_MAX),
             )
         )
-        self.assertEqual(_indices(ts.get_as_pypicongpu(time_step_size, INDEX_MAX)), expected)
+        self.assertEqual(
+            _indices(ts.get_as_pypicongpu(time_step_size, INDEX_MAX)), expected
+        )
 
     def test_step_size_smaller_one_in_unit_conversion(self):
         ts = TimeStepSpec[::0.5]("seconds")
@@ -263,8 +283,7 @@ class TestTimeStepSpec(unittest.TestCase):
                         filter(
                             lambda s: s.start < 0
                             # -1 is allowed as a value for stop only
-                            or (s is not None and s.stop < -1)
-                            and s.step < 1,
+                            or (s is not None and s.stop < -1) and s.step < 1,
                             ts.get_as_pypicongpu(TIME_STEP_SIZE, INDEX_MAX).specs,
                         )
                     ),
@@ -282,6 +301,12 @@ class TestTimeStepSpec(unittest.TestCase):
         dt = 1.749246958411663e-17
         num_steps = 64004
 
-        as_single = TimeStepSpec[stop_time]("seconds").get_as_pypicongpu(dt, num_steps).specs[0]
-        as_slice = TimeStepSpec[stop_time:stop_time]("seconds").get_as_pypicongpu(dt, num_steps).specs[0]
+        as_single = (
+            TimeStepSpec[stop_time]("seconds").get_as_pypicongpu(dt, num_steps).specs[0]
+        )
+        as_slice = (
+            TimeStepSpec[stop_time:stop_time]("seconds")
+            .get_as_pypicongpu(dt, num_steps)
+            .specs[0]
+        )
         self.assertEqual(as_single, as_slice)

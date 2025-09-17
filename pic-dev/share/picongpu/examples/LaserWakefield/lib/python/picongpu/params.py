@@ -23,7 +23,9 @@ dt = 1.39e-16
 
 PARAMETERS = {
     "laser": [
-        Parameter(name="_A0", ptype="compile", unit="1", default=1.5, range=(0.1, 50.01)),
+        Parameter(
+            name="_A0", ptype="compile", unit="1", default=1.5, range=(0.1, 50.01)
+        ),
         Parameter(
             name="Wave_Length_SI",
             ptype="compile",

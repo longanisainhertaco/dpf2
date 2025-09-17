@@ -25,4 +25,3 @@ def test_streaming_diagnostics_emit_values():
     # total_yield accumulates
     n_stream.record(state, 2.0)
     assert n_stream.total_yield == pytest.approx(1.0e5 * 4.0 * 2)
-

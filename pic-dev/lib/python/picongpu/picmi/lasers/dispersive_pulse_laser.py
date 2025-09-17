@@ -128,6 +128,6 @@ class DispersivePulseLaser(BaseLaser):
 
     def check(self):
         self._validate_common_properties()
-        assert self._propagation_connects_centroid_and_focus(), (
-            "propagation_direction must connect centroid_position and focus_position"
-        )
+        assert (
+            self._propagation_connects_centroid_and_focus()
+        ), "propagation_direction must connect centroid_position and focus_position"

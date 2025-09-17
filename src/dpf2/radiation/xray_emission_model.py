@@ -90,7 +90,7 @@ def cr_line_emission(
         raise ValueError(f"Unsupported species '{species}'")
 
     emissivity: Dict[str, float] = {}
-    n2 = (n_e_cm3 ** 2) * impurity_fraction
+    n2 = (n_e_cm3**2) * impurity_fraction
     for name, line in lines.items():
         emissivity[name] = line.coeff * n2 * exp(-line.energy_eV / T_e_eV)
     return emissivity

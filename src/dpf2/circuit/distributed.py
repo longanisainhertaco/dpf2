@@ -46,6 +46,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 # Utility helpers
 
+
 def _interp_profile(profile: Sequence[tuple[float, float]] | None, t: float) -> float:
     """Return interpolated profile value at time ``t``.
 
@@ -148,7 +149,9 @@ class TransmissionLineSegment:
             return self.length / self.propagation_velocity
         return 0.0
 
-    def totals(self, t: float = 0.0, frequency: float | None = None) -> tuple[float, float, float | complex]:
+    def totals(
+        self, t: float = 0.0, frequency: float | None = None
+    ) -> tuple[float, float, float | complex]:
         """Return the total ``(L, R, C)`` for this segment.
 
         ``frequency`` can be provided to account for frequency dependant skin
@@ -158,11 +161,23 @@ class TransmissionLineSegment:
         and mirror the behaviour of the real application only qualitatively.
         """
 
-        L = self.L_per_m * self.length + self.L_parasitic + _interp_profile(self.L_profile, t)
-        R = self.R_per_m * self.length + self.R_parasitic + _interp_profile(self.R_profile, t)
+        L = (
+            self.L_per_m * self.length
+            + self.L_parasitic
+            + _interp_profile(self.L_profile, t)
+        )
+        R = (
+            self.R_per_m * self.length
+            + self.R_parasitic
+            + _interp_profile(self.R_profile, t)
+        )
         if frequency is not None and self.skin_effect_coeff:
             R += self.skin_effect_coeff * self.length * float(math.sqrt(frequency))
-        C = self.C_per_m * self.length + self.C_parasitic + _interp_profile(self.C_profile, t)
+        C = (
+            self.C_per_m * self.length
+            + self.C_parasitic
+            + _interp_profile(self.C_profile, t)
+        )
         if frequency is not None and self.dielectric_loss_coeff:
             loss_tan = self.dielectric_loss_coeff * float(math.sqrt(frequency))
             C = complex(C) * (1.0 - 1j * loss_tan)
@@ -200,7 +215,9 @@ class TransmissionLineSegment:
         R, L, C, G = self._params_at_freq(frequency)
         return cmath.sqrt((R + 1j * w * L) / (G + 1j * w * C))
 
-    def reflection_coefficient(self, frequency: float, Z_load: float | complex | None) -> complex:
+    def reflection_coefficient(
+        self, frequency: float, Z_load: float | complex | None
+    ) -> complex:
         """Return the reflection coefficient for a load ``Z_load``.
 
         ``Z_load`` may be ``None`` or ``np.inf`` to model an open circuit.

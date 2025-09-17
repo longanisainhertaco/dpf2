@@ -81,7 +81,9 @@ class ParamReader(rF.ReadFiles):
             jReader = jsonReader.JSONReader()
             # first search in json
             if jReader.getAllFiles():
-                if jReader.getJSONwithParam(parameter.lower()) or jReader.getJSONwithParam(parameter.upper()):
+                if jReader.getJSONwithParam(
+                    parameter.lower()
+                ) or jReader.getJSONwithParam(parameter.upper()):
                     return jReader.getValue(parameter)
 
         except Exception:
@@ -90,7 +92,9 @@ class ParamReader(rF.ReadFiles):
             all_paramFiles = self.getParam(parameter)
 
             if len(all_paramFiles) > 1:
-                warnings.warn('Multiple files could be found with an "undefined block" for the same parameter.')
+                warnings.warn(
+                    'Multiple files could be found with an "undefined block" for the same parameter.'
+                )
 
             parameter = None
 
@@ -99,7 +103,9 @@ class ParamReader(rF.ReadFiles):
 
                 for line in all_Lines:
                     if "define" + search_u in line and parameter is None:
-                        parameter = float(line[line.find(search_u) + len(search_u) + 1 : -1])
+                        parameter = float(
+                            line[line.find(search_u) + len(search_u) + 1 : -1]
+                        )
             return parameter
 
     def __calculateOperations(self, line: str, value=0) -> float:
@@ -144,7 +150,9 @@ class ParamReader(rF.ReadFiles):
                 result = float(line)
             except Exception:
                 result = self.__calculateOperations(line)
-        elif "=" not in line and ("+" in line or "*" in line or "/" in line or "-" in line):
+        elif "=" not in line and (
+            "+" in line or "*" in line or "/" in line or "-" in line
+        ):
             result = self.__calculateOperations(line)
 
         elif "=" not in line:

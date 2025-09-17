@@ -17,17 +17,24 @@ import scipy.special as scipy
 class BoundFreeCollisionalTransitions:
     @staticmethod
     def _betaFactor(screenedCharge):
-        return 0.25 * (np.sqrt((100.0 * screenedCharge + 91.0) / (4.0 * screenedCharge + 3.0)) - 5)  # unitless
+        return 0.25 * (
+            np.sqrt((100.0 * screenedCharge + 91.0) / (4.0 * screenedCharge + 3.0)) - 5
+        )  # unitless
 
     @staticmethod
     def _wFactor(U, screenedCharge):
-        return np.power(np.log(U), BoundFreeCollisionalTransitions._betaFactor(screenedCharge) / U)  # unitless
+        return np.power(
+            np.log(U), BoundFreeCollisionalTransitions._betaFactor(screenedCharge) / U
+        )  # unitless
 
     @staticmethod
     def _multiplicity(lowerStateLevelVector, upperStateLevelVector):
         result = 1.0
         for i in range(len(lowerStateLevelVector)):
-            result *= scipy.comb(lowerStateLevelVector[i], lowerStateLevelVector[i] - upperStateLevelVector[i])
+            result *= scipy.comb(
+                lowerStateLevelVector[i],
+                lowerStateLevelVector[i] - upperStateLevelVector[i],
+            )
         return result
 
     @staticmethod
@@ -62,7 +69,11 @@ class BoundFreeCollisionalTransitions:
         print("\t\t ionizationEnergy: {:.4}".format(ionizationEnergy))
         print("\t\t energyDifference: {:.4}".format(energyDifference))
         print("\t\t U: {:.4}".format(U))
-        print("\t\t wFactor: {:.4}".format(BoundFreeCollisionalTransitions._wFactor(U, screenedCharge)))
+        print(
+            "\t\t wFactor: {:.4}".format(
+                BoundFreeCollisionalTransitions._wFactor(U, screenedCharge)
+            )
+        )
 
         rate = 0
         # m^2 * (eV/(eV))^2 * 1/(eV/eV) * unitless * unitless / (m^2/1e6b) = 1e6b
@@ -72,7 +83,8 @@ class BoundFreeCollisionalTransitions:
                 * const.value("Bohr radius") ** 2
                 * 2.3
                 * combinatorialFactor
-                * (const.value("Rydberg constant times hc in eV") / energyDifference) ** 2
+                * (const.value("Rydberg constant times hc in eV") / energyDifference)
+                ** 2
                 * 1.0
                 / U
                 * np.log(U)
@@ -120,7 +132,9 @@ class BoundFreeCollisionalTransitions:
         if sigma < 0.0:
             sigma = 0.0
 
-        electronRestMassEnergy = const.value("electron mass energy equivalent in MeV") * 1e6  # eV
+        electronRestMassEnergy = (
+            const.value("electron mass energy equivalent in MeV") * 1e6
+        )  # eV
 
         # derivation for relativist kinetic energy to velocity
         # E = gamma * m*c^2 E_kin + m*c^2 = gamma * m*c^2 => E_kin = (gamma-1) * m*c^2

@@ -4,8 +4,12 @@ import pytest
 
 if not hasattr(pydantic.BaseModel, "parse_obj"):  # pragma: no cover - compatibility
     pydantic.BaseModel.parse_obj = classmethod(lambda cls, d: cls(**d))
-if not hasattr(pydantic.BaseModel, "model_validate"):  # pragma: no cover - compatibility
-    pydantic.BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
+if not hasattr(
+    pydantic.BaseModel, "model_validate"
+):  # pragma: no cover - compatibility
+    pydantic.BaseModel.model_validate = classmethod(
+        lambda cls, d, **_: cls.parse_obj(d)
+    )
 
 from dpf2.validation_suite import load_validation_dataset, score_simulation
 from dpf2.cli.main import main

@@ -43,7 +43,9 @@ class SahaEquilibrium:
 
     Z: float = 1.0
 
-    def ionization_state(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:  # noqa: ARG002
+    def ionization_state(
+        self, rho: np.ndarray, T: np.ndarray
+    ) -> np.ndarray:  # noqa: ARG002
         return np.full(T.shape, 0.5 * self.Z)
 
 
@@ -58,11 +60,15 @@ class FlychkTable:
         self._T = data[:, 0]
         self._Z = data[:, 1]
 
-    def ionization_state(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:  # noqa: ARG002
+    def ionization_state(
+        self, rho: np.ndarray, T: np.ndarray
+    ) -> np.ndarray:  # noqa: ARG002
         return np.interp(T, self._T, self._Z, left=self._Z[0], right=self._Z[-1])
 
 
-def create_chemistry(model: IonizationModel, *, table_path: Path | None = None) -> ChemistryModel:
+def create_chemistry(
+    model: IonizationModel, *, table_path: Path | None = None
+) -> ChemistryModel:
     if model is IonizationModel.SAHA:
         return SahaEquilibrium()
     if model is IonizationModel.FLYCHK and table_path is not None:

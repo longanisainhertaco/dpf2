@@ -7,13 +7,15 @@ from dpf2.circuit_solver import run_circuit_simulation
 
 
 def test_experimental_shot_trace():
-    ref_path = Path(__file__).resolve().parents[2] / "ReferenceMaterial/experimental_shot.json"
+    ref_path = (
+        Path(__file__).resolve().parents[2] / "ReferenceMaterial/experimental_shot.json"
+    )
     reference = json.loads(ref_path.read_text())
 
     cc = CircuitConfig(L_ext=1.0, R_ext=2.0, C_ext=0.5, V0=1.0, switch_delay=0.0)
     num = len(reference["time"])
     t, current, voltage, _, _ = run_circuit_simulation(cc, t_end=1.0, num_points=num)
-    pressure = [0.01 * i ** 2 for i in current]
+    pressure = [0.01 * i**2 for i in current]
     neutron_yield = sum(pressure) * 1e-6
 
     atol = 0.0

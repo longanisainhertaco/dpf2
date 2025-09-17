@@ -16,13 +16,16 @@ def test_amr_refinement_creates_child_grid():
 
 
 def test_circuit_coupling_back_reaction():
-    seg = TransmissionLineSegment(0, 1, length=1.0, L_per_m=1e-6, R_per_m=0.0, C_per_m=0.0)
+    seg = TransmissionLineSegment(
+        0, 1, length=1.0, L_per_m=1e-6, R_per_m=0.0, C_per_m=0.0
+    )
     solver = RadiationMHDSolver()
     dt = 1e-9
-    res = solve_distributed_circuit([seg], [], V0=1.0, t_end=dt, dt=dt, em_solver=solver)
+    res = solve_distributed_circuit(
+        [seg], [], V0=1.0, t_end=dt, dt=dt, em_solver=solver
+    )
     iface = solver.coupling_interface()
     br = iface.back_reaction
     expected = dt * 1.0 / (seg.L_per_m * seg.length) + br
     assert np.isclose(res.current[-1], expected, rtol=1e-3)
     assert br != 0.0
-

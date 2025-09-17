@@ -51,8 +51,12 @@ class PrePulseBreakdownModel:
         idx_paschen: Optional[int] = None
         if None not in (self.gap, self.pressure, self.voltage):
             t_paschen = paschen_breakdown_time(self.gap, self.pressure, self.voltage)
-            idx_paschen = next((i for i, tt in enumerate(t) if tt >= t_paschen), len(t) - 1)
+            idx_paschen = next(
+                (i for i, tt in enumerate(t) if tt >= t_paschen), len(t) - 1
+            )
 
         candidates = [i for i in (idx_jxb, idx_paschen) if i is not None]
         idx = min(candidates)
-        return PrePulseResult(time=t, jxb_force=jxb, breakdown_time=float(t[idx]), breakdown_index=idx)
+        return PrePulseResult(
+            time=t, jxb_force=jxb, breakdown_time=float(t[idx]), breakdown_index=idx
+        )

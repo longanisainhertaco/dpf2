@@ -149,10 +149,14 @@ class Visualizer(BaseVisualizer):
             cmap=self.colors[idx],
         )
         if self.cur_iteration:
-            self.plt_lin = self.ax.axhline(self.cur_iteration * dt * ps, color="#FF6600")
+            self.plt_lin = self.ax.axhline(
+                self.cur_iteration * dt * ps, color="#FF6600"
+            )
 
         # create the colorbar and a separate ax for it
-        self.colorbars[idx] = plt.colorbar(self.plt_obj[idx], cax=self.colorbar_axes[idx])
+        self.colorbars[idx] = plt.colorbar(
+            self.plt_obj[idx], cax=self.colorbar_axes[idx]
+        )
         self.colorbars[idx].solids.set_edgecolor("face")
         self.colorbars[idx].ax.text(
             0.5,
@@ -178,7 +182,9 @@ class Visualizer(BaseVisualizer):
             self.plt_lin.remove()
         ps = 1.0e12  # for conversion from s to ps
         if self.cur_iteration:
-            self.plt_lin = self.ax.axhline(self.cur_iteration * dt * ps, color="#FF6600")
+            self.plt_lin = self.ax.axhline(
+                self.cur_iteration * dt * ps, color="#FF6600"
+            )
         self.plt_obj[idx].autoscale()
         self.colorbars[idx].update_normal(self.plt_obj[idx])
 
@@ -221,7 +227,9 @@ class Visualizer(BaseVisualizer):
         )
         self.ax.set_xlabel(r"y-slice [$\mathrm{\mu m}$]")
         self.ax.set_ylabel("time [ps]")
-        self.ax.set_title("slice emittance for species " + species + ", filter = " + species_filter)
+        self.ax.set_title(
+            "slice emittance for species " + species + ", filter = " + species_filter
+        )
 
     def clear_cbar(self):
         """Clear colorbars if present."""
@@ -290,7 +298,9 @@ if __name__ == "__main__":
             print("Species filter was not given, will use", filtr)
 
         fig, ax = plt.subplots(1, 1)
-        Visualizer(path, ax).visualize(iteration=iteration, species=species, species_filter=filtr)
+        Visualizer(path, ax).visualize(
+            iteration=iteration, species=species, species_filter=filtr
+        )
         plt.show()
 
     main()

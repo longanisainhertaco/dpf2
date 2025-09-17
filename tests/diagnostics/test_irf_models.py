@@ -32,7 +32,9 @@ def test_irf_application_and_metadata(tmp_path):
     phase1 = interferometer_phase_shift([1.0], [1.0], 1e-6, irf=irf)
     assert phase1 == apply_irf([0.0], [phase0], irf)[0]
 
-    cfg = SimpleNamespace(output_format="hdf5", instrument_response=irf, diagnostic_output_type={})
+    cfg = SimpleNamespace(
+        output_format="hdf5", instrument_response=irf, diagnostic_output_type={}
+    )
     paths = export_diagnostic_data({"sig": processed}, cfg, tmp_path)
     with h5py.File(paths[0], "r") as fh:
         ds = fh["sig"]

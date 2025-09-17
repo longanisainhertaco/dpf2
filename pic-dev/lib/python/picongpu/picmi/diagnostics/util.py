@@ -10,6 +10,8 @@ from picongpu.picmi.copy_attributes import default_converts_to
 
 def diagnostic_converts_to(*args, **kwargs):
     kwargs["conversions"] = {
-        "species": lambda self, *args, **kwargs: kwargs["dict_species_picmi_to_pypicongpu"].get(self.species)
+        "species": lambda self, *args, **kwargs: kwargs[
+            "dict_species_picmi_to_pypicongpu"
+        ].get(self.species)
     } | kwargs.get("conversions", {})
     return default_converts_to(*args, **kwargs)

@@ -65,21 +65,33 @@ def run_testsuite(
     # determine all other directories if only "direction" is specified
     if cD.checkExistVariables(variable="direction") or direction is not None:
         direction = cD.checkDirection(variable="direction", direction=direction)
-        if dataDirection is None and not cD.checkExistVariables(variable="dataDirection"):
-            dataDirection = cD.checkDirection(variable="dataDirection", direction=direction + "simOutput/")
-        if paramDirection is None and not cD.checkExistVariables(variable="paramDirection"):
+        if dataDirection is None and not cD.checkExistVariables(
+            variable="dataDirection"
+        ):
+            dataDirection = cD.checkDirection(
+                variable="dataDirection", direction=direction + "simOutput/"
+            )
+        if paramDirection is None and not cD.checkExistVariables(
+            variable="paramDirection"
+        ):
             paramDirection = cD.checkDirection(
                 variable="paramDirection",
                 direction=direction + "input/include/" + "picongpu/param/",
             )
-        if cmakeDirection is None and not cD.checkExistVariables(variable="cmakeDirection"):
-            cmakeDirection = cD.checkDirection(variable="cmakeDirection", direction=direction + "input/")
+        if cmakeDirection is None and not cD.checkExistVariables(
+            variable="cmakeDirection"
+        ):
+            cmakeDirection = cD.checkDirection(
+                variable="cmakeDirection", direction=direction + "input/"
+            )
 
     try:
         # read the Data
         from .Reader import _manager as read
 
-        json, param, data = read.mainsearch(dataDirection, paramDirection, jsonDirection, cmakeDirection)
+        json, param, data = read.mainsearch(
+            dataDirection, paramDirection, jsonDirection, cmakeDirection
+        )
 
         # now we can determine the theory and simulation
         parameter = {**json, **param, **data}

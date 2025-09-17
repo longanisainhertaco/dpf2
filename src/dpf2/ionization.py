@@ -30,7 +30,7 @@ def collisional_radiative_rhs(ne: float, n_total: float, T: float) -> float:
     """Time derivative of electron density for a minimal CR model."""
 
     ion = _k_ion(T) * ne * (n_total - ne)
-    rec = _k_rec(T) * ne ** 2
+    rec = _k_rec(T) * ne**2
     return ion - rec
 
 

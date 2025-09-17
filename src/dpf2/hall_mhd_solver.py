@@ -9,6 +9,7 @@ hooks for adaptive-mesh refinement so that applications can refine the
 mesh or exchange ghost cells between ranks.  While still compact, the
 module serves as a functional reference used by the regression tests.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ import logging
 import math
 from pathlib import Path
 import numpy as np
+
 try:  # pragma: no cover - allow running without SciPy
     from scipy.constants import mu_0
 except Exception:  # pragma: no cover
@@ -51,6 +53,7 @@ from .physics.inductance import (
 
 logger = logging.getLogger(__name__)
 
+
 class ChemistryModule(Protocol):
     """Minimal interface for chemistry plugins."""
 
@@ -74,6 +77,7 @@ class RadiationModule(Protocol):  # pragma: no cover - docs only
 try:  # pragma: no cover - chemistry is optional in tests
     from .chemistry import ChemistryModel, SahaEquilibrium
 except Exception:  # pragma: no cover
+
     class ChemistryModel(ChemistryModule):
         def ionization_state(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
             return np.ones_like(rho)
@@ -81,9 +85,11 @@ except Exception:  # pragma: no cover
     class SahaEquilibrium(ChemistryModel):
         pass
 
+
 try:  # pragma: no cover - radiation package optional
     from .radiation import RadiationBase
 except Exception:  # pragma: no cover
+
     class RadiationBase(RadiationModule):  # type: ignore[misc]
         def loss(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
             return np.zeros_like(rho)
@@ -92,7 +98,9 @@ except Exception:  # pragma: no cover
 __all__ = ["MHDState", "HallMHDSolver", "spitzer_resistivity"]
 
 
-def spitzer_resistivity(ne: np.ndarray, Te: np.ndarray, Z: float | np.ndarray) -> np.ndarray:
+def spitzer_resistivity(
+    ne: np.ndarray, Te: np.ndarray, Z: float | np.ndarray
+) -> np.ndarray:
     """Return classical Spitzer resistivity in ``Ω·m``.
 
     Parameters
@@ -128,10 +136,14 @@ def spitzer_resistivity(ne: np.ndarray, Te: np.ndarray, Z: float | np.ndarray) -
 
     ln_lambda = 10.0  # typical value for many laboratory plasmas
     coeff = (
-        4 * np.sqrt(2 * np.pi) * np.sqrt(m_e) * e**2 * ln_lambda
-        / (3 * (4 * np.pi * epsilon_0) ** 2 * k ** 1.5)
+        4
+        * np.sqrt(2 * np.pi)
+        * np.sqrt(m_e)
+        * e**2
+        * ln_lambda
+        / (3 * (4 * np.pi * epsilon_0) ** 2 * k**1.5)
     )
-    return coeff * Z / (Te ** 1.5)
+    return coeff * Z / (Te**1.5)
 
 
 def _dd(f: np.ndarray, axis: int) -> np.ndarray:
@@ -254,10 +266,20 @@ def _hll_flux(
     SL = np.minimum(v_L[..., i] - cfast_L, v_R[..., i] - cfast_R)
     SR = np.maximum(v_L[..., i] + cfast_L, v_R[..., i] + cfast_R)
 
-    U_L = np.stack((rho_L, mom_L[..., 0], mom_L[..., 1], mom_L[..., 2], energy_L), axis=-1)
-    U_R = np.stack((rho_R, mom_R[..., 0], mom_R[..., 1], mom_R[..., 2], energy_R), axis=-1)
-    F_L = np.stack((F_rho_L, F_mom_L[..., 0], F_mom_L[..., 1], F_mom_L[..., 2], F_energy_L), axis=-1)
-    F_R = np.stack((F_rho_R, F_mom_R[..., 0], F_mom_R[..., 1], F_mom_R[..., 2], F_energy_R), axis=-1)
+    U_L = np.stack(
+        (rho_L, mom_L[..., 0], mom_L[..., 1], mom_L[..., 2], energy_L), axis=-1
+    )
+    U_R = np.stack(
+        (rho_R, mom_R[..., 0], mom_R[..., 1], mom_R[..., 2], energy_R), axis=-1
+    )
+    F_L = np.stack(
+        (F_rho_L, F_mom_L[..., 0], F_mom_L[..., 1], F_mom_L[..., 2], F_energy_L),
+        axis=-1,
+    )
+    F_R = np.stack(
+        (F_rho_R, F_mom_R[..., 0], F_mom_R[..., 1], F_mom_R[..., 2], F_energy_R),
+        axis=-1,
+    )
 
     denom = SR - SL
     denom[denom == 0] = 1e-30
@@ -347,7 +369,9 @@ class HallMHDSolver(PlasmaSolverBase):
     circuit: CircuitSolverBase | None = None
     comm: Any | None = None  # MPI communicator for domain decomposition
     amr: Any | None = None  # Optional AMReX mesh object
-    braginskii: Callable[[np.ndarray, np.ndarray, np.ndarray], Tuple[float, float]] | None = None
+    braginskii: (
+        Callable[[np.ndarray, np.ndarray, np.ndarray], Tuple[float, float]] | None
+    ) = None
     electron_inertia: float = 0.0
     hall_threshold: float = 1.0
     ei_threshold: float = 0.1
@@ -361,9 +385,15 @@ class HallMHDSolver(PlasmaSolverBase):
         )
     )
     circuit_feedback: CouplingState | None = field(init=False, default=None)
-    anomalous_resistivity: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
-    lower_hybrid_drift: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
-    m0_instability: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
+    anomalous_resistivity: (
+        Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None
+    ) = None
+    lower_hybrid_drift: (
+        Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None
+    ) = None
+    m0_instability: (
+        Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None
+    ) = None
     instability_thresholds: Dict[str, float] | None = None
     sausage_onset: bool = field(init=False, default=False)
     kink_onset: bool = field(init=False, default=False)
@@ -474,12 +504,16 @@ class HallMHDSolver(PlasmaSolverBase):
         else:  # pragma: no cover - very small stub fallback
             mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
 
-        def _process(result: np.ndarray | tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+        def _process(
+            result: np.ndarray | tuple[np.ndarray, np.ndarray],
+        ) -> tuple[np.ndarray, np.ndarray]:
             if isinstance(result, tuple):
                 return result
             return result, np.zeros(J.shape[:-1])
 
-        def _accumulate(e_eta: np.ndarray, e_E: np.ndarray, *, axial: bool = False) -> None:
+        def _accumulate(
+            e_eta: np.ndarray, e_E: np.ndarray, *, axial: bool = False
+        ) -> None:
             nonlocal eta, E
             eta += e_eta
             if e_E.ndim == E.ndim - 1:
@@ -560,7 +594,6 @@ class HallMHDSolver(PlasmaSolverBase):
             else:
                 s_E += e_E
 
-
         if self.instability_thresholds:
             self._check_instability_onset(J)
 
@@ -570,12 +603,7 @@ class HallMHDSolver(PlasmaSolverBase):
             mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
 
         self.last_ez_surge = float(np.max(np.abs(s_E[..., 2])))
-        spike = float(
-            max(
-                np.max(s_eta * mag),
-                self.last_ez_surge
-            )
-        )
+        spike = float(max(np.max(s_eta * mag), self.last_ez_surge))
         if spike != 0.0:
             self.voltage_spikes.append(spike)
         self.last_voltage_spike = spike
@@ -596,10 +624,14 @@ class HallMHDSolver(PlasmaSolverBase):
             if hasattr(np, "linalg") and hasattr(np.linalg, "norm"):
                 J_mag = np.linalg.norm(J, axis=-1)
             else:  # pragma: no cover - manual magnitude for stubs
-                J_mag = np.array([
-                    math.sqrt(float(j[0]) ** 2 + float(j[1]) ** 2 + float(j[2]) ** 2)
-                    for j in J
-                ])
+                J_mag = np.array(
+                    [
+                        math.sqrt(
+                            float(j[0]) ** 2 + float(j[1]) ** 2 + float(j[2]) ** 2
+                        )
+                        for j in J
+                    ]
+                )
         except Exception:  # pragma: no cover - very small stub fallback
             return
         spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
@@ -619,7 +651,9 @@ class HallMHDSolver(PlasmaSolverBase):
         ):
             self.kink_onset = True
 
-    def dump_mode_growth(self, outdir: Path | str = Path("synthetic_diagnostics/modes")) -> Path | None:
+    def dump_mode_growth(
+        self, outdir: Path | str = Path("synthetic_diagnostics/modes")
+    ) -> Path | None:
         """Write recorded modal growth rates to ``outdir``.
 
         The solver collects the azimuthal mode spectrum of the current density
@@ -661,8 +695,12 @@ class HallMHDSolver(PlasmaSolverBase):
             recv_hi[axis] = slice(-1, None)
             send_lo[axis] = slice(1, 2)
             recv_lo[axis] = slice(0, 1)
-            cart.Sendrecv(arr[tuple(send_hi)], dest=dest, recvbuf=arr[tuple(recv_hi)], source=src)
-            cart.Sendrecv(arr[tuple(send_lo)], dest=src, recvbuf=arr[tuple(recv_lo)], source=dest)
+            cart.Sendrecv(
+                arr[tuple(send_hi)], dest=dest, recvbuf=arr[tuple(recv_hi)], source=src
+            )
+            cart.Sendrecv(
+                arr[tuple(send_lo)], dest=src, recvbuf=arr[tuple(recv_lo)], source=dest
+            )
 
     def exchange_boundaries(self, state: MHDState) -> None:
         """Synchronise ghost zones across MPI ranks if a communicator is set."""
@@ -736,7 +774,9 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.sheath is not None:
             ni = float(np.mean(rho)) / max(self.sheath.ion_mass, 1e-30)
             ne = ni * float(np.mean(zbar))
-            thickness, imp_flux, ion_flux = self.sheath.evolve(ni, ne, float(np.mean(T)), dt)
+            thickness, imp_flux, ion_flux = self.sheath.evolve(
+                ni, ne, float(np.mean(T)), dt
+            )
             rho += imp_flux * dt * self.sheath.ion_mass
             energy -= self.rad_coeff * imp_flux * dt
             current = min(current, ion_flux)
@@ -751,7 +791,16 @@ class HallMHDSolver(PlasmaSolverBase):
             name: np.zeros((dims,) + arr.shape) for name, arr in temps.items()
         }
 
-        prim_vars = [rho, v[..., 0], v[..., 1], v[..., 2], B[..., 0], B[..., 1], B[..., 2], p]
+        prim_vars = [
+            rho,
+            v[..., 0],
+            v[..., 1],
+            v[..., 2],
+            B[..., 0],
+            B[..., 1],
+            B[..., 2],
+            p,
+        ]
         for i in range(dims):
             slopes = [
                 _minmod(var - np.roll(var, 1, axis=i), np.roll(var, -1, axis=i) - var)
@@ -792,14 +841,20 @@ class HallMHDSolver(PlasmaSolverBase):
         drho = np.zeros_like(rho)
         denergy = np.zeros_like(energy)
         dmom = np.zeros_like(mom)
-        dtemp: Dict[str, np.ndarray] = {name: np.zeros_like(arr) for name, arr in temps.items()}
+        dtemp: Dict[str, np.ndarray] = {
+            name: np.zeros_like(arr) for name, arr in temps.items()
+        }
         for i in range(dims):
             drho += flux_rho[i] - np.roll(flux_rho[i], 1, axis=i)
             denergy += flux_energy[i] - np.roll(flux_energy[i], 1, axis=i)
             for j in range(3):
-                dmom[..., j] += flux_mom[i][..., j] - np.roll(flux_mom[i][..., j], 1, axis=i)
+                dmom[..., j] += flux_mom[i][..., j] - np.roll(
+                    flux_mom[i][..., j], 1, axis=i
+                )
             for name in temps:
-                dtemp[name] += flux_temp[name][i] - np.roll(flux_temp[name][i], 1, axis=i)
+                dtemp[name] += flux_temp[name][i] - np.roll(
+                    flux_temp[name][i], 1, axis=i
+                )
 
         rho -= dt * drho
         energy -= dt * denergy
@@ -843,7 +898,9 @@ class HallMHDSolver(PlasmaSolverBase):
 
         # --- Runtime activation checks ---
         eta_local = (
-            eta_field if isinstance(eta_field, np.ndarray) else np.full(rho.shape, float(eta_field))
+            eta_field
+            if isinstance(eta_field, np.ndarray)
+            else np.full(rho.shape, float(eta_field))
         )
         w_ce = q_e * np.sqrt(B2) / m_e
         tau_e = m_e / (ne * q_e**2 * np.maximum(eta_local, 1e-30))
@@ -881,11 +938,10 @@ class HallMHDSolver(PlasmaSolverBase):
         eta_eff = eta_local + eta_anom
         eta_total = np.maximum(eta_eff, eta_spitzer)
         if (
-            (self.anomalous_resistivity is not None
-             or self.lower_hybrid_drift is not None
-             or self.m0_instability is not None)
-            and np.all(eta_eff <= eta_spitzer)
-        ):
+            self.anomalous_resistivity is not None
+            or self.lower_hybrid_drift is not None
+            or self.m0_instability is not None
+        ) and np.all(eta_eff <= eta_spitzer):
             msg = "No anomalous resistivity above Spitzer floor"
             logger.error(msg)
             raise RuntimeError(msg)
@@ -910,7 +966,7 @@ class HallMHDSolver(PlasmaSolverBase):
         psi = state.psi.copy() if state.psi is not None else np.zeros_like(rho)
         divB = _divergence(B)
         if self.c_h != 0.0 or self.c_p != 0.0:
-            psi -= dt * (self.c_h ** 2 * divB + self.c_p * psi)
+            psi -= dt * (self.c_h**2 * divB + self.c_p * psi)
             grad_psi = [_dd(psi, i) for i in range(dims)]
             while len(grad_psi) < 3:
                 grad_psi.append(np.zeros_like(psi))
@@ -926,7 +982,9 @@ class HallMHDSolver(PlasmaSolverBase):
             for comp in range(3):
                 grad_par = sum(b[..., i] * _dd(v[..., comp], i) for i in range(dims))
                 visc_flux = self.nu_par * b * grad_par[..., None]
-                mom[..., comp] += dt * sum(_dd(visc_flux[..., i], i) for i in range(dims))
+                mom[..., comp] += dt * sum(
+                    _dd(visc_flux[..., i], i) for i in range(dims)
+                )
                 energy += dt * self.nu_par * grad_par**2 * rho
 
         # --- Braginskii thermal conduction (parallel) ---
@@ -1023,7 +1081,7 @@ class HallMHDSolver(PlasmaSolverBase):
         )
 
         v_final = mom / rho[..., None]
-        B2_final = np.sum(B ** 2, axis=-1)
+        B2_final = np.sum(B**2, axis=-1)
 
         if energy_tracker is not None:
             kinetic_final = 0.5 * rho * np.sum(v_final**2, axis=-1)
@@ -1050,7 +1108,9 @@ class HallMHDSolver(PlasmaSolverBase):
             cell_volume = dx * dy * dz
             max_speed = float(np.max(np.linalg.norm(v_final, axis=-1)))
             cfl = max_speed * dt / cell_size if cell_size > 0 else 0.0
-            ion_mass = getattr(self, "ion_mass", getattr(self.sheath, "ion_mass", 1.6726219e-27))
+            ion_mass = getattr(
+                self, "ion_mass", getattr(self.sheath, "ion_mass", 1.6726219e-27)
+            )
             ne = rho * np.maximum(zbar, 1e-30) / ion_mass
             try:
                 from scipy.constants import e, epsilon_0, k
@@ -1082,7 +1142,6 @@ class HallMHDSolver(PlasmaSolverBase):
                 di_over_L=self.last_di_over_L,
                 hall_threshold=self.hall_threshold,
                 ei_threshold=self.ei_threshold,
-
             )
 
         return new_state
@@ -1093,7 +1152,9 @@ class HallMHDSolver(PlasmaSolverBase):
 
         if self.circuit_feedback is not None:
             return self.circuit_feedback
-        return CouplingState(Lp=self.inductance, emf=self.back_emf, current=self.current)
+        return CouplingState(
+            Lp=self.inductance, emf=self.back_emf, current=self.current
+        )
 
     def plasma_inductance(self, state: MHDState | None = None) -> float:
         """Return current plasma inductance estimate.
@@ -1112,7 +1173,9 @@ class HallMHDSolver(PlasmaSolverBase):
         except Exception:
             return self.inductance
 
-    def compute_plasma_inductance(self, state: MHDState, current: float, cell_volume: float = 1.0) -> float:
+    def compute_plasma_inductance(
+        self, state: MHDState, current: float, cell_volume: float = 1.0
+    ) -> float:
         """Return geometry-aware plasma inductance and update sheath metrics."""
 
         if state is None:
@@ -1159,7 +1222,9 @@ class HallMHDSolver(PlasmaSolverBase):
         return self._coord_cache
 
     # ------------------------------------------------------------------
-    def _estimate_sheath_state(self, state: MHDState) -> tuple[float, float, float, float]:
+    def _estimate_sheath_state(
+        self, state: MHDState
+    ) -> tuple[float, float, float, float]:
         R, Z, X, Y = self._ensure_coordinate_cache(state.rho.shape)
         rho = np.asarray(state.rho)
         weights = np.clip(rho, a_min=0.0, a_max=None)

@@ -99,6 +99,7 @@ def test_iv_curve_matches_experiment():
         sim_currents.append(circuit.get_current())
         sim_voltages.append(circuit.get_voltage())
 
-    assert np.allclose(np.abs(sim_currents), [abs(c) for c in currents[1:]], rtol=3e-1, atol=1e-2)
+    assert np.allclose(
+        np.abs(sim_currents), [abs(c) for c in currents[1:]], rtol=3e-1, atol=1e-2
+    )
     assert np.allclose(sim_voltages, voltages[1:], rtol=3e-1, atol=1e-2)
-

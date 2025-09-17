@@ -56,6 +56,7 @@ def load_tabulated_eos(path: str | Path) -> TabulatedEOS:
 
     with open(path) as f:
         data = json.load(f)
+
     def _to_float_list(seq):
         return [float(x) for x in seq]
 

@@ -60,12 +60,16 @@ def calculate_dt(gamma, Heff):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Synchrotron Radiation Requirements Checker")
+    parser = argparse.ArgumentParser(
+        description="Synchrotron Radiation Requirements Checker"
+    )
     parser.add_argument("--Heff", type=float, help="Maximal Heff value (in Tesla)")
     parser.add_argument("--B", type=float, help="Maximal B value (in Tesla)")
     parser.add_argument("--E", type=float, help="Maximal E value (in V/m)")
     parser.add_argument("--a0", type=float, help="Maximal a0 value")
-    parser.add_argument("--gamma", type=float, help="Maximal gamma value. Required for all options.")
+    parser.add_argument(
+        "--gamma", type=float, help="Maximal gamma value. Required for all options."
+    )
     args = parser.parse_args()
 
     if args.Heff is not None and args.gamma is not None:
@@ -77,7 +81,11 @@ def main():
         gamma_estimate = args.gamma
         beta = np.sqrt(1 - 1 / gamma_estimate**2)  # Beta value for the particles
         vel = c * beta
-        Heff_estimate = Heff_(np.array([0, vel, 0]), np.array([0, 0, B_estimate]), np.array([E_estimate, 0, 0]))
+        Heff_estimate = Heff_(
+            np.array([0, vel, 0]),
+            np.array([0, 0, B_estimate]),
+            np.array([E_estimate, 0, 0]),
+        )
     elif args.a0 is not None and args.gamma is not None:
         a0_estimate = args.a0
         gamma_estimate = args.gamma

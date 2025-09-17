@@ -47,13 +47,17 @@ class IonizationModel(pydantic.BaseModel):
         # import here to avoid circular import that stems from projecting different species types from PIConGPU onto the same `Species` type in PICMI
         from ... import Species
 
-        assert isinstance(self.ion_species, Species), "ion_species must be an instance of the species object"
-        assert isinstance(self.ionization_electron_species, Species), (
-            "ionization_electron_species must be an instance of the species object"
-        )
+        assert isinstance(
+            self.ion_species, Species
+        ), "ion_species must be an instance of the species object"
+        assert isinstance(
+            self.ionization_electron_species, Species
+        ), "ionization_electron_species must be an instance of the species object"
 
     def get_constants(self) -> list[pypicongpu.species.constant.Constant]:
         raise NotImplementedError("abstract base class only!")
 
-    def get_as_pypicongpu(self) -> pypicongpu.species.constant.ionizationmodel.IonizationModel:
+    def get_as_pypicongpu(
+        self,
+    ) -> pypicongpu.species.constant.ionizationmodel.IonizationModel:
         raise NotImplementedError("abstract base class only!")

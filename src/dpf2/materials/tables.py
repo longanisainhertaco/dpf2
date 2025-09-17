@@ -62,4 +62,3 @@ __all__ = [
     "get_resistivity",
     "get_skin_effect_coeff",
 ]
-

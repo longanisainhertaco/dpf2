@@ -1,6 +1,7 @@
 import numpy as np
 from dpf2.simulation.utils import FieldManager
 
+
 def test_pml_absorbs_outgoing_wave():
     nx = 10
     boundary_conditions = {

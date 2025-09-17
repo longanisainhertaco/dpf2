@@ -143,7 +143,9 @@ class PrepRoutines:
         # read Insight far field data
         f = h5py.File(self.path + self.name, "r")
         groups = list(f.keys())
-        self.Ew = np.asarray(f["data/{}".format(*f["/{}".format(groups[0])].keys())])  # 3D array (x, y, w)
+        self.Ew = np.asarray(
+            f["data/{}".format(*f["/{}".format(groups[0])].keys())]
+        )  # 3D array (x, y, w)
         # rescale the amplitude to 1
         self.Ew /= np.abs(self.Ew).max()
         # change scale name here if necessary
@@ -199,9 +201,15 @@ class PrepRoutines:
         # print fit parameters etc.
         print("Central wavelength: %.f nm" % (self.lamb[self.wc_idx] * 10**6))
         print("Rayleigh length: zR = %.2f mm" % (self.zR))
-        print("Far field center coordinates: xc = %.2f um, yc = %.2f um" % (self.xc * 1000, self.yc * 1000))
+        print(
+            "Far field center coordinates: xc = %.2f um, yc = %.2f um"
+            % (self.xc * 1000, self.yc * 1000)
+        )
         print("Far field waist size: w = %.2f um" % (self.waist * 1000))
-        print("Near field center coordinates: xc = %.2f mm, yc = %.2f mm" % (self.xc_NF, self.yc_NF))
+        print(
+            "Near field center coordinates: xc = %.2f mm, yc = %.2f mm"
+            % (self.xc_NF, self.yc_NF)
+        )
         print("Near field waist size: w = %.2f mm" % (self.waist_NF))
 
     def ff_to_nf(self, d=0, method="linear"):
@@ -214,9 +222,18 @@ class PrepRoutines:
         """
         X, Y, W = np.meshgrid(self.x, self.y, self.w)
         fac = (
-            -1j * 2 * np.pi * c / W * self.foc * np.exp(1j * W / c / 2 / self.foc * (X**2 + Y**2) * (1 - d / self.foc))
+            -1j
+            * 2
+            * np.pi
+            * c
+            / W
+            * self.foc
+            * np.exp(1j * W / c / 2 / self.foc * (X**2 + Y**2) * (1 - d / self.foc))
         )
-        NF = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(self.Ew * fac, axes=(0, 1)), axes=(0, 1)), axes=(0, 1))
+        NF = np.fft.fftshift(
+            np.fft.fft2(np.fft.fftshift(self.Ew * fac, axes=(0, 1)), axes=(0, 1)),
+            axes=(0, 1),
+        )
         a = np.fft.fftshift(np.fft.fftfreq(self.x.size, self.dx))
         b = np.fft.fftshift(np.fft.fftfreq(self.y.size, self.dy))
         # rescaling from spatial frequency to x/y for every lambda (x = a * lamb * f)
@@ -228,7 +245,9 @@ class PrepRoutines:
         Y_NF, X_NF = np.meshgrid(self.y_NF, self.x_NF, indexing="ij")
         self.Ew_NF = np.empty_like(NF, dtype=complex)
         for i in range(self.w.size):
-            interp_NF = RegularGridInterpolator((b * scale[i], a * scale[i]), NF[:, :, i], method=method)
+            interp_NF = RegularGridInterpolator(
+                (b * scale[i], a * scale[i]), NF[:, :, i], method=method
+            )
             self.Ew_NF[:, :, i] = interp_NF((Y_NF, X_NF))
 
         # rescale the amplitude to 1
@@ -248,15 +267,34 @@ class PrepRoutines:
         fac = (
             -W
             / (1j * c * 2 * np.pi * self.foc)
-            * np.exp(-1j * 2 * np.pi**2 * self.foc * c / W * (A**2 + B**2) * (1 - d / self.foc))
+            * np.exp(
+                -1j
+                * 2
+                * np.pi**2
+                * self.foc
+                * c
+                / W
+                * (A**2 + B**2)
+                * (1 - d / self.foc)
+            )
         )
-        FF = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(self.Ew_NF, axes=(0, 1)), axes=(0, 1)), axes=(0, 1)) * fac
+        FF = (
+            np.fft.fftshift(
+                np.fft.ifft2(np.fft.ifftshift(self.Ew_NF, axes=(0, 1)), axes=(0, 1)),
+                axes=(0, 1),
+            )
+            * fac
+        )
         # rescaling from spatial frequency to space for every lambda
         scale = self.lamb * self.foc
         Y, X = np.meshgrid(self.y, self.x, indexing="ij")
         for i in range(self.w.size):
             interp_FF = RegularGridInterpolator(
-                (b * scale[i], a * scale[i]), FF[:, :, i], method=method, bounds_error=False, fill_value=0
+                (b * scale[i], a * scale[i]),
+                FF[:, :, i],
+                method=method,
+                bounds_error=False,
+                fill_value=0,
             )
             self.Ew[:, :, i] = interp_FF((Y, X))
 
@@ -278,14 +316,27 @@ class PrepRoutines:
         """
         # phase in near field beam center
         phase_centr = np.unwrap(
-            np.angle(self.Ew_NF[np.abs(self.y_NF - self.yc_NF).argmin(), np.abs(self.x_NF - self.xc_NF).argmin(), :])
+            np.angle(
+                self.Ew_NF[
+                    np.abs(self.y_NF - self.yc_NF).argmin(),
+                    np.abs(self.x_NF - self.xc_NF).argmin(),
+                    :,
+                ]
+            )
         )
-        dispersion = -GDD / 2 * (self.w - self.w[self.wc_idx]) ** 2 - TOD / 6 * (self.w - self.w[self.wc_idx]) ** 3
+        dispersion = (
+            -GDD / 2 * (self.w - self.w[self.wc_idx]) ** 2
+            - TOD / 6 * (self.w - self.w[self.wc_idx]) ** 3
+        )
 
         # correcting near field
-        self.Ew_NF = np.abs(self.Ew_NF) * np.exp(1j * (np.angle(self.Ew_NF) - phase_centr + dispersion))
+        self.Ew_NF = np.abs(self.Ew_NF) * np.exp(
+            1j * (np.angle(self.Ew_NF) - phase_centr + dispersion)
+        )
         # correcting far field
-        self.Ew = np.abs(self.Ew) * np.exp(1j * (np.angle(self.Ew) - phase_centr + dispersion))
+        self.Ew = np.abs(self.Ew) * np.exp(
+            1j * (np.angle(self.Ew) - phase_centr + dispersion)
+        )
         self.is_phase_corrected = True
         print(
             "Phase has been corrected. \nApplied dispersion parameters: GDD = %.f fs**2/rad, TOD = %.f fs**3/rad**2"
@@ -323,7 +374,9 @@ class PrepRoutines:
         border_thickn = 3
         # safety check: are we still in the volume?
         assert xidx_low - border_thickn >= 0, "Sorry, too close to the left border!"
-        assert xidx_upp + border_thickn < len(self.x_NF), "Sorry, too close to the right border!"
+        assert xidx_upp + border_thickn < len(
+            self.x_NF
+        ), "Sorry, too close to the right border!"
 
         # since it is pretty messy to work with meshgrids when there is a hole in the middle, we do the
         # interpolation only along the x direction (but any other direction would have been just as valid)
@@ -340,16 +393,26 @@ class PrepRoutines:
             ),
             axis=1,
         )
-        interp = RegularGridInterpolator((self.y_NF[yidx_low:yidx_upp], x_surr, self.w), Ew_surr, method=method)
-        Y_hole, X_hole, W_hole = np.meshgrid(
-            self.y_NF[yidx_low:yidx_upp], self.x_NF[xidx_low:xidx_upp], self.w, indexing="ij"
+        interp = RegularGridInterpolator(
+            (self.y_NF[yidx_low:yidx_upp], x_surr, self.w), Ew_surr, method=method
         )
-        self.Ew_NF[yidx_low:yidx_upp, xidx_low:xidx_upp, :] = interp((Y_hole, X_hole, W_hole))
+        Y_hole, X_hole, W_hole = np.meshgrid(
+            self.y_NF[yidx_low:yidx_upp],
+            self.x_NF[xidx_low:xidx_upp],
+            self.w,
+            indexing="ij",
+        )
+        self.Ew_NF[yidx_low:yidx_upp, xidx_low:xidx_upp, :] = interp(
+            (Y_hole, X_hole, W_hole)
+        )
 
         # correct the far field
         self.nf_to_ff()
 
-        print("corrected ugly spot in near field at x = %.2f mm, y = %.2f mm" % (x_ugly, y_ugly))
+        print(
+            "corrected ugly spot in near field at x = %.2f mm, y = %.2f mm"
+            % (x_ugly, y_ugly)
+        )
 
     def shift_nf_to_center(self):
         """
@@ -362,9 +425,9 @@ class PrepRoutines:
         ny = int(self.yc_NF / self.dy_NF + 0.5)
 
         # check shift for validity: should be less than half the size of the data extent
-        assert nx < len(self.x_NF) / 2 and ny < len(self.y_NF) / 2, (
-            "Something's off, can't shift more than half the size of the data extent!"
-        )
+        assert (
+            nx < len(self.x_NF) / 2 and ny < len(self.y_NF) / 2
+        ), "Something's off, can't shift more than half the size of the data extent!"
 
         if nx == 0 and ny == 0:
             print("already centered, no corrections necessary")
@@ -391,7 +454,10 @@ class PrepRoutines:
         self.xc_NF = popt_NF[1]
         self.yc_NF = popt_NF[2]
         self.waist_NF = popt_NF[3]
-        print("new near field center coordinates: xc = %.2f mm, yc = %.2f mm" % (self.xc_NF, self.yc_NF))
+        print(
+            "new near field center coordinates: xc = %.2f mm, yc = %.2f mm"
+            % (self.xc_NF, self.yc_NF)
+        )
 
         # correct the far field
         self.nf_to_ff()
@@ -417,11 +483,27 @@ class PrepRoutines:
 
             # propagation FF to MF
             X, Y, W = np.meshgrid(self.x, self.y, self.w)
-            fac = -1j * 2 * np.pi * c / W * d**2 / self.foc * np.exp(1j * W / c / 2 / d * (X**2 + Y**2))
-            MF = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(self.Ew * fac, axes=(0, 1)), axes=(0, 1)), axes=(0, 1))
+            fac = (
+                -1j
+                * 2
+                * np.pi
+                * c
+                / W
+                * d**2
+                / self.foc
+                * np.exp(1j * W / c / 2 / d * (X**2 + Y**2))
+            )
+            MF = np.fft.fftshift(
+                np.fft.fft2(np.fft.fftshift(self.Ew * fac, axes=(0, 1)), axes=(0, 1)),
+                axes=(0, 1),
+            )
             # transversal scales in mid field, but still as spatial frequencies
-            a = np.fft.fftshift(np.fft.fftfreq(self.x.size, self.dx))  # = x / (lamb * d)
-            b = np.fft.fftshift(np.fft.fftfreq(self.y.size, self.dy))  # = y / (lamb * d)
+            a = np.fft.fftshift(
+                np.fft.fftfreq(self.x.size, self.dx)
+            )  # = x / (lamb * d)
+            b = np.fft.fftshift(
+                np.fft.fftfreq(self.y.size, self.dy)
+            )  # = y / (lamb * d)
 
             # aperture = cropping MF content
             MF_cropped = np.zeros_like(MF, dtype=complex)
@@ -435,10 +517,16 @@ class PrepRoutines:
                                 MF_cropped[j, i, k] = MF[j, i, k]
 
             # propagation MF to FF
-            self.Ew = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(MF_cropped, axes=(0, 1)), axes=(0, 1)), axes=(0, 1))
+            self.Ew = np.fft.fftshift(
+                np.fft.ifft2(np.fft.ifftshift(MF_cropped, axes=(0, 1)), axes=(0, 1)),
+                axes=(0, 1),
+            )
             self.Ew /= fac
             self.is_masked = True
-            print("Aperture of radius %.2f mm at distance %.2e mm has been applied." % (R, d))
+            print(
+                "Aperture of radius %.2f mm at distance %.2e mm has been applied."
+                % (R, d)
+            )
 
             # we need the integrated intensity ratio of the masked far field data to the original one to account in for
             # the energy loss due to the masking process
@@ -463,7 +551,13 @@ class PrepRoutines:
         # unwrapped phase in near field main beam spot area
         angle_AD = np.unwrap(
             np.unwrap(
-                np.angle(self.Ew_NF[mainSpotIdx_NF[2] : mainSpotIdx_NF[3], mainSpotIdx_NF[0] : mainSpotIdx_NF[1], :]),
+                np.angle(
+                    self.Ew_NF[
+                        mainSpotIdx_NF[2] : mainSpotIdx_NF[3],
+                        mainSpotIdx_NF[0] : mainSpotIdx_NF[1],
+                        :,
+                    ]
+                ),
                 axis=0,
             ),
             axis=1,
@@ -478,11 +572,17 @@ class PrepRoutines:
             for i in range(min(angle_AD.shape[0], angle_AD.shape[1])):
                 # linear fit of every row and column of main beam spot area
                 popt_x, pcov_x = curve_fit(
-                    lin, self.x_NF[mainSpotIdx_NF[0] : mainSpotIdx_NF[1]], angle_AD[i, :, j], p0=(1, 0)
+                    lin,
+                    self.x_NF[mainSpotIdx_NF[0] : mainSpotIdx_NF[1]],
+                    angle_AD[i, :, j],
+                    p0=(1, 0),
                 )
                 mx_j.append(popt_x[0])
                 popt_y, pcov_y = curve_fit(
-                    lin, self.y_NF[mainSpotIdx_NF[2] : mainSpotIdx_NF[3]], angle_AD[:, i, j], p0=(1, 0)
+                    lin,
+                    self.y_NF[mainSpotIdx_NF[2] : mainSpotIdx_NF[3]],
+                    angle_AD[:, i, j],
+                    p0=(1, 0),
                 )
                 my_j.append(popt_y[0])
             # average phase slope for every lambda
@@ -533,7 +633,16 @@ class PrepRoutines:
         )
         # unwrapped phase in far field main beam spot area
         angle_AD = np.unwrap(
-            np.unwrap(np.angle(self.Ew[mainSpotIdx[2] : mainSpotIdx[3], mainSpotIdx[0] : mainSpotIdx[1], :]), axis=0),
+            np.unwrap(
+                np.angle(
+                    self.Ew[
+                        mainSpotIdx[2] : mainSpotIdx[3],
+                        mainSpotIdx[0] : mainSpotIdx[1],
+                        :,
+                    ]
+                ),
+                axis=0,
+            ),
             axis=1,
         )
 
@@ -546,11 +655,17 @@ class PrepRoutines:
             for i in range(min(angle_AD.shape[0], angle_AD.shape[1])):
                 # linear fit of every row and column of main beam spot area
                 popt_x, pcov_x = curve_fit(
-                    lin, self.x[mainSpotIdx[0] : mainSpotIdx[1]], angle_AD[i, :, j], p0=(-200, 0)
+                    lin,
+                    self.x[mainSpotIdx[0] : mainSpotIdx[1]],
+                    angle_AD[i, :, j],
+                    p0=(-200, 0),
                 )
                 mx_j.append(popt_x[0])
                 popt_y, pcov_y = curve_fit(
-                    lin, self.y[mainSpotIdx[2] : mainSpotIdx[3]], angle_AD[:, i, j], p0=(-200, 0)
+                    lin,
+                    self.y[mainSpotIdx[2] : mainSpotIdx[3]],
+                    angle_AD[:, i, j],
+                    p0=(-200, 0),
                 )
                 my_j.append(popt_y[0])
             # average phase slope for every lambda
@@ -607,13 +722,17 @@ class PrepRoutines:
             yc_SD.append(popt[2])
 
         # linear fit to central x coordinate
-        popt, pcov = curve_fit(lin, self.lamb[self.spectFWHMIdx[0] : self.spectFWHMIdx[1]] * 10**6, xc_SD)
+        popt, pcov = curve_fit(
+            lin, self.lamb[self.spectFWHMIdx[0] : self.spectFWHMIdx[1]] * 10**6, xc_SD
+        )
         perr = np.diag(pcov)
         SDx = popt[0]
         eSDx = perr[0]
         print("measured SD in NF in x direction: %.2e +- %.2e mm / nm" % (SDx, eSDx))
 
-        popt, pcov = curve_fit(lin, self.lamb[self.spectFWHMIdx[0] : self.spectFWHMIdx[1]] * 10**6, yc_SD)
+        popt, pcov = curve_fit(
+            lin, self.lamb[self.spectFWHMIdx[0] : self.spectFWHMIdx[1]] * 10**6, yc_SD
+        )
         perr = np.diag(pcov)
         SDy = popt[0]
         eSDy = perr[0]
@@ -642,13 +761,17 @@ class PrepRoutines:
             yc_SD.append(popt[2])
 
         # linear fit to central x coordinate
-        popt, pcov = curve_fit(lin, self.lamb[self.spectFWHMIdx[0] : self.spectFWHMIdx[1]] * 10**6, xc_SD)
+        popt, pcov = curve_fit(
+            lin, self.lamb[self.spectFWHMIdx[0] : self.spectFWHMIdx[1]] * 10**6, xc_SD
+        )
         perr = np.diag(pcov)
         SDx = popt[0]
         eSDx = perr[0]
         print("measured SD in FF in x direction:  %.2e +- %.2e mm / nm" % (SDx, eSDx))
 
-        popt, pcov = curve_fit(lin, self.lamb[self.spectFWHMIdx[0] : self.spectFWHMIdx[1]] * 10**6, yc_SD)
+        popt, pcov = curve_fit(
+            lin, self.lamb[self.spectFWHMIdx[0] : self.spectFWHMIdx[1]] * 10**6, yc_SD
+        )
         perr = np.diag(pcov)
         SDy = popt[0]
         eSDy = perr[0]
@@ -674,9 +797,9 @@ class PrepRoutines:
 
         # check that propagated beam will still fit into the window
         w_exp = self.waist * np.sqrt(1 + (z / self.zR) ** 2)
-        assert w_exp < 0.2 * min(self.dx * self.Ew.shape[0], self.dy * self.Ew.shape[1]), (
-            "Oops, you wanted to propagate too far! The pulse will not fit in the transverse window."
-        )
+        assert w_exp < 0.2 * min(
+            self.dx * self.Ew.shape[0], self.dy * self.Ew.shape[1]
+        ), "Oops, you wanted to propagate too far! The pulse will not fit in the transverse window."
 
         a = 2 * np.pi * c * np.fft.fftfreq(self.x.size, d=np.diff(self.x)[0])
         b = 2 * np.pi * c * np.fft.fftfreq(self.y.size, d=np.diff(self.y)[0])
@@ -690,8 +813,12 @@ class PrepRoutines:
         idx_in = np.where(cond < 1)
         idx_out = np.where(cond > 1)
         F_Ew = np.fft.ifft2(self.Ew, axes=(0, 1))
-        F_Ew[idx_in] *= np.exp(-1j * W[idx_in] / c * np.sqrt(1 - cond[idx_in]) * z)  # plane waves
-        F_Ew[idx_out] *= np.exp(-W[idx_out] / c * np.sqrt(cond[idx_out] - 1) * np.abs(z))  # evanescent waves
+        F_Ew[idx_in] *= np.exp(
+            -1j * W[idx_in] / c * np.sqrt(1 - cond[idx_in]) * z
+        )  # plane waves
+        F_Ew[idx_out] *= np.exp(
+            -W[idx_out] / c * np.sqrt(cond[idx_out] - 1) * np.abs(z)
+        )  # evanescent waves
         lin_phase = np.exp(1j * W * z / c)  # cancel out the time shift
 
         print("far field propagated to z = %.2f mm" % (z))
@@ -711,14 +838,20 @@ class PrepRoutines:
         # calculate the number of zeros to be padded at the right side of the spectrum
         # longitudinal axis length N_tot = 2 * pi / (dw * dt)
         # necessary time spacing dt = lamb / (c * lamb_supp)
-        zeros = int(self.w[self.wc_idx] * lamb_supp / self.dw / 2 - self.w[-1] / self.dw)
+        zeros = int(
+            self.w[self.wc_idx] * lamb_supp / self.dw / 2 - self.w[-1] / self.dw
+        )
 
         # the data has to be sorted according to fft requirements:  w = dw * (0, 1, ... n/2, -n/2, ... -1)
         # so we have to extent (and interpolate) first the positive side of the spectrum
         w_fft = np.arange(0, self.w[-1] + zeros * self.dw, self.dw)
         Y_fft, X_fft, W_fft = np.meshgrid(self.y, self.x, w_fft, indexing="ij")
         fft_interp = RegularGridInterpolator(
-            (self.y, self.x, self.w), Ew, bounds_error=False, fill_value=0, method="linear"
+            (self.y, self.x, self.w),
+            Ew,
+            bounds_error=False,
+            fill_value=0,
+            method="linear",
         )
         Ew_fft = fft_interp((Y_fft, X_fft, W_fft))
         # set the negative frequency part to 0 (instead of the complex conjugate) and neglect the imaginary part afterwards
@@ -729,22 +862,44 @@ class PrepRoutines:
         self.Et = np.fft.fftshift(np.fft.ifft(Ew_fft), axes=-1)
         # rescale the amplitude to one
         self.Et = self.Et / np.abs(self.Et).max()
-        self.t = np.fft.fftshift(np.fft.fftfreq(w_fft.size, self.dw / (2 * np.pi)))  # fs
+        self.t = np.fft.fftshift(
+            np.fft.fftfreq(w_fft.size, self.dw / (2 * np.pi))
+        )  # fs
         self.dt = np.diff(self.t)[0]
 
         # estimate the pulse length
         popt, pcov = curve_fit(
             gauss,
             self.t,
-            np.abs(self.Et[np.abs(self.y - self.yc).argmin(), np.abs(self.x - self.xc).argmin(), :]),
+            np.abs(
+                self.Et[
+                    np.abs(self.y - self.yc).argmin(),
+                    np.abs(self.x - self.xc).argmin(),
+                    :,
+                ]
+            ),
             p0=(1, 0, 15),
         )
-        print("Pulse duration: %.f fs / FHWM intensity: %.f fs" % (popt[2], 2 * np.sqrt(2 * np.log(2)) * popt[2]))
+        print(
+            "Pulse duration: %.f fs / FHWM intensity: %.f fs"
+            % (popt[2], 2 * np.sqrt(2 * np.log(2)) * popt[2])
+        )
 
-        print("field data size: %.1f GB" % (np.prod(self.Et.shape) * 8 * 10**-9))  # assumes datatype double
+        print(
+            "field data size: %.1f GB" % (np.prod(self.Et.shape) * 8 * 10**-9)
+        )  # assumes datatype double
 
     def save_to_openPMD(
-        self, outputpath, outputname, energy, pol="y", crop_x=0, crop_y=0, crop_t_neg=0, crop_t_pos=0, is_complex=False
+        self,
+        outputpath,
+        outputname,
+        energy,
+        pol="y",
+        crop_x=0,
+        crop_y=0,
+        crop_t_neg=0,
+        crop_t_pos=0,
+        is_complex=False,
     ):
         """
         Save the field data in time domain to an openPMD file. This output will be used for the
@@ -785,20 +940,32 @@ class PrepRoutines:
             # store the complete complex field as np.complex64
             # info: openPMD does not support np.complex128 yet
             E_save = np.array(
-                self.Et[idx_y : Ny - idx_y, idx_x : Nx - idx_x, idx_t_neg : Nt - idx_t_pos], dtype=np.complex64
+                self.Et[
+                    idx_y : Ny - idx_y, idx_x : Nx - idx_x, idx_t_neg : Nt - idx_t_pos
+                ],
+                dtype=np.complex64,
             )
             I_sum_crop = np.sum(np.real(E_save) ** 2)
         else:
             # we only need the real part of the field
             E_save = np.array(
-                np.real(self.Et[idx_y : Ny - idx_y, idx_x : Nx - idx_x, idx_t_neg : Nt - idx_t_pos]), dtype=np.float64
+                np.real(
+                    self.Et[
+                        idx_y : Ny - idx_y,
+                        idx_x : Nx - idx_x,
+                        idx_t_neg : Nt - idx_t_pos,
+                    ]
+                ),
+                dtype=np.float64,
             )
             I_sum_crop = np.sum(E_save**2)
 
         # if the field was cropped, look how much pulse energy was discarded
         I_sum = np.sum(np.real(self.Et))
         if crop_x > 0 or crop_y > 0 or crop_t_neg > 0 or crop_t_pos > 0:
-            print(f"Discarded pulse energy due to smaller window: {(1 - I_sum_crop / I_sum):.2%}")
+            print(
+                f"Discarded pulse energy due to smaller window: {(1 - I_sum_crop / I_sum):.2%}"
+            )
 
         series = openpmd.Series(outputpath + outputname, openpmd.Access.create)
         ite = series.iterations[0]  # use the 0th iteration
@@ -861,4 +1028,7 @@ class PrepRoutines:
 
         del series
 
-        print("data successfully saved, field data size: %.f MB" % (np.prod(E_save.shape) * 8 * 10**-6))
+        print(
+            "data successfully saved, field data size: %.f MB"
+            % (np.prod(E_save.shape) * 8 * 10**-6)
+        )

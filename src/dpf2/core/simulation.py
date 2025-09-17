@@ -1,4 +1,5 @@
 """Core simulation driver."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -83,7 +84,9 @@ class DPFSimulation:
         self.writer = DataWriter(out, config=asdict(self.config), seeds=seeds)
 
         # Write initial state
-        self.writer.write_hdf5({"current": self.current, "voltage": self.voltage}, time=self.time)
+        self.writer.write_hdf5(
+            {"current": self.current, "voltage": self.voltage}, time=self.time
+        )
         last_output = self.time
 
         times = [self.time]
@@ -120,9 +123,16 @@ class DPFSimulation:
             voltages.append(self.voltage)
 
             if verbose:
-                energy = 0.5 * self.config.capacitance * self.voltage**2 + 0.5 * self.config.inductance * self.current**2
+                energy = (
+                    0.5 * self.config.capacitance * self.voltage**2
+                    + 0.5 * self.config.inductance * self.current**2
+                )
                 logger.info(
-                    "t=%g s I=%g A V=%g V energy=%g J", self.time, self.current, self.voltage, energy
+                    "t=%g s I=%g A V=%g V energy=%g J",
+                    self.time,
+                    self.current,
+                    self.voltage,
+                    energy,
                 )
 
             if progress_cb is not None:

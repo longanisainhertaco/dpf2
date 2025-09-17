@@ -117,9 +117,7 @@ class AMRMesh:
             stats["current_density"] = int(np.sum(getattr(jmask, "data", jmask)))
             _or_inplace(mask, jmask)
             if stats["current_density"]:
-                logger.info(
-                    "AMR |J| trigger tagged %d cells", stats["current_density"]
-                )
+                logger.info("AMR |J| trigger tagged %d cells", stats["current_density"])
 
         Jgrad_thresh = self.criteria.get("current_gradient_threshold")
         if current is not None and Jgrad_thresh is not None:

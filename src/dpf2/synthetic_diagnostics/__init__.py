@@ -1,4 +1,3 @@
-
 """Synthetic diagnostics package with compatibility shim.
 
 This package exposes the legacy :mod:`dpf2.synthetic_diagnostics` module
@@ -21,4 +20,3 @@ _spec.loader.exec_module(_module)  # type: ignore[attr-defined]
 __all__ = getattr(_module, "__all__", [])
 for name in __all__:
     globals()[name] = getattr(_module, name)
-

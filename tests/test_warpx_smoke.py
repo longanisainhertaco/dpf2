@@ -11,4 +11,3 @@ def test_warpx_wrapper_import():
     pytest.importorskip("h5py")
 
     from dpf2.simulation.warpx_wrapper import WarpXWrapper  # noqa: F401
-

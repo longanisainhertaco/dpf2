@@ -18,7 +18,15 @@ class TestElement(unittest.TestCase):
         # create test case data
         self.test_element = ["H", "#2H", "Cu", "#12C", "C", "Ne", "Ar"]
         self.name = ["H", "D", "Cu", "C", "C", "Ne", "Ar"]
-        self.picongpu_names = ["Hydrogen", "Deuterium", "Copper", "Carbon", "Carbon", "Neon", "Argon"]
+        self.picongpu_names = [
+            "Hydrogen",
+            "Deuterium",
+            "Copper",
+            "Carbon",
+            "Carbon",
+            "Neon",
+            "Argon",
+        ]
         self.mass = [
             1.00794 * scipy.constants.atomic_mass,
             2.014101778 * scipy.constants.atomic_mass,
@@ -42,7 +50,9 @@ class TestElement(unittest.TestCase):
 
         invalid_test_strings = ["#Htest", "#He3", "#Cu-56", "H3", "Fe-56"]
         for i, string in enumerate(invalid_test_strings):
-            with self.assertRaisesRegex(ValueError, string + " is not a valid openPMD particle type"):
+            with self.assertRaisesRegex(
+                ValueError, string + " is not a valid openPMD particle type"
+            ):
                 name, massNumber = Element.parse_openpmd_isotopes(string)
 
     def test_basic_use(self):
@@ -75,7 +85,9 @@ class TestElement(unittest.TestCase):
         """all elements have charge"""
         for openpmd_name, atomic_number in zip(self.test_element, self.atomic_number):
             self.assertAlmostEqual(
-                Element(openpmd_name).get_charge_si() / scipy.constants.elementary_charge, atomic_number
+                Element(openpmd_name).get_charge_si()
+                / scipy.constants.elementary_charge,
+                atomic_number,
             )
 
     def test_atomic_number(self):

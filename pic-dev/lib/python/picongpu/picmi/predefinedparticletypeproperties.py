@@ -13,7 +13,9 @@ import typeguard
 
 from scipy import constants as consts
 
-PropertyTuple: collections.namedtuple = collections.namedtuple("_PropertyTuple", ["mass", "charge"])
+PropertyTuple: collections.namedtuple = collections.namedtuple(
+    "_PropertyTuple", ["mass", "charge"]
+)
 
 
 class PredefinedParticleTypeProperties(pydantic.BaseModel):
@@ -45,14 +47,20 @@ class PredefinedParticleTypeProperties(pydantic.BaseModel):
     }
 
     _directDefinitions: dict[str, PropertyTuple] = {
-        "proton": PropertyTuple(mass=consts.proton_mass, charge=consts.elementary_charge),
-        "anti-proton": PropertyTuple(mass=consts.proton_mass, charge=-consts.elementary_charge),
+        "proton": PropertyTuple(
+            mass=consts.proton_mass, charge=consts.elementary_charge
+        ),
+        "anti-proton": PropertyTuple(
+            mass=consts.proton_mass, charge=-consts.elementary_charge
+        ),
         "neutron": PropertyTuple(mass=consts.neutron_mass, charge=None),
         "anti-neutron": PropertyTuple(mass=consts.neutron_mass, charge=None),
     }
 
     def get_known_particle_types(self) -> list[str]:
-        return list(self._directDefinitions.keys()) + list(self._particle_type_to_pdgid.keys())
+        return list(self._directDefinitions.keys()) + list(
+            self._particle_type_to_pdgid.keys()
+        )
 
     @typeguard.typechecked
     def get_mass_and_charge_of_non_element(self, particle_type: str) -> PropertyTuple:
@@ -65,9 +73,14 @@ class PredefinedParticleTypeProperties(pydantic.BaseModel):
         """
 
         if particle_type in self._particle_type_to_pdgid.keys():
-            data = particle.Particle.from_pdgid(self._particle_type_to_pdgid[particle_type])
+            data = particle.Particle.from_pdgid(
+                self._particle_type_to_pdgid[particle_type]
+            )
             propertyTuple = PropertyTuple(
-                mass=data.mass * 1e6 * consts.elementary_charge / consts.speed_of_light**2,
+                mass=data.mass
+                * 1e6
+                * consts.elementary_charge
+                / consts.speed_of_light**2,
                 charge=data.charge * consts.elementary_charge,
             )
 

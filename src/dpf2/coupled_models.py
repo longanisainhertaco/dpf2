@@ -21,7 +21,12 @@ class EndToEndResult:
 class CoupledEndToEndModel:
     """Run pre-pulse, sheath, and pinch phases sequentially."""
 
-    def __init__(self, pre_pulse: PrePulseBreakdownModel, sheath: AxialSheathModel, pinch: PinchModelBase) -> None:
+    def __init__(
+        self,
+        pre_pulse: PrePulseBreakdownModel,
+        sheath: AxialSheathModel,
+        pinch: PinchModelBase,
+    ) -> None:
         self.pre_pulse = pre_pulse
         self.sheath = sheath
         self.pinch = pinch
@@ -31,8 +36,8 @@ class CoupledEndToEndModel:
         I = np.array(list(current))
         pre = self.pre_pulse.run(t, I)
         sheath = self.sheath.run(t, I, start_index=pre.breakdown_index)
-        pinch_time = t[sheath.end_index:]
-        pinch_current = I[sheath.end_index:]
+        pinch_time = t[sheath.end_index :]
+        pinch_current = I[sheath.end_index :]
         pinch = self.pinch.run(pinch_time, pinch_current)
         return EndToEndResult(prepulse=pre, sheath=sheath, pinch=pinch)
 

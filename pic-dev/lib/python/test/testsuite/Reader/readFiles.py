@@ -29,7 +29,9 @@ class ReadFiles:
     superclass for all Reader
     """
 
-    def __init__(self, fileExtension: str, direction: str = None, directiontype: str = None):
+    def __init__(
+        self, fileExtension: str, direction: str = None, directiontype: str = None
+    ):
         """
         constructor
 
@@ -57,7 +59,9 @@ class ReadFiles:
         """
 
         if direction is None and directiontype is None:
-            raise TypeError("You must set at least one of the values(direction or directiontype)")
+            raise TypeError(
+                "You must set at least one of the values(direction or directiontype)"
+            )
 
         if directiontype is None:
             directiontype = "undefined"
@@ -113,7 +117,9 @@ class ReadFiles:
               False otherwise
         """
 
-        all_files = [_ for _ in os.listdir(self._direction) if _.endswith(self._fileExtension)]
+        all_files = [
+            _ for _ in os.listdir(self._direction) if _.endswith(self._fileExtension)
+        ]
 
         if all_files:
             return True
@@ -130,4 +136,6 @@ class ReadFiles:
               List of all names of .dat files
         """
 
-        return [_ for _ in os.listdir(self._direction) if _.endswith(self._fileExtension)]
+        return [
+            _ for _ in os.listdir(self._direction) if _.endswith(self._fileExtension)
+        ]

@@ -79,9 +79,7 @@ def test_directional_helpers(tmp_path):
     grouped = directional_time_resolved_spectra(layout, energies, flux, time_bins)
     assert set(grouped.keys()) == {"forward", "radial", "backward"}
     assert grouped["forward"] == grouped["radial"] == grouped["backward"]
-    counts = directional_counts_from_geometry(
-        layout_path, energies, flux, time_bins
-    )
+    counts = directional_counts_from_geometry(layout_path, energies, flux, time_bins)
     assert counts["forward"] == sum(grouped["forward"])
     assert counts["radial"] == sum(grouped["radial"])
     assert counts["backward"] == sum(grouped["backward"])

@@ -15,7 +15,9 @@ import argparse
 import os
 
 
-parser = argparse.ArgumentParser(description="Compare the electron charge density of FoilLCT simulations")
+parser = argparse.ArgumentParser(
+    description="Compare the electron charge density of FoilLCT simulations"
+)
 parser.add_argument(
     "run_directory",
     metavar="D",
@@ -27,7 +29,8 @@ parser.add_argument("--step", type=int, default=2000, help="the time step")
 parser.add_argument(
     "--sum",
     action="store_true",
-    help="instead of free electron density, " + "show summed charge density of all species",
+    help="instead of free electron density, "
+    + "show summed charge density of all species",
 )
 
 args = parser.parse_args()

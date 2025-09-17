@@ -13,27 +13,17 @@ class CLIErrorInfo:
 
 
 ERRORS: dict[str, CLIErrorInfo] = {
-    "CONFIG": CLIErrorInfo(
-        "CLI001", "Check configuration path and values."
-    ),
-    "SIMULATION": CLIErrorInfo(
-        "CLI002", "Verify simulation parameters."
-    ),
-    "VALIDATION": CLIErrorInfo(
-        "CLI003", "Ensure dataset path and config are correct."
-    ),
+    "CONFIG": CLIErrorInfo("CLI001", "Check configuration path and values."),
+    "SIMULATION": CLIErrorInfo("CLI002", "Verify simulation parameters."),
+    "VALIDATION": CLIErrorInfo("CLI003", "Ensure dataset path and config are correct."),
     "PLOT": CLIErrorInfo(
         "CLI004", "Confirm the input contains HDF5 outputs or install plotting backend."
     ),
     "DIAGNOSTICS": CLIErrorInfo(
         "CLI005", "Provide valid history and configuration JSON files."
     ),
-    "NOTEBOOK": CLIErrorInfo(
-        "CLI006", "Install Jupyter to use notebook mode."
-    ),
-    "UNEXPECTED": CLIErrorInfo(
-        "CLI999", "Please report this issue."
-    ),
+    "NOTEBOOK": CLIErrorInfo("CLI006", "Install Jupyter to use notebook mode."),
+    "UNEXPECTED": CLIErrorInfo("CLI999", "Please report this issue."),
 }
 
 
@@ -46,4 +36,3 @@ def format_error(kind: str, message: str, tip: Optional[str] = None) -> str:
     if hint:
         text += f"\nHint: {hint}"
     return text
-

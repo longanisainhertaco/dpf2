@@ -25,7 +25,9 @@ def main() -> None:  # pragma: no cover - CLI wrapper
     parser.add_argument("energy_out_j", type=float, help="Output energy per shot (J)")
     parser.add_argument("energy_in_j", type=float, help="Input energy per shot (J)")
     parser.add_argument(
-        "electrode_mass_g", type=float, help="Available electrode mass before replacement (g)"
+        "electrode_mass_g",
+        type=float,
+        help="Available electrode mass before replacement (g)",
     )
     parser.add_argument(
         "erosion_per_shot_g", type=float, help="Electrode mass lost per shot (g)"

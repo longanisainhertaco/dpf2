@@ -20,8 +20,13 @@ class FieldIonization:
 
     # dictionary of atomic units (AU) - values in SI units
     atomic_unit = {
-        "electric field": sc.m_e**2 * sc.e**5 / (sc.hbar**4 * (4 * sc.pi * sc.epsilon_0) ** 3),
-        "intensity": sc.m_e**4 / (8 * sc.pi * sc.alpha * sc.hbar**9) * sc.e**12 / (4 * sc.pi * sc.epsilon_0) ** 6,
+        "electric field": sc.m_e**2
+        * sc.e**5
+        / (sc.hbar**4 * (4 * sc.pi * sc.epsilon_0) ** 3),
+        "intensity": sc.m_e**4
+        / (8 * sc.pi * sc.alpha * sc.hbar**9)
+        * sc.e**12
+        / (4 * sc.pi * sc.epsilon_0) ** 6,
         "energy": sc.m_e * sc.e**4 / (sc.hbar**2 * (4 * sc.pi * sc.epsilon_0) ** 2),
         "time": sc.hbar**3 * (4 * sc.pi * sc.epsilon_0) ** 2 / sc.m_e / sc.e**4,
     }
@@ -83,7 +88,11 @@ class FieldIonization:
         nEff = np.float64(self.n_eff(Z, E_Ip))
         D = ((4.0 * np.exp(1.0) * Z**3.0) / (F * nEff**4.0)) ** nEff
 
-        rate = (F * D**2.0) / (8.0 * np.pi * Z) * np.exp(-(2.0 * Z**3.0) / (3.0 * nEff**3.0 * F))
+        rate = (
+            (F * D**2.0)
+            / (8.0 * np.pi * Z)
+            * np.exp(-(2.0 * Z**3.0) / (3.0 * nEff**3.0 * F))
+        )
 
         if pol == "linear":
             rate = rate * np.sqrt((3.0 * nEff**3.0 * F) / (np.pi * Z**3.0))
@@ -106,7 +115,11 @@ class FieldIonization:
 
         # ionization rate
         rate = (
-            np.sqrt(6.0 * np.pi) / 2 ** (5.0 / 4.0) * E_Ip * np.sqrt(1.0 / charExpArg) * np.exp(-2.0 / 3.0 * charExpArg)
+            np.sqrt(6.0 * np.pi)
+            / 2 ** (5.0 / 4.0)
+            * E_Ip
+            * np.sqrt(1.0 / charExpArg)
+            * np.exp(-2.0 / 3.0 * charExpArg)
         )
 
         return rate

@@ -14,4 +14,3 @@ def test_regime_dashboard_websocket_subscription():
     assert "warning" in content
     assert "Export" in content
     assert "svg" in content
-

@@ -4,6 +4,7 @@ This script generates a small synthetic data set where an m=1 kink mode
 grows exponentially. The :mod:`diagnostics.instabilities` module is used
 to extract growth rates and trigger instability alerts.
 """
+
 from __future__ import annotations
 
 import numpy as np

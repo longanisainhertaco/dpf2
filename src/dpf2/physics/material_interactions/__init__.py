@@ -46,7 +46,7 @@ class ImpurityState:
             Z = charges.get(name)
             if Z is None:
                 continue
-            num += density * (Z ** 2)
+            num += density * (Z**2)
             den += density * Z
         return num / den if den > 0 else 0.0
 

@@ -8,7 +8,9 @@ from dpf2.diagnostics.synthetic_signals import coupled_current_waveform
 
 
 def test_coupled_current_matches_reference():
-    ref_path = Path(__file__).resolve().parents[2] / "ReferenceMaterial/coupled_current.json"
+    ref_path = (
+        Path(__file__).resolve().parents[2] / "ReferenceMaterial/coupled_current.json"
+    )
     ref_waveform = json.loads(ref_path.read_text())["waveform"]
 
     L_ext = 1e-6
@@ -33,7 +35,11 @@ def test_coupled_current_matches_reference():
     states = []
     for _ in range(len(ref_waveform)):
         fb = plasma.coupling_interface()
-        state = circuit.step(CouplingState(Lp=fb.Lp, emf=fb.emf, current=current, voltage=voltage), 0.0, dt)
+        state = circuit.step(
+            CouplingState(Lp=fb.Lp, emf=fb.emf, current=current, voltage=voltage),
+            0.0,
+            dt,
+        )
         states.append(state)
         current, voltage = state.current, state.voltage
         plasma.step(None, dt, current, voltage)

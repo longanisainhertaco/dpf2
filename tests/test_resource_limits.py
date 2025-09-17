@@ -145,7 +145,7 @@ def test_resource_limit_violation_triggers_simulation_error():
         [sys.executable, "-c", script], capture_output=True, text=True, env=env
     )
     assert proc.returncode != 0
-    assert 'SimulationRuntimeError' in proc.stderr
+    assert "SimulationRuntimeError" in proc.stderr
 
     from pathlib import Path
 
@@ -158,7 +158,7 @@ def test_resource_limit_violation_triggers_simulation_error():
         env={**os.environ, "PYTHONPATH": str(repo_root / "src")},
     )
     assert proc.returncode != 0
-    assert 'SimulationError' in proc.stderr
+    assert "SimulationError" in proc.stderr
 
 
 def test_cpu_time_limit_violation_terminates_process():
@@ -276,4 +276,3 @@ def test_cpu_time_limit_violation_terminates_process():
         env={**os.environ, "PYTHONPATH": str(repo_root / "src")},
     )
     assert proc.returncode != 0
-

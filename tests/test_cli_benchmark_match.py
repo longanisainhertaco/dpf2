@@ -54,6 +54,7 @@ sys.modules["matplotlib"] = types.SimpleNamespace(pyplot=dummy_pyplot)
 sys.modules["matplotlib.pyplot"] = dummy_pyplot
 
 import importlib
+
 benchmark_cli = importlib.import_module("dpf2.cli.benchmark")
 match_benchmark = benchmark_cli.match_benchmark
 

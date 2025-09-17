@@ -109,8 +109,6 @@ class LowerHybridDrift:
         self.last_power = p
         return p
 
-
-
     def anomalous_resistivity(self, J: np.ndarray):
         base = np.zeros(J.shape[:-1])
         if self.amplitude is None:
@@ -122,5 +120,6 @@ class LowerHybridDrift:
                 amp = _to_array(self.amplitude)
                 eta = base + amp
         return eta, np.zeros_like(J)
+
 
 __all__ = ["LowerHybridDrift"]

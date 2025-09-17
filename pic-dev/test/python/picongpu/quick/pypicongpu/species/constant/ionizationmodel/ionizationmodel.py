@@ -8,7 +8,12 @@ License: GPLv3+
 from picongpu.pypicongpu.species.constant.ionizationmodel import IonizationModel
 
 from picongpu.pypicongpu.species import Species
-from picongpu.pypicongpu.species.constant import Mass, Charge, ElementProperties, GroundStateIonization
+from picongpu.pypicongpu.species.constant import (
+    Mass,
+    Charge,
+    ElementProperties,
+    GroundStateIonization,
+)
 from picongpu.pypicongpu.species.attribute import Position, Momentum, BoundElectrons
 from picongpu.picmi import constants
 
@@ -87,7 +92,10 @@ class Test_IonizationModel(unittest.TestCase):
                 # note: circular imports would be required to use the
                 # pypicongpu-standard build_typesafe_property, hence the type
                 # is checked by check() instead of on assignment (as usual)
-                Implementation(ionization_electron_species=self.electron, ionization_current=invalid)
+                Implementation(
+                    ionization_electron_species=self.electron,
+                    ionization_current=invalid,
+                )
 
     def test_circular_ionization(self):
         """electron species must not be ionizable itself"""
@@ -106,7 +114,9 @@ class Test_IonizationModel(unittest.TestCase):
         instance_transitive_const = Implementation()
         instance_transitive_const.ionization_electron_species = other_electron
 
-        self.electron.constants.append(GroundStateIonization(ionization_model_list=[instance_transitive_const]))
+        self.electron.constants.append(
+            GroundStateIonization(ionization_model_list=[instance_transitive_const])
+        )
 
         # original instance is valid
         instance_transitive_const.check()
@@ -149,7 +159,10 @@ class Test_IonizationModel(unittest.TestCase):
 
         context = instance.get_rendering_context()
         self.assertNotEqual({}, context)
-        self.assertEqual(self.electron.get_rendering_context(), context["ionization_electron_species"])
+        self.assertEqual(
+            self.electron.get_rendering_context(),
+            context["ionization_electron_species"],
+        )
 
         # do *NOT* render if check() does not pass
         instance.ionization_electron_species = None

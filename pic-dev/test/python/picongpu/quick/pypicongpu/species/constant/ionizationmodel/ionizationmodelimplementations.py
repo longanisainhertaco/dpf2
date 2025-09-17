@@ -5,8 +5,15 @@ Authors: Brian Edward Marre
 License: GPLv3+
 """
 
-from picongpu.pypicongpu.species.constant.ionizationmodel import BSI, BSIEffectiveZ, BSIStarkShifted
-from picongpu.pypicongpu.species.constant.ionizationmodel import ADKLinearPolarization, ADKCircularPolarization
+from picongpu.pypicongpu.species.constant.ionizationmodel import (
+    BSI,
+    BSIEffectiveZ,
+    BSIStarkShifted,
+)
+from picongpu.pypicongpu.species.constant.ionizationmodel import (
+    ADKLinearPolarization,
+    ADKCircularPolarization,
+)
 from picongpu.pypicongpu.species.constant.ionizationmodel import Keldysh, ThomasFermi
 from picongpu.pypicongpu.species.constant.ionizationcurrent import None_
 from picongpu.pypicongpu.species.constant import Charge, Mass
@@ -47,14 +54,18 @@ class Test_IonizationModelImplementations(unittest.TestCase):
         """ionization current must be explicitly configured"""
         for Implementation in self.implementations_withIonizationCurrent.keys():
             with self.assertRaisesRegex(Exception, ".*ionization_current.*"):
-                implementation = Implementation(ionization_electron_species=self.electron)
+                implementation = Implementation(
+                    ionization_electron_species=self.electron
+                )
                 # do not call get_rendering_context, since species not completely initialized yet
                 implementation.check()
 
     def test_basic(self):
         """may create and serialize"""
         for Implementation in self.implementations_withIonizationCurrent.keys():
-            implementation = Implementation(ionization_electron_species=self.electron, ionization_current=None_())
+            implementation = Implementation(
+                ionization_electron_species=self.electron, ionization_current=None_()
+            )
             implementation.check()
 
         for Implementation in self.implementations_withoutIonizationCurrent.keys():
@@ -62,10 +73,22 @@ class Test_IonizationModelImplementations(unittest.TestCase):
             implementation.check()
 
     def test_picongpu_name(self):
-        for Implementation, name in self.implementations_withoutIonizationCurrent.items():
+        for (
+            Implementation,
+            name,
+        ) in self.implementations_withoutIonizationCurrent.items():
             self.assertEqual(
                 name,
-                Implementation(ionization_electron_species=self.electron, ionization_current=None_()).PICONGPU_NAME,
+                Implementation(
+                    ionization_electron_species=self.electron,
+                    ionization_current=None_(),
+                ).PICONGPU_NAME,
             )
-        for Implementation, name in self.implementations_withoutIonizationCurrent.items():
-            self.assertEqual(name, Implementation(ionization_electron_species=self.electron).PICONGPU_NAME)
+        for (
+            Implementation,
+            name,
+        ) in self.implementations_withoutIonizationCurrent.items():
+            self.assertEqual(
+                name,
+                Implementation(ionization_electron_species=self.electron).PICONGPU_NAME,
+            )

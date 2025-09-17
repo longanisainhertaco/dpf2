@@ -15,8 +15,6 @@ from .utils.pydantic_compat import model_validator
 # ---------------------------------------------------------------------------
 
 
-
-
 # Local imports ---------------------------------------------------------------
 from .core_schema import ConfigSectionBase, to_camel_case
 from .units_settings import UnitsSettings
@@ -64,15 +62,15 @@ class XrayEmissionModel(ConfigSectionBase):
     xray_detector_filter_path: Optional[Path] = None
     detector_filter_normalization: Optional[Literal["area", "peak", "none"]] = "area"
     custom_emission_mask_path: Optional[Path] = None
-    emission_volume_specification: Literal[
-        "pinch", "entire_domain", "custom_mask"
-    ] = "pinch"
+    emission_volume_specification: Literal["pinch", "entire_domain", "custom_mask"] = (
+        "pinch"
+    )
 
     # -- Nonthermal options ----------------------------------------------
     nonthermal_source_region: Literal["bulk", "target", "both"] = "target"
-    beam_energy_distribution_source: Literal[
-        "diagnostics", "file", "synthetic"
-    ] = "diagnostics"
+    beam_energy_distribution_source: Literal["diagnostics", "file", "synthetic"] = (
+        "diagnostics"
+    )
     beam_distribution_file: Optional[Path] = None
 
     # ------------------------------------------------------------------
@@ -88,7 +86,10 @@ class XrayEmissionModel(ConfigSectionBase):
         return [n for n, f in self.model_fields.items() if f.is_required()]
 
     def get_field_metadata(self) -> Dict[str, Dict[str, Any]]:
-        return {name: field.json_schema_extra or {} for name, field in self.model_fields.items()}
+        return {
+            name: field.json_schema_extra or {}
+            for name, field in self.model_fields.items()
+        }
 
     def normalize_units(self, units: UnitsSettings) -> "XrayEmissionModel":
         unit_map = units.normalize_units()
@@ -126,9 +127,7 @@ class XrayEmissionModel(ConfigSectionBase):
             if self.apply_detector_filter and self.xray_detector_filter_path
             else "none"
         )
-        tbins = (
-            len(self.spectrum_time_bins_us) if self.spectrum_time_bins_us else 0
-        )
+        tbins = len(self.spectrum_time_bins_us) if self.spectrum_time_bins_us else 0
         resolved = "ON" if self.time_resolved_spectrum_enabled else "OFF"
         bins_str = (
             f"{self.xray_energy_bins} keV"
@@ -164,19 +163,36 @@ class XrayEmissionModel(ConfigSectionBase):
                 raise ValueError("xray_energy_bins must be monotonically increasing")
         if self.time_resolved_spectrum_enabled:
             if not self.spectrum_time_bins_us:
-                raise ValueError("spectrum_time_bins_us required when time_resolved_spectrum_enabled")
+                raise ValueError(
+                    "spectrum_time_bins_us required when time_resolved_spectrum_enabled"
+                )
             if sorted(self.spectrum_time_bins_us) != self.spectrum_time_bins_us:
                 raise ValueError("spectrum_time_bins_us must be increasing")
         # File checks
         if self.apply_detector_filter:
-            if not self.xray_detector_filter_path or not Path(self.xray_detector_filter_path).exists():
-                raise ValueError("xray_detector_filter_path must exist when apply_detector_filter is True")
+            if (
+                not self.xray_detector_filter_path
+                or not Path(self.xray_detector_filter_path).exists()
+            ):
+                raise ValueError(
+                    "xray_detector_filter_path must exist when apply_detector_filter is True"
+                )
         if self.emission_volume_specification == "custom_mask":
-            if not self.custom_emission_mask_path or not Path(self.custom_emission_mask_path).exists():
-                raise ValueError("custom_emission_mask_path must exist when using custom_mask emission volume")
+            if (
+                not self.custom_emission_mask_path
+                or not Path(self.custom_emission_mask_path).exists()
+            ):
+                raise ValueError(
+                    "custom_emission_mask_path must exist when using custom_mask emission volume"
+                )
         if self.beam_energy_distribution_source == "file":
-            if not self.beam_distribution_file or not Path(self.beam_distribution_file).exists():
-                raise ValueError("beam_distribution_file must exist when beam_energy_distribution_source is 'file'")
+            if (
+                not self.beam_distribution_file
+                or not Path(self.beam_distribution_file).exists()
+            ):
+                raise ValueError(
+                    "beam_distribution_file must exist when beam_energy_distribution_source is 'file'"
+                )
         # Species database check
         known = {"D+", "Ar", "Ne", "C", "O", "N", "Xe", "Kr", "Al", "Fe", "Cu"}
         if self.atomic_data_source != "custom":
@@ -192,7 +208,9 @@ class XrayEmissionModel(ConfigSectionBase):
                     raise ValueError("ionization_stages keys must match ion_species")
 
     # Pydantic v2 compatibility: ensure validators run when instantiated
-    def model_post_init(self, __context: Any) -> None:  # pragma: no cover - pydantic hook
+    def model_post_init(
+        self, __context: Any
+    ) -> None:  # pragma: no cover - pydantic hook
         self._run_validations()
 
 

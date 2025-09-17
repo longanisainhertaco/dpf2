@@ -28,7 +28,9 @@ def test_braginskii_transport_and_ct():
     br_solver = HallMHDSolver(braginskii=lambda r, T, Bmag: (0.5, 0.5))
 
     out_base = base_solver.step(state, 0.01)
-    out_brag = br_solver.step(MHDState(rho=rho.copy(), mom=mom.copy(), energy=energy.copy(), B=B.copy()), 0.01)
+    out_brag = br_solver.step(
+        MHDState(rho=rho.copy(), mom=mom.copy(), energy=energy.copy(), B=B.copy()), 0.01
+    )
 
     # Braginskii coefficients should modify momentum and energy
     assert not np.allclose(out_base.mom, out_brag.mom)

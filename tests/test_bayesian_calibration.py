@@ -17,7 +17,9 @@ def test_bayesian_calibration_linear_model():
     noise = np.array([rng.gauss(0, 0.01) for _ in x])
     data = true_a * x + noise
 
-    samples = bayesian_calibration(model, {"a": (0.0, 4.0)}, data, n_samples=500, seed=0)
+    samples = bayesian_calibration(
+        model, {"a": (0.0, 4.0)}, data, n_samples=500, seed=0
+    )
     mean_a = sum(samples["a"]) / len(samples["a"])
     assert abs(mean_a - true_a) < 0.5
 

@@ -112,9 +112,11 @@ class SimpleDensity(DensityOperation):
         # (treat "has no ratio" as 1)
         sorted_species_by_ratio = sorted(
             self.species,
-            key=lambda species: 1
-            if not species.has_constant_of_type(DensityRatio)
-            else species.get_constant_by_type(DensityRatio).ratio,
+            key=lambda species: (
+                1
+                if not species.has_constant_of_type(DensityRatio)
+                else species.get_constant_by_type(DensityRatio).ratio
+            ),
         )
 
         placed_species = []

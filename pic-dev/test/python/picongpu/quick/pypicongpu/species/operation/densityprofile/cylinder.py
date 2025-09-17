@@ -117,9 +117,14 @@ class TestCylinder(unittest.TestCase):
         self.assertTrue(context.get("typeID", {}).get("cylinder", False))
         data = context["data"]
         self.assertAlmostEqual(c.density_si, data["density_si"])
-        self.assertEqual([{"component": pos} for pos in c.center_position_si], data["center_position_si"])
+        self.assertEqual(
+            [{"component": pos} for pos in c.center_position_si],
+            data["center_position_si"],
+        )
         self.assertAlmostEqual(c.radius_si, data["radius_si"])
-        self.assertEqual([{"component": ax} for ax in c.cylinder_axis], data["cylinder_axis"])
+        self.assertEqual(
+            [{"component": ax} for ax in c.cylinder_axis], data["cylinder_axis"]
+        )
 
         # expected "no ramp" structure
         expectedContextNoRamp = {

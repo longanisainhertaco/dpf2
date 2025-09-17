@@ -1,4 +1,5 @@
 """Advanced parameter inference routines leveraging external samplers."""
+
 from __future__ import annotations
 
 from typing import Callable, Dict, Tuple
@@ -148,9 +149,7 @@ def emcee_infer_waveform(
             return -np.inf
         mass_factor, current_factor = theta
         scaled_time = mass_factor * time_sim
-        sim_interp = np.interp(
-            time_data, scaled_time, current_sim, left=0.0, right=0.0
-        )
+        sim_interp = np.interp(time_data, scaled_time, current_sim, left=0.0, right=0.0)
         pred = current_factor * sim_interp
         resid = (current_data - pred) / sigma
         return -0.5 * np.dot(resid, resid)
@@ -199,9 +198,7 @@ def dynesty_infer_waveform(
     def log_like(theta: np.ndarray) -> float:
         mass_factor, current_factor = theta
         scaled_time = mass_factor * time_sim
-        sim_interp = np.interp(
-            time_data, scaled_time, current_sim, left=0.0, right=0.0
-        )
+        sim_interp = np.interp(time_data, scaled_time, current_sim, left=0.0, right=0.0)
         pred = current_factor * sim_interp
         resid = (current_data - pred) / sigma
         return -0.5 * np.dot(resid, resid)

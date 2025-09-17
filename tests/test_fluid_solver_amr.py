@@ -4,8 +4,10 @@ import numpy as np
 
 # Stubs for heavy optional dependencies
 amrex_stub = types.ModuleType("amrex")
-amrex_stub.FabArrayIO = types.SimpleNamespace(tagCells=lambda *a, **k: 'tags')
-amrex_stub.EBIndexSpace = types.SimpleNamespace(instance=lambda: types.SimpleNamespace(build_from_stl=lambda *_: None))
+amrex_stub.FabArrayIO = types.SimpleNamespace(tagCells=lambda *a, **k: "tags")
+amrex_stub.EBIndexSpace = types.SimpleNamespace(
+    instance=lambda: types.SimpleNamespace(build_from_stl=lambda *_: None)
+)
 amrex_stub.MultiFab = object
 amrex_stub.MultiFabLaplacian = object
 amrex_stub.MLMG = object
@@ -39,26 +41,34 @@ from dpf2.simulation.fluid_solver_high_order import FluidSolverHighOrder
 class DummyMF:
     def __init__(self, arr):
         self._arr = np.array(arr)
+
     def array(self):
         return self._arr
+
     def setVal(self, val):
         self._arr[:] = val
 
+
 class DummyFieldManager:
     def get_B(self):
-        return np.zeros((4,4,4,3))
+        return np.zeros((4, 4, 4, 3))
+
 
 class DummyGeom:
     def __init__(self):
         self.refined_with = None
+
     def refine(self, tags):
         self.refined_with = tags
+
 
 class DummyEOS:
     mean_ion_mass = 1.0
     gamma = 1.4
+
     def ion_pressure(self, rho, E):
         return E
+
     def electron_pressure(self, rho, E):
         return E
 
@@ -66,10 +76,10 @@ class DummyEOS:
 def test_amr_refine_invokes_geometry():
     solver = FluidSolverHighOrder.__new__(FluidSolverHighOrder)
     solver.state = {
-        'density': DummyMF(np.ones((4,4,4))),
-        'momentum': DummyMF(np.zeros((4,4,4,3))),
-        'energy_i': DummyMF(np.ones((4,4,4))),
-        'energy_e': DummyMF(np.ones((4,4,4)))
+        "density": DummyMF(np.ones((4, 4, 4))),
+        "momentum": DummyMF(np.zeros((4, 4, 4, 3))),
+        "energy_i": DummyMF(np.ones((4, 4, 4))),
+        "energy_e": DummyMF(np.ones((4, 4, 4))),
     }
     solver.field_manager = DummyFieldManager()
     solver.eos = DummyEOS()
@@ -87,6 +97,7 @@ def test_amr_refine_invokes_geometry():
     np.gradient = lambda *args, **kwargs: np.zeros_like(args[0])
 
     import amrex
-    amrex.FabArrayIO.tagCells = lambda *a, **k: 'tags'
+
+    amrex.FabArrayIO.tagCells = lambda *a, **k: "tags"
 
     solver._amr_refine()

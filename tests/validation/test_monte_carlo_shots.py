@@ -45,4 +45,3 @@ def test_monte_carlo_reference_shots():
         low_y = y_mean - y_std * 2
         high_y = y_mean + y_std * 2
         assert low_y <= params["expected_yield"] <= high_y
-

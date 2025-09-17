@@ -19,9 +19,11 @@ from ..exceptions import SimulationRuntimeError
 
 logger = logging.getLogger(__name__)
 
+
 # Custom Exceptions
 class ConfigurationError(Exception):
     pass
+
 
 class InitializationError(Exception):
     pass
@@ -41,9 +43,12 @@ def _generate_boundary_conditions(domain_lo, domain_hi, bc_config=None):
     """
     # Default boundary conditions
     default_bc = {
-        'x_lo': 'symmetry',  'x_hi': 'conducting',
-        'y_lo': 'symmetry',  'y_hi': 'conducting',
-        'z_lo': 'fixed',     'z_hi': 'open'
+        "x_lo": "symmetry",
+        "x_hi": "conducting",
+        "y_lo": "symmetry",
+        "y_hi": "conducting",
+        "z_lo": "fixed",
+        "z_hi": "open",
     }
 
     # Override defaults with user-provided config
@@ -80,24 +85,33 @@ def _estimate_total_steps(sim_time, dt):
             f"Invalid dt={dt}: unable to estimate total steps"
         ) from e
 
+
 class DPFSimulatorBackend:
     """
     Unified Dense Plasma Focus simulation orchestrator.
     """
+
     def __init__(self, config: dict):
         # Validate the config
         self.config = SimulationConfig(**config)
 
         # ——— Input validation ———
-        dx_sym, t_sym = sp.symbols('dx sim_time', positive=True)
-        if not (dx_sym.subs(dx_sym, self.config.dx) > 0 and t_sym.subs(t_sym, self.config.sim_time) > 0):
-            raise ValueError(f"dx and sim_time must be positive: dx={self.config.dx}, sim_time={self.config.sim_time}")
-        if (
-            not isinstance(self.config.grid_shape, (tuple,list)) or
-            len(self.config.grid_shape) != 3 or
-            any((not isinstance(n,int) or n <= 0) for n in self.config.grid_shape)
+        dx_sym, t_sym = sp.symbols("dx sim_time", positive=True)
+        if not (
+            dx_sym.subs(dx_sym, self.config.dx) > 0
+            and t_sym.subs(t_sym, self.config.sim_time) > 0
         ):
-            raise ValueError(f"grid_shape must be three positive ints: {self.config.grid_shape}")
+            raise ValueError(
+                f"dx and sim_time must be positive: dx={self.config.dx}, sim_time={self.config.sim_time}"
+            )
+        if (
+            not isinstance(self.config.grid_shape, (tuple, list))
+            or len(self.config.grid_shape) != 3
+            or any((not isinstance(n, int) or n <= 0) for n in self.config.grid_shape)
+        ):
+            raise ValueError(
+                f"grid_shape must be three positive ints: {self.config.grid_shape}"
+            )
 
         self.grid_shape = tuple(self.config.grid_shape)
         self.dx = self.config.dx
@@ -115,16 +129,25 @@ class DPFSimulatorBackend:
         # Domain extents
         if self.config.geometry:
             if self.config.geometry.domain_hi is None:
-                self.domain_hi = tuple(self.config.geometry.domain_lo[i] + self.grid_shape[i]*self.dx for i in range(3))
+                self.domain_hi = tuple(
+                    self.config.geometry.domain_lo[i] + self.grid_shape[i] * self.dx
+                    for i in range(3)
+                )
             else:
                 self.domain_hi = self.config.geometry.domain_hi
             self.domain_lo = self.config.geometry.domain_lo
         else:
-            self.domain_lo = (0.0,0.0,0.0)
-            self.domain_hi = tuple(self.domain_lo[i] + self.grid_shape[i]*self.dx for i in range(3))
+            self.domain_lo = (0.0, 0.0, 0.0)
+            self.domain_hi = tuple(
+                self.domain_lo[i] + self.grid_shape[i] * self.dx for i in range(3)
+            )
 
         # ——— Instantiate physics modules ———
-        bc = _generate_boundary_conditions(self.domain_lo, self.domain_hi, self.config.geometry.boundary_conditions if self.config.geometry else None)
+        bc = _generate_boundary_conditions(
+            self.domain_lo,
+            self.domain_hi,
+            self.config.geometry.boundary_conditions if self.config.geometry else None,
+        )
 
         # Create FieldManager
         self.field_manager = FieldManager(
@@ -133,44 +156,64 @@ class DPFSimulatorBackend:
             dy=self.config.dy,
             dz=self.config.dz,
             domain_lo=self.domain_lo,
-            boundary_conditions=bc
+            boundary_conditions=bc,
         )
 
         self.fluid = FluidSolverHighOrder(
             geom=None,  # To be initialized later
             config=config,
-            field_manager=self.field_manager
+            field_manager=self.field_manager,
         )
-        self.circuit   = CircuitModel(collision_model=None, **self.config.circuit.dict())
-        self.collision = CollisionModel(**self.config.collision.dict()) if self.config.collision else None
-        self.radiation = RadiationModel(geom=None, config=self.config.radiation.dict()) if self.config.radiation else None
-        self.pic       = PICSolver(config=self.config.pic.dict(), field_manager=self.field_manager) if self.config.pic else None
-        sheath_cfg = SheathConfig(**config.get('sheath_model', {}))
+        self.circuit = CircuitModel(collision_model=None, **self.config.circuit.dict())
+        self.collision = (
+            CollisionModel(**self.config.collision.dict())
+            if self.config.collision
+            else None
+        )
+        self.radiation = (
+            RadiationModel(geom=None, config=self.config.radiation.dict())
+            if self.config.radiation
+            else None
+        )
+        self.pic = (
+            PICSolver(config=self.config.pic.dict(), field_manager=self.field_manager)
+            if self.config.pic
+            else None
+        )
+        sheath_cfg = SheathConfig(**config.get("sheath_model", {}))
         self.sheath_model = PlasmaSheathFormation(sheath_cfg)
-        self.hybrid    = HybridController(
-            config=self.config.hybrid.dict(),
-            fluid_solver=self.fluid,
-            pic_solver=self.pic,
-            circuit_model=self.circuit,
-            radiation_model=self.radiation,
-            collision_model=self.collision,
-            sheath_model=self.sheath_model,
-            field_manager=self.field_manager
-        ) if self.config.hybrid else None
-        self.diagnostics = Diagnostics(
-            hdf5_filename=self.config.diagnostics.hdf5_filename,
-            config={
-                **self.config.circuit.dict(),
-                **(self.config.collision.dict() if self.config.collision else {}),
-                **(self.config.radiation.dict() if self.config.radiation else {}),
-                **(self.config.pic.dict() if self.config.pic else {}),
-                **(self.config.hybrid.dict() if self.config.hybrid else {}),
-            },
-            domain_lo=self.domain_lo,
-            grid_shape=self.grid_shape,
-            dx=self.dx,
-            gamma=self.fluid.gamma,
-        ) if self.config.diagnostics else None
+        self.hybrid = (
+            HybridController(
+                config=self.config.hybrid.dict(),
+                fluid_solver=self.fluid,
+                pic_solver=self.pic,
+                circuit_model=self.circuit,
+                radiation_model=self.radiation,
+                collision_model=self.collision,
+                sheath_model=self.sheath_model,
+                field_manager=self.field_manager,
+            )
+            if self.config.hybrid
+            else None
+        )
+        self.diagnostics = (
+            Diagnostics(
+                hdf5_filename=self.config.diagnostics.hdf5_filename,
+                config={
+                    **self.config.circuit.dict(),
+                    **(self.config.collision.dict() if self.config.collision else {}),
+                    **(self.config.radiation.dict() if self.config.radiation else {}),
+                    **(self.config.pic.dict() if self.config.pic else {}),
+                    **(self.config.hybrid.dict() if self.config.hybrid else {}),
+                },
+                domain_lo=self.domain_lo,
+                grid_shape=self.grid_shape,
+                dx=self.dx,
+                gamma=self.fluid.gamma,
+            )
+            if self.config.diagnostics
+            else None
+        )
 
         # Telemetry & checkpoint intervals
         self.telemetry_callback = None
@@ -194,8 +237,10 @@ class DPFSimulatorBackend:
             dy=self.config.dy,
             dz=self.config.dz,
             domain_lo=self.domain_lo,
-            boundary_conditions=self.config.geometry.boundary_conditions if self.config.geometry else {},
-            field_manager=self.field_manager  # Pass FieldManager to SimulationState
+            boundary_conditions=(
+                self.config.geometry.boundary_conditions if self.config.geometry else {}
+            ),
+            field_manager=self.field_manager,  # Pass FieldManager to SimulationState
         )
 
         # Main time-stepping loop
@@ -232,12 +277,12 @@ class DPFSimulatorBackend:
 
                 # ——— Collision & radiation sources ———
                 try:
-                    state    = self.fluid.get_state()
+                    state = self.fluid.get_state()
                     if self.collision:
                         coll_src = self.collision.compute_source_terms(state)
                         self.fluid.apply_collision_sources(coll_src)
                     if self.radiation:
-                        rad_src  = self.radiation.compute_source_terms(state)
+                        rad_src = self.radiation.compute_source_terms(state)
                         self.fluid.apply_radiation_sources(rad_src)
                 except Exception as e:
                     logger.error(f"Error applying collision and radiation sources: {e}")
@@ -246,7 +291,11 @@ class DPFSimulatorBackend:
                 # ——— Advance fluid/PIC solvers ———
                 try:
                     if self.hybrid:
-                        self.hybrid.apply_sources_and_advance(dt, coll_src if self.collision else None, rad_src if self.radiation else None)
+                        self.hybrid.apply_sources_and_advance(
+                            dt,
+                            coll_src if self.collision else None,
+                            rad_src if self.radiation else None,
+                        )
                     else:
                         self.fluid.step(dt)
                         if self.pic:
@@ -267,14 +316,28 @@ class DPFSimulatorBackend:
                 # ——— Diagnostics recording ———
                 if self.diagnostics:
                     if self.step_count % self.full_output_interval == 0:
-                        self.diagnostics.record(self.current_time, self.circuit, self.fluid, self.pic, self.radiation)
+                        self.diagnostics.record(
+                            self.current_time,
+                            self.circuit,
+                            self.fluid,
+                            self.pic,
+                            self.radiation,
+                        )
                     else:
-                        self.diagnostics.record(self.current_time, self.circuit, self.fluid, self.pic, self.radiation)
+                        self.diagnostics.record(
+                            self.current_time,
+                            self.circuit,
+                            self.fluid,
+                            self.pic,
+                            self.radiation,
+                        )
 
                 # ——— Telemetry streaming ———
                 if self.telemetry_callback:
                     try:
-                        telemetry = self.diagnostics.to_json() if self.diagnostics else {}
+                        telemetry = (
+                            self.diagnostics.to_json() if self.diagnostics else {}
+                        )
                         self.telemetry_callback(telemetry)
                     except Exception as e:
                         logger.error(f"Error during telemetry streaming: {e}")
@@ -294,12 +357,14 @@ class DPFSimulatorBackend:
 
                 # ——— Sanity check: no NaNs or negative ———
                 s = self.fluid.get_state()
-                assert np.all(s['density']>0), "Negative density detected"
-                assert np.all(s['pressure']>0), "Negative pressure detected"
+                assert np.all(s["density"] > 0), "Negative density detected"
+                assert np.all(s["pressure"] > 0), "Negative pressure detected"
 
             except Exception as e:
                 # Step back, reduce dt, retry or abort
-                logger.warning(f"Exception occurred at t={self.current_time:.3e}: {e}. Reducing dt and retrying.")
+                logger.warning(
+                    f"Exception occurred at t={self.current_time:.3e}: {e}. Reducing dt and retrying."
+                )
                 self.dt *= 0.5
                 if self.dt < self.dt_min:
                     raise SimulationRuntimeError(
@@ -329,5 +394,5 @@ class DPFSimulatorBackend:
 
     def get_state(self):
         state = {}
-        state['provenance'] = self.config.provenance
+        state["provenance"] = self.config.provenance
         return state

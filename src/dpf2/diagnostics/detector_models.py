@@ -76,7 +76,7 @@ def _solid_angle(area: float, distance: float) -> float:
     """Return the small-angle approximation for detector solid angle."""
     if area <= 0 or distance <= 0:
         raise ValueError("area and distance must be positive")
-    return area / (distance ** 2)
+    return area / (distance**2)
 
 
 def cr39_response(yields: Sequence[float], area: float, distance: float) -> List[float]:

@@ -47,7 +47,10 @@ class RadiationData:
         # extract time step
         self.timestep = timestep
         if self.timestep not in self.rad_series.iterations:
-            raise Exception("The selected timestep {} ".format(self.timestep) + "is not available in the series.")
+            raise Exception(
+                "The selected timestep {} ".format(self.timestep)
+                + "is not available in the series."
+            )
         self.iteration = self.rad_series.iterations[self.timestep]
 
         # Amplitude
@@ -70,15 +73,21 @@ class RadiationData:
 
     def get_Amplitude_x(self):
         """Returns the complex amplitudes in x-axis."""
-        return (self.Ax_Re[...] + 1j * self.Ax_Im[...])[:, :, 0] * np.sqrt(self.convert_to_SI)
+        return (self.Ax_Re[...] + 1j * self.Ax_Im[...])[:, :, 0] * np.sqrt(
+            self.convert_to_SI
+        )
 
     def get_Amplitude_y(self):
         """Returns the complex amplitudes in y-axis."""
-        return (self.Ay_Re[...] + 1j * self.Ay_Im[...])[:, :, 0] * np.sqrt(self.convert_to_SI)
+        return (self.Ay_Re[...] + 1j * self.Ay_Im[...])[:, :, 0] * np.sqrt(
+            self.convert_to_SI
+        )
 
     def get_Amplitude_z(self):
         """Returns the complex amplitudes in z-axis."""
-        return (self.Az_Re[...] + 1j * self.Az_Im[...])[:, :, 0] * np.sqrt(self.convert_to_SI)
+        return (self.Az_Re[...] + 1j * self.Az_Im[...])[:, :, 0] * np.sqrt(
+            self.convert_to_SI
+        )
 
     def get_Spectra(self):
         """Returns real spectra in [Js]."""

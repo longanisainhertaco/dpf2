@@ -30,9 +30,15 @@ class MaterialDamageModel:
         ``evaporation_rate(name, temperature)`` -> mass loss rate from evaporation
         """
 
-        flux_fn: Callable[[str], float] = getattr(solver, "surface_flux", lambda name: 0.0)
-        temp_fn: Callable[[str], float] = getattr(solver, "surface_temperature", lambda name: 300.0)
-        dep_fn: Callable[[str], float] = getattr(solver, "deposition_flux", lambda name: 0.0)
+        flux_fn: Callable[[str], float] = getattr(
+            solver, "surface_flux", lambda name: 0.0
+        )
+        temp_fn: Callable[[str], float] = getattr(
+            solver, "surface_temperature", lambda name: 300.0
+        )
+        dep_fn: Callable[[str], float] = getattr(
+            solver, "deposition_flux", lambda name: 0.0
+        )
         evap_fn: Callable[[str, float], float] = getattr(
             solver, "evaporation_rate", lambda name, temp: 0.0
         )

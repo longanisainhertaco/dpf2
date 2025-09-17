@@ -163,7 +163,9 @@ class TestInitManager(unittest.TestCase):
         """species names must be unique"""
         initmgr = self.initmgr
         initmgr.all_species = [self.species1, self.species1_copy]
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
         self.assertTrue(initmgr.all_species[0] is not initmgr.all_species[1])
         self.assertEqual(initmgr.all_species[0].name, initmgr.all_species[1].name)
 
@@ -200,7 +202,9 @@ class TestInitManager(unittest.TestCase):
 
         initmgr = self.initmgr
         initmgr.all_species = [s1, s2]
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
 
         # simply works
         initmgr.bake()
@@ -230,7 +234,9 @@ class TestInitManager(unittest.TestCase):
         self.assertEqual(expected_callchain, tracer3.calls)
 
         # actually added the attributes
-        all_attr_names = list(map(lambda attr: attr.PICONGPU_NAME, self.species1.attributes))
+        all_attr_names = list(
+            map(lambda attr: attr.PICONGPU_NAME, self.species1.attributes)
+        )
         self.assertEqual(5, len(all_attr_names))
         self.assertTrue(tracer1.get_attr_name() in all_attr_names)
         self.assertTrue(tracer2.get_attr_name() in all_attr_names)
@@ -291,7 +297,9 @@ class TestInitManager(unittest.TestCase):
         invalid.check_adds_attribute = True
         initmgr.all_operations = [invalid]
 
-        with self.assertRaisesRegex(AssertionError, ".*check.*OperationInvalidBehavior.*IDSTRINGDZ.*"):
+        with self.assertRaisesRegex(
+            AssertionError, ".*check.*OperationInvalidBehavior.*IDSTRINGDZ.*"
+        ):
             initmgr.bake()
 
     def test_operation_invalid_behavior_prebook(self):
@@ -302,7 +310,9 @@ class TestInitManager(unittest.TestCase):
         invalid.prebook_adds_attribute = True
         initmgr.all_operations = [invalid]
 
-        with self.assertRaisesRegex(AssertionError, ".*prebook.*OperationInvalidBehavior.*IDSTRINGDZ.*"):
+        with self.assertRaisesRegex(
+            AssertionError, ".*prebook.*OperationInvalidBehavior.*IDSTRINGDZ.*"
+        ):
             initmgr.bake()
 
     def test_multiple_assigned_species(self):
@@ -417,8 +427,12 @@ class TestInitManager(unittest.TestCase):
 
         initmgr.bake()
 
-        species1_attr_names = list(map(lambda attr: attr.PICONGPU_NAME, self.species1.attributes))
-        species2_attr_names = list(map(lambda attr: attr.PICONGPU_NAME, self.species2.attributes))
+        species1_attr_names = list(
+            map(lambda attr: attr.PICONGPU_NAME, self.species1.attributes)
+        )
+        species2_attr_names = list(
+            map(lambda attr: attr.PICONGPU_NAME, self.species2.attributes)
+        )
 
         self.assertEqual(4, len(species1_attr_names))
         self.assertTrue(op1.get_attr_name(), species1_attr_names)
@@ -576,7 +590,10 @@ class TestInitManager(unittest.TestCase):
         )
 
         for momentum_op in momentum_ops:
-            self.assertTrue(momentum_op.get_rendering_context() in context["operations"]["simple_momentum"])
+            self.assertTrue(
+                momentum_op.get_rendering_context()
+                in context["operations"]["simple_momentum"]
+            )
 
     def test_constants_dependencies_outside(self):
         """species dependencies outside of initmanager are detected"""
@@ -634,15 +651,21 @@ class TestInitManager(unittest.TestCase):
         initmgr = InitManager()
         initmgr.all_species = [a, b, c, d, e]
         # associate ops for required attrs (to make checks pass)
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
 
         # bake reorders dependencies
         initmgr.bake()
-        baked_names_in_order = list(map(lambda species: species.name, initmgr.all_species))
+        baked_names_in_order = list(
+            map(lambda species: species.name, initmgr.all_species)
+        )
 
         # must be equal to context order
         context = initmgr.get_rendering_context()
-        context_names_in_order = list(map(lambda species: species["name"], context["species"]))
+        context_names_in_order = list(
+            map(lambda species: species["name"], context["species"])
+        )
         self.assertEqual(baked_names_in_order, context_names_in_order)
 
         index_by_name = dict(
@@ -708,7 +731,9 @@ class TestInitManager(unittest.TestCase):
 
         initmgr = InitManager()
         initmgr.all_species = [self.species1, self.species2]
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
 
         # DummyAttribute is required for species1, but not assigned
         with self.assertRaisesRegex(AssertionError, ".*species1.*"):
@@ -719,7 +744,9 @@ class TestInitManager(unittest.TestCase):
 
         initmgr = InitManager()
         initmgr.all_species = [self.species1, self.species2]
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
         initmgr.bake()
 
     def test_constant_attribute_dependencies_typechecked(self):
@@ -740,7 +767,9 @@ class TestInitManager(unittest.TestCase):
 
             initmgr = InitManager()
             initmgr.all_species = [self.species1, self.species2]
-            initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+            initmgr.all_operations = [
+                self.OperationAddMandatoryAttributes(initmgr.all_species)
+            ]
 
             with self.assertRaises(typeguard.TypeCheckError):
                 initmgr.bake()
@@ -766,7 +795,9 @@ class TestInitManager(unittest.TestCase):
 
         initmgr = InitManager()
         initmgr.all_species = [self.species1, self.species2]
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
 
         # passes silently, all checks ok
         initmgr.bake()
@@ -787,7 +818,9 @@ class TestInitManager(unittest.TestCase):
 
         initmgr = InitManager()
         initmgr.all_species = [self.species1, self.species2]
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
 
         with self.assertRaisesRegex(AssertionError, ".*species1.*Mass.*"):
             initmgr.bake()
@@ -824,7 +857,9 @@ class TestInitManager(unittest.TestCase):
 
         initmgr = InitManager()
         initmgr.all_species = [self.species1, self.species2]
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
 
         # works
         initmgr.bake()
@@ -841,7 +876,9 @@ class TestInitManager(unittest.TestCase):
 
         initmgr = InitManager()
         initmgr.all_species = [self.species1]
-        initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+        initmgr.all_operations = [
+            self.OperationAddMandatoryAttributes(initmgr.all_species)
+        ]
 
         # self-reference is detected and caught
         with self.assertRaisesRegex(ReferenceError, ".*(self|selve).*"):
@@ -865,7 +902,9 @@ class TestInitManager(unittest.TestCase):
 
             initmgr = InitManager()
             initmgr.all_species = [self.species1, self.species2]
-            initmgr.all_operations = [self.OperationAddMandatoryAttributes(initmgr.all_species)]
+            initmgr.all_operations = [
+                self.OperationAddMandatoryAttributes(initmgr.all_species)
+            ]
 
             with self.assertRaises(typeguard.TypeCheckError):
                 initmgr.bake()

@@ -7,6 +7,7 @@ from typing import Callable, Dict, List, Sequence, Tuple
 # Filter pack definitions
 # ---------------------------------------------------------------------------
 
+
 def _be_filter(E: float) -> float:
     """Crude beryllium filter transmission."""
 

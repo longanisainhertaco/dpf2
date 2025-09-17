@@ -89,12 +89,18 @@ def main(dataPath):
     print(f"Validating data in {dataPath}")
     gamma, Heff, dt = read_setup(dataPath)
 
-    series = opmd.Series(dataPath + "/openPMD/simData_test_%T.bp", opmd.Access.read_only)
+    series = opmd.Series(
+        dataPath + "/openPMD/simData_test_%T.bp", opmd.Access.read_only
+    )
     it = series.iterations[iterNo]
 
     simulation_dt = it.get_attribute("dt") * it.get_attribute("unit_time")
-    if abs(simulation_dt - dt) > 1e-10:  # check if the simulation dt is the same as the expected dt. 1e-10 is arbitrary
-        raise ValueError(f"Simulation dt is {simulation_dt} but expected dt is {dt}\n Test failed")
+    if (
+        abs(simulation_dt - dt) > 1e-10
+    ):  # check if the simulation dt is the same as the expected dt. 1e-10 is arbitrary
+        raise ValueError(
+            f"Simulation dt is {simulation_dt} but expected dt is {dt}\n Test failed"
+        )
 
     # Reading and processing photon data
     hist_data = read_photon_data(series)
@@ -115,7 +121,9 @@ def main(dataPath):
     delta = bins
     analytical_integrated = []
     for x0, x1 in zip(delta[:-1], delta[1:]):
-        analytical_integrated.append(quad(lambda x: analytical_Propability(x, gamma, Heff, dt), x0, x1)[0])
+        analytical_integrated.append(
+            quad(lambda x: analytical_Propability(x, gamma, Heff, dt), x0, x1)[0]
+        )
 
     mask = a > 1000
     if mask.sum() < 5:

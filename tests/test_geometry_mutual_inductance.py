@@ -31,6 +31,7 @@ def test_geometry_mutual_inductance_updates() -> None:
     dMdt = (expected_M2 - expected_M) / dt
     assert math.isclose(updated2.back_reaction, updated.current * dMdt)
 
+
 from dpf2.circuit_solver import CircuitSolver, RLCCircuit
 
 

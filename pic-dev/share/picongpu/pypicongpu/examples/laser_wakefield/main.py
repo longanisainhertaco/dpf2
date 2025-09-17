@@ -90,7 +90,9 @@ species_list = []
 if not ENABLE_IONIZATION:
     interaction = None
 
-    electrons = picmi.Species(particle_type="electron", name="electron", initial_distribution=gaussianProfile)
+    electrons = picmi.Species(
+        particle_type="electron", name="electron", initial_distribution=gaussianProfile
+    )
     species_list.append((electrons, random_layout))
 
     if ENABLE_IONS:
@@ -113,7 +115,9 @@ else:
     )
     species_list.append((hydrogen_with_ionization, random_layout))
 
-    electrons = picmi.Species(particle_type="electron", name="electron", initial_distribution=None)
+    electrons = picmi.Species(
+        particle_type="electron", name="electron", initial_distribution=None
+    )
     species_list.append((electrons, None))
 
     adk_ionization_model = picmi.ADK(

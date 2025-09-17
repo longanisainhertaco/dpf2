@@ -51,6 +51,7 @@ from .units_settings import UnitsSettings
 
 class SegmentConfig(BaseModel):
     """Configuration for a single transmission line segment."""
+
     length: float = Field(
         ..., metadata={"units": "m", "category": "Circuit", "group": "Distributed"}
     )
@@ -138,7 +139,6 @@ class SwitchConfig(BaseModel):
         metadata={"units": "μF", "category": "Circuit", "group": "Distributed"},
     )
     trigger_times: Optional[List[float]] = Field(
-
         None,
         alias="triggerTime",
         metadata={"units": "ns", "category": "Circuit", "group": "Distributed"},
@@ -206,22 +206,29 @@ class CircuitConfig(ConfigSectionBase):
         validate_default=True,
     )
 
-
     # --- LRC Parameters -------------------------------------------------
     L_ext: float = Field(
-        ..., alias="lExt", metadata={"units": "uH", "category": "Circuit", "group": "LRC"}
+        ...,
+        alias="lExt",
+        metadata={"units": "uH", "category": "Circuit", "group": "LRC"},
     )
     R_ext: float = Field(
-        ..., alias="rExt", metadata={"units": "mΩ", "category": "Circuit", "group": "LRC"}
+        ...,
+        alias="rExt",
+        metadata={"units": "mΩ", "category": "Circuit", "group": "LRC"},
     )
     C_ext: float = Field(
-        ..., alias="cExt", metadata={"units": "μF", "category": "Circuit", "group": "LRC"}
+        ...,
+        alias="cExt",
+        metadata={"units": "μF", "category": "Circuit", "group": "LRC"},
     )
     V0: float = Field(
         ..., alias="v0", metadata={"units": "kV", "category": "Circuit", "group": "LRC"}
     )
     switch_delay: float = Field(
-        ..., alias="switchDelay", metadata={"units": "ns", "category": "Circuit", "group": "LRC"}
+        ...,
+        alias="switchDelay",
+        metadata={"units": "ns", "category": "Circuit", "group": "LRC"},
     )
 
     # --- Distributed Model ----------------------------------------------
@@ -232,10 +239,14 @@ class CircuitConfig(ConfigSectionBase):
         None, metadata={"category": "Circuit", "group": "Distributed"}
     )
     rlc_sections: Optional[List[RLCSectionConfig]] = Field(
-        None, alias="rlcSections", metadata={"category": "Circuit", "group": "Distributed"}
+        None,
+        alias="rlcSections",
+        metadata={"category": "Circuit", "group": "Distributed"},
     )
     crowbar_stages: Optional[List[CrowbarStageConfig]] = Field(
-        None, alias="crowbarStages", metadata={"category": "Circuit", "group": "Distributed"}
+        None,
+        alias="crowbarStages",
+        metadata={"category": "Circuit", "group": "Distributed"},
     )
 
     # --- Coupling & Plasma Effects ------------------------------------
@@ -257,45 +268,71 @@ class CircuitConfig(ConfigSectionBase):
 
     # --- Switching Behavior --------------------------------------------
     switching_model: Literal["ideal", "jittered", "multi-bank"] = Field(
-        ..., alias="switchingModel", metadata={"category": "Circuit", "group": "Switching"}
+        ...,
+        alias="switchingModel",
+        metadata={"category": "Circuit", "group": "Switching"},
     )
     trigger_jitter_stddev: float = Field(
-        ..., alias="triggerJitterStddev", metadata={"units": "ns", "category": "Circuit", "group": "Switching"}
+        ...,
+        alias="triggerJitterStddev",
+        metadata={"units": "ns", "category": "Circuit", "group": "Switching"},
     )
     enable_field_triggered_switch_closure: bool = Field(
-        ..., alias="enableFieldTriggeredSwitchClosure", metadata={"category": "Circuit", "group": "Switching"}
+        ...,
+        alias="enableFieldTriggeredSwitchClosure",
+        metadata={"category": "Circuit", "group": "Switching"},
     )
     switch_feedback_delay_ns: Optional[float] = Field(
-        None, alias="switchFeedbackDelayNs", metadata={"units": "ns", "category": "Circuit", "group": "Switching"}
+        None,
+        alias="switchFeedbackDelayNs",
+        metadata={"units": "ns", "category": "Circuit", "group": "Switching"},
     )
     override_inductive_voltage_limit: Optional[float] = Field(
-        None, alias="overrideInductiveVoltageLimit", metadata={"units": "kV", "category": "Circuit", "group": "Switching"}
+        None,
+        alias="overrideInductiveVoltageLimit",
+        metadata={"units": "kV", "category": "Circuit", "group": "Switching"},
     )
     inter_shot_recovery_time_ns: Optional[float] = Field(
-        None, alias="interShotRecoveryTimeNs", metadata={"units": "ns", "category": "Circuit", "group": "Switching"}
+        None,
+        alias="interShotRecoveryTimeNs",
+        metadata={"units": "ns", "category": "Circuit", "group": "Switching"},
     )
     abort_on_no_current: bool = Field(
-        ..., alias="abortOnNoCurrent", metadata={"category": "Circuit", "group": "Switching"}
+        ...,
+        alias="abortOnNoCurrent",
+        metadata={"category": "Circuit", "group": "Switching"},
     )
     on_no_current_behavior: Literal["log", "skip", "abort"] = Field(
-        "abort", alias="onNoCurrentBehavior", metadata={"category": "Circuit", "group": "Switching"}
+        "abort",
+        alias="onNoCurrentBehavior",
+        metadata={"category": "Circuit", "group": "Switching"},
     )
 
     # --- Waveform Profile ----------------------------------------------
     waveform_profile: Optional[TimeVoltageProfile] = Field(
-        None, alias="waveformProfile", metadata={"units": ["μs", "kV"], "category": "Circuit", "group": "Waveform"}
+        None,
+        alias="waveformProfile",
+        metadata={"units": ["μs", "kV"], "category": "Circuit", "group": "Waveform"},
     )
     waveform_profile_path: Optional[Path] = Field(
-        None, alias="waveformProfilePath", metadata={"category": "Circuit", "group": "Waveform"}
+        None,
+        alias="waveformProfilePath",
+        metadata={"category": "Circuit", "group": "Waveform"},
     )
     waveform_format_version: Optional[str] = Field(
-        None, alias="waveformFormatVersion", metadata={"category": "Circuit", "group": "Waveform"}
+        None,
+        alias="waveformFormatVersion",
+        metadata={"category": "Circuit", "group": "Waveform"},
     )
     waveform_time_unit: Literal["s", "ms", "us", "ns"] = Field(
-        "us", alias="waveformTimeUnit", metadata={"category": "Circuit", "group": "Waveform"}
+        "us",
+        alias="waveformTimeUnit",
+        metadata={"category": "Circuit", "group": "Waveform"},
     )
     waveform_conflict_resolution: Literal["prefer_inline", "prefer_path"] = Field(
-        "prefer_inline", alias="waveformConflictResolution", metadata={"category": "Circuit", "group": "Waveform"}
+        "prefer_inline",
+        alias="waveformConflictResolution",
+        metadata={"category": "Circuit", "group": "Waveform"},
     )
 
     # --- Fault Modeling -------------------------------------------------
@@ -305,7 +342,9 @@ class CircuitConfig(ConfigSectionBase):
         metadata={"category": "Circuit", "group": "Faults"},
     )
     failure_conditions: Optional[Dict[str, float]] = Field(
-        None, alias="failureConditions", metadata={"category": "Circuit", "group": "Faults"}
+        None,
+        alias="failureConditions",
+        metadata={"category": "Circuit", "group": "Faults"},
     )
     failure_tags: Optional[List[str]] = Field(
         None, alias="failureTags", metadata={"category": "Circuit", "group": "Faults"}
@@ -446,13 +485,18 @@ class CircuitConfig(ConfigSectionBase):
         return segments, switches
 
     def get_field_metadata(self) -> Dict[str, Dict[str, object]]:
-        return {name: (field.json_schema_extra or field.metadata or {}) for name, field in self.model_fields.items()}
+        return {
+            name: (field.json_schema_extra or field.metadata or {})
+            for name, field in self.model_fields.items()
+        }
 
     # Pydantic ``model_copy`` behaviour is inconsistent across the lightweight
     # testing stubs and different pydantic versions.  Implement a small wrapper
     # that always honours the ``update`` argument so tests can create modified
     # configurations without depending on the underlying library.
-    def model_copy(self, update: Dict[str, object] | None = None, **kwargs) -> "CircuitConfig":
+    def model_copy(
+        self, update: Dict[str, object] | None = None, **kwargs
+    ) -> "CircuitConfig":
         data = self.model_dump()
         if update:
             data.update(update)
@@ -500,13 +544,23 @@ class CircuitConfig(ConfigSectionBase):
     # ------------------------------------------------------------------
     @model_validator(mode="after")
     def check_rules(cls, values: "CircuitConfig") -> "CircuitConfig":
-        if values.switching_model == "multi-bank" and values.switch_feedback_delay_ns is None:
-            raise ValueError("switch_feedback_delay_ns must be set for multi-bank switching")
+        if (
+            values.switching_model == "multi-bank"
+            and values.switch_feedback_delay_ns is None
+        ):
+            raise ValueError(
+                "switch_feedback_delay_ns must be set for multi-bank switching"
+            )
 
         if values.waveform_profile is None and values.waveform_profile_path is None:
-            raise ValueError("waveform_profile or waveform_profile_path must be provided")
+            raise ValueError(
+                "waveform_profile or waveform_profile_path must be provided"
+            )
 
-        if values.waveform_profile is not None and values.waveform_profile_path is not None:
+        if (
+            values.waveform_profile is not None
+            and values.waveform_profile_path is not None
+        ):
             if values.waveform_conflict_resolution == "prefer_inline":
                 values.waveform_profile_path = None
             elif values.waveform_conflict_resolution == "prefer_path":
@@ -519,15 +573,22 @@ class CircuitConfig(ConfigSectionBase):
             raise ValueError("override_inductive_voltage_limit must be > 0")
 
         if values.abort_on_no_current:
-            if not values.failure_conditions or "current_peak_max" not in values.failure_conditions:
-                raise ValueError("failure_conditions must include 'current_peak_max' when abort_on_no_current is True")
+            if (
+                not values.failure_conditions
+                or "current_peak_max" not in values.failure_conditions
+            ):
+                raise ValueError(
+                    "failure_conditions must include 'current_peak_max' when abort_on_no_current is True"
+                )
 
         if (
             values.waveform_format_version is not None
             and values.waveform_profile is None
             and values.waveform_profile_path is None
         ):
-            raise ValueError("waveform data must be provided when waveform_format_version is set")
+            raise ValueError(
+                "waveform data must be provided when waveform_format_version is set"
+            )
 
         return values
 

@@ -11,4 +11,10 @@ from .gaussian_laser import GaussianLaser
 from .plane_wave_laser import PlaneWaveLaser
 from .polarization_type import PolarizationType
 
-__all__ = ["DispersivePulseLaser", "FromOpenPMDPulseLaser", "GaussianLaser", "PlaneWaveLaser", "PolarizationType"]
+__all__ = [
+    "DispersivePulseLaser",
+    "FromOpenPMDPulseLaser",
+    "GaussianLaser",
+    "PlaneWaveLaser",
+    "PolarizationType",
+]

@@ -1,4 +1,5 @@
 import json
+
 try:  # pragma: no cover - prefer real h5py
     import h5py  # type: ignore
 except Exception:  # pragma: no cover
@@ -108,4 +109,3 @@ def test_cli_anisotropy_plot(tmp_path):
     assert result.exit_code == 0, result.output
     data = json.loads(result.output)
     assert "anisotropy" in data
-

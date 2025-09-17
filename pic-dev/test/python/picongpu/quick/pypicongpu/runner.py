@@ -24,7 +24,11 @@ class TestRunner(unittest.TestCase):
         name = None
         with tempfile.TemporaryDirectory() as tmpdir:
             name = tmpdir
-        return name if relative_to is None else str(Path(name).relative_to(Path().absolute()))
+        return (
+            name
+            if relative_to is None
+            else str(Path(name).relative_to(Path().absolute()))
+        )
 
     def setUp(self):
         # Note that this picmi simulation is a valid specification,
@@ -39,7 +43,9 @@ class TestRunner(unittest.TestCase):
             upper_boundary_conditions=["open", "open", "periodic"],
         )
         solver = picmi.ElectromagneticSolver(method="Yee", grid=grid)
-        self.picmi_sim = picmi.Simulation(time_step_size=1.39e-16, max_steps=int(2048), solver=solver)
+        self.picmi_sim = picmi.Simulation(
+            time_step_size=1.39e-16, max_steps=int(2048), solver=solver
+        )
         self.sim = self.picmi_sim.get_as_pypicongpu()
 
         # reset default scratch dir
@@ -154,7 +160,9 @@ class TestRunner(unittest.TestCase):
                 scratch_dir=self.nonexisting_dir1,
             )
         with self.assertRaises(Exception):
-            Runner(self.sim, run_dir=self.nonexisting_dir1, setup_dir=self.nonexisting_dir1)
+            Runner(
+                self.sim, run_dir=self.nonexisting_dir1, setup_dir=self.nonexisting_dir1
+            )
         with self.assertRaises(Exception):
             Runner(
                 self.sim,
@@ -220,7 +228,9 @@ class TestRunner(unittest.TestCase):
         self.assertTrue(r.setup_dir.startswith(self.tmpdir))
 
         # scratch ignore if run is given
-        r = Runner(self.sim, scratch_dir=self.existing_dir1, run_dir=self.nonexisting_dir1)
+        r = Runner(
+            self.sim, scratch_dir=self.existing_dir1, run_dir=self.nonexisting_dir1
+        )
         check_postconditions(r)
         self.assertTrue(not r.setup_dir.startswith(r.scratch_dir))
         self.assertEqual(self.nonexisting_dir1, r.run_dir)
@@ -324,7 +334,9 @@ class TestRunner(unittest.TestCase):
             os.path.abspath(self.nonexisting_relative_dir1),
             os.path.abspath(r.setup_dir),
         )
-        self.assertEqual(os.path.abspath(self.nonexisting_relative_dir2), os.path.abspath(r.run_dir))
+        self.assertEqual(
+            os.path.abspath(self.nonexisting_relative_dir2), os.path.abspath(r.run_dir)
+        )
 
         self.assertTrue(os.path.isabs(r.scratch_dir))
         self.assertTrue(os.path.isabs(r.setup_dir))
@@ -353,15 +365,21 @@ class TestRunner(unittest.TestCase):
             assert m
             return m[1]
 
-        self.assertEqual("123-teststring", get_wo_pypicongpu_prefix("pypicongpu-123-teststring"))
+        self.assertEqual(
+            "123-teststring", get_wo_pypicongpu_prefix("pypicongpu-123-teststring")
+        )
 
         setup_dir_base_noprefix = get_wo_pypicongpu_prefix(setup_dir_base)
         run_dir_base_noprefix = get_wo_pypicongpu_prefix(run_dir_base)
 
-        self.assertEqual("blasabbl", os.path.commonprefix(["blasabbl123", "blasabblajhsdkljh"]))
+        self.assertEqual(
+            "blasabbl", os.path.commonprefix(["blasabbl123", "blasabblajhsdkljh"])
+        )
         # common_start would typically be the current date
         # (though using the date is not required)
-        common_start = os.path.commonprefix([setup_dir_base_noprefix, run_dir_base_noprefix])
+        common_start = os.path.commonprefix(
+            [setup_dir_base_noprefix, run_dir_base_noprefix]
+        )
         # six: shortest useful date representation YYMMDD
         self.assertTrue(len(common_start) >= 6)
 

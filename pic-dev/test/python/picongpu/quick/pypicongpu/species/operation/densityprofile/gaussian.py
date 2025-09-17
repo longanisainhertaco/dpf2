@@ -188,7 +188,9 @@ class TestGaussian(unittest.TestCase):
         # rear < front
         # assignment passes, but check catches the error
         g.center_rear = 0.9 * self.values["gas_center_front"]
-        with self.assertRaisesRegex(ValueError, ".*gas_center_rear.* >= gas_center_front.*"):
+        with self.assertRaisesRegex(
+            ValueError, ".*gas_center_rear.* >= gas_center_front.*"
+        ):
             g.check()
 
     def test_check_gas_center_front(self):
@@ -205,7 +207,9 @@ class TestGaussian(unittest.TestCase):
         # front > rear
         # assignment passes, but check catches the error
         g.center_front = 1.1 * self.values["gas_center_rear"]
-        with self.assertRaisesRegex(ValueError, ".*gas_center_rear.* >= gas_center_front.*"):
+        with self.assertRaisesRegex(
+            ValueError, ".*gas_center_rear.* >= gas_center_front.*"
+        ):
             g.check()
 
     def test_rendering(self):

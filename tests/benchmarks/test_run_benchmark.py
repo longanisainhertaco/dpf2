@@ -10,6 +10,7 @@ sys.modules["h5py"] = h5py_stub
 
 class _DummyAxes:
     transAxes = object()
+
     def plot(self, *args, **kwargs):
         return None
 

@@ -131,7 +131,9 @@ class TimeStepSpec(metaclass=_TimeStepSpecMeta):
 
     def __call__(self, unit_system="steps"):
         if unit_system not in TimeStepUnits:
-            raise ValueError(f"Unknown unit in TimeStepSpec. You gave {unit_system} which is not in TimeStepUnits.")
+            raise ValueError(
+                f"Unknown unit in TimeStepSpec. You gave {unit_system} which is not in TimeStepUnits."
+            )
         if self.unit_system is not None and self.unit_system != unit_system:
             raise ValueError(
                 "Don't reset units on a TimeStepSpec. "
@@ -145,7 +147,9 @@ class TimeStepSpec(metaclass=_TimeStepSpecMeta):
 
     def __add__(self, other):
         if not (isinstance(other, TimeStepSpec)):
-            raise TypeError(f"unsupported operand type(s) for +: TimeStepSpec and {type(other)}")
+            raise TypeError(
+                f"unsupported operand type(s) for +: TimeStepSpec and {type(other)}"
+            )
         ts = TimeStepSpec(
             *self.specs,
             *other.specs,
@@ -159,11 +163,17 @@ class TimeStepSpec(metaclass=_TimeStepSpecMeta):
 
     def _transform_to_steps(self, specs_in_seconds, time_step_size):
         if time_step_size <= 0:
-            raise ValueError(f"Time step size must be strictly positive. You gave {time_step_size}.")
+            raise ValueError(
+                f"Time step size must be strictly positive. You gave {time_step_size}."
+            )
         return tuple(
             slice(
                 int(spec.start / time_step_size if spec.start is not None else 0),
-                int(ceil(spec.stop / time_step_size)) if spec.stop is not None else None,
+                (
+                    int(ceil(spec.stop / time_step_size))
+                    if spec.stop is not None
+                    else None
+                ),
                 int(spec.step / time_step_size if spec.step is not None else 1) or 1,
             )
             for spec in specs_in_seconds
@@ -179,10 +189,16 @@ class TimeStepSpec(metaclass=_TimeStepSpecMeta):
 
     def _interpret_negatives(self, spec, num_steps):
         if spec.step < 1:
-            raise ValueError(f"Step size must be >= 1 in TimeStepSpec. You gave {spec.step}.")
+            raise ValueError(
+                f"Step size must be >= 1 in TimeStepSpec. You gave {spec.step}."
+            )
         return slice(
             spec.start if spec.start >= 0 else num_steps + spec.start,
-            spec.stop if (spec.stop is None or spec.stop >= -1) else num_steps + spec.stop,
+            (
+                spec.stop
+                if (spec.stop is None or spec.stop >= -1)
+                else num_steps + spec.stop
+            ),
             spec.step,
         )
 
@@ -195,6 +211,7 @@ class TimeStepSpec(metaclass=_TimeStepSpecMeta):
         return PyPIConGPUTimeStepSpec(
             [
                 self._interpret_negatives(self._interpret_nones(s), num_steps)
-                for s in self.specs + self._transform_to_steps(self.specs_in_seconds, time_step_size)
+                for s in self.specs
+                + self._transform_to_steps(self.specs_in_seconds, time_step_size)
             ]
         )

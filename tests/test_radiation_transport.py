@@ -6,6 +6,7 @@ from dpf2.radiation_transport import RadiationTransport
 
 try:
     import yaml  # type: ignore
+
     YAML_AVAILABLE = True
 except Exception:
     YAML_AVAILABLE = False
@@ -42,7 +43,9 @@ def test_camera_position_requires_raytrace_mode():
 
 
 def test_yaml_round_trip_and_hash_stability(tmp_path: Path):
-    cfg = RadiationTransport.model_validate(RadiationTransport.with_defaults().model_dump(by_alias=True))
+    cfg = RadiationTransport.model_validate(
+        RadiationTransport.with_defaults().model_dump(by_alias=True)
+    )
     if not YAML_AVAILABLE:
         with pytest.raises(Exception):
             __import__("yaml")

@@ -29,7 +29,9 @@ class Species(picmistandard.PICMI_Species):
     picongpu_element = pypicongpu.util.build_typesafe_property(typing.Optional[Element])
     """element information of object"""
 
-    __non_element_particle_types: list[str] = copy.copy(PredefinedParticleTypeProperties().get_known_particle_types())
+    __non_element_particle_types: list[str] = copy.copy(
+        PredefinedParticleTypeProperties().get_known_particle_types()
+    )
     """list of all known non element particle types"""
 
     picongpu_fixed_charge = pypicongpu.util.build_typesafe_property(bool)
@@ -65,15 +67,23 @@ class Species(picmistandard.PICMI_Species):
         :raises Exception: on impossible conversion
         :return: temperature in keV
         """
-        assert rms_velocity_si[0] == rms_velocity_si[1] and rms_velocity_si[1] == rms_velocity_si[2], (
-            "all thermal velcoity spread (rms velocity) components must be equal"
-        )
+        assert (
+            rms_velocity_si[0] == rms_velocity_si[1]
+            and rms_velocity_si[1] == rms_velocity_si[2]
+        ), "all thermal velcoity spread (rms velocity) components must be equal"
         # see
         # https://en.wikipedia.org/wiki/Maxwell%E2%80%93Boltzmann_distribution
         rms_velocity_si_squared = rms_velocity_si[0] ** 2
-        return particle_mass_si * rms_velocity_si_squared * consts.electron_volt**-1 * 10**-3
+        return (
+            particle_mass_si
+            * rms_velocity_si_squared
+            * consts.electron_volt**-1
+            * 10**-3
+        )
 
-    def __get_drift(self) -> typing.Optional[pypicongpu.species.operation.momentum.Drift]:
+    def __get_drift(
+        self,
+    ) -> typing.Optional[pypicongpu.species.operation.momentum.Drift]:
         """
         Retrieve respective pypicongpu drift object (or None)
 
@@ -108,12 +118,16 @@ class Species(picmistandard.PICMI_Species):
                 self.charge = mass_charge_tuple.charge
             elif Element.is_element(self.particle_type):
                 # element or similar, will raise if element name is unknown
-                self.picongpu_element = pypicongpu.species.util.Element(self.particle_type)
+                self.picongpu_element = pypicongpu.species.util.Element(
+                    self.particle_type
+                )
                 self.mass = self.picongpu_element.get_mass_si()
                 self.charge = self.picongpu_element.get_charge_si()
             else:
                 # unknown particle type
-                raise ValueError(f"Species {self.name} has unknown particle type {self.particle_type}")
+                raise ValueError(
+                    f"Species {self.name} has unknown particle type {self.particle_type}"
+                )
 
     def has_ionization(self, interaction: Interaction | None) -> bool:
         """does species have ionization configured?"""
@@ -144,35 +158,40 @@ class Species(picmistandard.PICMI_Species):
         """
 
         if self.particle_type is None:
-            assert not self.has_ionization(interaction), (
-                f"Species {self.name} configured with active ionization but required particle_type not set."
-            )
+            assert not self.has_ionization(
+                interaction
+            ), f"Species {self.name} configured with active ionization but required particle_type not set."
             assert self.charge_state is None, (
                 f"Species {self.name} specified initial charge state via charge_state without also specifying particle "
                 "type, must either set particle_type explicitly or only use charge instead"
             )
-            assert self.picongpu_fixed_charge is False, (
-                f"Species {self.name} specified fixed charge without also specifying particle_type"
-            )
+            assert (
+                self.picongpu_fixed_charge is False
+            ), f"Species {self.name} specified fixed charge without also specifying particle_type"
         else:
             # particle type is
-            if (self.particle_type in self.__non_element_particle_types) or re.match(r"other:.*", self.particle_type):
+            if (self.particle_type in self.__non_element_particle_types) or re.match(
+                r"other:.*", self.particle_type
+            ):
                 # non ion predefined particle, or custom particle type
-                assert self.charge_state is None, "charge_state may only be set for ions"
-                assert not self.has_ionization(interaction), (
-                    f"Species {self.name} configured with active ionization but particle type indicates non ion."
-                )
-                assert self.picongpu_fixed_charge is False, (
-                    f"Species {self.name} configured with fixed charge state but particle_type indicates non ion"
-                )
+                assert (
+                    self.charge_state is None
+                ), "charge_state may only be set for ions"
+                assert not self.has_ionization(
+                    interaction
+                ), f"Species {self.name} configured with active ionization but particle type indicates non ion."
+                assert (
+                    self.picongpu_fixed_charge is False
+                ), f"Species {self.name} configured with fixed charge state but particle_type indicates non ion"
             elif Element.is_element(self.particle_type):
                 # ion
 
                 # check for unphysical charge state
                 if self.charge_state is not None:
-                    assert Element(self.particle_type).get_atomic_number() >= self.charge_state, (
-                        f"Species {self.name} intial charge state is unphysical"
-                    )
+                    assert (
+                        Element(self.particle_type).get_atomic_number()
+                        >= self.charge_state
+                    ), f"Species {self.name} intial charge state is unphysical"
 
                 if self.has_ionization(interaction):
                     assert self.picongpu_fixed_charge is False, (
@@ -201,34 +220,40 @@ class Species(picmistandard.PICMI_Species):
                     #   ion
             else:
                 # unknown particle type
-                raise ValueError(f"unknown particle type {self.particle_type} in species {self.name}")
+                raise ValueError(
+                    f"unknown particle type {self.particle_type} in species {self.name}"
+                )
 
-    def __check_interaction_configuration(self, interaction: Interaction | None) -> None:
+    def __check_interaction_configuration(
+        self, interaction: Interaction | None
+    ) -> None:
         """check all interactions sub groups for compatibility with this species configuration"""
         self.__check_ionization_configuration(interaction)
 
     def check(self, interaction: Interaction | None) -> None:
-        assert self.name is not None, "picongpu requires each species to have a name set."
+        assert (
+            self.name is not None
+        ), "picongpu requires each species to have a name set."
 
         # check charge and mass explicitly set/not set depending on particle_type
         if (self.particle_type is None) or re.match(r"other:.*", self.particle_type):
             # custom species may not have mass or charge
             pass
         elif not self.__previous_check:
-            assert self.charge is None, (
-                f"Species' {self.name}, charge is specified implicitly via particle type, do NOT set charge explictly"
-            )
-            assert self.mass is None, (
-                f"Species' {self.name}, mass is specified implicitly via particle type, do NOT set mass explictly"
-            )
+            assert (
+                self.charge is None
+            ), f"Species' {self.name}, charge is specified implicitly via particle type, do NOT set charge explictly"
+            assert (
+                self.mass is None
+            ), f"Species' {self.name}, mass is specified implicitly via particle type, do NOT set mass explictly"
 
         self.__check_interaction_configuration(interaction)
         self.__previous_check = True
 
-    def get_as_pypicongpu(
-        self, interaction: Interaction | None
-    ) -> tuple[
-        pypicongpu.species.Species, None | dict[typing.Any, pypicongpu.species.constant.ionizationmodel.IonizationModel]
+    def get_as_pypicongpu(self, interaction: Interaction | None) -> tuple[
+        pypicongpu.species.Species,
+        None
+        | dict[typing.Any, pypicongpu.species.constant.ionizationmodel.IonizationModel],
     ]:
         """
         translate PICMI species object to equivalent PyPIConGPU species object
@@ -279,7 +304,9 @@ class Species(picmistandard.PICMI_Species):
             s.constants.append(charge_constant)
 
         if interaction is not None:
-            interaction_constants, pypicongpu_model_by_picmi_model = interaction.get_interaction_constants(self)
+            interaction_constants, pypicongpu_model_by_picmi_model = (
+                interaction.get_interaction_constants(self)
+            )
             s.constants.extend(interaction_constants)
         else:
             pypicongpu_model_by_picmi_model = None
@@ -287,7 +314,9 @@ class Species(picmistandard.PICMI_Species):
         return s, pypicongpu_model_by_picmi_model
 
     def get_independent_operations(
-        self, pypicongpu_species: pypicongpu.species.Species, interaction: Interaction | None
+        self,
+        pypicongpu_species: pypicongpu.species.Species,
+        interaction: Interaction | None,
     ) -> list[pypicongpu.species.operation.Operation]:
         """get a list of all operations only initializing attributes of this species"""
 
@@ -295,7 +324,9 @@ class Species(picmistandard.PICMI_Species):
         self.check(interaction)
         self.__maybe_apply_particle_type()
 
-        assert pypicongpu_species.name == self.name, "to generate operations for PyPIConGPU species: names must match"
+        assert (
+            pypicongpu_species.name == self.name
+        ), "to generate operations for PyPIConGPU species: names must match"
 
         all_operations = []
 
@@ -305,8 +336,13 @@ class Species(picmistandard.PICMI_Species):
         momentum_op.drift = self.__get_drift()
 
         temperature_kev = 0
-        if self.initial_distribution is not None and self.initial_distribution.rms_velocity is not None:
-            mass_const = pypicongpu_species.get_constant_by_type(pypicongpu.species.constant.Mass)
+        if (
+            self.initial_distribution is not None
+            and self.initial_distribution.rms_velocity is not None
+        ):
+            mass_const = pypicongpu_species.get_constant_by_type(
+                pypicongpu.species.constant.Mass
+            )
             mass_si = mass_const.mass_si
 
             temperature_kev = self.__get_temperature_kev_by_rms_velocity(
@@ -314,7 +350,9 @@ class Species(picmistandard.PICMI_Species):
             )
 
         if 0 != temperature_kev:
-            momentum_op.temperature = pypicongpu.species.operation.momentum.Temperature()
+            momentum_op.temperature = (
+                pypicongpu.species.operation.momentum.Temperature()
+            )
             momentum_op.temperature.temperature_kev = temperature_kev
         else:
             momentum_op.temperature = None

@@ -15,4 +15,3 @@ __all__ = [
     "jxb_field",
     "sheath_widget",
 ]
-

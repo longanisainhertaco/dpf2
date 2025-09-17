@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from .utils.pydantic_compat import model_validator as _model_validator
 
 
-
 # ---------------------------------------------------------------------------
 
 
@@ -91,9 +90,7 @@ class WarpXSettings(ConfigSectionBase):
     moving_window_velocity: Optional[Tuple[float, float, float]] = Field(
         None, alias="movingWindowVelocity"
     )
-    emission_profile_path: Optional[Path] = Field(
-        None, alias="emissionProfilePath"
-    )
+    emission_profile_path: Optional[Path] = Field(None, alias="emissionProfilePath")
 
     current_deposition: Literal["standard", "Esirkepov", "EZ"] = Field(
         "standard", alias="fieldDeposition"
@@ -191,9 +188,7 @@ class WarpXSettings(ConfigSectionBase):
                 f"Ionization: {self.ionization_model}, Collisions: {self.collision_model}"
             )
         else:
-            adapt = (
-                f"Constant timestep, Ionization: {self.ionization_model}, Collisions: {self.collision_model}"
-            )
+            adapt = f"Constant timestep, Ionization: {self.ionization_model}, Collisions: {self.collision_model}"
         species_names = ", ".join(self.species_config.keys()) or "none"
         if isinstance(self.emission_profile_path, Path):
             emission = self.emission_profile_path.name
@@ -214,9 +209,7 @@ class WarpXSettings(ConfigSectionBase):
             extra.append("spectral filter")
         if self.randomized_particle_loading:
             extra.append("randomized loading")
-        extra_line = (
-            f"Mitigation: {', '.join(extra)}" if extra else "Mitigation: none"
-        )
+        extra_line = f"Mitigation: {', '.join(extra)}" if extra else "Mitigation: none"
         return "\n".join([solver, adapt, species_line, current_line, extra_line])
 
     @property
@@ -229,7 +222,9 @@ class WarpXSettings(ConfigSectionBase):
         )
 
     def hash_warpx_config(self) -> str:
-        data = self.model_dump(exclude={"warpx_config_hash"}, by_alias=True, exclude_none=True)
+        data = self.model_dump(
+            exclude={"warpx_config_hash"}, by_alias=True, exclude_none=True
+        )
         serialized = json.dumps(data, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode()).hexdigest()
 
@@ -240,28 +235,46 @@ class WarpXSettings(ConfigSectionBase):
         geometry = ctx.get("geometry")
         gas_type = ctx.get("gas_type")
 
-        if values.time_step_type == "adaptive" and values.adaptive_time_step_config is None:
-            raise ValueError("adaptive_time_step_config required when time_step_type is 'adaptive'")
+        if (
+            values.time_step_type == "adaptive"
+            and values.adaptive_time_step_config is None
+        ):
+            raise ValueError(
+                "adaptive_time_step_config required when time_step_type is 'adaptive'"
+            )
 
         if values.ionization_model != "None" and gas_type is not None:
             if gas_type not in {"D2", "DT", "He", "Ne", "Ar", "Xe"}:
-                raise ValueError("ionization_model specified but gas type is not ionizable")
+                raise ValueError(
+                    "ionization_model specified but gas type is not ionizable"
+                )
 
-        if values.collision_model == "MonteCarlo" and values.max_particles_per_cell is not None:
+        if (
+            values.collision_model == "MonteCarlo"
+            and values.max_particles_per_cell is not None
+        ):
             if values.max_particles_per_cell < 32:
-                warnings.warn("MonteCarlo collisions typically require ≥ 32 particles per cell")
+                warnings.warn(
+                    "MonteCarlo collisions typically require ≥ 32 particles per cell"
+                )
 
         if values.boundary_conditions:
             required_faces = {"xLow", "xHigh", "yLow", "yHigh", "zLow", "zHigh"}
             for spec, mapping in values.boundary_conditions.items():
                 unknown = set(mapping) - required_faces
                 if unknown:
-                    warnings.warn(f"unrecognized boundary keys for {spec}: {sorted(unknown)}")
+                    warnings.warn(
+                        f"unrecognized boundary keys for {spec}: {sorted(unknown)}"
+                    )
                 missing = required_faces - set(mapping)
                 if missing:
-                    raise ValueError(f"boundary_conditions for {spec} missing faces: {sorted(missing)}")
+                    raise ValueError(
+                        f"boundary_conditions for {spec} missing faces: {sorted(missing)}"
+                    )
 
-        values = values.model_copy(update={"warpx_config_hash": values.hash_warpx_config()})
+        values = values.model_copy(
+            update={"warpx_config_hash": values.hash_warpx_config()}
+        )
         return values
 
     # ------------------------------------------------------------------
@@ -269,6 +282,7 @@ class WarpXSettings(ConfigSectionBase):
     def model_validate(cls, data: Any, **kwargs) -> "WarpXSettings":
         context = kwargs.get("context") or {}
         raw = dict(data)
+
         def _to_snake(name: str) -> str:
             buf = []
             for ch in name:
@@ -278,6 +292,7 @@ class WarpXSettings(ConfigSectionBase):
                 else:
                     buf.append(ch)
             return "".join(buf).lstrip("_")
+
         canonical: Dict[str, Any] = {}
         for key, val in raw.items():
             canonical[_to_snake(key)] = val
@@ -290,9 +305,16 @@ class WarpXSettings(ConfigSectionBase):
         for spec, mapping in bnd.items():
             unknown = set(mapping) - required_faces
             if unknown:
-                warnings.warn(f"unrecognized boundary keys for {spec}: {sorted(unknown)}")
-        if raw.get("timeStepType") == "adaptive" and "adaptiveTimeStepConfig" not in raw:
-            raise ValueError("adaptive_time_step_config required when time_step_type is 'adaptive'")
+                warnings.warn(
+                    f"unrecognized boundary keys for {spec}: {sorted(unknown)}"
+                )
+        if (
+            raw.get("timeStepType") == "adaptive"
+            and "adaptiveTimeStepConfig" not in raw
+        ):
+            raise ValueError(
+                "adaptive_time_step_config required when time_step_type is 'adaptive'"
+            )
         obj = super().model_validate(canonical, **kwargs)
         object.__setattr__(obj, "_context", context)
         obj = cls.check_rules(obj)

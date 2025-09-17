@@ -67,10 +67,10 @@ def test_energy_conservation():
         current, voltage = updated.current, updated.voltage
 
     Lp = plasma.inductance
-    initial_energy = 0.5 * circuit.C_ext * circuit.V0 ** 2
+    initial_energy = 0.5 * circuit.C_ext * circuit.V0**2
     final_energy = (
-        0.5 * circuit.L_ext * current ** 2
-        + 0.5 * circuit.C_ext * voltage ** 2
-        + 0.5 * Lp * current ** 2
+        0.5 * circuit.L_ext * current**2
+        + 0.5 * circuit.C_ext * voltage**2
+        + 0.5 * Lp * current**2
     )
     assert isclose(initial_energy, final_energy, rel_tol=1e-3)

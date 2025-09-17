@@ -97,7 +97,7 @@ def delay_statistics(delays: Sequence[float]) -> Dict[str, float]:
         return {"count": 0, "mean": 0.0, "stddev": 0.0}
     mean = sum(delays) / n
     var = sum((d - mean) ** 2 for d in delays) / n
-    return {"count": n, "mean": mean, "stddev": var ** 0.5}
+    return {"count": n, "mean": mean, "stddev": var**0.5}
 
 
 def holdoff_voltage(
@@ -149,4 +149,3 @@ def jitter_statistics(jitters: Sequence[float]) -> Dict[str, float]:
     """Return statistics for jitter values."""
 
     return delay_statistics(jitters)
-

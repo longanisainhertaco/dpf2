@@ -37,10 +37,14 @@ def test_deviation(val_simulation, val_theory, thresh, parameter_name):
     """
     relative_deviation = np.abs((val_theory - val_simulation) / (val_theory))
     if relative_deviation < thresh:
-        print(f"{parameter_name} passed the test with {val_simulation:.5e} compared to {val_theory:.5e}")
+        print(
+            f"{parameter_name} passed the test with {val_simulation:.5e} compared to {val_theory:.5e}"
+        )
         return True
     else:
-        print(f"{parameter_name} failed the test with {val_simulation:.5e} compared to {val_theory:.5e}")
+        print(
+            f"{parameter_name} failed the test with {val_simulation:.5e} compared to {val_theory:.5e}"
+        )
         return False
 
 
@@ -122,17 +126,26 @@ def main(path):
 
     # Test energy in shadowgram
     energy_shadowgram = np.sum(shadowgram) * dx * dy
-    test_results["Energy"] = test_deviation(energy_shadowgram, energy_theory, energy_thresh, "Energy")
+    test_results["Energy"] = test_deviation(
+        energy_shadowgram, energy_theory, energy_thresh, "Energy"
+    )
 
     # Find position of maximum for lineouts
-    max_position = np.unravel_index(np.argmax(shadowgram.transpose()), shadowgram.transpose().shape)
+    max_position = np.unravel_index(
+        np.argmax(shadowgram.transpose()), shadowgram.transpose().shape
+    )
 
     # Test x lineout of shadowgram
     xdata = xspace[0, :]
     shadowgram_x_lineout = shadowgram[max_position[0], :]
 
-    xbounds = [[0, dx, np.min(xdata)], [2 * np.max(shadowgram_x_lineout), np.max(xdata), np.max(xdata)]]
-    poptx, pcovx = optimize.curve_fit(gauss, xdata, shadowgram_x_lineout, bounds=xbounds)
+    xbounds = [
+        [0, dx, np.min(xdata)],
+        [2 * np.max(shadowgram_x_lineout), np.max(xdata), np.max(xdata)],
+    ]
+    poptx, pcovx = optimize.curve_fit(
+        gauss, xdata, shadowgram_x_lineout, bounds=xbounds
+    )
 
     test_results["w0_x"] = test_deviation(2 * poptx[1], w0, w0_thresh, "w0_x")
     test_results["pos_x"] = test_deviation(poptx[2], focus_x, position_thresh, "pos_x")
@@ -141,8 +154,13 @@ def main(path):
     ydata = yspace[:, 0]
     shadowgram_y_lineout = shadowgram[:, max_position[1]]
 
-    ybounds = [[0, dy, np.min(ydata)], [2 * np.max(shadowgram_y_lineout), np.max(ydata), np.max(ydata)]]
-    popty, pcovy = optimize.curve_fit(gauss, ydata, shadowgram_y_lineout, bounds=ybounds)
+    ybounds = [
+        [0, dy, np.min(ydata)],
+        [2 * np.max(shadowgram_y_lineout), np.max(ydata), np.max(ydata)],
+    ]
+    popty, pcovy = optimize.curve_fit(
+        gauss, ydata, shadowgram_y_lineout, bounds=ybounds
+    )
 
     test_results["w0_y"] = test_deviation(2 * popty[1], w0, w0_thresh, "w0_y")
     test_results["pos_y"] = test_deviation(popty[2], focus_y, position_thresh, "pos_y")
@@ -153,11 +171,15 @@ def main(path):
     possible_signs = ["positive", "negative"]
     possible_fields = ["Ex", "Ey", "Bx", "By"]
     for sf in itertools.product(possible_signs, possible_fields):
-        series = opmd.Series(path + "/shadowgraphy_fourierdata_" + "%T." + "bp5", opmd.Access.read_only)
+        series = opmd.Series(
+            path + "/shadowgraphy_fourierdata_" + "%T." + "bp5", opmd.Access.read_only
+        )
         i = series.iterations[[i for i in series.iterations][0]]
 
         chunkdata = i.meshes[f"Fourier Domain Fields - {sf[0]}"][sf[1]].load_chunk()
-        unit = i.meshes[f"Fourier Domain Fields - {sf[0]}"][sf[1]].get_attribute("unitSI")
+        unit = i.meshes[f"Fourier Domain Fields - {sf[0]}"][sf[1]].get_attribute(
+            "unitSI"
+        )
         series.flush()
 
         fourier_field_raw = chunkdata * unit
@@ -173,8 +195,12 @@ def main(path):
         xspace *= xunit
         yspace *= yunit
 
-        omegaspace_tmp = i.meshes["Fourier Transform Frequencies"]["omegas"].load_chunk()
-        omegaunit = i.meshes["Fourier Transform Frequencies"]["omegas"].get_attribute("unitSI")
+        omegaspace_tmp = i.meshes["Fourier Transform Frequencies"][
+            "omegas"
+        ].load_chunk()
+        omegaunit = i.meshes["Fourier Transform Frequencies"]["omegas"].get_attribute(
+            "unitSI"
+        )
         series.flush()
 
         if sf[0] == "positive":
@@ -197,17 +223,25 @@ def main(path):
         fourier_field_lineout = fourier_field[:, max_position[1], max_position[2]]
 
         if sf[0] == "positive":
-            fit_bounds = [[0, domega / 100, min(odata)], [2 * np.max(fourier_field_lineout), max(odata), max(odata)]]
+            fit_bounds = [
+                [0, domega / 100, min(odata)],
+                [2 * np.max(fourier_field_lineout), max(odata), max(odata)],
+            ]
         else:
             fit_bounds = [
                 [0, np.abs(domega) / 100, min(odata)],
                 [2 * np.max(fourier_field_lineout), max(np.abs(odata)), max(odata)],
             ]
 
-        popt, pcov = optimize.curve_fit(gauss, odata, fourier_field_lineout, bounds=fit_bounds)
+        popt, pcov = optimize.curve_fit(
+            gauss, odata, fourier_field_lineout, bounds=fit_bounds
+        )
         # (x, amplitude, sigma, mean)
         test_results[f"[{sf[1]}-{sf[0]}] bandwidth"] = test_deviation(
-            popt[1], bandwidth_expected, bandwidth_thresh, f"[{sf[1]}-{sf[0]}] bandwidth"
+            popt[1],
+            bandwidth_expected,
+            bandwidth_thresh,
+            f"[{sf[1]}-{sf[0]}] bandwidth",
         )
         sign_omega = omega if (sf[0] == "positive") else -omega
         test_results[f"[{sf[1]}-{sf[0]}] omega"] = test_deviation(

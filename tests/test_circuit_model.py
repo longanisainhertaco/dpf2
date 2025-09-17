@@ -15,10 +15,16 @@ sim_pkg.__path__ = []
 sys.modules.setdefault("dpf2", pkg)
 sys.modules.setdefault("dpf2.simulation", sim_pkg)
 utils_stub = types.ModuleType("dpf2.simulation.utils")
+
+
 class SimulationState:  # pragma: no cover - minimal stub
     """Placeholder simulation state."""
+
+
 class FieldManager:  # pragma: no cover - minimal stub
     """Placeholder field manager."""
+
+
 utils_stub.SimulationState = SimulationState
 utils_stub.FieldManager = FieldManager
 sys.modules["dpf2.simulation.utils"] = utils_stub

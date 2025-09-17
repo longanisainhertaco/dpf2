@@ -41,7 +41,6 @@ class QualityDashboard:
     max_energy_drift: float | None = None
     numerics_history: list[dict[str, float]] = field(default_factory=list)
 
-
     def log(
         self,
         step: int,
@@ -63,7 +62,6 @@ class QualityDashboard:
         di_over_L: float | None = None,
         hall_threshold: float | None = None,
         ei_threshold: float | None = None,
-
     ) -> None:
         """Record a step's metrics and emit warnings if thresholds violated.
 
@@ -135,13 +133,9 @@ class QualityDashboard:
                 f"Particles per cell below threshold: {ppc:g} < {self.min_ppc:g}"
             )
         if dt_violation:
-            _warn_or_abort(
-                f"Time step above stability limit: {dt:g} > {self.max_dt:g}"
-            )
+            _warn_or_abort(f"Time step above stability limit: {dt:g} > {self.max_dt:g}")
         if lambda_violation:
-            _warn_or_abort(
-                f"Debye length under-resolved: {lambda_D:g} < {cell_size:g}"
-            )
+            _warn_or_abort(f"Debye length under-resolved: {lambda_D:g} < {cell_size:g}")
 
         self._update_plot()
 
@@ -237,18 +231,24 @@ class QualityDashboard:
         ok = True
         l1 = metrics.get("l1_error")
         if self.max_l1_error is not None and l1 is not None and l1 > self.max_l1_error:
-            _warn_or_abort(
-                f"L1 error above threshold: {l1:g} > {self.max_l1_error:g}"
-            )
+            _warn_or_abort(f"L1 error above threshold: {l1:g} > {self.max_l1_error:g}")
             ok = False
         divB = metrics.get("divB_norm")
-        if self.max_divB_norm is not None and divB is not None and divB > self.max_divB_norm:
+        if (
+            self.max_divB_norm is not None
+            and divB is not None
+            and divB > self.max_divB_norm
+        ):
             _warn_or_abort(
                 f"∇·B norm above threshold: {divB:g} > {self.max_divB_norm:g}"
             )
             ok = False
         divE = metrics.get("divE_norm")
-        if self.max_divE_norm is not None and divE is not None and divE > self.max_divE_norm:
+        if (
+            self.max_divE_norm is not None
+            and divE is not None
+            and divE > self.max_divE_norm
+        ):
             _warn_or_abort(
                 f"∇·E norm above threshold: {divE:g} > {self.max_divE_norm:g}"
             )
@@ -271,6 +271,7 @@ class QualityDashboard:
         """Render a simple plot of stability metrics."""
         try:
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
         except Exception:  # pragma: no cover - matplotlib optional
@@ -306,7 +307,12 @@ class QualityDashboard:
         ax3.set_ylabel("ppc")
 
         if has_levels:
-            ax4.step(steps, [l if l is not None else 0 for l in levels], where="post", label="AMR level")
+            ax4.step(
+                steps,
+                [l if l is not None else 0 for l in levels],
+                where="post",
+                label="AMR level",
+            )
             ax4.set_ylabel("level")
             ax4.set_xlabel("step")
             ax4.legend()
@@ -323,6 +329,7 @@ class QualityDashboard:
         """Render a plot of regime parameters over time."""
         try:
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
         except Exception:  # pragma: no cover - matplotlib optional
@@ -388,7 +395,9 @@ def _main() -> None:  # pragma: no cover - CLI helper
     import argparse
 
     parser = argparse.ArgumentParser(description="Quality dashboard utilities")
-    parser.add_argument("--sweep", action="store_true", help="run convergence sweep and exit")
+    parser.add_argument(
+        "--sweep", action="store_true", help="run convergence sweep and exit"
+    )
     args = parser.parse_args()
     dash = QualityDashboard()
     if args.sweep:

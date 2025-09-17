@@ -45,7 +45,8 @@ def set_colorbar(cb):
         colorbar to be adjusted
     """
     cb.set_label(
-        r"$\vec \nabla \vec E - \rho / \varepsilon_0" + r" \,[ \mathrm{max}(|\rho_k|) / \varepsilon_0 ]$",
+        r"$\vec \nabla \vec E - \rho / \varepsilon_0"
+        + r" \,[ \mathrm{max}(|\rho_k|) / \varepsilon_0 ]$",
         fontsize=22,
     )
     for t in cb.ax.get_yticklabels():
@@ -232,7 +233,8 @@ if __name__ == "__main__":
         action="store",
         default=0.5,
         type=float,
-        help="float value between [0,1] to set slice " + "position in x (default = 0.5)",
+        help="float value between [0,1] to set slice "
+        + "position in x (default = 0.5)",
     )
 
     parser.add_argument(
@@ -241,7 +243,8 @@ if __name__ == "__main__":
         action="store",
         default=0.5,
         type=float,
-        help="float value between [0,1] to set slice " + "position in y (default = 0.5)",
+        help="float value between [0,1] to set slice "
+        + "position in y (default = 0.5)",
     )
 
     parser.add_argument(
@@ -250,7 +253,8 @@ if __name__ == "__main__":
         action="store",
         default=0.5,
         type=float,
-        help="float value between [0,1] to set slice " + "position in z (default = 0.5)",
+        help="float value between [0,1] to set slice "
+        + "position in z (default = 0.5)",
     )
 
     parser.add_argument(

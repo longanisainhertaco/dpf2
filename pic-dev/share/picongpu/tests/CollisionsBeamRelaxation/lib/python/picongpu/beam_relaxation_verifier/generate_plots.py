@@ -82,7 +82,9 @@ def main():
         verifier.calculate_values(n_cells=args.n_cells)
         verifier.plot(to_file=True, file_name=args.file, smilei_loader=smilei_loader)
     if args.plot_debug:
-        verifier.plot_debug_values(to_file=True, file_name=args.file_debug, smilei_loader=smilei_loader)
+        verifier.plot_debug_values(
+            to_file=True, file_name=args.file_debug, smilei_loader=smilei_loader
+        )
 
 
 if __name__ == "__main__":

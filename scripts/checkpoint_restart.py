@@ -7,6 +7,7 @@ reloads the previously saved data before executing another run.  The
 example is intentionally lightweight; production usage would serialise
 full solver state.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,8 +22,12 @@ from dpf2.simulation_engine import SimulationEngine
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True, help="Configuration file")
-    parser.add_argument("--checkpoint", type=Path, required=True, help="Path to checkpoint npz file")
-    parser.add_argument("--resume", action="store_true", help="Resume from checkpoint if available")
+    parser.add_argument(
+        "--checkpoint", type=Path, required=True, help="Path to checkpoint npz file"
+    )
+    parser.add_argument(
+        "--resume", action="store_true", help="Resume from checkpoint if available"
+    )
     args = parser.parse_args()
 
     cfg = DPFConfig.from_file(args.config)

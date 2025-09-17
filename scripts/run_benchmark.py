@@ -117,7 +117,9 @@ def run_benchmark(
         passed = passed and g in {"A", "B"}
 
     grade_order = {"A": 0, "B": 1, "C": 2, "D": 3, "F": 4, "N/A": 5}
-    overall = max(grades.values(), key=lambda x: grade_order.get(x, 5)) if grades else "N/A"
+    overall = (
+        max(grades.values(), key=lambda x: grade_order.get(x, 5)) if grades else "N/A"
+    )
     metrics["grades"] = grades
     metrics["overall_grade"] = overall
     metrics["passed"] = passed
@@ -135,7 +137,13 @@ def run_benchmark(
             tol_val = float(tol.get(field, 0.0))
             ax.plot(times, exp_vals, label="expected")
             ax.plot(times, sim_vals, label="simulation")
-            ax.fill_between(times, exp_vals - tol_val, exp_vals + tol_val, alpha=0.3, label="tolerance")
+            ax.fill_between(
+                times,
+                exp_vals - tol_val,
+                exp_vals + tol_val,
+                alpha=0.3,
+                label="tolerance",
+            )
             ax.set_ylabel(field.replace("_", " "))
         axes[-1].set_xlabel("time (s)")
         axes[0].legend()
@@ -152,9 +160,7 @@ def run_benchmark(
         plt.close(fig)
 
     if h5py is not None:  # pragma: no cover - optional dependency
-        commit = (
-            subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-        )
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
         cfg_hash = hashlib.sha256(inputs_path.read_bytes()).hexdigest()
         with h5py.File(out_root / "results.h5", "w") as f:
             f.create_dataset("time", data=sim_time)
@@ -167,7 +173,11 @@ def run_benchmark(
             manifest.attrs["inputs"] = str(inputs_path)
             manifest.attrs["passed"] = passed
             if datasets:
-                from dpf2.io.manifest import capture_dataset_metadata, write_hdf5_dataset_manifest
+                from dpf2.io.manifest import (
+                    capture_dataset_metadata,
+                    write_hdf5_dataset_manifest,
+                )
+
                 meta = capture_dataset_metadata(datasets)
                 write_hdf5_dataset_manifest(f, meta)
 

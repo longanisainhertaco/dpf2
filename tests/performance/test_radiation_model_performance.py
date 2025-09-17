@@ -21,7 +21,9 @@ sys.modules.setdefault("numba", numba_stub)
 import numpy_stub
 
 numpy_stub.np.any = lambda arr: any(arr)
-numpy_stub.np.linalg = types.SimpleNamespace(norm=lambda v: numpy_stub.sqrt(sum(x * x for x in v)))
+numpy_stub.np.linalg = types.SimpleNamespace(
+    norm=lambda v: numpy_stub.sqrt(sum(x * x for x in v))
+)
 numpy_stub.np.arccos = math.acos
 numpy_stub.np.cos = math.cos
 numpy_stub.np.sin = math.sin
@@ -48,10 +50,9 @@ def test_level_population_performance():
 def test_pair_production_performance():
     rm = RadiationModel.__new__(RadiationModel)
     rm.pairs_created = 0
-    photons = [Photon([0, 0, 0], [1, 0, 0], 3 * m_e * c ** 2, 0) for _ in range(100)]
+    photons = [Photon([0, 0, 0], [1, 0, 0], 3 * m_e * c**2, 0) for _ in range(100)]
     start = time.perf_counter()
     for p in photons:
         rm._pair_production(p, dt=1e-9)
     elapsed = time.perf_counter() - start
     assert elapsed < 1.0
-

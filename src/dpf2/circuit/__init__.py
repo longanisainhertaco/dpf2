@@ -1,4 +1,3 @@
-
 """Circuit subpackage providing models for distributed networks."""
 
 from .distributed import TransmissionLineSegment, assemble_matrices
@@ -10,4 +9,3 @@ __all__ = [
     "CrowbarStage",
     "assemble_matrices",
 ]
-

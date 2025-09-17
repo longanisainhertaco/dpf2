@@ -13,7 +13,9 @@ from dpf2.simulation.eos import TabulatedEOS  # type: ignore
 from dpf2.eos.ideal_gas import IdealGasEOS
 
 
-def _create_species_eos_file(tmp_path: Path, species: str, p_val: float = 1.0, e_val: float = 1.0) -> Path:
+def _create_species_eos_file(
+    tmp_path: Path, species: str, p_val: float = 1.0, e_val: float = 1.0
+) -> Path:
     file_path = tmp_path / f"{species}.h5"
     with h5py.File(file_path, "w") as f:
         f.create_dataset("rho", data=np.array([1.0, 2.0]))

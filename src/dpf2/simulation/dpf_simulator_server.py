@@ -16,8 +16,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 try:
-    from .dpf_simulation import DPFSimulation, ConfigurationError as SimConfigurationError
-    from .config_schema import ServerConfig, FieldManagerConfig  # Import FieldManagerConfig
+    from .dpf_simulation import (
+        DPFSimulation,
+        ConfigurationError as SimConfigurationError,
+    )
+    from .config_schema import (
+        ServerConfig,
+        FieldManagerConfig,
+    )  # Import FieldManagerConfig
     from .utils import FieldManager  # Import FieldManager
 
     # Import custom exception hierarchy
@@ -40,6 +46,7 @@ except ImportError:  # pragma: no cover - support execution as a script
             SimulationRuntimeError,
         )
     except Exception:  # pragma: no cover - minimal fallbacks for tests
+
         class SimulationError(Exception):
             def __str__(self) -> str:  # pragma: no cover - simple formatting
                 message = super().__str__()
@@ -53,7 +60,9 @@ except ImportError:  # pragma: no cover - support execution as a script
         ServerError = SimulationError
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger("DPFSimulatorServer")
 
 app = Flask(__name__)
@@ -78,6 +87,7 @@ def _handle_sim_error(err: SimulationRuntimeError):
     logger.error("Simulation error: %s", err)
     return jsonify({"error": str(err)}), 500
 
+
 # ——— Simulation Interface ———
 class SimulationInterface:
     """Thread safe wrapper around :class:`DPFSimulation`.
@@ -89,7 +99,9 @@ class SimulationInterface:
     different threads.
     """
 
-    def __init__(self, config: Dict[str, Any], field_manager: FieldManager | None = None):
+    def __init__(
+        self, config: Dict[str, Any], field_manager: FieldManager | None = None
+    ):
         self._lock = threading.RLock()
         # Underlying simulation object
         if field_manager is not None:
@@ -164,6 +176,7 @@ class SimulationInterface:
     def state(self):  # pragma: no cover - thin wrapper
         return self.get_state()
 
+
 # ——— Simulation Manager ———
 class SimulationManager:
     def __init__(self):
@@ -175,14 +188,14 @@ class SimulationManager:
         sim_id = str(uuid.uuid4())
         try:
             # Create FieldManager
-            field_manager_config = config.get('field_manager', {})
+            field_manager_config = config.get("field_manager", {})
             field_manager = FieldManager(
-                grid_shape=tuple(config['grid_shape']),
-                dx=config['dx'],
-                dy=config['dy'],
-                dz=config['dz'],
-                domain_lo=tuple(config['domain_lo']),
-                boundary_conditions=field_manager_config.get('boundary_conditions', {})
+                grid_shape=tuple(config["grid_shape"]),
+                dx=config["dx"],
+                dy=config["dy"],
+                dz=config["dz"],
+                domain_lo=tuple(config["domain_lo"]),
+                boundary_conditions=field_manager_config.get("boundary_conditions", {}),
             )
             sim = SimulationInterface(config, field_manager=field_manager)
             self.simulations[sim_id] = sim
@@ -197,8 +210,8 @@ class SimulationManager:
             raise SimulationRuntimeError(f"Simulation {sim_id} not found")
 
         def _run_with_limits():
-            cpu_limit = app.config.get('CPU_TIME_LIMIT')
-            mem_limit = app.config.get('MEMORY_LIMIT')
+            cpu_limit = app.config.get("CPU_TIME_LIMIT")
+            mem_limit = app.config.get("MEMORY_LIMIT")
             apply_resource_limits(cpu_limit, mem_limit)
             try:
                 sim.run()
@@ -236,8 +249,9 @@ class SimulationManager:
         tel = {}
         # memory usage
         mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
-        tel['cpu_mem_usage_mb'] = mem
+        tel["cpu_mem_usage_mb"] = mem
         return json.dumps(tel)
+
 
 # ——— Configuration ———
 def load_config(config_file: str) -> ServerConfig:
@@ -254,17 +268,24 @@ def load_config(config_file: str) -> ServerConfig:
     except Exception as e:
         raise ConfigurationError(f"Error validating configuration: {e}")
 
+
 # ——— Authentication ———
 def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         auth = request.authorization
-        if not auth or not (auth.username == app.config['ADMIN_USERNAME'] and \
-                            check_password_hash(app.config['ADMIN_PASSWORD_HASH'], auth.password)):
-            logger.warning("Authentication failed for user: %s", auth.username if auth else "None")
-            return jsonify({'message': 'Authentication required'}), 401
+        if not auth or not (
+            auth.username == app.config["ADMIN_USERNAME"]
+            and check_password_hash(app.config["ADMIN_PASSWORD_HASH"], auth.password)
+        ):
+            logger.warning(
+                "Authentication failed for user: %s", auth.username if auth else "None"
+            )
+            return jsonify({"message": "Authentication required"}), 401
         return f(*args, **kwargs)
+
     return decorated
+
 
 # ——— Resource Management ———
 def apply_resource_limits(cpu_seconds: int | None, memory_bytes: int | None) -> None:
@@ -274,41 +295,55 @@ def apply_resource_limits(cpu_seconds: int | None, memory_bytes: int | None) -> 
     if memory_bytes is not None:
         resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
 
+
 def limit_simulations(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if len(simulation_manager.simulations) >= app.config['MAX_SIMULTANEOUS_SIMULATIONS']:
+        if (
+            len(simulation_manager.simulations)
+            >= app.config["MAX_SIMULTANEOUS_SIMULATIONS"]
+        ):
             logger.warning("Maximum simultaneous simulations reached.")
-            return jsonify({'message': 'Server at capacity. Please try again later.'}), 429  # Too Many Requests
+            return (
+                jsonify({"message": "Server at capacity. Please try again later."}),
+                429,
+            )  # Too Many Requests
         return f(*args, **kwargs)
+
     return decorated
 
+
 # ——— Helpers for input validation ———
-_dx, _t = sp.symbols('dx sim_time', positive=True)
+_dx, _t = sp.symbols("dx sim_time", positive=True)
+
 
 def _validate_sim_parameters(params):
     try:
         # Required
-        dx       = float(params['dx'])
-        sim_time = float(params['sim_time'])
-        grid_shape = params['grid_shape']
+        dx = float(params["dx"])
+        sim_time = float(params["sim_time"])
+        grid_shape = params["grid_shape"]
         # Sympy check for positivity
         if not (_dx.subs(_dx, dx) > 0 and _t.subs(_t, sim_time) > 0):
             raise ValueError
         # grid_shape must be list of 3 positive ints
         if (
-            not isinstance(grid_shape, list) or
-            len(grid_shape) != 3 or
-            any((not isinstance(n, int) or n <= 0) for n in grid_shape)
+            not isinstance(grid_shape, list)
+            or len(grid_shape) != 3
+            or any((not isinstance(n, int) or n <= 0) for n in grid_shape)
         ):
             raise ValueError
         return dx, sim_time, tuple(grid_shape)
     except Exception as e:
         logger.warning("Invalid simulation parameters: %s", e)
-        abort(400, description="Invalid simulation parameters (dx, sim_time, grid_shape)")
+        abort(
+            400, description="Invalid simulation parameters (dx, sim_time, grid_shape)"
+        )
+
 
 # ——— API Endpoints ———
 simulation_manager = SimulationManager()
+
 
 @app.route("/api/simulate", methods=["POST"])
 @requires_auth
@@ -350,6 +385,7 @@ def start_simulation():
         logger.exception("Unexpected error: %s", e)
         abort(500, description="An unexpected error occurred.")
 
+
 @app.route("/api/stop/<sim_id>", methods=["POST"])
 @requires_auth
 def stop_simulation(sim_id):
@@ -365,6 +401,7 @@ def stop_simulation(sim_id):
     except Exception as e:
         logger.exception("Unexpected error: %s", e)
         abort(500, description="An unexpected error occurred.")
+
 
 @app.route("/api/export/<sim_id>", methods=["GET"])
 @requires_auth
@@ -384,7 +421,7 @@ def export_results(sim_id):
             h5path,
             as_attachment=True,
             download_name=f"{sim_id}_diagnostics.h5",
-            mimetype="application/octet-stream"
+            mimetype="application/octet-stream",
         )
     except SimulationRuntimeError as e:
         logger.error(f"Simulation error: {e}")
@@ -392,6 +429,7 @@ def export_results(sim_id):
     except Exception as e:
         logger.exception("Unexpected error: %s", e)
         abort(500, description="An unexpected error occurred.")
+
 
 @sock.route("/api/simulation_updates/<sim_id>")
 def simulation_updates(ws, sim_id):
@@ -402,7 +440,7 @@ def simulation_updates(ws, sim_id):
     try:
         sim = simulation_manager.get_simulation(sim_id)
         thread = simulation_manager.get_simulation_thread(sim_id)
-        send_interval = app.config['TELEMETRY_INTERVAL']
+        send_interval = app.config["TELEMETRY_INTERVAL"]
         last_sent = time.time()
 
         # Stream while simulation is running
@@ -421,7 +459,9 @@ def simulation_updates(ws, sim_id):
                 try:
                     ws.send(json.dumps(payload))
                 except Exception as e:
-                    logger.warning(f"Failed to send update for simulation {sim_id}: {e}. Closing WebSocket.")
+                    logger.warning(
+                        f"Failed to send update for simulation {sim_id}: {e}. Closing WebSocket."
+                    )
                     break
             # short sleep to avoid busy‐wait
             time.sleep(0.01)
@@ -444,11 +484,16 @@ def simulation_updates(ws, sim_id):
         logger.exception("Unexpected error: %s", e)
         ws.close()
 
+
 # ——— Main Execution ———
 def main():
     parser = argparse.ArgumentParser(description="DPF Simulator Server")
-    parser.add_argument("--config-file", type=str, default="server_config.json",
-                        help="Path to the server configuration file")
+    parser.add_argument(
+        "--config-file",
+        type=str,
+        default="server_config.json",
+        help="Path to the server configuration file",
+    )
     args = parser.parse_args()
 
     try:
@@ -472,9 +517,8 @@ def main():
         sys.exit(1)
 
     # Run Flask app on port 5000, allow threaded requests
-    app.run(host=app.config['host'],
-            port=app.config['port'],
-            threaded=True)
+    app.run(host=app.config["host"], port=app.config["port"], threaded=True)
+
 
 if __name__ == "__main__":
     main()

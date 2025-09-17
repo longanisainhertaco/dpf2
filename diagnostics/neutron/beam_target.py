@@ -51,4 +51,4 @@ def compute_yield(
     )
     if tof_hook is not None:
         tofs = [list(tof_hook(hist, ang)) for hist, ang in zip(tofs, angles)]
-    return yields, [ [float(v) for v in hist] for hist in tofs ]
+    return yields, [[float(v) for v in hist] for hist in tofs]

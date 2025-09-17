@@ -54,6 +54,7 @@ def _threshold_energy(projectile: Species, target: Species, U0_eV: float) -> flo
     mu = projectile.mass_u / target.mass_u
     return U0_eV * (1.0 + mu) ** 2 / (4.0 * mu)
 
+
 def sigmund_yield(
     projectile: Species,
     target: Species,
@@ -126,12 +127,13 @@ def yamamura_yield(
     if c <= 0.0:
         return 0.0
 
-    return Y0 * (c ** -f) * exp(-f * (1.0 - c))
+    return Y0 * (c**-f) * exp(-f * (1.0 - c))
 
 
 # ----------------------------------------------------------------------------
 # Impurity source terms
 # ----------------------------------------------------------------------------
+
 
 def impurity_source_terms(
     ion_flux: float,

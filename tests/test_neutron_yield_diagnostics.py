@@ -27,7 +27,9 @@ def test_compute_beam_and_thermonuclear_yields():
     angles = [0.0]
     distance = 1.0
     time_bins = [0.0, 1.0]
-    yield_vals, _ = compute_beam_target_yield(beam, cross_section, angles, distance, time_bins)
+    yield_vals, _ = compute_beam_target_yield(
+        beam, cross_section, angles, distance, time_bins
+    )
     expected_bt = 0.5 * ((1.0 * 1.0) + (1.0 * 2.0)) * (2.0 - 1.0)
     assert yield_vals[0] == expected_bt
 
@@ -35,7 +37,7 @@ def test_compute_beam_and_thermonuclear_yields():
     ion_density = [1e19, 1e19]
     dt = 1e-6
     th = compute_thermonuclear_yield(reactivity, ion_density, dt)
-    expected_th = sum(r * n ** 2 for r, n in zip(reactivity, ion_density)) * dt
+    expected_th = sum(r * n**2 for r, n in zip(reactivity, ion_density)) * dt
     assert th == expected_th
 
 
@@ -87,14 +89,14 @@ def test_detector_models():
     yields = [10.0, 20.0]
     area = 1e-4
     distance = 1.0
-    expected = [y * area / distance ** 2 for y in yields]
+    expected = [y * area / distance**2 for y in yields]
     assert cr39_response(yields, area, distance) == expected
     assert rcf_response(yields, area, distance) == expected
 
     hist = [1.0, 2.0, 3.0]
     bins = [0.0, 1.0, 2.0, 3.0]
     count = time_gated_scintillator_response(hist, bins, 0.0, 3.0, area, distance)
-    assert count == sum(hist) * area / distance ** 2
+    assert count == sum(hist) * area / distance**2
 
 
 def test_tof_iv_cross_correlation():

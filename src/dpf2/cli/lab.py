@@ -1,4 +1,5 @@
 """Utilities for lab-mode reproducibility manifests."""
+
 from __future__ import annotations
 import json
 import os
@@ -25,7 +26,9 @@ def _code_hash() -> str:
     """Return current git commit hash if available."""
     try:
         return (
-            subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL)
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+            )
             .decode()
             .strip()
         )
@@ -123,6 +126,7 @@ def write_manifest(
     dataset_meta = None
     if datasets:
         from ..io.manifest import capture_dataset_metadata
+
         dataset_meta = capture_dataset_metadata(datasets)
         manifest["datasets"] = dataset_meta
 
@@ -144,9 +148,11 @@ def write_manifest(
                     mgrp.attrs[key] = value
             if dataset_meta:
                 from ..io.manifest import write_hdf5_dataset_manifest
+
                 write_hdf5_dataset_manifest(h5, dataset_meta)
 
     return path
+
 
 __all__ = [
     "write_manifest",

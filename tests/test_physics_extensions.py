@@ -12,12 +12,15 @@ pkg = types.ModuleType("dpf2")
 pkg.__path__ = [str(root / "dpf2")]
 sys.modules.setdefault("dpf2", pkg)
 
+
 class _StubSimTabulated:
     def __init__(self, filename, mixture_fractions=None):
         import numpy as np, h5py
+
         def load(path):
             with h5py.File(path, "r") as f:
                 return f["rho"][:], f["T"][:], f["p"][:], f["e"][:]
+
         if mixture_fractions:
             if isinstance(filename, (str, Path)):
                 base = Path(filename)
@@ -42,8 +45,10 @@ class _StubSimTabulated:
         self.p_interp = lambda pts: np.full(len(pts), self.p_val)
         self.e_interp = lambda pts: np.full(len(pts), self.e_val)
 
+
 sys.modules.setdefault("dpf2.simulation.eos", types.ModuleType("dpf2.simulation.eos"))
 sys.modules["dpf2.simulation.eos"].TabulatedEOS = _StubSimTabulated
+
 
 def _load(name, file):
     spec = importlib.util.spec_from_file_location(name, file)
@@ -51,6 +56,7 @@ def _load(name, file):
     sys.modules[name] = mod
     spec.loader.exec_module(mod)  # type: ignore[attr-defined]
     return mod
+
 
 eos_mod = _load("dpf2.eos", root / "dpf2" / "eos" / "__init__.py")
 fusion_mod = _load("dpf2.fusion", root / "dpf2" / "fusion.py")
