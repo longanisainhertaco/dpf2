@@ -11,6 +11,7 @@ consume it without having to understand any additional classes.
 from typing import Dict
 from pathlib import Path
 import csv
+import numpy as np
 
 try:  # pragma: no cover - matplotlib optional
     import matplotlib
@@ -152,6 +153,88 @@ def estimate_lifetime_sputtering(
 
     shots = total_mass / mass_per_shot
     return shots / rep_rate_hz / 3600.0
+
+
+def reconstruct_plasma_inductance(
+    time: np.ndarray,
+    current: np.ndarray,
+    voltage: np.ndarray,
+    magnetic_energy: np.ndarray,
+    *,
+    resistance: float = 0.0,
+    external_inductance: float = 0.0,
+    plot_path: Path | None = None,
+) -> Dict[str, np.ndarray]:
+    """Reconstruct plasma inductance from field and circuit data.
+
+    Two independent estimates are produced:
+
+    ``Lp_field``
+        Derived from the magnetic energy using ``Lp = 2 E_mag / I^2``.
+    ``Lp_circuit``
+        Calculated from circuit signals via ``(V - I R) / dI/dt - L_ext``.
+
+    Parameters
+    ----------
+    time, current, voltage, magnetic_energy:
+        Time series in SI units.
+    resistance:
+        Series circuit resistance ``R`` in Ohms.
+    external_inductance:
+        Static inductance external to the plasma in Henries.
+    plot_path:
+        Optional path to save an overlay plot when :mod:`matplotlib` is
+        available.
+    """
+
+    time = list(time)
+    current = list(current)
+    voltage = list(voltage)
+    magnetic_energy = list(magnetic_energy)
+
+    eps = 1e-30
+    Lp_field = []
+    for I, E in zip(current, magnetic_energy):
+        denom = I * I if abs(I) > eps else eps
+        Lp_field.append(2.0 * E / denom)
+
+    dIdt = []
+    dLpdt = []
+    n = len(time)
+    for i in range(n):
+        if 0 < i < n - 1:
+            dt = time[i + 1] - time[i - 1]
+            dIdt.append((current[i + 1] - current[i - 1]) / dt)
+            dLpdt.append((Lp_field[i + 1] - Lp_field[i - 1]) / dt)
+        elif i == 0 and n > 1:
+            dt = time[1] - time[0]
+            dIdt.append((current[1] - current[0]) / dt)
+            dLpdt.append((Lp_field[1] - Lp_field[0]) / dt)
+        elif n > 1:
+            dt = time[-1] - time[-2]
+            dIdt.append((current[-1] - current[-2]) / dt)
+            dLpdt.append((Lp_field[-1] - Lp_field[-2]) / dt)
+        else:
+            dIdt.append(0.0)
+            dLpdt.append(0.0)
+
+    Lp_circuit = []
+    for V, I, dI, dLp in zip(voltage, current, dIdt, dLpdt):
+        denom = dI if abs(dI) > eps else eps
+        Lp_circuit.append((V - resistance * I - I * dLp) / denom - external_inductance)
+
+    if plot_path is not None and plt is not None:  # pragma: no cover - plotting optional
+        plt.figure()
+        plt.plot(time, Lp_field, label="from B-field")
+        plt.plot(time, Lp_circuit, label="from circuit", linestyle="--")
+        plt.xlabel("Time [s]")
+        plt.ylabel("Lp [H]")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        plt.close()
+
+    return {"Lp_field": np.array(Lp_field), "Lp_circuit": np.array(Lp_circuit)}
 
 
 def export_performance_metrics(metrics: Dict[str, float], output_dir: Path) -> None:

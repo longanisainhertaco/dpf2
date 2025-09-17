@@ -240,6 +240,7 @@ class HallMHD(ResistiveMHD):
             Lp=Lp,
             emf=emf,
             current=self.current,
+            voltage=voltage,
             mutual_inductance=0.0,
             back_reaction=0.0,
         )
@@ -247,6 +248,8 @@ class HallMHD(ResistiveMHD):
         if circuit is not None:
             updated = circuit.step(self.circuit_feedback, 0.0, dt)
             self.current = updated.current
+            # store the updated coupling terms so diagnostics can access them
+            self.circuit_feedback = updated
 
         return state
 
