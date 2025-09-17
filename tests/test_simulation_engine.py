@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pydantic
 
@@ -6,8 +8,10 @@ if not hasattr(pydantic.BaseModel, "parse_obj"):  # pragma: no cover - compatibi
 if not hasattr(pydantic.BaseModel, "model_validate"):  # pragma: no cover - compatibility
     pydantic.BaseModel.model_validate = classmethod(lambda cls, d, **_: cls.parse_obj(d))
 
+from dpf2.core_schema import RadiationModel
 from dpf2.dpf_config import DPFConfig
 from dpf2.simulation_engine import SimulationEngine, EnsembleResults
+from dpf2.physics.energy import EnergyTracker
 from dpf2.experimental_variability import ExperimentalVariabilityModel, MonteCarloVariability
 
 
@@ -92,3 +96,19 @@ def test_engine_progress_callback():
     engine.run(progress_cb=cb)
     assert len(calls) > 0
     assert all(calls[i] <= calls[i + 1] for i in range(len(calls) - 1))
+
+
+def test_engine_warns_when_radiation_requested(caplog):
+    cfg = DPFConfig.with_defaults()
+    cfg.physics_models.radiation_model = RadiationModel.BREMSSTRAHLUNG
+    cfg.physics_models.sxr_bandpass_nm = (0.5, 1.0)
+    engine = SimulationEngine(cfg)
+    tracker = EnergyTracker()
+    tracker.add()
+    with caplog.at_level(logging.WARNING):
+        engine._handle_radiation_coupling(tracker)
+        engine._handle_radiation_coupling(tracker)
+    warnings = [rec.message for rec in caplog.records if rec.levelno >= logging.WARNING]
+    matches = [msg for msg in warnings if "Radiation coupling requested" in msg]
+    assert len(matches) == 1
+    assert tracker.radiative[-1] == 0.0

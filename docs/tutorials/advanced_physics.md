@@ -19,6 +19,12 @@ physics:
   radiation: true
 ```
 
+> **Note:** The lightweight :class:`dpf2.simulation_engine.SimulationEngine` used in
+> rapid prototyping does not yet implement radiation losses. Requesting a
+> radiation model with that engine logs a warning and keeps the tracked
+> radiative energy at zero. Use the full simulation backends for coupled
+> radiation transport.
+
 ## 2. Run with detailed diagnostics
 
 The additional physics can slow the solver, so enable only the
