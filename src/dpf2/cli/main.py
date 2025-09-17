@@ -42,6 +42,7 @@ from dpf2.optimization.param_sweep import (
     run_parametric_sweep,
     compute_sweep_metrics,
     plot_metric_overlay,
+    plot_yield_vs_S,
 )
 from dpf2.gui.project_manager import ProjectManager
 from dpf2.gui import interactive
@@ -867,8 +868,6 @@ def plot_run(run_dir: str, output: str) -> None:
 )
 @click.option("--output", type=click.Path(file_okay=False), default="sweep_output")
 @click.option("--kpi", is_flag=True, help="Generate KPI plots without GUI")
-@click.option("--yield-model", type=click.Path(exists=True, dir_okay=False))
-@click.option("--pinch-model", type=click.Path(exists=True, dir_okay=False))
 @click.pass_context
 def param_sweep_cmd(
     ctx: click.Context,
@@ -877,8 +876,6 @@ def param_sweep_cmd(
     values: tuple[float, ...],
     output: str,
     kpi: bool,
-    yield_model: str | None,
-    pinch_model: str | None,
 ) -> None:
     """Run a parameter sweep and optionally generate KPI plots."""
 
@@ -903,11 +900,10 @@ def param_sweep_cmd(
                 output_dir=output,
                 lab_mode=ctx.obj.get("lab_mode", False),
                 config_path=config,
-                yield_model=yield_model,
-                pinch_model=pinch_model,
             )
             metrics = compute_sweep_metrics(cfg, results, parameter)
             plot_metric_overlay(parameter, metrics, Path(output) / "sweep_metrics.png")
+            plot_yield_vs_S(metrics, Path(output) / "yield_vs_S.png")
     except Exception as e:
         raise click.ClickException(format_error("SWEEP", str(e)))
 

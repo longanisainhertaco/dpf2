@@ -31,7 +31,7 @@ def test_compute_sweep_metrics_includes_pinch(tmp_path: Path) -> None:
     metrics = compute_sweep_metrics(cfg, results, parameter="initial_pressure")
     for val in values:
         assert "pinch_time" in metrics[val]
-        assert "yield_lo" in metrics[val]
+        assert "S" in metrics[val]
 
 
 def test_yield_vs_s_plot(tmp_path: Path) -> None:
