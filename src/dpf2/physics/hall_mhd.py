@@ -132,6 +132,8 @@ class HallMHD(ResistiveMHD):
         *,
         circuit: Any | None = None,
         instability_amp: np.ndarray | float = 0.0,
+        mfp: float = 0.0,
+        tau_e: float = 0.0,
     ) -> np.ndarray:
         """Update circuit coupling information.
 
@@ -187,6 +189,8 @@ class HallMHD(ResistiveMHD):
         if circuit is not None:
             updated = circuit.step(self.circuit_feedback, 0.0, dt)
             self.current = updated.current
+
+        self.log_regime(state, mfp, tau_e)
 
         return state
 

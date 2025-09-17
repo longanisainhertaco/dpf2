@@ -19,7 +19,7 @@ unit and integration tests throughout the code base.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 try:  # pragma: no cover - prefer GPU acceleration when available
     import cupy as np  # type: ignore
 except Exception:  # pragma: no cover - fall back to numpy or a small stub
@@ -52,6 +52,12 @@ except Exception:  # pragma: no cover - fallback for stripped environments
 
 from ..mesh import Mesh2D, Mesh3D
 
+try:  # pragma: no cover - SciPy optional
+    from scipy.constants import k as k_B, m_p
+except Exception:  # pragma: no cover - fallback values
+    k_B = 1.380649e-23
+    m_p = 1.67262192369e-27
+
 
 @dataclass
 class ResistiveMHD:
@@ -65,6 +71,8 @@ class ResistiveMHD:
     kappa_perp: float = 0.0
     c_h: float = 0.0
     c_p: float = 0.0
+    regime_panel: "RegimePanel | None" = None
+    _regime_step: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
         # Order of the conservative variables used throughout the class.
@@ -117,7 +125,7 @@ class ResistiveMHD:
     # Mesh-aware helpers
     # ------------------------------------------------------------------
     def stable_timestep(
-        self, U: np.ndarray, mesh: Mesh2D | Mesh3D, cfl: float = 0.8
+        self, U: np.ndarray, mesh: Mesh2D | Mesh3D, cfl: float = 0.8, *, mfp: float = 0.0, tau_e: float = 0.0
     ) -> float:
         """Return a CFL-limited stable timestep for ``mesh``.
 
@@ -148,7 +156,29 @@ class ResistiveMHD:
             speeds = [self.max_speed(U, d) for d in directions]
             dt = min(s / v if v > 0 else np.inf for s, v in zip(spacings, speeds))
 
-        return cfl * dt
+        dt = cfl * dt
+        self.log_regime(U, mfp, tau_e)
+        return dt
+
+    # ------------------------------------------------------------------
+    def log_regime(self, U: np.ndarray, mfp: float, tau_e: float) -> None:
+        """Log dimensionless regime parameters for state ``U`` if enabled."""
+
+        if self.regime_panel is None:
+            return
+
+        rho, m_x, m_y, m_z, E, B_x, B_y, B_z, _ = U
+        n = rho / m_p if m_p != 0 else 0.0
+        p = self._pressure(U)
+        T = p / (n * k_B) if n > 0 else 0.0
+        v = np.sqrt(m_x ** 2 + m_y ** 2 + m_z ** 2) / rho if rho != 0 else 0.0
+        B = np.sqrt(B_x ** 2 + B_y ** 2 + B_z ** 2)
+        eta = self.eta
+
+        self._regime_step += 1
+        self.regime_panel.log(
+            self._regime_step, n, T, B, v, eta, mfp, tau_e
+        )
 
     # ------------------------------------------------------------------
     # Fluxes
