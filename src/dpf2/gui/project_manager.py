@@ -31,6 +31,7 @@ from ..optimization.multi_objective import (
     nsga2,
     random_pareto_search,
 )
+from ..diagnostics.neutron_yield import simulate_tof_detectors, save_tof_hdf5
 
 
 class ProjectManager:
@@ -520,6 +521,29 @@ class ProjectManager:
         fig.update_yaxes(visible=False)
         fig.update_layout(showlegend=False)
         return fig
+
+    def export_tof_summary(
+        self, angles: Iterable[float], distance: float, path: Path | str
+    ) -> Path:
+        """Export a simple neutron time-of-flight summary to ``path``.
+
+        The function is intentionally lightweight and assumes a flat ion energy
+        distribution purely for visualisation purposes within the GUI.
+        """
+
+        time_bins = [0.0, 1e-7, 2e-7]
+
+        class _FlatEDF:
+            def energy_distribution(self, angle_deg: float):  # pragma: no cover - GUI helper
+                return [0.0, 1.0], [1.0, 1.0]
+
+        cross_section = lambda e: 1.0
+        dets = simulate_tof_detectors(
+            _FlatEDF(), cross_section, list(angles), distance, time_bins
+        )
+        out = Path(path)
+        save_tof_hdf5(out, time_bins, dets)
+        return out
 
 
 __all__ = ["ProjectManager"]

@@ -8,6 +8,19 @@ The job manager automatically stages the ``run_manifest.json`` file with
 other outputs.  Passing the manifest path via ``restart`` allows a job to
 resume from recorded metadata.
 
+## Containerized Execution
+
+A reproducible Singularity/Apptainer definition is provided at
+``containers/dpf2.def``.  Build the image and run inside the container:
+
+```bash
+apptainer build dpf2.sif containers/dpf2.def
+apptainer run dpf2.sif python scripts/benchmark_scaling.py --outdir results
+```
+
+Example SLURM and PBS submission scripts are stored in
+``infrastructure/hpc/`` and copied into the image for reference.
+
 ## Example SLURM batch script
 
 ```bash
@@ -52,17 +65,16 @@ python -m dpf2.cli --lab-mode simulate \
     --restart run/run_manifest.json
 ```
 
-## Performance Scaling
+## Benchmark methodology
 
 Strong and weak scaling studies highlight how the solver performs on large clusters.
-
-![Strong scaling](images/strong_scaling.png)
-![Weak scaling](images/weak_scaling.png)
+``scripts/benchmark_scaling.py`` automates a small sweep and computes a simple Roofline
+model, writing results to ``docs/performance/scaling.json``.
 
 To reproduce these measurements on SLURM:
 
 ```bash
-srun -n 8 python scripts/scaling_tests.py --strong --sizes 1 2 4 8
+srun -n 8 python scripts/benchmark_scaling.py --max-workers 8 --outdir docs/performance
 ```
 
 ## HPC CLI Example

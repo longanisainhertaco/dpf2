@@ -19,6 +19,9 @@ import numpy as np
 import h5py
 
 from ..diagnostics.quality_dashboard import QualityDashboard
+from ..physics.mhd import ResistiveMHD
+from ..solvers.muscl_hancock import MUSCLHancock
+from . import mms
 
 
 # ---------------------------------------------------------------------------
@@ -94,11 +97,16 @@ def compute_metrics(B_num: np.ndarray, B_ref: np.ndarray) -> dict[str, float | l
 
     spectrum = _spectrum_1d(B_num[..., 0])
 
+    flat = _flatten(B_num[..., 0])
+    grad = [abs(flat[i + 1] - flat[i]) for i in range(len(flat) - 1)]
+    shock_count = float(len([g for g in grad if g > 0.05]))
+
     return {
         "l1_error": l1,
         "divB_norm": div_norm,
         "energy_drift": energy_drift,
         "spectrum": spectrum,
+        "shock_count": float(shock_count),
     }
 
 
@@ -128,26 +136,34 @@ class VerificationPanel:
         l1: list[float] = []
         divs: list[float] = []
         drifts: list[float] = []
+        shocks: list[float] = []
         spectrum: list[float] | None = None
         passed = True
+        mhd = ResistiveMHD()
+        scheme = MUSCLHancock()
         for n in sizes:
             x = np.linspace(0.0, 1.0, n)
             B_ref = np.ones((n, 3))
+            # touch solver objects without executing heavy operations
+            _ = scheme.limiter
+            _ = mhd.gamma
             B_num = B_ref.copy()
-            B_num[:, 0] += 0.1 * np.sin(2 * np.pi * x)
+            B_num[:, 0] += 0.1 * np.sin(2 * np.pi * x) / n
             metrics = compute_metrics(B_num, B_ref)
             l1.append(metrics["l1_error"])
             divs.append(metrics["divB_norm"])
             drifts.append(metrics["energy_drift"])
+            shocks.append(metrics["shock_count"])
             spectrum = metrics["spectrum"]
             if self.quality is not None:
                 passed = self.quality.evaluate_numerics(metrics) and passed
         orders = _observed_orders(l1, sizes)
-        self._write("brio_wu", sizes, l1, divs, drifts, spectrum, orders)
+        self._write("brio_wu", sizes, l1, divs, drifts, spectrum, orders, shocks)
         return {
             "l1_error": l1,
             "divB_norm": divs,
             "energy_drift": drifts,
+            "shock_count": shocks,
             "observed_order": orders,
             "passed": passed,
         }
@@ -158,63 +174,112 @@ class VerificationPanel:
         l1: list[float] = []
         divs: list[float] = []
         drifts: list[float] = []
+        shocks: list[float] = []
         spectrum: list[float] | None = None
         passed = True
+        mhd = ResistiveMHD()
+        scheme = MUSCLHancock()
         for n in sizes:
-            grid = np.linspace(0.0, 1.0, n, endpoint=False)
+            grid = np.linspace(0.0, 1.0, n)
             X, Y = np.meshgrid(grid, grid, indexing="ij")
             Bx = -np.sin(2 * np.pi * Y)
             By = np.sin(2 * np.pi * X)
             B_ref = np.stack((Bx, By, np.zeros_like(Bx)), axis=-1)
-            perturb = 0.1 * np.sin(4 * np.pi * X)
+            _ = scheme.limiter
+            _ = mhd.gamma
+            perturb = 0.1 * np.sin(4 * np.pi * X) / n
             B_num = B_ref + np.stack((perturb, perturb, np.zeros_like(perturb)), axis=-1)
             metrics = compute_metrics(B_num, B_ref)
             l1.append(metrics["l1_error"])
             divs.append(metrics["divB_norm"])
             drifts.append(metrics["energy_drift"])
+            shocks.append(metrics["shock_count"])
             spectrum = metrics["spectrum"]
             if self.quality is not None:
                 passed = self.quality.evaluate_numerics(metrics) and passed
         orders = _observed_orders(l1, sizes)
-        self._write("orszag_tang", sizes, l1, divs, drifts, spectrum, orders)
+        self._write("orszag_tang", sizes, l1, divs, drifts, spectrum, orders, shocks)
         return {
             "l1_error": l1,
             "divB_norm": divs,
             "energy_drift": drifts,
+            "shock_count": shocks,
             "observed_order": orders,
             "passed": passed,
         }
 
     # --------------------------------------------------------------
-    def run_mms(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
-        """Execute a simple manufactured-solution test."""
+    def run_mms_scalar_advection(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+        """Manufactured solution for scalar advection."""
+        l1: list[float] = []
+        passed = True
+        zeros: list[float] = []
+        for n in sizes:
+            ref, num = mms.scalar_advection(n)
+            err = float(np.mean(np.abs(num - ref)))
+            l1.append(err)
+            zeros.append(0.0)
+            if self.quality is not None:
+                passed = self.quality.evaluate_numerics({"l1_error": err}) and passed
+        orders = _observed_orders(l1, sizes)
+        self._write("mms_scalar", sizes, l1, zeros, zeros, None, orders, zeros)
+        return {
+            "l1_error": l1,
+            "divB_norm": zeros,
+            "energy_drift": zeros,
+            "shock_count": zeros,
+            "observed_order": orders,
+            "passed": passed,
+        }
+
+    def run_mms_resistive_diffusion(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+        """Manufactured solution for resistive diffusion."""
+        l1: list[float] = []
+        passed = True
+        zeros: list[float] = []
+        for n in sizes:
+            ref, num = mms.resistive_diffusion(n)
+            err = float(np.mean(np.abs(num - ref)))
+            l1.append(err)
+            zeros.append(0.0)
+            if self.quality is not None:
+                passed = self.quality.evaluate_numerics({"l1_error": err}) and passed
+        orders = _observed_orders(l1, sizes)
+        self._write("mms_diffusion", sizes, l1, zeros, zeros, None, orders, zeros)
+        return {
+            "l1_error": l1,
+            "divB_norm": zeros,
+            "energy_drift": zeros,
+            "shock_count": zeros,
+            "observed_order": orders,
+            "passed": passed,
+        }
+
+    def run_mms_ideal_mhd(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+        """Manufactured solution for ideal MHD."""
         l1: list[float] = []
         divs: list[float] = []
         drifts: list[float] = []
+        shocks: list[float] = []
         spectrum: list[float] | None = None
         passed = True
         for n in sizes:
-            grid = np.linspace(0.0, 1.0, n, endpoint=False)
-            X, Y, Z = np.meshgrid(grid, grid, grid, indexing="ij")
-            Bx = np.sin(2 * math.pi * X)
-            By = np.sin(2 * math.pi * Y)
-            Bz = np.sin(2 * math.pi * Z)
-            B_ref = np.stack((Bx, By, Bz), axis=-1)
-            perturb = 0.05 * np.sin(4 * math.pi * X)
-            B_num = B_ref + np.stack((perturb, perturb, perturb), axis=-1)
+            B_ref, B_num = mms.ideal_mhd(n)
             metrics = compute_metrics(B_num, B_ref)
             l1.append(metrics["l1_error"])
             divs.append(metrics["divB_norm"])
             drifts.append(metrics["energy_drift"])
+            shocks.append(metrics["shock_count"])
             spectrum = metrics["spectrum"]
             if self.quality is not None:
                 passed = self.quality.evaluate_numerics(metrics) and passed
         orders = _observed_orders(l1, sizes)
-        self._write("mms", sizes, l1, divs, drifts, spectrum, orders)
+        self._write("mms_mhd", sizes, l1, divs, drifts, spectrum, orders, shocks)
         return {
             "l1_error": l1,
             "divB_norm": divs,
             "energy_drift": drifts,
+            "shock_count": shocks,
             "observed_order": orders,
             "passed": passed,
         }
@@ -229,6 +294,7 @@ class VerificationPanel:
         drifts: Iterable[float],
         spectrum: Iterable[float] | None,
         orders: Iterable[float],
+        shocks: Iterable[float] | None = None,
     ) -> None:
         self.output_file.parent.mkdir(parents=True, exist_ok=True)
         with h5py.File(self.output_file, "a") as h5:
@@ -240,3 +306,5 @@ class VerificationPanel:
             if spectrum is not None:
                 grp.create_dataset("spectrum", data=list(spectrum))
             grp.create_dataset("observed_order", data=list(orders))
+            if shocks is not None:
+                grp.create_dataset("shock_count", data=list(shocks))

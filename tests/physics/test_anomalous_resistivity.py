@@ -3,6 +3,8 @@ import pytest
 
 from dpf2.hall_mhd_solver import HallMHDSolver
 from dpf2.physics.lower_hybrid_drift import LowerHybridDrift
+from dpf2.physics.anomalous_resistivity import SpectralResistivity
+from dpf2.diagnostics.modes import lh_azimuthal_power, log_impedance_ratio
 from dpf2.diagnostics.quality_dashboard import QualityDashboard
 
 
@@ -36,11 +38,13 @@ def test_quality_dashboard_logs_lh_metrics(tmp_path):
         lower_hybrid_power=2.0,
         lower_hybrid_phase_velocity=3.0,
         plasma_impedance=0.5,
+        impedance_ratio=2.0,
     )
     entry = dash.history[-1]
     assert entry["plasma_impedance"] == pytest.approx(0.5)
     assert entry["lower_hybrid_power"] == pytest.approx(2.0)
     assert entry["lower_hybrid_phase_velocity"] == pytest.approx(3.0)
+    assert entry["impedance_ratio"] == pytest.approx(2.0)
 
 
 def test_fixed_resistivity_does_not_trigger_spike():
@@ -51,4 +55,26 @@ def test_fixed_resistivity_does_not_trigger_spike():
     J = np.ones((1, 3))
     solver.compute_anomalous_resistivity(J)
     assert solver.last_voltage_spike == 0.0
+
+
+def test_wave_power_voltage_spike_eta_correlation():
+    lhd = LowerHybridDrift(B=1.0, n_i=1e19)
+    model = SpectralResistivity(lhd, scale=0.2)
+    solver = HallMHDSolver(lower_hybrid_drift=model)
+
+    N = 8
+    theta = np.linspace(0, 2 * np.pi, N, endpoint=False)
+    mag = 1 + 0.5 * np.cos(4 * theta)
+    J = np.stack((mag, np.zeros(N), np.zeros(N)), axis=-1)
+
+    eta = solver.compute_anomalous_resistivity(J)
+    magJ = np.linalg.norm(J, axis=-1)
+    power = lh_azimuthal_power(magJ, lhd.frequency())
+    expected_eta = model.scale * power + model.floor
+    assert np.allclose(eta, expected_eta)
+    expected_spike = np.max(eta * magJ)
+    assert solver.last_voltage_spike == pytest.approx(expected_spike)
+    assert solver.last_lh_power == pytest.approx(power)
+    ratio = log_impedance_ratio(eta, 1.0, 1.0, 1.0)
+    assert ratio.shape == eta.shape
 

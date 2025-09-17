@@ -22,6 +22,7 @@ __all__ = [
     "azimuthal_decomposition",
     "growth_rate",
     "lh_azimuthal_power",
+    "impedance_ratio",
     "log_impedance_ratio",
 ]
 
@@ -199,6 +200,18 @@ def lh_azimuthal_power(field: np.ndarray, omega_lh: float, axis: int = -1) -> fl
     return float(spectrum[m])
 
 
+def impedance_ratio(
+    eta_plasma: np.ndarray, ne: np.ndarray, Te: np.ndarray, Z: float | np.ndarray
+) -> np.ndarray:
+    """Return plasma impedance relative to the Spitzer prediction."""
+
+    from dpf2.hall_mhd_solver import spitzer_resistivity
+
+    eta_s = spitzer_resistivity(ne, Te, Z)
+    eta_p = np.asarray(eta_plasma)
+    return np.maximum(eta_p, 1e-30) / np.maximum(eta_s, 1e-30)
+
+
 def log_impedance_ratio(
     eta_plasma: np.ndarray,
     ne: np.ndarray,
@@ -213,8 +226,5 @@ def log_impedance_ratio(
     convenience.
     """
 
-    from dpf2.hall_mhd_solver import spitzer_resistivity
-
-    eta_s = spitzer_resistivity(ne, Te, Z)
-    eta_p = np.asarray(eta_plasma)
-    return np.log10(np.maximum(eta_p, 1e-30) / np.maximum(eta_s, 1e-30))
+    ratio = impedance_ratio(eta_plasma, ne, Te, Z)
+    return np.log10(ratio)

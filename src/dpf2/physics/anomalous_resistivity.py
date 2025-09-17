@@ -21,7 +21,7 @@ Example
 """
 
 from dataclasses import dataclass
-from typing import Any, Tuple
+from typing import Tuple
 import numpy as np
 
 from ..diagnostics.modes import azimuthal_mode_spectrum
@@ -46,15 +46,21 @@ class SpectralResistivity:
     lhd: LowerHybridDrift
     scale: float = 1.0
     floor: float = 0.0
+    last_power: float = 0.0
+
+    def power(self) -> float:
+        """Return the last computed lower-hybrid wave power."""
+
+        return float(self.last_power)
 
     def __call__(self, J: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Return an anomalous resistivity estimate for ``J``.
+        """Return anomalous resistivity ``η`` and electric field ``E``.
 
         The magnitude of ``J`` is decomposed into azimuthal modes and the
         mode closest to the lower-hybrid frequency is used as a proxy for the
         turbulent wave power.  The resistivity is ``scale`` times this power
-        with ``floor`` enforcing a minimum value.  A zero electric-field
-        contribution is returned so the object is compatible with
+        with ``floor`` enforcing a minimum value.  The corresponding resistive
+        electric field ``E = η J`` is returned for compatibility with
         :meth:`HallMHDSolver.compute_anomalous_resistivity`.
         """
 
@@ -69,12 +75,19 @@ class SpectralResistivity:
         except Exception:  # pragma: no cover - very small ``numpy`` stub
             power = 0.0
 
+        self.last_power = power
         eta = self.scale * power + self.floor
         try:  # pragma: no cover - real ``numpy`` path
             eta_field = np.broadcast_to(eta, J.shape[:-1])
         except Exception:  # pragma: no cover - minimal stub fallback
             eta_field = np.ones(J.shape[:-1]) * eta
-        return eta_field, np.zeros_like(J)
+        try:  # pragma: no cover - real ``numpy`` path
+            E_field = eta_field[..., None] * J
+        except Exception:  # pragma: no cover - minimal stub fallback
+            E_field = np.zeros_like(J)
+            for idx in range(J.shape[-1]):
+                E_field[..., idx] = eta_field * J[..., idx]
+        return eta_field, E_field
 
 
 __all__ = ["SpectralResistivity"]
