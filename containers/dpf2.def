@@ -1,16 +1,27 @@
 Bootstrap: docker
 From: python:3.11-slim
 
-%post
-    apt-get update && apt-get install -y --no-install-recommends \
-        build-essential git && rm -rf /var/lib/apt/lists/*
-    pip install --no-cache-dir -r /requirements.txt
+%labels
+    Author DPF2
 
 %files
-    requirements.txt /requirements.txt
+    requirements.txt /opt/dpf2/requirements.txt
+    pyproject.toml /opt/dpf2/pyproject.toml
+    src /opt/dpf2/src
+    scripts /opt/dpf2/scripts
+    infrastructure/hpc /opt/dpf2/hpc
+
+%post
+    set -e
+    apt-get update && apt-get install -y --no-install-recommends \
+        build-essential git libopenmpi-dev openmpi-bin && \
+        rm -rf /var/lib/apt/lists/*
+    python -m pip install --no-cache-dir -r /opt/dpf2/requirements.txt
+    python -m pip install --no-cache-dir /opt/dpf2
 
 %environment
     export OMP_NUM_THREADS=1
+    export PATH=/opt/dpf2/scripts:$PATH
 
 %runscript
     exec python "$@"

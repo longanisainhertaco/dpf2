@@ -6,3 +6,6 @@ The benchmark script produces plots (e.g., `strong_scaling.png`, `weak_scaling.p
 `io_benchmark.png`, and `roofline.png`) along with a `run_manifest.json` file that
 captures the container hash and compiler flags. These files are generated at runtime
 and ignored by version control.
+
+`scripts/benchmark_scaling.py` records lightweight strong/weak scaling and Roofline
+metrics, writing a `scaling.json` summary for quick regression tests.
