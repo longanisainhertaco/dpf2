@@ -22,12 +22,25 @@ from .eos import RealGasEOS
 from .fusion import bosch_hale_dd
 from .hall_mhd_solver import HallMHDSolver, MHDState
 from .physics import PicDriver
+from .physics.inductance import (
+    CoaxialGeometry,
+    dynamic_inductance,
+    dynamic_inductance_with_derivatives,
+)
 from .diagnostics import (
     plasma_beta,
     alfven_mach_number,
     magnetic_reynolds_number,
     lundquist_number,
 )
+
+try:  # pragma: no cover - optional constants
+    from scipy.constants import mu_0, k as k_B, e as q_e, m_p
+except Exception:  # pragma: no cover
+    mu_0 = 4e-7 * np.pi
+    k_B = 1.380649e-23
+    q_e = 1.602176634e-19
+    m_p = 1.67262192369e-27
 
 __all__ = [
     "PinchModelBase",
@@ -36,6 +49,7 @@ __all__ = [
     "SemiAnalyticPinchModel",
     "MHDPinchModel",
     "HybridPinchModel",
+    "SnowplowPinchModel",
 ]
 
 
@@ -54,6 +68,7 @@ class PinchResult:
     lundquist: np.ndarray | None = None
     voltage: np.ndarray | None = None
     current: np.ndarray | None = None
+    rayleigh_taylor_growth: np.ndarray | None = None
 
 
 class PinchModelBase:
@@ -162,6 +177,153 @@ class SemiAnalyticPinchModel(PinchModelBase):
             alfven_mach=alfven,
             magnetic_reynolds=rm,
             lundquist=s,
+        )
+
+
+class SnowplowPinchModel(PinchModelBase):
+    """Two-stage slug model with Rayleigh-Taylor diagnostics."""
+
+    def __init__(
+        self,
+        geometry: CoaxialGeometry | None = None,
+        fill_pressure: float = 1.5e3,
+        fill_temperature: float = 300.0,
+        species_mass: float = 2.0 * m_p,
+        mode_number: int = 12,
+        resistivity: float = 5e-6,
+    ) -> None:
+        self.geometry = geometry or CoaxialGeometry(
+            anode_radius=8.0e-3, cathode_radius=4.0e-2, anode_length=0.18
+        )
+        self.fill_pressure = fill_pressure
+        self.fill_temperature = fill_temperature
+        self.species_mass = species_mass
+        self.mode_number = mode_number
+        self.resistivity = resistivity
+        self._annulus_area = np.pi * (
+            self.geometry.cathode_radius**2 - self.geometry.anode_radius**2
+        )
+        self._rho0 = (
+            fill_pressure * species_mass / (k_B * max(fill_temperature, 1.0))
+        )
+        self._mass_floor = 1e-9
+
+    def run(self, time: Iterable[float], current: Iterable[float]) -> PinchResult:
+        t = np.asarray(time)
+        I = np.asarray(current)
+        if t.ndim != 1 or I.ndim != 1 or len(t) != len(I):
+            raise ValueError("time and current must be one-dimensional arrays of equal length")
+
+        geom = self.geometry
+        radius = np.zeros_like(t)
+        axial = np.zeros_like(t)
+        temperature = np.zeros_like(t)
+        pressure = np.zeros_like(t)
+        beta_hist = np.zeros_like(t)
+        alfven_hist = np.zeros_like(t)
+        rm_hist = np.zeros_like(t)
+        s_hist = np.zeros_like(t)
+        energy_hist = np.zeros_like(t)
+        rt_hist = np.zeros_like(t)
+        voltage_hist = np.zeros_like(t)
+
+        r = geom.cathode_radius
+        z = 0.0
+        vr = 0.0
+        vz = 0.0
+        mass = self._mass_floor
+        stage = "axial"
+        neutron_yield = 0.0
+        rt_integral = 0.0
+
+        for k, tk in enumerate(t):
+            I_k = float(I[k])
+            r_eff = max(r, 0.5 * geom.anode_radius)
+            volume = max(np.pi * r_eff**2 * geom.pinch_span, 1e-12)
+            density = mass / volume
+            n_i = max(density / self.species_mass, 1e6)
+            B = mu_0 * I_k / (2.0 * np.pi * max(r_eff, 1e-4))
+            magnetic_pressure = B**2 / (2.0 * mu_0)
+            dynamic_pressure = 0.5 * density * (vr**2 + vz**2)
+            pressure_k = magnetic_pressure + dynamic_pressure + self.fill_pressure
+            T_K = max(pressure_k / (n_i * k_B), 1.0)
+            T_keV = T_K * k_B / (1e3 * q_e)
+            reactivity = bosch_hale_dd(max(T_keV, 1e-3))
+            rate = 0.25 * n_i**2 * reactivity
+            if k + 1 < len(t):
+                dt = t[k + 1] - tk
+            else:
+                dt = (t[k] - t[k - 1]) if k > 0 else 0.0
+            neutron_yield += rate * volume * max(dt, 0.0)
+
+            Lp, dL_dz, dL_dr = dynamic_inductance_with_derivatives(z, r_eff, geom)
+            dL_dt = dL_dz * vz + dL_dr * vr
+            voltage_hist[k] = -I_k * dL_dt
+            energy_hist[k] = 0.5 * Lp * I_k**2
+
+            radius[k] = r
+            axial[k] = z
+            temperature[k] = T_K
+            pressure[k] = pressure_k
+            beta_hist[k] = plasma_beta(n_i, T_K, B)
+            v_char = float(np.sqrt(vr**2 + vz**2))
+            alfven_hist[k] = alfven_mach_number(v_char, B, n_i)
+            sigma = 1.0 / max(self.resistivity, 1e-8)
+            rm_hist[k] = magnetic_reynolds_number(max(abs(v_char), 1e-9), r_eff, sigma)
+            s_hist[k] = lundquist_number(B, n_i, r_eff, sigma)
+            rt_hist[k] = rt_integral
+
+            if k == len(t) - 1:
+                continue
+
+            dt = t[k + 1] - tk
+            if dt <= 0.0:
+                continue
+
+            if stage == "axial" and z < geom.anode_length:
+                dm_dt = self._rho0 * self._annulus_area * max(vz, 0.0)
+                F_mag = 0.5 * I_k**2 * geom.axial_gradient
+                F_back = self.fill_pressure * self._annulus_area
+                accel = (F_mag - F_back - vz * dm_dt) / max(mass, self._mass_floor)
+                vz_new = vz + accel * dt
+                z += 0.5 * (vz + vz_new) * dt
+                mass += dm_dt * dt
+                vz = vz_new
+                if z >= geom.anode_length:
+                    z = geom.anode_length
+                    stage = "radial"
+                    vz = 0.0
+            else:
+                surface = 2.0 * np.pi * r_eff * geom.pinch_span
+                F_mag = 0.5 * I_k**2 * (-geom.radial_gradient_scale / r_eff)
+                F_back = self.fill_pressure * surface
+                accel = (F_mag - F_back) / max(mass, self._mass_floor)
+                vr_new = vr + accel * dt
+                r += 0.5 * (vr + vr_new) * dt
+                r = max(r, 0.4 * geom.anode_radius)
+                if r <= 0.4 * geom.anode_radius:
+                    vr_new = 0.0
+                vr = vr_new
+                if accel < 0.0:
+                    k_mode = self.mode_number / max(r, geom.anode_radius * 0.4)
+                    gamma = np.sqrt(abs(accel) * k_mode)
+                    rt_integral += gamma * dt
+
+        return PinchResult(
+            t,
+            radius,
+            temperature,
+            pressure,
+            float(neutron_yield),
+            axial_position=axial,
+            energy=energy_hist,
+            beta=beta_hist,
+            alfven_mach=alfven_hist,
+            magnetic_reynolds=rm_hist,
+            lundquist=s_hist,
+            voltage=voltage_hist,
+            current=I,
+            rayleigh_taylor_growth=rt_hist,
         )
 
 
