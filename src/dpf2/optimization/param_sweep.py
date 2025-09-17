@@ -14,7 +14,7 @@ warning is emitted so that callers can decide how to handle missing results.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Any, Dict, Iterable, Tuple
 import warnings
 
 from ..core.config import DPFConfig
@@ -28,8 +28,8 @@ class OutOfDomainError(Exception):
 # A prediction consists of a value and its (lo, hi) conformal band
 Prediction = Tuple[float, Tuple[float, float]]
 
-# Each sweep result stores the yield and pinch time predictions
-SweepResult = Dict[str, Prediction]
+# Each sweep result stores predictions and optional guardrail metrics
+SweepResult = Dict[str, Any]
 
 
 def run_parametric_sweep(
@@ -68,7 +68,8 @@ def run_parametric_sweep(
     Dict[float, SweepResult]
         Mapping of parameter values to prediction dictionaries.  Each
         dictionary contains entries ``{"yield": (y, (lo, hi)), "pinch_time":
-        (p, (lo, hi))}``.
+        (p, (lo, hi)), "yield_ood": d_y, "pinch_time_ood": d_p}`` where the
+        ``*_ood`` keys hold Mahalanobis distances from the training domain.
     """
 
     model_dir = Path(__file__).resolve().parents[2] / "ai" / "surrogates"
@@ -105,8 +106,8 @@ def run_parametric_sweep(
     results: Dict[float, SweepResult] = {}
     for val in values:
         try:
-            y_pred, y_band = y_model.predict_with_uncertainty(val)
-            p_pred, p_band = p_model.predict_with_uncertainty(val)
+            y_pred, y_band, y_dist = y_model.predict_with_guardrails(val)
+            p_pred, p_band, p_dist = p_model.predict_with_guardrails(val)
         except OutOfDomainError as exc:
             warnings.warn(str(exc), OptimizationWarning, stacklevel=2)
             continue
@@ -114,6 +115,8 @@ def run_parametric_sweep(
         results[float(val)] = {
             "yield": (float(y_pred), (float(y_band[0]), float(y_band[1]))),
             "pinch_time": (float(p_pred), (float(p_band[0]), float(p_band[1]))),
+            "yield_ood": float(y_dist),
+            "pinch_time_ood": float(p_dist),
         }
 
     return results
@@ -137,6 +140,8 @@ def compute_sweep_metrics(
     for val, preds in results.items():
         y_pred, y_band = preds.get("yield", (0.0, (0.0, 0.0)))
         p_pred, p_band = preds.get("pinch_time", (0.0, (0.0, 0.0)))
+        y_ood = preds.get("yield_ood", 0.0)
+        p_ood = preds.get("pinch_time_ood", 0.0)
         metric: Dict[str, float] = {
             "yield": float(y_pred),
             "pinch_time": float(p_pred),
@@ -144,6 +149,8 @@ def compute_sweep_metrics(
             "yield_hi": float(y_band[1]),
             "pinch_time_lo": float(p_band[0]),
             "pinch_time_hi": float(p_band[1]),
+            "yield_ood": float(y_ood),
+            "pinch_time_ood": float(p_ood),
             "efficiency": 0.0,
         }
 
@@ -169,13 +176,19 @@ def plot_metric_overlay(
     yields = [metrics[v]["yield"] for v in vals]
     pinch = [metrics[v].get("pinch_time", 0.0) for v in vals]
     effs = [metrics[v].get("efficiency", 0.0) for v in vals]
+    y_lo = [metrics[v].get("yield_lo", metrics[v]["yield"]) for v in vals]
+    y_hi = [metrics[v].get("yield_hi", metrics[v]["yield"]) for v in vals]
+    p_lo = [metrics[v].get("pinch_time_lo", metrics[v].get("pinch_time", 0.0)) for v in vals]
+    p_hi = [metrics[v].get("pinch_time_hi", metrics[v].get("pinch_time", 0.0)) for v in vals]
 
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 9))
 
     axes[0].plot(vals, yields, marker="o")
+    axes[0].fill_between(vals, y_lo, y_hi, color="C0", alpha=0.2)
     axes[0].set_ylabel("Yield")
 
     axes[1].plot(vals, pinch, marker="^")
+    axes[1].fill_between(vals, p_lo, p_hi, color="C1", alpha=0.2)
     axes[1].set_ylabel("Pinch Time")
 
     axes[2].plot(vals, effs, marker="s")
@@ -198,11 +211,22 @@ def plot_yield_vs_S(metrics: Dict[float, Dict[str, float]], path: str | Path) ->
 
     import matplotlib.pyplot as plt
 
-    pairs = sorted((m.get("S", 0.0), m.get("yield", 0.0)) for m in metrics.values())
+    pairs = sorted(
+        (
+            m.get("S", 0.0),
+            m.get("yield", 0.0),
+            m.get("yield_lo", m.get("yield", 0.0)),
+            m.get("yield_hi", m.get("yield", 0.0)),
+        )
+        for m in metrics.values()
+    )
     s_vals = [p[0] for p in pairs]
     y_vals = [p[1] for p in pairs]
+    y_lo = [p[2] for p in pairs]
+    y_hi = [p[3] for p in pairs]
     plt.figure()
     plt.plot(s_vals, y_vals, marker="o")
+    plt.fill_between(s_vals, y_lo, y_hi, color="C0", alpha=0.2)
     plt.xlabel("S")
     plt.ylabel("Yield")
     path = Path(path)

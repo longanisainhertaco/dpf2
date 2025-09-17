@@ -50,8 +50,13 @@ def train_torch_model(
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = torch.nn.MSELoss()
 
-    for _ in range(epochs):
+    features: list[np.ndarray] = []
+    targets: list[np.ndarray] = []
+    for epoch in range(epochs):
         for xb, yb in dataloader:
+            if epoch == 0:
+                features.append(xb.detach().cpu().numpy())
+                targets.append(yb.detach().cpu().numpy())
             optimizer.zero_grad()
             pred = model(xb)
             loss = loss_fn(pred, yb)
@@ -68,6 +73,21 @@ def train_torch_model(
             count += len(xb)
     mse = total_loss / max(count, 1)
 
+    # Domain statistics --------------------------------------------------
+    x_all = np.concatenate(features, axis=0) if features else np.empty((0, 1))
+    y_all = np.concatenate(targets, axis=0) if targets else np.empty((0, 1))
+    feature_mean = x_all.mean(axis=0) if x_all.size else np.zeros(1)
+    feature_cov = np.cov(x_all, rowvar=False) if x_all.size else np.zeros((1, 1))
+    cov_inv = np.linalg.pinv(feature_cov) if x_all.size else np.zeros((1, 1))
+    diff = x_all - feature_mean
+    distances = np.einsum("ij,jk,ik->i", diff, cov_inv, diff) if x_all.size else np.zeros(1)
+    mahal_threshold = float(np.quantile(distances, 0.99)) if distances.size else 0.0
+
+    with torch.no_grad():
+        preds = model(torch.as_tensor(x_all, dtype=torch.float32)) if x_all.size else torch.zeros_like(torch.as_tensor(y_all))
+    resid = np.abs(y_all - preds.cpu().numpy()) if x_all.size else np.zeros(1)
+    quantile = float(np.quantile(resid, 0.95)) if resid.size else 0.0
+
     if metadata is not None:
         metadata.ml_metadata = MLMetadata(
             model=type(model).__name__,
@@ -77,7 +97,15 @@ def train_torch_model(
         )
         metadata.ml_result = MLResult(model_error=mse)
 
-    return model, {"mse": mse}
+    metrics = {
+        "mse": mse,
+        "feature_mean": feature_mean.tolist(),
+        "feature_cov": feature_cov.tolist() if feature_cov.ndim == 2 else [float(feature_cov)],
+        "mahalanobis_threshold": mahal_threshold,
+        "quantile": quantile,
+    }
+
+    return model, metrics
 
 
 __all__ = ["load_numpy_dataset", "train_torch_model"]
