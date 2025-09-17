@@ -1,8 +1,8 @@
 """User interface panels."""
 
 from .verification_panel import VerificationPanelUI
-from .regime_dashboard import RegimeDashboard
 
+from .uq_panel import UQPanelUI
 
-__all__ = ["VerificationPanelUI", "RegimeDashboard"]
+__all__ = ["VerificationPanelUI", "UQPanelUI"]
 
