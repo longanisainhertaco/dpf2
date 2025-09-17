@@ -49,6 +49,12 @@ class HallMHD(ResistiveMHD):
     back_emf: float = 0.0
     beam_velocity: float = 0.0
 
+    # optional lower-hybrid drift resistivity model
+    lhdi_resistivity: LHDIResistivity | None = None
+    plasma_impedance: float = 0.0
+    last_voltage_spike: float = 0.0
+    last_lh_power: float = 0.0
+
     # optional radiation loss model; when ``None`` no radiative cooling is applied
     radiation_model: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray] | None = None
 
@@ -170,6 +176,29 @@ class HallMHD(ResistiveMHD):
             amp_sum = float(amp)
         emf = amp_sum
         self.beam_velocity = abs(amp_sum)
+
+        if self.lhdi_resistivity is not None:
+            try:
+                J = np.asarray(instability_amp, dtype=float)
+                if J.ndim == 1:
+                    J = J[None, :]
+                eta, E = self.lhdi_resistivity(J)
+                self.last_lh_power = getattr(self.lhdi_resistivity, "power")()
+                eta_spitzer = self.eta
+                eta_total = eta + eta_spitzer
+                self.plasma_impedance = float(np.max(eta_total))
+                try:
+                    magJ = np.linalg.norm(J, axis=-1)
+                except Exception:  # pragma: no cover - stub fallback
+                    magJ = np.sum(np.abs(J), axis=-1)
+                if np.any(eta > eta_spitzer):
+                    self.last_voltage_spike = float(np.max(eta * magJ))
+                else:
+                    self.last_voltage_spike = 0.0
+            except Exception:  # pragma: no cover - minimal stub
+                self.last_voltage_spike = 0.0
+                self.plasma_impedance = self.eta
+                self.last_lh_power = 0.0
 
         # Store plasma feedback for the circuit solver.  ``emf`` represents
         # only additional plasma-induced voltages beyond the inductance change

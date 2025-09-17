@@ -54,6 +54,7 @@ class QualityDashboard:
         lower_hybrid_power: float | None = None,
         lower_hybrid_phase_velocity: float | None = None,
         plasma_impedance: float | None = None,
+        impedance_ratio: float | None = None,
         divergence_error: float = 0.0,
         energy_drift: float = 0.0,
         hall_active: bool | None = None,
@@ -93,6 +94,8 @@ class QualityDashboard:
             entry["lower_hybrid_phase_velocity"] = lower_hybrid_phase_velocity
         if plasma_impedance is not None:
             entry["plasma_impedance"] = plasma_impedance
+        if impedance_ratio is not None:
+            entry["impedance_ratio"] = impedance_ratio
         if hall_active is not None:
             entry["hall_active"] = hall_active
         if electron_inertia_active is not None:
