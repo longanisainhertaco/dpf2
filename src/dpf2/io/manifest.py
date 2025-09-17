@@ -1,6 +1,7 @@
 from pathlib import Path
 import hashlib
-from typing import Mapping
+import json
+from typing import Mapping, Sequence, Mapping as MappingType
 import logging
 
 try:  # pragma: no cover - optional dependency
@@ -86,4 +87,30 @@ def write_hdf5_dataset_manifest(
                 grp.attrs[key] = value
 
 
-__all__ = ["capture_dataset_metadata", "write_hdf5_dataset_manifest"]
+def write_batch_manifest(
+    output_dir: str | Path, runs: Sequence[MappingType[str, object]]
+) -> Path:
+    """Write a manifest capturing run-to-run jitter variations.
+
+    Parameters
+    ----------
+    output_dir:
+        Directory where the manifest should be written.
+    runs:
+        Sequence describing each executed run. Each entry is serialised as-is
+        and typically includes sampled parameter values and RNG seeds.
+    """
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "batch_manifest.json"
+    payload = {"runs": list(runs)}
+    path.write_text(json.dumps(payload, indent=2))
+    return path
+
+
+__all__ = [
+    "capture_dataset_metadata",
+    "write_hdf5_dataset_manifest",
+    "write_batch_manifest",
+]

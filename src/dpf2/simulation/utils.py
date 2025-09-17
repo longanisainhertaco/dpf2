@@ -596,3 +596,36 @@ class SimulationState:
             return normal(0.0, vth, size=(n, 3))
         except TypeError:
             return normal(size=(n, 3)) * vth
+
+
+def apply_jitter(
+    nominal: float,
+    *,
+    distribution: str = "normal",
+    std: float = 0.0,
+    relative: bool = True,
+    rng: np.random.Generator | None = None,
+) -> float:
+    """Return ``nominal`` perturbed by a jitter distribution.
+
+    Parameters
+    ----------
+    nominal:
+        Baseline value to perturb.
+    distribution:
+        ``"normal"`` or ``"uniform"``.
+    std:
+        Standard deviation (fractional if ``relative`` else absolute).
+    relative:
+        When ``True`` the jitter scale is interpreted relative to ``nominal``.
+    rng:
+        Optional :class:`numpy.random.Generator` for reproducibility.
+    """
+
+    rng = rng or np.random.default_rng()
+    sigma = std * (nominal if relative else 1.0)
+    if sigma == 0.0:
+        return float(nominal)
+    if distribution == "uniform":
+        return float(rng.uniform(nominal - sigma, nominal + sigma))
+    return float(rng.normal(nominal, sigma))

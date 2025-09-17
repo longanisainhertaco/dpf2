@@ -2,14 +2,47 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace, field
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Literal, Tuple
 
+import numpy as np
 from pydantic import ValidationError
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from ..exceptions import ConfigurationError
+
+
+@pydantic_dataclass
+class JitterDistribution:
+    """Description of a stochastic perturbation on a scalar parameter."""
+
+    distribution: Literal["normal", "uniform"] = "normal"
+    std: float = 0.0
+
+    def sample(self, rng: np.random.Generator, nominal: float, *, relative: bool = True) -> float:
+        """Return a jittered value around ``nominal``."""
+        import random as _random
+
+        sigma = self.std * (nominal if relative else 1.0)
+        if sigma == 0.0:
+            return float(nominal)
+        if self.distribution == "uniform":
+            if hasattr(rng, "uniform"):
+                return float(rng.uniform(nominal - sigma, nominal + sigma))
+            return float(_random.uniform(nominal - sigma, nominal + sigma))
+        if hasattr(rng, "normal"):
+            return float(rng.normal(nominal, sigma))
+        return float(_random.gauss(nominal, sigma))
+
+
+@pydantic_dataclass
+class JitterConfig:
+    """Collections of jitter distributions for common parameters."""
+
+    voltage: JitterDistribution = field(default_factory=JitterDistribution)
+    pressure: JitterDistribution = field(default_factory=JitterDistribution)
+    switch_timing: JitterDistribution = field(default_factory=JitterDistribution)
 
 
 @pydantic_dataclass
@@ -30,10 +63,9 @@ class DPFConfig:
     cfl_number: float = 0.5
     end_time: float = 10e-6
     geometry: Dict[str, Any] | None = None
-    # Hooks for neutral gas puffing and plasma–material interaction
-    nozzle_geometry: Dict[str, Any] | None = None
-    puff_timing: Dict[str, float] | None = None
-    material_surfaces: Dict[str, Any] | None = None
+
+    jitter: JitterConfig = field(default_factory=JitterConfig)
+
 
     @classmethod
     def from_file(cls, path: str | Path) -> "DPFConfig":
@@ -69,6 +101,17 @@ class DPFConfig:
         if not isinstance(data, dict):
             raise ConfigurationError(
                 f"Configuration file {file_path} did not contain a JSON object"
+            )
+
+        # Pydantic's dataclass wrapper does not recursively coerce nested
+        # dataclasses, so construct the jitter configuration explicitly when
+        # loading from a dictionary.
+        if "jitter" in data and isinstance(data["jitter"], dict):
+            j = data["jitter"]
+            data["jitter"] = JitterConfig(
+                voltage=JitterDistribution(**j.get("voltage", {})),
+                pressure=JitterDistribution(**j.get("pressure", {})),
+                switch_timing=JitterDistribution(**j.get("switch_timing", {})),
             )
 
         try:
@@ -116,3 +159,34 @@ class DPFConfig:
                 f"Error writing configuration to {file_path}: {e}"
             ) from e
         return file_path
+
+    # ------------------------------------------------------------------
+    def apply_jitter(
+        self, rng: np.random.Generator | None = None
+    ) -> Tuple["DPFConfig", Dict[str, float]]:
+        """Return a new config with jittered parameters.
+
+        The returned dictionary contains the sampled values for each jittered
+        field (``voltage``, ``pressure`` and ``switch_timing``) so callers can
+        record them in manifests.
+        """
+
+        rng = rng or np.random.default_rng()
+        cfg = replace(self)
+
+        jittered: Dict[str, float] = {}
+
+        cfg.charging_voltage = self.jitter.voltage.sample(
+            rng, self.charging_voltage
+        )
+        jittered["voltage"] = cfg.charging_voltage
+
+        cfg.initial_pressure = self.jitter.pressure.sample(
+            rng, self.initial_pressure
+        )
+        jittered["pressure"] = cfg.initial_pressure
+
+        jittered["switch_timing"] = self.jitter.switch_timing.sample(
+            rng, 0.0, relative=False
+        ) * 1e-9
+        return cfg, jittered
