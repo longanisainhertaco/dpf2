@@ -1,0 +1,35 @@
+Metadata-Version: 2.4
+Name: dpf2
+Version: 0.1.0
+Summary: Minimal Dense Plasma Focus simulator
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: matplotlib
+Requires-Dist: numba
+Requires-Dist: numpy
+Requires-Dist: pydantic
+Requires-Dist: scipy
+Requires-Dist: sympy
+Requires-Dist: tqdm
+Provides-Extra: server
+Requires-Dist: flask; extra == "server"
+Requires-Dist: flask-sock; extra == "server"
+Requires-Dist: werkzeug; extra == "server"
+Requires-Dist: fastapi; extra == "server"
+Requires-Dist: uvicorn; extra == "server"
+Requires-Dist: python-multipart; extra == "server"
+Provides-Extra: warpx
+Requires-Dist: pywarpx; extra == "warpx"
+Requires-Dist: amrex_solver; extra == "warpx"
+Requires-Dist: amrex; extra == "warpx"
+Requires-Dist: adios2; extra == "warpx"
+Requires-Dist: picmi; extra == "warpx"
+Requires-Dist: h5py>=3.7.0; extra == "warpx"
+Provides-Extra: telemetry
+Requires-Dist: opencensus; extra == "telemetry"
+Provides-Extra: radiation
+Requires-Dist: amrex; extra == "radiation"
+Requires-Dist: adios2; extra == "radiation"
+Provides-Extra: diagnostics
+Requires-Dist: pyevtk; extra == "diagnostics"
+Dynamic: license-file
