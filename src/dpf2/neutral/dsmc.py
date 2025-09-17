@@ -79,6 +79,17 @@ class DSMC:
     cross_sections: np.ndarray
     knudsen_number: float = 1.0
     velocities: np.ndarray | None = None
+    # Parameters for a very small gas puff model.  The ``puff_rate``
+    # represents the increase in number density per second while the puff
+    # is active between ``puff_start`` and ``puff_end``.  These additions are
+    # intentionally lightweight – the tests only exercise basic coupling
+    # behaviour rather than a full DSMC implementation.
+    puff_start: float = 0.0
+    puff_end: float = 0.0
+    puff_rate: float = 0.0
+    # Current estimate of the neutral density used for hybrid coupling
+    # with a fluid description of the plasma.
+    density: float | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover - simple validation
         _validate_cross_sections(self.cross_sections)
@@ -88,11 +99,22 @@ class DSMC:
             self.velocities = np.zeros(1)
         else:
             self.velocities = np.array(self.velocities)
+        # Initialise the density using the kinetic relationship.  This is
+        # subsequently evolved by the simple puff/ionisation model in
+        # :meth:`run`.
+        self.density = self.compute_neutral_density()
 
     # ------------------------------------------------------------------
     # Cross‑section handling
     @classmethod
-    def from_lxcat(cls, species: str, dataset_id: str, knudsen_number: float = 1.0, velocities: Iterable[float] | None = None) -> "DSMC":
+    def from_lxcat(
+        cls,
+        species: str,
+        dataset_id: str,
+        knudsen_number: float = 1.0,
+        velocities: Iterable[float] | None = None,
+        **kwargs,
+    ) -> "DSMC":
         """Create a solver loading cross sections from a dataset.
 
         The :mod:`dpf2.io.datasets` manifest acts as a light‑weight
@@ -105,7 +127,12 @@ class DSMC:
         except KeyError as exc:  # pragma: no cover - configuration error
             raise ValueError(f"unknown LXCat dataset {dataset_id!r} for {species!r}") from exc
         table = load_lxcat_table(Path(rel))
-        return cls(table, knudsen_number=knudsen_number, velocities=None if velocities is None else np.array(list(velocities)))
+        return cls(
+            table,
+            knudsen_number=knudsen_number,
+            velocities=None if velocities is None else np.array(list(velocities)),
+            **kwargs,
+        )
 
     # ------------------------------------------------------------------
     # Core DSMC algorithm
@@ -131,10 +158,31 @@ class DSMC:
                 self.velocities[i], self.velocities[j] = self.velocities[j], self.velocities[i]
 
     # ------------------------------------------------------------------
-    def run(self, dt: float) -> float:
-        """Advance the particle system by ``dt`` seconds and return density."""
+    def gas_source(self, t: float) -> float:
+        """Return the time dependent gas puff source term."""
+        if self.puff_start <= t <= self.puff_end:
+            return self.puff_rate
+        return 0.0
+
+    def run(self, dt: float, *, t: float = 0.0, plasma_density: float = 0.0, ionization_rate: float = 1.0) -> float:
+        """Advance the particle system by ``dt`` seconds and return density.
+
+        A tiny hybrid DSMC–fluid update is performed: a user supplied gas
+        puff source adds particles while a simple sink proportional to the
+        plasma density removes them.  The kinetic collision operator acts on
+        the internal particle velocities but has no further influence on the
+        fluid part of the model.
+        """
+
         self._bird_step(dt)
-        return self.compute_neutral_density()
+
+        if self.density is None:
+            self.density = self.compute_neutral_density()
+
+        # Apply gas puff source and plasma sink terms
+        self.density += self.gas_source(t) * dt
+        self.density -= ionization_rate * plasma_density * dt
+        return self.density
 
     # ------------------------------------------------------------------
     def compute_neutral_density(self) -> float:

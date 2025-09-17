@@ -1,0 +1,58 @@
+"""
+This file is part of PIConGPU.
+Copyright 2023-2025 PIConGPU contributors
+Authors: Kristin Tippey, Brian Edward Marre, Julian Lenz
+License: GPLv3+
+"""
+
+from .densityprofile import DensityProfile
+from .plasmaramp import PlasmaRamp
+from .... import util
+
+import typeguard
+
+
+@typeguard.typechecked
+class Foil(DensityProfile):
+    """
+    Directional density profile with thickness and pre- and
+    post-plasma lengths and cutoffs
+    """
+
+    _name = "foil"
+
+    density_si = util.build_typesafe_property(float)
+    """particle number density at at the foil plateau (m^-3)"""
+
+    y_value_front_foil_si = util.build_typesafe_property(float)
+    """position of the front of the foil plateau (m)"""
+
+    thickness_foil_si = util.build_typesafe_property(float)
+    """thickness of the foil plateau (m)"""
+
+    pre_foil_plasmaRamp = util.build_typesafe_property(PlasmaRamp)
+    """pre(lower y) foil-plateau ramp of density"""
+
+    post_foil_plasmaRamp = util.build_typesafe_property(PlasmaRamp)
+    """post(higher y) foil-plateau ramp of density"""
+
+    def check(self) -> None:
+        if self.density_si <= 0:
+            raise ValueError("density must be > 0")
+        if self.y_value_front_foil_si < 0:
+            raise ValueError("y_value_front must be >= 0")
+        if self.thickness_foil_si < 0:
+            raise ValueError("thickness must be >= 0")
+        self.pre_foil_plasmaRamp.check()
+        self.post_foil_plasmaRamp.check()
+
+    def _get_serialized(self) -> dict:
+        self.check()
+
+        return {
+            "density_si": self.density_si,
+            "y_value_front_foil_si": self.y_value_front_foil_si,
+            "thickness_foil_si": self.thickness_foil_si,
+            "pre_foil_plasmaRamp": self.pre_foil_plasmaRamp.get_rendering_context(),
+            "post_foil_plasmaRamp": self.post_foil_plasmaRamp.get_rendering_context(),
+        }

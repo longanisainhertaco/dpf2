@@ -1,0 +1,26 @@
+{
+  "$id": "https://registry.hzdr.de/crp/picongpu/schema/picongpu.pypicongpu.output.timestepspec.TimeStepSpec",
+  "type": "object",
+  "description": "Select time steps (e.g. for notifying a plugin)",
+  "unevaluatedProperties": false,
+  "properties": {
+    "specs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "slice",
+        "properties": {
+          "start": {
+            "type": "integer"
+          },
+          "stop": {
+            "type": "integer"
+          },
+          "step": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

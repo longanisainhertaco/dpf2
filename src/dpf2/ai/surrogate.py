@@ -81,25 +81,41 @@ class SurrogateModel(ABC):
         self._check_domain(inputs_iter)
         return self._predict(inputs)
 
-    def predict_with_uncertainty(
+    def predict_with_guardrails(
         self, inputs: Any
-    ) -> tuple[float, tuple[float, float]] | list[tuple[float, tuple[float, float]]]:
-        """Return prediction and conformal uncertainty band for ``inputs``."""
+    ) -> tuple[float, tuple[float, float], float] | list[tuple[float, tuple[float, float], float]]:
+        """Return prediction, uncertainty band and OOD distance for ``inputs``."""
 
         if isinstance(inputs, (list, tuple)):
             arr = np.array([[float(v)] for v in inputs])
             preds = self.predict(arr)
-            preds_list = [float(p[0]) if hasattr(p, "__getitem__") else float(p) for p in preds]
+            preds_list = [
+                float(p[0]) if hasattr(p, "__getitem__") else float(p) for p in preds
+            ]
             dists = [self._mahalanobis_distance([float(v)]) for v in inputs]
-            bands = [0.0 if self._quantile is None else self._quantile * (1.0 + d) for d in dists]
-            return [(p, (p - b, p + b)) for p, b in zip(preds_list, bands)]
+            bands = [
+                0.0 if self._quantile is None else self._quantile * (1.0 + d)
+                for d in dists
+            ]
+            return [(p, (p - b, p + b), d) for p, b, d in zip(preds_list, bands, dists)]
         else:
             val = float(inputs)
             arr = np.array([[val]])
             pred = float(self.predict(arr)[0][0])
             dist = self._mahalanobis_distance([val])
             band = 0.0 if self._quantile is None else self._quantile * (1.0 + dist)
-            return pred, (pred - band, pred + band)
+            return pred, (pred - band, pred + band), dist
+
+    def predict_with_uncertainty(
+        self, inputs: Any
+    ) -> tuple[float, tuple[float, float]] | list[tuple[float, tuple[float, float]]]:
+        """Return prediction and conformal uncertainty band for ``inputs``."""
+
+        res = self.predict_with_guardrails(inputs)
+        if isinstance(res, list):
+            return [(p, band) for p, band, _ in res]
+        pred, band, _ = res
+        return pred, band
 
     def _mahalanobis_distance(self, x: Any) -> float:
         if self._feature_mean is None or self._inv_cov is None:

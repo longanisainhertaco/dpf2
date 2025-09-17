@@ -25,6 +25,7 @@ __all__ = [
     "sigmund_yield",
     "yamamura_yield",
     "impurity_source_terms",
+    "sputter_flux",
 ]
 
 
@@ -159,3 +160,24 @@ def impurity_source_terms(
     if ion_flux <= 0 or yield_per_ion <= 0:
         return {species.name: 0.0}
     return {species.name: ion_flux * yield_per_ion}
+
+
+def sputter_flux(
+    projectile: Species,
+    target: Species,
+    ion_flux: float,
+    energy_eV: float,
+    angle_deg: float = 0.0,
+    *,
+    U0_eV: float = 4.0,
+) -> Dict[str, float]:
+    """Return impurity fluxes produced by a plasma hitting a surface.
+
+    The routine combines the Yamamura angular yield model with
+    :func:`impurity_source_terms` so that unit tests can exercise basic
+    plasma–material interaction pathways without requiring a full PMI
+    package.
+    """
+
+    Y = yamamura_yield(projectile, target, energy_eV, angle_deg, U0_eV=U0_eV)
+    return impurity_source_terms(ion_flux, Y, target)

@@ -98,6 +98,8 @@ class CircuitSolver:
         self.time = [0.0]
         self.currents = [0.0]
         self.voltages = [circuit.V0]
+        # track previous plasma inductance for dLp/dt evaluation
+        self._prev_Lp = 0.0
 
     # ------------------------------------------------------------------
     def _analytical_current(self, t: np.ndarray) -> np.ndarray:
@@ -183,8 +185,17 @@ class CircuitSolver:
         M = coupling.mutual_inductance
         back_reaction = coupling.back_reaction
 
+        # account for time varying plasma inductance using finite difference
+        dLpdt = (Lp - self._prev_Lp) / dt if dt > 0 else 0.0
         Ltot = self.circuit.L + Lp
-        num = self.circuit.V0 - self.circuit.R * current - voltage - emf - back_emf
+        num = (
+            self.circuit.V0
+            - self.circuit.R * current
+            - voltage
+            - emf
+            - back_emf
+            - current * dLpdt
+        )
         dIdt = num / Ltot
         dVdt = -current / self.circuit.C
 
@@ -200,6 +211,9 @@ class CircuitSolver:
         else:
             if M != 0.0:
                 back_reaction = M * dIdt
+
+        # store current Lp for next step's derivative
+        self._prev_Lp = Lp
 
         self.time.append(t + dt)
         self.currents.append(new_current)

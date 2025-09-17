@@ -16,14 +16,18 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+
 from typing import Dict, Iterable, List
 import json
+
 
 from ..core.config import DPFConfig
 from ..core.simulation import DPFSimulation
 
+
 # Each sweep result stores the raw traces and derived peaks
 SweepResult = Dict[str, List[float] | float]
+
 
 
 def run_parametric_sweep(
@@ -55,9 +59,11 @@ def run_parametric_sweep(
     Returns
     -------
     Dict[float, SweepResult]
+
         Mapping of parameter values to result dictionaries containing ``time``,
         ``current`` and ``voltage`` traces along with derived metrics
         ``peak_current``, ``pinch_time`` and ``yield``.
+
     """
 
     out_dir = Path(output_dir)
@@ -67,6 +73,7 @@ def run_parametric_sweep(
     summary: Dict[float, Dict[str, float]] = {}
 
     for val in values:
+
         cfg = replace(base_config, **{parameter: val})
         run_dir = out_dir / f"{parameter}_{val}"
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -94,6 +101,7 @@ def run_parametric_sweep(
             "peak_current": float(peak),
             "pinch_time": float(pinch_time),
             "yield": float(yield_val),
+
         }
 
     with (out_dir / "summary.json").open("w") as fh:
@@ -110,6 +118,7 @@ def compute_sweep_metrics(
     """Compute metrics such as yield and shock parameter ``S`` for sweep runs."""
 
     metrics: Dict[float, Dict[str, float]] = {}
+
     for val, data in results.items():
         peak = float(data.get("peak_current", 0.0))
         pinch = float(data.get("pinch_time", 0.0))
@@ -127,6 +136,7 @@ def compute_sweep_metrics(
             "yield": yld,
             "pinch_time": pinch,
             "S": S,
+
             "efficiency": 0.0,
         }
 
@@ -146,13 +156,19 @@ def plot_metric_overlay(
     yields = [metrics[v]["yield"] for v in vals]
     pinch = [metrics[v].get("pinch_time", 0.0) for v in vals]
     effs = [metrics[v].get("efficiency", 0.0) for v in vals]
+    y_lo = [metrics[v].get("yield_lo", metrics[v]["yield"]) for v in vals]
+    y_hi = [metrics[v].get("yield_hi", metrics[v]["yield"]) for v in vals]
+    p_lo = [metrics[v].get("pinch_time_lo", metrics[v].get("pinch_time", 0.0)) for v in vals]
+    p_hi = [metrics[v].get("pinch_time_hi", metrics[v].get("pinch_time", 0.0)) for v in vals]
 
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 9))
 
     axes[0].plot(vals, yields, marker="o")
+    axes[0].fill_between(vals, y_lo, y_hi, color="C0", alpha=0.2)
     axes[0].set_ylabel("Yield")
 
     axes[1].plot(vals, pinch, marker="^")
+    axes[1].fill_between(vals, p_lo, p_hi, color="C1", alpha=0.2)
     axes[1].set_ylabel("Pinch Time")
 
     axes[2].plot(vals, effs, marker="s")
@@ -175,11 +191,22 @@ def plot_yield_vs_S(metrics: Dict[float, Dict[str, float]], path: str | Path) ->
 
     import matplotlib.pyplot as plt
 
-    pairs = sorted((m.get("S", 0.0), m.get("yield", 0.0)) for m in metrics.values())
+    pairs = sorted(
+        (
+            m.get("S", 0.0),
+            m.get("yield", 0.0),
+            m.get("yield_lo", m.get("yield", 0.0)),
+            m.get("yield_hi", m.get("yield", 0.0)),
+        )
+        for m in metrics.values()
+    )
     s_vals = [p[0] for p in pairs]
     y_vals = [p[1] for p in pairs]
+    y_lo = [p[2] for p in pairs]
+    y_hi = [p[3] for p in pairs]
     plt.figure()
     plt.plot(s_vals, y_vals, marker="o")
+    plt.fill_between(s_vals, y_lo, y_hi, color="C0", alpha=0.2)
     plt.xlabel("S")
     plt.ylabel("Yield")
     path = Path(path)

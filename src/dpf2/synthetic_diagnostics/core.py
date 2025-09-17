@@ -31,6 +31,7 @@ from ..diagnostics.synthetic_signals import (
     rogowski_signal,
     bdot_signal,
 )
+from ..diagnostics.neutron_yield import tof_iv_cross_correlation
 
 
 class AngularDistribution:
@@ -194,6 +195,74 @@ def synthetic_tof_trace(
                 counts[idx] += amp
     times = [i * dt for i in range(total)]
     return times, counts
+
+
+def correlate_tof_with_iv(
+    history: Sequence[CouplingState],
+    dt: float,
+    distance_m: float,
+    energies_mev: Sequence[float],
+) -> Dict[str, float]:
+    """Zero-lag correlation between synthetic ToF and I/V waveforms.
+
+    The helper generates a synthetic time-of-flight trace using
+    :func:`synthetic_tof_trace` and then computes the zero-lag correlation
+    coefficients with the circuit current, voltage and instantaneous power
+    (``I*V``) using :func:`dpf2.diagnostics.neutron_yield.tof_iv_cross_correlation`.
+    """
+
+    _, counts = synthetic_tof_trace(history, dt, distance_m, energies_mev)
+    current = [s.current for s in history] + [0.0] * (len(counts) - len(history))
+    voltage = [s.voltage for s in history] + [0.0] * (len(counts) - len(history))
+    return tof_iv_cross_correlation(counts, current, voltage)
+
+
+def _cross_correlate(a: Sequence[float], b: Sequence[float]) -> tuple[List[int], List[float]]:
+    """Return raw cross-correlation sequence and integer lags."""
+
+    n = len(a)
+    mean_a = sum(a) / n if n else 0.0
+    mean_b = sum(b) / n if n else 0.0
+    lags: List[int] = []
+    corr: List[float] = []
+    for lag in range(-n + 1, n):
+        val = 0.0
+        for i in range(n):
+            j = i - lag
+            if 0 <= j < n:
+                val += (a[i] - mean_a) * (b[j] - mean_b)
+        lags.append(lag)
+        corr.append(val)
+    return lags, corr
+
+
+def tof_iv_lagged_correlation(
+    history: Sequence[CouplingState],
+    dt: float,
+    distance_m: float,
+    energies_mev: Sequence[float],
+) -> Dict[str, List[float]]:
+    """Cross-correlate synthetic ToF counts with I, V and power histories.
+
+    Returns a dictionary with entries ``"lags"`` (time offsets in seconds) and
+    correlation arrays for ``"current"``, ``"voltage"`` and ``"power"``.
+    """
+
+    _, counts = synthetic_tof_trace(history, dt, distance_m, energies_mev)
+    current = [s.current for s in history] + [0.0] * (len(counts) - len(history))
+    voltage = [s.voltage for s in history] + [0.0] * (len(counts) - len(history))
+    power = [i * v for i, v in zip(current, voltage)]
+
+    lags_idx, corr_i = _cross_correlate(counts, current)
+    _, corr_v = _cross_correlate(counts, voltage)
+    _, corr_p = _cross_correlate(counts, power)
+    lags = [lag * dt for lag in lags_idx]
+    return {
+        "lags": lags,
+        "current": corr_i,
+        "voltage": corr_v,
+        "power": corr_p,
+    }
 
 
 def autocorrelated_tof_iv_report(
@@ -464,6 +533,7 @@ class SyntheticDiagnostics(ConfigSectionBase):
     include_detector_noise: bool = Field(False, alias="includeDetectorNoise")
     noise_model: Optional[Literal["gaussian", "poisson", "custom"]] = Field(None, alias="noiseModel")
     noise_parameters: Optional[Dict[str, float]] = Field(None, alias="noiseParameters")
+    instrument_response: Optional[Dict[str, Any]] = Field(None, alias="instrumentResponse")
 
     # Per-instrument overrides
     instrument_overrides: Optional[Dict[str, SyntheticInstrument]] = Field(
@@ -668,15 +738,23 @@ def _export_csv(path: Path, data: Sequence[Any], kind: str) -> None:
                 writer.writerow(list(row))
 
 
-def _export_hdf5(path: Path, name: str, data: Sequence[Any]) -> None:
+def _export_hdf5(path: Path, name: str, data: Sequence[Any], metadata: Dict[str, Any] | None = None) -> None:
     with h5py.File(path, "w") as fh:
-        fh.create_dataset(name, data=data)
+        ds = fh.create_dataset(name, data=data)
+        try:  # pragma: no cover - stub compatibility
+            ds.data = list(ds.data)
+        except Exception:
+            pass
+        if metadata:
+            ds.attrs["instrument_response"] = json.dumps(metadata)
 
 
 def export_diagnostic_data(
     data: Dict[str, Sequence[Any]],
     cfg: "SyntheticDiagnostics",
     output_dir: Path | str,
+    *,
+    metadata: Dict[str, Dict[str, Any]] | None = None,
 ) -> List[Path]:
     """Write diagnostic ``data`` to ``output_dir`` according to ``cfg``."""
 
@@ -691,7 +769,10 @@ def export_diagnostic_data(
             _export_csv(file_path, values, kind)
         elif cfg.output_format == "hdf5":
             file_path = out_dir / f"{name}.h5"
-            _export_hdf5(file_path, name, values)
+            meta = cfg.instrument_response
+            if metadata and name in metadata:
+                meta = metadata[name]
+            _export_hdf5(file_path, name, values, meta)
         else:
             file_path = out_dir / f"{name}.txt"
             if kind == "time_series":
@@ -729,6 +810,8 @@ __all__ = [
     "beam_target_angular_spectrum",
     "directional_yields",
     "synthetic_tof_trace",
+    "correlate_tof_with_iv",
+    "tof_iv_lagged_correlation",
     "export_directional_yields",
     "autocorrelated_tof_iv_report",
     "anisotropy_report",

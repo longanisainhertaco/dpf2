@@ -21,12 +21,14 @@ def main(argv: list[str] | None = None) -> int:
 
     info = capture_dataset_metadata(
         {
-            "base": {"path": args.dataset, "doi": "n/a", "version": "n/a"},
-            "swap": {"path": args.swap, "doi": "n/a", "version": "n/a"},
+            "atomic": {
+                "base": {"path": args.dataset, "doi": "n/a", "version": "n/a"},
+                "swap": {"path": args.swap, "doi": "n/a", "version": "n/a"},
+            }
         }
     )
-    base_hash = info["base"]["hash"]
-    swap_hash = info["swap"]["hash"]
+    base_hash = info["atomic"]["base"]["hash"]
+    swap_hash = info["atomic"]["swap"]["hash"]
     print(f"Base hash: {base_hash}")
     print(f"Swap hash: {swap_hash}")
     if base_hash != swap_hash:

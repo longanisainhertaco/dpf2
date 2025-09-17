@@ -30,6 +30,7 @@ from dpf2.diagnostics.synthetic_signals import (
     bdot_signal,
     angular_neutron_spectrum,
 )
+from dpf2.diagnostics.neutron_yield import simulate_tof_detectors, save_tof_hdf5
 from dpf2.synthetic_diagnostics import SyntheticDiagnostics
 from dpf2.exceptions import ConfigurationError, SimulationRuntimeError
 from dpf2.diagnostics.thresholds import (
@@ -45,6 +46,7 @@ from dpf2.optimization.param_sweep import (
 )
 from dpf2.gui.project_manager import ProjectManager
 from dpf2.gui import interactive
+from dpf2.indexing import build_code_index, write_markdown_index
 
 from dpf2.device_profiles import DeviceProfiles
 
@@ -1257,6 +1259,36 @@ def schema() -> None:
     click.echo(json.dumps(fields, indent=2))
 
 
+@main.command("export-neutron-summary")
+@click.option(
+    "--angles",
+    type=str,
+    default="0.0",
+    help="Comma separated detector angles in degrees",
+)
+@click.option("--distance", type=float, default=1.0, help="Detector distance [m]")
+@click.option(
+    "--outfile",
+    type=click.Path(),
+    default="neutron_summary.h5",
+    help="Destination HDF5 file",
+)
+def export_neutron_summary(angles: str, distance: float, outfile: str) -> None:
+    """Export a simple neutron TOF summary for chosen geometry."""
+
+    ang_list = [float(a) for a in angles.split(",") if a]
+
+    class _FlatEDF:
+        def energy_distribution(self, angle_deg: float):  # pragma: no cover - simple stub
+            return [0.0, 1.0], [1.0, 1.0]
+
+    cross_section = lambda e: 1.0
+    time_bins = [0.0, 1e-7, 2e-7]
+    dets = simulate_tof_detectors(_FlatEDF(), cross_section, ang_list, distance, time_bins)
+    save_tof_hdf5(outfile, time_bins, dets)
+    click.echo(f"HDF5 summary written to {outfile}")
+
+
 @main.command()
 @click.option(
     "-o",
@@ -1273,6 +1305,53 @@ def wizard(output: str) -> None:
         json.dump(asdict(cfg), fh, indent=2)
 
     click.echo(f"Configuration saved to {output}")
+
+
+@main.command()
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(dir_okay=False),
+    default="docs/code_index.md",
+    show_default=True,
+    help="Destination Markdown file for the code index.",
+)
+@click.option(
+    "--package",
+    type=str,
+    default="dpf2",
+    show_default=True,
+    help="Python package to index.",
+)
+@click.option(
+    "--source-root",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Override path to the package root.",
+)
+def index(output: str, package: str, source_root: str | None) -> None:
+    """Generate a Markdown index of the code base."""
+
+    try:
+        if source_root is None:
+            root = Path(__file__).resolve().parents[2] / package.replace(".", "/")
+        else:
+            root = Path(source_root)
+
+        if not root.exists():
+            raise click.ClickException(
+                format_error("INDEX", f"Package root {root} does not exist")
+            )
+
+        entries = build_code_index(package, root)
+        write_markdown_index(entries, Path(output))
+        click.echo(
+            f"Indexed {len(entries)} modules from {root} into {output}"
+        )
+    except click.ClickException:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive
+        raise click.ClickException(format_error("INDEX", str(exc)))
 
 
 from .benchmark import benchmark, match_benchmark
