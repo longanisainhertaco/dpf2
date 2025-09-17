@@ -5,7 +5,7 @@ from dpf2.physics import HallMHD
 from dpf2.core.circuit import RLCCircuitSolver
 from dpf2.mesh import Mesh3D
 from dpf2.hall_mhd_solver import HallMHDSolver, MHDState
-from dpf2.physics.hall_mhd import nrl_braginskii
+from dpf2.physics.hall_mhd import nrl_braginskii, braginskii_coefficients
 from dpf2.diagnostics.quality_dashboard import QualityDashboard
 
 
@@ -108,6 +108,24 @@ def test_activation_gates_and_closure():
     nu, kappa = nrl_braginskii(np.array([1.0]), np.array([1.0]), np.array([1.0]))
     assert nu.shape == (1,)
     assert kappa.shape == (1,)
+
+
+def test_transport_activation_and_coefficients():
+    model = HallMHD(hall_coeff=0.1, electron_inertia=0.2)
+    ne, Te, B, L = 1.0e20, 100.0, 50.0, 0.1
+    model.update_transport(ne, Te, B, L)
+    assert model.hall_active
+    assert model.electron_inertia_active
+    expected = braginskii_coefficients(ne, Te, B)
+    assert model.eta == pytest.approx(expected["eta_parallel"])
+    assert model.kappa_parallel == pytest.approx(expected["kappa_parallel"])
+    assert model.kappa_perp == pytest.approx(expected["kappa_perp"])
+
+    # parameters far below thresholds disable transport
+    model.update_transport(ne, Te, 0.01, 10.0)
+    assert not model.hall_active
+    assert not model.electron_inertia_active
+    assert model.eta == model.kappa_parallel == model.kappa_perp == 0.0
 
 
 def test_quality_diagnostics(tmp_path):

@@ -27,9 +27,10 @@ from .material_interactions import (
 # missing.
 
 try:  # pragma: no cover - exercised when dependency is available
-    from .hall_mhd import HallMHD  # type: ignore
+    from .hall_mhd import HallMHD, hall_parameters, braginskii_coefficients  # type: ignore
 except Exception:  # pragma: no cover - fallback for minimal environments
     HallMHD = None  # type: ignore
+    hall_parameters = braginskii_coefficients = None  # type: ignore
 
 try:  # pragma: no cover - exercised when dependency is available
     from .simple_plasma import ZeroDPlasma  # type: ignore
@@ -70,7 +71,7 @@ __all__ = [
 if ZeroDPlasma is not None:
     __all__.append("ZeroDPlasma")
 if HallMHD is not None:
-    __all__.append("HallMHD")
+    __all__.extend(["HallMHD", "hall_parameters", "braginskii_coefficients"])
 if neutral_density_source is not None:
     __all__.extend(["neutral_density_source", "wall_ablation_source"])
 __all__.append("PicDriver")
