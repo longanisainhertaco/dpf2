@@ -1,3 +1,22 @@
+"""Simplified Hall-MHD model and transport helpers.
+
+This module implements a light‑weight Hall‑MHD toy model used throughout the
+unit tests.  The class :class:`HallMHD` augments the resistive MHD equations
+with optional Hall and electron inertia terms.  These corrections are only
+activated when the plasma parameters indicate that they are important:
+
+* Hall physics requires both strong electron magnetisation
+  ``ω_ce τ_e > omega_ce_tau_e_min`` and a sufficiently large ion inertial
+  length ``d_i/L > di_over_L_min``.
+* Electron inertia uses the same ``d_i/L`` criterion and is only applied when
+  the ``electron_inertia`` coefficient is non–zero.
+
+For convenience a number of helper functions are provided.  In particular
+``hall_parameters`` returns the magnetisation and ion inertial length used for
+activation gating and ``braginskii_coefficients`` evaluates a very small subset
+of the Braginskii transport coefficients using the NRL Formulary scalings.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -33,6 +52,12 @@ class HallMHD(ResistiveMHD):
       energy the plasma self‑inductance is estimated and fed back to external
       circuit models.
 
+    Hall and electron inertia effects are only included when
+    :meth:`update_transport` deems them important.  The Hall term requires
+    ``ω_ce τ_e`` to exceed ``omega_ce_tau_e_min`` *and* ``d_i/L`` to exceed
+    ``di_over_L_min``.  Electron inertia uses the same ``d_i/L`` check and is
+    controlled by the ``electron_inertia`` coefficient.
+
     Only the terms required for regression tests are implemented; the class is
     not intended to be a production ready Hall‑MHD solver.
     """
@@ -45,6 +70,7 @@ class HallMHD(ResistiveMHD):
     nernst: float = 0.0
     righi_leduc: float = 0.0
     hall_active: bool = field(default=False, init=False)
+    electron_inertia_active: bool = field(default=False, init=False)
     current: float = 0.0
     back_emf: float = 0.0
     beam_velocity: float = 0.0
@@ -60,10 +86,12 @@ class HallMHD(ResistiveMHD):
         """Update transport coefficients and activation state.
 
         The Braginskii coefficients are calculated using very small subsets of
-        the NRL Formulary expressions.  Activation is gated on the electron
-        magnetisation ``ω_ce τ_e`` and the ratio of the ion inertial length to
-        the system size ``d_i/L``.  When the Hall model is inactive the
-        coefficients are set to zero to recover classical resistive MHD.
+        the NRL Formulary expressions.  Hall physics is activated when the
+        electron magnetisation ``ω_ce τ_e`` exceeds ``omega_ce_tau_e_min`` and
+        the ratio of the ion inertial length to the system size ``d_i/L``
+        exceeds ``di_over_L_min``.  The electron inertia term uses the same
+        ``d_i/L`` criterion.  When the Hall model is inactive the coefficients
+        are set to zero to recover classical resistive MHD.
         """
 
         omega_tau, di_over_L = hall_parameters(ne, Te, B, L)
@@ -73,6 +101,9 @@ class HallMHD(ResistiveMHD):
             self.hall_enabled
             and omega_tau > self.omega_ce_tau_e_min
             and di_over_L > self.di_over_L_min
+        )
+        self.electron_inertia_active = (
+            self.electron_inertia != 0.0 and di_over_L > self.di_over_L_min
         )
 
         if not self.hall_active:
@@ -221,10 +252,10 @@ class HallMHD(ResistiveMHD):
 
         F = super().flux_function(U, direction)
 
-        if not self.hall_active:
+        if not (self.hall_active or self.electron_inertia_active):
             return F
 
-        if J is not None and self.hall_coeff != 0.0:
+        if self.hall_active and J is not None and self.hall_coeff != 0.0:
             rho = U[0]
             B = U[5:8]
             hall_e = self.hall_coeff * np.cross(J, B) / rho
@@ -238,7 +269,7 @@ class HallMHD(ResistiveMHD):
                 F[5] -= hall_e[1]
                 F[6] -= hall_e[0]
 
-        if J is not None and self.electron_inertia != 0.0:
+        if self.electron_inertia_active and J is not None and self.electron_inertia != 0.0:
             inertia_e = self.electron_inertia * J
             if direction == "x":
                 F[6] += inertia_e[2]
