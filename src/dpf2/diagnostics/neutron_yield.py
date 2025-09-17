@@ -150,12 +150,13 @@ def yield_components_with_anisotropy(
     ion_density: Sequence[float],
     dt: float,
 ) -> Dict[str, List[float] | float]:
-    """Return beam-target and thermal yields with angular distribution.
+    """Return beam-target and thermal yields with angular distributions.
 
     The beam-target component is computed for each detector angle using
     :func:`compute_beam_target_yield` while the thermonuclear component is
-    treated as isotropic.  An anisotropy factor ``(max-min)/mean`` is also
-    returned for the combined per-angle yields.
+    treated as isotropic.  The combined per-angle totals are used to compute an
+    anisotropy factor ``(max-min)/mean``.  Both scalar totals and per-angle
+    lists are exposed for downstream analysis.
 
     Parameters
     ----------
@@ -167,9 +168,12 @@ def yield_components_with_anisotropy(
     Returns
     -------
     dict
-        Dictionary with keys ``"beam_target"`` (list per angle),
-        ``"thermonuclear"`` (total yield), ``"angular_thermal"`` (list per
-        angle assuming isotropy) and ``"anisotropy"`` (float).
+        Dictionary with keys ``"beam_target_total"`` and ``"thermal_total````
+        for the integrated yields, ``"beam_target"`` and ``"angular_thermal"``
+        for the corresponding per-angle distributions, ``"angular_total"`` for
+        the sum of both components at each angle, ``"anisotropy"`` for the
+        angular variation and ``"tof"`` containing time-of-flight histograms for
+        each detector.
     """
 
     bt_yields, tofs = compute_beam_target_yield(
@@ -188,9 +192,14 @@ def yield_components_with_anisotropy(
     else:
         anisotropy = 0.0
     return {
+        "beam_target_total": sum(bt_yields),
+        "thermal_total": th_total,
+        # Per-angle distributions
         "beam_target": bt_yields,
-        "thermonuclear": th_total,
+        "angular_beam_target": bt_yields,
         "angular_thermal": th_per_angle,
+        "angular_total": total_per_angle,
+        "thermonuclear": th_total,
         "anisotropy": anisotropy,
         "tof": tofs,
     }
