@@ -30,6 +30,8 @@ from ..validation_suite import (
     evaluate_benchmark,
     score_simulation,
 )
+from ..verification import VerificationPanel
+from ..diagnostics.quality_dashboard import QualityDashboard
 from ..scaling_laws import compare_to_scaling
 from .lab import write_manifest
 
@@ -221,7 +223,30 @@ def run_validation(
     return report["passed"]
 
 
+def run_verification(sizes: Iterable[int] = (16, 32, 64)) -> bool:
+    """Execute verification problems and report observed orders."""
+    dashboard = QualityDashboard()
+    panel = VerificationPanel(quality=dashboard)
+    results = {
+        "brio_wu": panel.run_brio_wu(sizes),
+        "orszag_tang": panel.run_orszag_tang(sizes),
+        "mms_mhd": panel.run_mms_ideal_mhd(sizes),
+    }
+    for name, res in results.items():
+        obs = res["observed_order"][-1] if res["observed_order"] else 0.0
+        print(f"{name}: observed {obs:.2f} vs design 1.0")
+    return all(r["passed"] for r in results.values())
+
+
 def main(argv: Iterable[str] | None = None) -> None:
+    args_list = list(argv) if argv is not None else None
+    if args_list and len(args_list) > 0 and args_list[0] == "verify":
+        parser = argparse.ArgumentParser(description="Run verification suite")
+        parser.add_argument("--sizes", nargs="*", type=int, default=[16, 32, 64])
+        opts = parser.parse_args(args_list[1:])
+        run_verification(tuple(opts.sizes))
+        return
+
     parser = argparse.ArgumentParser(
         description="Validate simulation against experimental data"
     )
@@ -248,7 +273,7 @@ def main(argv: Iterable[str] | None = None) -> None:
         action="store_true",
         help="Record a reproducibility manifest alongside outputs",
     )
-    args = parser.parse_args(list(argv) if argv is not None else None)
+    args = parser.parse_args(args_list)
     run_validation(args.config, args.dataset, outdir=args.outdir, lab_mode=args.lab_mode)
 
 
