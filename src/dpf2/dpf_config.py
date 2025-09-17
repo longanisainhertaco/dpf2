@@ -41,7 +41,12 @@ class SimulationControl(BaseModel):
 
     @model_validator(mode="after")
     def check_times(cls, values):
-        if values["time_end"] <= values["time_start"]:
+        time_end = getattr(values, "time_end", None)
+        time_start = getattr(values, "time_start", None)
+        if isinstance(values, dict):  # pragma: no cover - legacy path
+            time_end = values.get("time_end")
+            time_start = values.get("time_start")
+        if time_end is not None and time_start is not None and time_end <= time_start:
             raise ValueError("time_end must be greater than time_start")
         return values
 

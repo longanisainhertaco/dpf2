@@ -32,6 +32,7 @@ except Exception:  # pragma: no cover
 
 from .dpf_config import DPFConfig
 from .circuit_config import CircuitConfig
+from .experimental_variability import MonteCarloVariability
 
 from .circuit_solver import RLCCircuit, CircuitSolver, run_circuit_simulation
 from .core.bases import PlasmaSolverBase, CouplingState, DiagnosticsBase
@@ -181,6 +182,7 @@ class SimulationEngine:
         self.use_gpu = bool(use_gpu and cp is not None)
         self.xp = cp if self.use_gpu else np
         # Thread pool ------------------------------------------------------
+        self._num_threads = num_threads or 1
         self._executor: ThreadPoolExecutor | None = None
         if num_threads and num_threads > 1:
             self._executor = ThreadPoolExecutor(max_workers=num_threads)
@@ -266,6 +268,7 @@ class SimulationEngine:
 
         plasma_solver: PlasmaSolverBase | None = None,
         *,
+        variability: MonteCarloVariability | None = None,
         energy_csv: str | None = None,
         energy_tol: float | None = None,
         diagnostics: Sequence[DiagnosticsBase] | None = None,
@@ -273,7 +276,7 @@ class SimulationEngine:
         xray_cb: Callable[[float, float], None] | None = None,
         progress_cb: Callable[[int, float, float, float], None] | None = None,
         hdf5_path: str | None = None,
-    ) -> SimulationResults:
+    ) -> SimulationResults | EnsembleResults:
         """Run the simulation and return aggregated results.
 
         Parameters
@@ -285,13 +288,157 @@ class SimulationEngine:
         neutron_cb, xray_cb:
             Callbacks receiving ``(time, value)`` for streaming neutron
             yield and X-ray emission respectively.
+        variability:
+            Optional variability model used to generate perturbed
+            configurations for an ensemble run. When provided, multiple
+            simulations are executed and the aggregated statistics are
+            returned.
         hdf5_path:
             Optional path to an HDF5 file storing ``Lp_field`` and
             ``Lp_circuit`` time series along with run metadata.
         """
+        if variability is not None:
+            configs = variability.generate_configurations(self.config)
+            if not configs:
+                raise ValueError("Variability generated no configurations")
+            count = 0
+            time: np.ndarray | None = None
+            current_sum: np.ndarray | None = None
+            current_sumsq: np.ndarray | None = None
+            radius_sum: np.ndarray | None = None
+            radius_sumsq: np.ndarray | None = None
+            temperature_sum: np.ndarray | None = None
+            temperature_sumsq: np.ndarray | None = None
+            pressure_sum: np.ndarray | None = None
+            pressure_sumsq: np.ndarray | None = None
+            axial_sum: np.ndarray | None = None
+            axial_sumsq: np.ndarray | None = None
+            axial_active = True
+            neutron_yields: list[float] = []
+            for cfg in configs:
+                engine = SimulationEngine(
+                    cfg,
+                    comm=self.comm,
+                    num_threads=self._num_threads,
+                    use_gpu=self.use_gpu,
+                )
+                result = engine.run(
+                    method=method,
+                    pinch_model=pinch_model,
+                    plasma_solver=plasma_solver,
+                    energy_csv=energy_csv,
+                    energy_tol=energy_tol,
+                    diagnostics=diagnostics,
+                    neutron_cb=neutron_cb,
+                    xray_cb=xray_cb,
+                    progress_cb=progress_cb,
+                    hdf5_path=hdf5_path,
+                )
+                if time is None:
+                    time = result.time
+                    current_sum = result.current.astype(np.float64, copy=True)
+                    current_sumsq = np.square(result.current, dtype=np.float64)
+                    radius_sum = result.radius.astype(np.float64, copy=True)
+                    radius_sumsq = np.square(result.radius, dtype=np.float64)
+                    temperature_sum = result.temperature.astype(np.float64, copy=True)
+                    temperature_sumsq = np.square(result.temperature, dtype=np.float64)
+                    pressure_sum = result.pressure.astype(np.float64, copy=True)
+                    pressure_sumsq = np.square(result.pressure, dtype=np.float64)
+                    if result.axial_position is not None:
+                        axial_sum = result.axial_position.astype(np.float64, copy=True)
+                        axial_sumsq = np.square(result.axial_position, dtype=np.float64)
+                    else:
+                        axial_active = False
+                else:
+                    if result.time.shape != time.shape or not np.allclose(result.time, time):
+                        raise ValueError("All realizations must share identical time grids")
+                    assert current_sum is not None
+                    assert current_sumsq is not None
+                    assert radius_sum is not None
+                    assert radius_sumsq is not None
+                    assert temperature_sum is not None
+                    assert temperature_sumsq is not None
+                    assert pressure_sum is not None
+                    assert pressure_sumsq is not None
+                    current_sum += result.current
+                    current_sumsq += np.square(result.current, dtype=np.float64)
+                    radius_sum += result.radius
+                    radius_sumsq += np.square(result.radius, dtype=np.float64)
+                    temperature_sum += result.temperature
+                    temperature_sumsq += np.square(result.temperature, dtype=np.float64)
+                    pressure_sum += result.pressure
+                    pressure_sumsq += np.square(result.pressure, dtype=np.float64)
+                    if axial_active:
+                        if result.axial_position is None:
+                            axial_active = False
+                            axial_sum = None
+                            axial_sumsq = None
+                        else:
+                            assert axial_sum is not None
+                            assert axial_sumsq is not None
+                            axial_sum += result.axial_position
+                            axial_sumsq += np.square(result.axial_position, dtype=np.float64)
+                neutron_yields.append(result.neutron_yield)
+                count += 1
+            if count == 0 or time is None:
+                raise ValueError("Variability generated no realizations")
+
+            assert current_sum is not None and current_sumsq is not None
+            assert radius_sum is not None and radius_sumsq is not None
+            assert temperature_sum is not None and temperature_sumsq is not None
+            assert pressure_sum is not None and pressure_sumsq is not None
+
+            inv_count = 1.0 / count
+            current_mean = current_sum * inv_count
+            current_var = current_sumsq * inv_count - current_mean**2
+            current_std = np.sqrt(np.clip(current_var, 0.0, None))
+
+            radius_mean = radius_sum * inv_count
+            radius_var = radius_sumsq * inv_count - radius_mean**2
+            radius_std = np.sqrt(np.clip(radius_var, 0.0, None))
+
+            temperature_mean = temperature_sum * inv_count
+            temperature_var = temperature_sumsq * inv_count - temperature_mean**2
+            temperature_std = np.sqrt(np.clip(temperature_var, 0.0, None))
+
+            pressure_mean = pressure_sum * inv_count
+            pressure_var = pressure_sumsq * inv_count - pressure_mean**2
+            pressure_std = np.sqrt(np.clip(pressure_var, 0.0, None))
+
+            axial_mean: np.ndarray | None
+            axial_std: np.ndarray | None
+            if axial_active and axial_sum is not None and axial_sumsq is not None:
+                axial_mean = axial_sum * inv_count
+                axial_var = axial_sumsq * inv_count - axial_mean**2
+                axial_std = np.sqrt(np.clip(axial_var, 0.0, None))
+            else:
+                axial_mean = None
+                axial_std = None
+
+            yields_arr = np.asarray(neutron_yields, dtype=float)
+            neutron_yield_mean = float(yields_arr.mean())
+            neutron_yield_std = float(yields_arr.std())
+
+            return EnsembleResults(
+                time=time,
+                current_mean=current_mean,
+                current_std=current_std,
+                radius_mean=radius_mean,
+                radius_std=radius_std,
+                temperature_mean=temperature_mean,
+                temperature_std=temperature_std,
+                pressure_mean=pressure_mean,
+                pressure_std=pressure_std,
+                neutron_yield_mean=neutron_yield_mean,
+                neutron_yield_std=neutron_yield_std,
+                axial_position_mean=axial_mean,
+                axial_position_std=axial_std,
+            )
+
         sc = self.config.simulation_control
         dt = sc.min_dt or 1e-9
         t_end = sc.time_end - sc.time_start
+        max_steps = sc.max_steps if getattr(sc, "max_steps", None) else 0
 
         # Basic grid metrics used for threshold checks
         gr = self.config.grid_resolution
@@ -444,6 +591,9 @@ class SimulationEngine:
 
             current, voltage = updated.current, updated.voltage
             step += 1
+            if max_steps and step >= max_steps:
+                logger.debug("Reached max_steps=%s, terminating early", max_steps)
+                break
             if progress_cb is not None:
                 progress_cb(step, circuit.time[-1], current, voltage)
 

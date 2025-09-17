@@ -279,9 +279,13 @@ class MonteCarloVariability:
         pressure_samples = self.sample_fill_pressure(
             base_config.initial_conditions.paschen_model.gas_pressure_torr
         )
-        geom_samples = self.sample_geometry_tolerances(
-            {"cathode_gap_degrees": base_config.electrode_geometry.cathode_gap_degrees}
-        )
+        geom_base = getattr(base_config, "electrode_geometry", None)
+        if geom_base is not None:
+            geom_samples = self.sample_geometry_tolerances(
+                {"cathode_gap_degrees": geom_base.cathode_gap_degrees}
+            )
+        else:
+            geom_samples = [{} for _ in range(self.realizations)]
 
         configs: List[DPFConfig] = []
         for i in range(self.realizations):
@@ -296,7 +300,15 @@ class MonteCarloVariability:
                             )
                         }
                     ),
-                    "electrode_geometry": cfg.electrode_geometry.model_copy(update=geom_samples[i]),
+                    **(
+                        {
+                            "electrode_geometry": cfg.electrode_geometry.model_copy(
+                                update=geom_samples[i]
+                            )
+                        }
+                        if geom_samples[i] and getattr(cfg, "electrode_geometry", None) is not None
+                        else {}
+                    ),
                 }
             )
             configs.append(cfg)
