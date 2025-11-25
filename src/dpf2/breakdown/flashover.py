@@ -13,7 +13,8 @@ import math
 import random
 from typing import Sequence, Dict
 
-from ..geometry import triple_junction_field
+from ..geometry import triple_junction_field, triple_junction_enhancement
+from ..neutral.flashover import NeutralGasPuff
 
 
 @dataclass
@@ -149,4 +150,43 @@ def jitter_statistics(jitters: Sequence[float]) -> Dict[str, float]:
     """Return statistics for jitter values."""
 
     return delay_statistics(jitters)
+
+
+@dataclass
+class SurfaceFlashoverResult:
+    delay: float
+    holdoff_voltage: float
+    neutral_density: float
+    triple_junction_factor: float
+
+
+def vacuum_surface_flashover(
+    geometry: str,
+    field: float,
+    params: FlashoverParameters,
+    *,
+    puff: NeutralGasPuff | None = None,
+    anode_radius_cm: float = 1.0,
+    cathode_radius_cm: float = 2.0,
+) -> SurfaceFlashoverResult:
+    """Couple stochastic delay, triple-junction field enhancement and neutral puffing.
+
+    The helper draws a stochastic delay via :func:`seea_stochastic_delay`, applies
+    a geometry-aware hold-off using :func:`triple_junction_enhancement`, and
+    optionally mixes in a transient neutral puff to modulate the effective gas
+    density seen by the discharge.
+    """
+
+    tj = triple_junction_enhancement(geometry, anode_radius_cm, cathode_radius_cm)
+    holdoff = holdoff_voltage(geometry, params)
+    delay = seea_stochastic_delay(field * tj, params)
+    neutral_density = puff.density(delay) if puff else 0.0
+    if puff:
+        holdoff *= 1.0 + 0.05 * puff.coupling_efficiency
+    return SurfaceFlashoverResult(
+        delay=delay,
+        holdoff_voltage=holdoff,
+        neutral_density=neutral_density,
+        triple_junction_factor=tj,
+    )
 

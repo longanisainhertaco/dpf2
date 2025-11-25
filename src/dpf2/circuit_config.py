@@ -193,6 +193,42 @@ class CrowbarStageConfig(BaseModel):
     )
 
 
+class SaturableInductorConfig(BaseModel):
+    """Configuration for a saturable inductor branch."""
+
+    from_node: int = Field(
+        0, alias="fromNode", metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    to_node: int = Field(
+        1, alias="toNode", metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    L_initial: float = Field(
+        ...,
+        alias="lInitial",
+        metadata={"units": "μH", "category": "Circuit", "group": "Distributed"},
+    )
+    L_saturated: float = Field(
+        ...,
+        alias="lSaturated",
+        metadata={"units": "μH", "category": "Circuit", "group": "Distributed"},
+    )
+    tau_ns: float = Field(
+        50.0,
+        alias="tauNs",
+        metadata={"units": "ns", "category": "Circuit", "group": "Distributed"},
+    )
+    reset_time_ns: Optional[float] = Field(
+        None,
+        alias="resetTimeNs",
+        metadata={"units": "ns", "category": "Circuit", "group": "Distributed"},
+    )
+    series_resistance: float = Field(
+        0.0,
+        alias="seriesResistance",
+        metadata={"units": "mΩ", "category": "Circuit", "group": "Distributed"},
+    )
+
+
 class CircuitConfig(ConfigSectionBase):
     """Validated external circuit configuration."""
 
@@ -236,6 +272,11 @@ class CircuitConfig(ConfigSectionBase):
     )
     crowbar_stages: Optional[List[CrowbarStageConfig]] = Field(
         None, alias="crowbarStages", metadata={"category": "Circuit", "group": "Distributed"}
+    )
+    saturable_inductors: Optional[List[SaturableInductorConfig]] = Field(
+        None,
+        alias="saturableInductors",
+        metadata={"category": "Circuit", "group": "Distributed"},
     )
 
     # --- Coupling & Plasma Effects ------------------------------------
@@ -349,6 +390,7 @@ class CircuitConfig(ConfigSectionBase):
             TransmissionLineSegment,
             TriggeredSwitch,
             CrowbarStage,
+            SaturableInductor,
         )
 
         def _convert_profile(
@@ -442,6 +484,25 @@ class CircuitConfig(ConfigSectionBase):
                 if cb.arc_resistance:
                     sw.arc_resistance = cb.arc_resistance * 1e6
                 switches.append(sw)
+
+        # Optional saturable inductors (placed at the end of the network by default)
+        if self.saturable_inductors:
+            target_from = segments[-1].to_node if segments else 0
+            target_to = target_from + 1
+            for sat in self.saturable_inductors:
+                from_node = sat.from_node if sat.from_node is not None else target_from
+                to_node = sat.to_node if sat.to_node is not None else target_to
+                segments.append(
+                    SaturableInductor(
+                        from_node=from_node,
+                        to_node=to_node,
+                        L_initial=sat.L_initial * 1e-6,
+                        L_saturated=sat.L_saturated * 1e-6,
+                        tau=sat.tau_ns * 1e-9,
+                        reset_time=None if sat.reset_time_ns is None else sat.reset_time_ns * 1e-9,
+                        series_resistance=sat.series_resistance * 1e-3,
+                    )
+                )
 
         return segments, switches
 

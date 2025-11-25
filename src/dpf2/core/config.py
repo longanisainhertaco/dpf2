@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, replace, field
 from pathlib import Path
-from typing import Any, Dict, Literal, Tuple
+from typing import Any, Dict, Literal, Tuple, Optional, List
 
 import numpy as np
 from pydantic import ValidationError
@@ -63,6 +63,11 @@ class DPFConfig:
     cfl_number: float = 0.5
     end_time: float = 10e-6
     geometry: Dict[str, Any] | None = None
+    transmission_line: Optional[Dict[str, float]] = None
+    crowbar: Optional[Dict[str, float]] = None
+    saturable_inductor: Optional[Dict[str, float]] = None
+    neutral_gas_puff: Optional[Dict[str, float]] = None
+    lp_trace: Optional[List[Tuple[float, float]]] = None
 
     jitter: JitterConfig = field(default_factory=JitterConfig)
     datasets: Dict[str, Dict[str, Dict[str, object]]] | None = None

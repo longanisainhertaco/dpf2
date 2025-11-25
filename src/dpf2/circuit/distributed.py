@@ -37,6 +37,7 @@ __all__ = [
     "TriggeredSwitch",
     "CrowbarStage",
     "BlumleinSection",
+    "SaturableInductor",
     "MultiSectionLine",
     "PlasmaInductance",
     "assemble_matrices",
@@ -262,6 +263,42 @@ class MultiSectionLine:
         """Return the contained segments as a list."""
 
         return list(self.sections)
+
+
+@dataclass
+class SaturableInductor:
+    """Two-terminal saturable inductor with a smooth roll-off curve.
+
+    The model intentionally trades detail for simplicity: the inductance
+    transitions from ``L_initial`` to ``L_saturated`` following an exponential
+    decay with time constant ``tau``.  ``reset_time`` can be used to emulate
+    post-shot demagnetisation by returning the inductance to ``L_initial`` once
+    the supplied wall-clock time is exceeded.  A small series resistance can be
+    added via ``series_resistance`` to keep the solver matrices well
+    conditioned.
+    """
+
+    from_node: int
+    to_node: int
+    L_initial: float
+    L_saturated: float
+    tau: float
+    reset_time: float | None = None
+    series_resistance: float = 0.0
+
+    def delay(self) -> float:
+        return 0.0
+
+    def _inductance(self, t: float) -> float:
+        if self.reset_time is not None and t >= self.reset_time:
+            return self.L_initial
+        decay = float(np.exp(-max(t, 0.0) / self.tau)) if self.tau > 0 else 0.0
+        return self.L_saturated + (self.L_initial - self.L_saturated) * decay
+
+    def totals(
+        self, t: float = 0.0, frequency: float | None = None
+    ) -> tuple[float, float, float]:
+        return self._inductance(t), self.series_resistance, 0.0
 
 
 @dataclass
