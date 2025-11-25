@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Dict
 import math
+from dataclasses import dataclass
+from typing import Dict
 
 
 @dataclass(frozen=True)

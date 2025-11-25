@@ -153,4 +153,65 @@ def optimize(
     click.echo(json.dumps(report, indent=2))
 
 
+@batch.command(name="pipeline")
+@click.option("--config", type=click.Path(exists=False), help="Configuration file")
+@click.option("--parameter", required=True, help="Parameter to sweep/optimise")
+@click.option("--values", type=float, multiple=True, help="Explicit sweep values")
+@click.option("--linspace", type=str, help="Generate evenly spaced values start:stop:count")
+@click.option("--opt-steps", type=int, default=3, show_default=True, help="Number of refinement steps")
+@click.option("--output", type=click.Path(), default="pipeline_output", help="Output directory")
+@click.pass_context
+def pipeline(
+    ctx: click.Context,
+    config: str | None,
+    parameter: str,
+    values: Sequence[float],
+    linspace: str | None,
+    opt_steps: int,
+    output: str,
+) -> None:
+    """Run a sweep followed by a coarse optimisation pass."""
+
+    cfg = DPFConfig.from_file(config) if config else DPFConfig()
+    sweep_vals = _parse_values(values, linspace)
+    results = run_parametric_sweep(
+        cfg,
+        parameter,
+        sweep_vals,
+        output_dir=output,
+        lab_mode=ctx.obj.get("lab_mode", False),
+        config_path=config,
+        emit_checkpoints=True,
+        emit_openpmd=False,
+        manifest=True,
+    )
+    metrics = compute_sweep_metrics(cfg, results, parameter=parameter)
+    best_val, _ = max(metrics.items(), key=lambda kv: kv[1].get("yield", 0.0))
+
+    refine_values = list(np.linspace(best_val * 0.9, best_val * 1.1, opt_steps))
+    refine_results = run_parametric_sweep(
+        cfg,
+        parameter,
+        refine_values,
+        output_dir=f"{output}_refined",
+        lab_mode=ctx.obj.get("lab_mode", False),
+        config_path=config,
+        emit_checkpoints=True,
+        emit_openpmd=False,
+        manifest=True,
+    )
+    refine_metrics = compute_sweep_metrics(cfg, refine_results, parameter=parameter)
+    best_refined, best_metrics = max(refine_metrics.items(), key=lambda kv: kv[1].get("yield", 0.0))
+
+    summary = {
+        "parameter": parameter,
+        "coarse_values": sweep_vals,
+        "refined_values": refine_values,
+        "best_value": float(best_refined),
+        "metrics": best_metrics,
+    }
+    write_batch_manifest(output, [summary])
+    click.echo(json.dumps(summary, indent=2))
+
+
 __all__ = ["batch"]

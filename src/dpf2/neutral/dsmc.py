@@ -21,7 +21,7 @@ References
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Tuple
 
@@ -81,12 +81,12 @@ class DSMC:
     velocities: np.ndarray | None = None
     # Parameters for a very small gas puff model.  The ``puff_rate``
     # represents the increase in number density per second while the puff
-    # is active between ``puff_start`` and ``puff_end``.  These additions are
-    # intentionally lightweight – the tests only exercise basic coupling
-    # behaviour rather than a full DSMC implementation.
+    # is active between ``puff_start`` and ``puff_end``.  ``puff_schedule``
+    # allows multiple pulses to be chained together for timing studies.
     puff_start: float = 0.0
     puff_end: float = 0.0
     puff_rate: float = 0.0
+    puff_schedule: list[tuple[float, float, float]] = field(default_factory=list)
     # Current estimate of the neutral density used for hybrid coupling
     # with a fluid description of the plasma.
     density: float | None = None
@@ -160,9 +160,16 @@ class DSMC:
     # ------------------------------------------------------------------
     def gas_source(self, t: float) -> float:
         """Return the time dependent gas puff source term."""
-        if self.puff_start <= t <= self.puff_end:
-            return self.puff_rate
-        return 0.0
+        base = self.puff_rate if self.puff_start <= t <= self.puff_end else 0.0
+        scheduled = [rate for start, end, rate in self.puff_schedule if start <= t <= end]
+        return base + sum(scheduled)
+
+    def add_puff_window(self, start: float, end: float, rate: float) -> None:
+        """Add a puff window with explicit start/end times."""
+
+        if end < start:
+            raise ValueError("puff end time must be after start time")
+        self.puff_schedule.append((start, end, rate))
 
     def run(self, dt: float, *, t: float = 0.0, plasma_density: float = 0.0, ionization_rate: float = 1.0) -> float:
         """Advance the particle system by ``dt`` seconds and return density.
