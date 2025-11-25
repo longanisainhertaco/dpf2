@@ -99,6 +99,8 @@ class EOSModel(str, Enum):
     IDEAL = "ideal"
     TABULATED = "tabulated"
     REAL_GAS = "real_gas"
+    SESAME = "sesame"
+    LEOS = "leos"
 
 
 class ResistivityModel(str, Enum):
@@ -110,6 +112,7 @@ class ResistivityModel(str, Enum):
 class IonizationModel(str, Enum):
     SAHA = "Saha"
     FLYCHK = "FLYCHK"
+    CR = "collisional_radiative"
     NONE = "None"
 
 

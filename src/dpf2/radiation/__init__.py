@@ -9,7 +9,9 @@ import numpy as np
 
 from ..core_schema import RadiationModel, RadiationTransportModel
 from .multigroup import MultiGroupDiffusion
+from ..chemistry import SahaEquilibrium
 from .power import bremsstrahlung_power, line_radiation_power
+from .optically_thin import GrayRadiationInterface, OpticallyThinRadiation
 from .xray_emission_model import cr_line_emission
 from .metadata import DatasetMetadata, load_chianti_metadata
 
@@ -24,6 +26,8 @@ __all__ = [
     "cr_line_emission",
     "DatasetMetadata",
     "load_chianti_metadata",
+    "OpticallyThinRadiation",
+    "GrayRadiationInterface",
 ]
 
 
@@ -59,6 +63,8 @@ def create_radiation(
 ) -> RadiationBase | None:
     if model is RadiationModel.NONE:
         return None
+    if model is RadiationModel.LINE:
+        return OpticallyThinRadiation(SahaEquilibrium())
     base = BremsstrahlungModel()
     if transport is RadiationTransportModel.MONTE_CARLO:
         return MonteCarloRadiation(base)
