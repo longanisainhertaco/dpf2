@@ -34,4 +34,27 @@ def loop_mutual_inductance(r1: float, r2: float, separation: float) -> float:
     return MU0 * math.pi * r1 ** 2 * r2 ** 2 / (2 * (r1 ** 2 + separation ** 2) ** 1.5)
 
 
-__all__ = ["coaxial_inductance", "loop_mutual_inductance"]
+def reconstruct_dynamic_inductance(
+    plasma_radii: list[float] | tuple[float, ...] | range | set | frozenset,
+    *,
+    length: float,
+    sheath_thickness: float = 5e-3,
+) -> list[float]:
+    """Reconstruct a time-varying inductance from plasma radii.
+
+    The helper treats each radius as a coaxial column with a thin return sheath
+    and integrates the Biot–Savart contribution using
+    :func:`coaxial_inductance`.  It intentionally uses minimal inputs so that
+    callers can plug in radii extracted from parametric CAD features or from a
+    puff/flashover timeline.
+    """
+
+    values: list[float] = []
+    for r in plasma_radii:
+        inner = max(r - sheath_thickness, 1e-6)
+        outer = r + sheath_thickness
+        values.append(coaxial_inductance(inner, outer, length))
+    return values
+
+
+__all__ = ["coaxial_inductance", "loop_mutual_inductance", "reconstruct_dynamic_inductance"]

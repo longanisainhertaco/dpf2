@@ -38,6 +38,11 @@ from dpf2.diagnostics.thresholds import (
     check_thresholds,
     plasma_inductance_circuit,
 )
+from dpf2.geometry.importer import (
+    ImportedGeometry,
+    load_geometry_with_materials,
+    parametrized_geometry,
+)
 from dpf2.optimization.param_sweep import (
     run_parametric_sweep,
     compute_sweep_metrics,
@@ -49,6 +54,7 @@ from dpf2.gui import interactive
 from dpf2.indexing import build_code_index, write_markdown_index
 
 from dpf2.device_profiles import DeviceProfiles
+from dpf2.geometry.parameterized import HollowGeometry, ReentrantGeometry, TaperedGeometry
 
 from dpf2.scaling_laws import sweep_yield_scaling
 from dpf2.uq.sampling import latin_hypercube, sobol_sample
@@ -1288,6 +1294,75 @@ def export_neutron_summary(angles: str, distance: float, outfile: str) -> None:
     dets = simulate_tof_detectors(_FlatEDF(), cross_section, ang_list, distance, time_bins)
     save_tof_hdf5(outfile, time_bins, dets)
     click.echo(f"HDF5 summary written to {outfile}")
+
+
+@main.command(name="geometry")
+@click.option("--cad", type=click.Path(exists=True, dir_okay=False), help="CAD/mesh file to import")
+@click.option(
+    "--parametric",
+    type=click.Choice(["tapered", "hollow", "reentrant"]),
+    help="Generate a parametric geometry instead of loading CAD",
+)
+@click.option("--length", type=float, default=0.1, show_default=True, help="Axial length for inductance reconstruction")
+@click.option("--r-base", type=float, help="Base radius for tapered geometry")
+@click.option("--r-top", type=float, help="Top radius for tapered geometry")
+@click.option("--r-inner", type=float, help="Inner radius for hollow geometry")
+@click.option("--r-outer", type=float, help="Outer radius for hollow geometry")
+@click.option(
+    "--material-tag",
+    "material_tags",
+    multiple=True,
+    help="Override CAD material tags with name e.g. MAT1=copper",
+)
+@click.option("--material", default="copper", show_default=True, help="Material to assign when generating parametric geometries")
+def geometry(
+    cad: str | None,
+    parametric: str | None,
+    length: float,
+    r_base: float | None,
+    r_top: float | None,
+    r_inner: float | None,
+    r_outer: float | None,
+    material_tags: tuple[str, ...],
+    material: str,
+) -> None:
+    """Import CAD/parametric geometry and report material-aware metadata."""
+
+    overrides = {}
+    for entry in material_tags:
+        if "=" not in entry:
+            raise click.ClickException("Material overrides must be of the form TAG=name")
+        tag, name = entry.split("=", 1)
+        overrides[tag] = name
+
+    geom: ImportedGeometry
+    if cad:
+        geom = load_geometry_with_materials(cad, default_material=material, material_overrides=overrides or None)
+    elif parametric == "tapered":
+        if r_base is None or r_top is None:
+            raise click.ClickException("--r-base and --r-top are required for tapered geometry")
+        geom = parametrized_geometry(TaperedGeometry(length=length, r_base=r_base, r_top=r_top), material=material)
+    elif parametric == "hollow":
+        if r_inner is None or r_outer is None:
+            raise click.ClickException("--r-inner and --r-outer are required for hollow geometry")
+        geom = parametrized_geometry(HollowGeometry(length=length, r_outer=r_outer, r_inner=r_inner), material=material)
+    elif parametric == "reentrant":
+        geom = parametrized_geometry(ReentrantGeometry(segments=[(0.0, r_outer or 0.02), (length, r_inner or 0.015)]), material=material)
+    else:
+        raise click.ClickException("Provide either --cad or --parametric")
+
+    max_radius = max((abs(node[0]) for node in geom.nodes), default=0.01)
+    radii = [max_radius * f for f in (0.6, 0.4, 0.2)]
+    inductance = geom.inductance_from_radius(radii, length)
+
+    payload = {
+        "materials": list(geom.materials),
+        "material_models": sorted(geom.material_models.keys()),
+        "n_nodes": len(geom.nodes),
+        "n_elements": len(geom.elements),
+        "inductance_trace": inductance,
+    }
+    click.echo(json.dumps(payload, indent=2))
 
 
 @main.command()
