@@ -43,6 +43,7 @@ from dpf2.geometry.importer import (
     load_geometry_with_materials,
     parametrized_geometry,
 )
+from dpf2.neutral.flashover import NeutralGasPuff
 from dpf2.optimization.param_sweep import (
     run_parametric_sweep,
     compute_sweep_metrics,
@@ -389,6 +390,111 @@ def main(ctx: click.Context, notebook: bool, lab_mode: bool, student: bool) -> N
     show_default=True,
     help="Number of jittered shots to run when lab-mode is enabled",
 )
+@click.option(
+    "--transmission-line-length",
+    type=float,
+    default=None,
+    help="Length of a lumped transmission-line surrogate [m]",
+)
+@click.option(
+    "--transmission-line-l",
+    type=float,
+    default=None,
+    help="Total inductance of the transmission-line section [H]",
+)
+@click.option(
+    "--transmission-line-r",
+    type=float,
+    default=None,
+    help="Total resistance of the transmission-line section [Ω]",
+)
+@click.option(
+    "--transmission-line-c",
+    type=float,
+    default=None,
+    help="Total capacitance of the transmission-line section [F]",
+)
+@click.option(
+    "--crowbar-resistance",
+    type=float,
+    default=None,
+    help="Crowbar branch resistance [Ω]",
+)
+@click.option(
+    "--crowbar-trigger-ns",
+    type=float,
+    default=None,
+    help="Crowbar trigger time [ns]",
+)
+@click.option(
+    "--crowbar-jitter-ns",
+    type=float,
+    default=0.0,
+    show_default=True,
+    help="Gaussian jitter applied to crowbar trigger [ns]",
+)
+@click.option(
+    "--saturable-l-initial",
+    type=float,
+    default=None,
+    help="Initial inductance of saturable element [H]",
+)
+@click.option(
+    "--saturable-l-sat",
+    type=float,
+    default=None,
+    help="Saturated inductance of saturable element [H]",
+)
+@click.option(
+    "--saturable-tau-ns",
+    type=float,
+    default=None,
+    help="Time constant for inductance roll-off [ns]",
+)
+@click.option(
+    "--saturable-reset-ns",
+    type=float,
+    default=None,
+    help="Optional reset time for saturable inductor [ns]",
+)
+@click.option(
+    "--geometry-path",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="CAD/mesh geometry to ingest for inductance reconstruction",
+)
+@click.option(
+    "--plasma-radius",
+    type=float,
+    multiple=True,
+    help="Plasma radius samples used to build Lp(t) [m]",
+)
+@click.option(
+    "--puff-time",
+    type=float,
+    default=None,
+    help="Neutral puff trigger time [s]",
+)
+@click.option(
+    "--puff-rise-time",
+    type=float,
+    default=0.0,
+    show_default=True,
+    help="Neutral puff rise time [s]",
+)
+@click.option(
+    "--puff-density",
+    type=float,
+    default=None,
+    help="Peak neutral puff density",
+)
+@click.option(
+    "--puff-coupling",
+    type=float,
+    default=0.5,
+    show_default=True,
+    help="Neutral–plasma coupling efficiency",
+)
 @click.pass_context
 def simulate(
     ctx: click.Context,
@@ -403,6 +509,23 @@ def simulate(
     device: str | None,
     wizard: bool,
     shots: int,
+    transmission_line_length: float | None,
+    transmission_line_l: float | None,
+    transmission_line_r: float | None,
+    transmission_line_c: float | None,
+    crowbar_resistance: float | None,
+    crowbar_trigger_ns: float | None,
+    crowbar_jitter_ns: float,
+    saturable_l_initial: float | None,
+    saturable_l_sat: float | None,
+    saturable_tau_ns: float | None,
+    saturable_reset_ns: float | None,
+    geometry_path: str | None,
+    plasma_radius: tuple[float, ...],
+    puff_time: float | None,
+    puff_rise_time: float,
+    puff_density: float | None,
+    puff_coupling: float,
 ) -> None:
     """Run a DPF simulation."""
     try:
@@ -479,6 +602,57 @@ def simulate(
                 cfg.charging_voltage = voltage
             if hasattr(cfg, "electrode_length"):
                 cfg.electrode_length = segment_length
+
+        if transmission_line_length is not None:
+            cfg.transmission_line = {
+                "length": transmission_line_length,
+                "L": transmission_line_l,
+                "R": transmission_line_r,
+                "C": transmission_line_c,
+            }
+        if crowbar_resistance is not None and crowbar_trigger_ns is not None:
+            cfg.crowbar = {
+                "resistance": crowbar_resistance,
+                "trigger_s": crowbar_trigger_ns * 1e-9,
+                "jitter_s": crowbar_jitter_ns * 1e-9,
+            }
+        if (
+            saturable_l_initial is not None
+            and saturable_l_sat is not None
+            and saturable_tau_ns is not None
+        ):
+            cfg.saturable_inductor = {
+                "L_initial": saturable_l_initial,
+                "L_saturated": saturable_l_sat,
+                "tau_s": saturable_tau_ns * 1e-9,
+            }
+            if saturable_reset_ns is not None:
+                cfg.saturable_inductor["reset_s"] = saturable_reset_ns * 1e-9
+
+        if geometry_path:
+            geom = load_geometry_with_materials(geometry_path)
+            cfg.geometry = {
+                "path": str(geometry_path),
+                "materials": geom.materials,
+            }
+            if plasma_radius:
+                times = np.linspace(0.0, cfg.end_time, num=len(plasma_radius)).tolist()
+                cfg.lp_trace = geom.lp_trace(list(zip(times, plasma_radius)), cfg.electrode_length)
+
+        if puff_time is not None and puff_density is not None:
+            puff = NeutralGasPuff(
+                puff_time=puff_time,
+                rise_time=puff_rise_time,
+                base_density=puff_density,
+                coupling_efficiency=puff_coupling,
+            )
+            cfg.neutral_gas_puff = {
+                "puff_time": puff_time,
+                "rise_time": puff_rise_time,
+                "base_density": puff_density,
+                "coupling_efficiency": puff_coupling,
+                "peak_density": puff.density(puff_time + puff_rise_time),
+            }
 
         sim = DPFSimulation(cfg)
 

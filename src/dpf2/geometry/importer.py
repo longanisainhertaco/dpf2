@@ -39,6 +39,20 @@ class ImportedGeometry:
 
         return reconstruct_dynamic_inductance(radii, length=length)
 
+    def lp_trace(self, radius_history: Sequence[tuple[float, float]], length: float) -> List[tuple[float, float]]:
+        """Return ``(t, Lp)`` pairs reconstructed from ``radius_history``.
+
+        ``radius_history`` is expected to be ``[(time, radius), ...]`` where time
+        is in seconds and radius in metres.  The helper delegates to
+        :func:`inductance_from_radius` for the heavy lifting, keeping the mapping
+        of CAD/parametric geometry to circuit-facing inductance profiles in one
+        place.
+        """
+
+        radii = [r for _, r in radius_history]
+        inductances = self.inductance_from_radius(radii, length)
+        return [(t, Lp) for (t, _), Lp in zip(radius_history, inductances)]
+
 
 def _material_labels(materials: Sequence[object] | None, default: str) -> List[str]:
     if not materials:

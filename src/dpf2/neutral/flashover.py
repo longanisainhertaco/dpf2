@@ -8,6 +8,33 @@ from dpf2.paschen import paschen_breakdown_time
 
 
 @dataclass
+class NeutralGasPuff:
+    """Parameterized neutral gas puff with simple coupling helper."""
+
+    puff_time: float
+    rise_time: float
+    base_density: float
+    coupling_efficiency: float = 0.5
+
+    def density(self, t: float) -> float:
+        """Return neutral density at time ``t`` using a smooth ramp."""
+
+        if t < self.puff_time:
+            return 0.0
+        dt = max(t - self.puff_time, 0.0)
+        if self.rise_time <= 0:
+            return self.base_density
+        ramp = min(dt / self.rise_time, 1.0)
+        return self.base_density * ramp
+
+    def couple_to_plasma(self, plasma_density: float, t: float) -> float:
+        """Return effective plasma density after neutral coupling."""
+
+        neutral = self.density(t)
+        return plasma_density + self.coupling_efficiency * neutral
+
+
+@dataclass
 class FlashoverEvent:
     """Capture the timing of a surface flashover event."""
 
@@ -36,4 +63,4 @@ class FlashoverModel:
         return FlashoverEvent(breakdown_time=t_break, recovered_density=recovered_density)
 
 
-__all__ = ["FlashoverEvent", "FlashoverModel"]
+__all__ = ["FlashoverEvent", "FlashoverModel", "NeutralGasPuff"]
