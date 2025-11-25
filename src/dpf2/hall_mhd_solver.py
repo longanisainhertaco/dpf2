@@ -41,7 +41,7 @@ from .eos import EOSBase, IdealGasEOS
 from .boundary_conditions import KineticSheath
 from .physics.energy import EnergyTracker
 from .diagnostics.quality_dashboard import QualityDashboard
-from .diagnostics.modes import azimuthal_mode_spectrum
+from .diagnostics.modes import azimuthal_mode_spectrum, azimuthal_decomposition, growth_rate
 from .physics.lower_hybrid_drift import LowerHybridDrift
 from .physics.hall_mhd import LHDIResistivity
 from .physics.inductance import (
@@ -391,6 +391,10 @@ class HallMHDSolver(PlasmaSolverBase):
     electron_inertia_active: bool = field(init=False, default=False)
     last_wce_tau_e: float = field(init=False, default=0.0)
     last_di_over_L: float = field(init=False, default=0.0)
+    last_mode_spectrum: np.ndarray | None = field(init=False, default=None)
+    last_mode_growth: np.ndarray | None = field(init=False, default=None)
+    last_mode_decomposition: np.ndarray | None = field(init=False, default=None)
+    mode_growth_history: list[np.ndarray] = field(init=False, default_factory=list)
     cart_comm: Any | None = field(init=False, default=None)
     quality: QualityDashboard | None = None
     step_count: int = 0
@@ -400,6 +404,12 @@ class HallMHDSolver(PlasmaSolverBase):
     sheath_velocity_z: float = field(init=False, default=0.0)
     _dL_dz: float = field(init=False, default=0.0)
     _dL_dr: float = field(init=False, default=0.0)
+    resistivity_gates: Dict[str, bool] = field(default_factory=dict)
+    last_resistivity_channels: Dict[str, float] = field(init=False, default_factory=dict)
+    last_eta_spitzer_mean: float = field(init=False, default=0.0)
+    resistivity_report: Dict[str, float | Dict[str, float]] = field(
+        init=False, default_factory=dict
+    )
     _coord_cache: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = field(
         init=False, default=None
     )
@@ -452,6 +462,43 @@ class HallMHDSolver(PlasmaSolverBase):
         """Remove any active LHDI resistivity model."""
         self.lower_hybrid_drift = None
 
+    # Runtime control -------------------------------------------------------
+    def gate_anomalous_resistivity(self, name: str, enabled: bool = True) -> None:
+        """Enable or disable a named anomalous resistivity channel at runtime."""
+
+        self.resistivity_gates[name] = enabled
+
+    # Monitoring ------------------------------------------------------------
+    def _record_mode_metrics(self, J_mag: np.ndarray, dt: float) -> None:
+        """Record azimuthal spectra and growth rates for the supplied ``|J|``."""
+
+        try:
+            spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
+            decomposition = azimuthal_decomposition(J_mag, axis=-1)
+        except Exception:  # pragma: no cover - optional FFT path
+            self.last_mode_spectrum = None
+            self.last_mode_growth = None
+            return
+
+        prev = self.last_mode_spectrum
+        self.last_mode_spectrum = spectrum
+        if not self.mode_history or not np.array_equal(self.mode_history[-1], spectrum):
+            self.mode_history.append(spectrum.copy())
+        try:
+            self.last_mode_decomposition = decomposition  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - lightweight attribute cache
+            pass
+
+        if prev is not None and dt > 0:
+            try:
+                growth = growth_rate(prev, spectrum, dt)
+                self.last_mode_growth = growth
+                self.mode_growth_history.append(growth.copy())
+            except Exception:  # pragma: no cover - numpy stub
+                self.last_mode_growth = None
+        else:
+            self.last_mode_growth = None
+
     def compute_anomalous_resistivity(self, J: np.ndarray) -> np.ndarray:
         """Evaluate anomalous resistivity models and record voltage spikes.
 
@@ -468,18 +515,28 @@ class HallMHDSolver(PlasmaSolverBase):
         s_E = np.zeros_like(J)
         self.last_lh_spectrum = None
         self.last_ez_surge = 0.0
+        self.last_resistivity_channels = {}
 
-        if hasattr(np, "abs"):
-            mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
-        else:  # pragma: no cover - very small stub fallback
-            mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
+        try:
+            if hasattr(np, "abs"):
+                mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
+            else:  # pragma: no cover - very small stub fallback
+                mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
+        except Exception:  # pragma: no cover - numpy stub ellipsis path
+            mag = [[abs(vec[0]) + abs(vec[1]) + abs(vec[2]) for vec in row] for row in J]
 
         def _process(result: np.ndarray | tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
             if isinstance(result, tuple):
                 return result
             return result, np.zeros(J.shape[:-1])
 
-        def _accumulate(e_eta: np.ndarray, e_E: np.ndarray, *, axial: bool = False) -> None:
+        def _accumulate(
+            e_eta: np.ndarray,
+            e_E: np.ndarray,
+            *,
+            axial: bool = False,
+            channel: str | None = None,
+        ) -> None:
             nonlocal eta, E
             eta += e_eta
             if e_E.ndim == E.ndim - 1:
@@ -489,12 +546,20 @@ class HallMHDSolver(PlasmaSolverBase):
                     E += e_E[..., None]
             else:
                 E += e_E
+            if channel is not None:
+                try:
+                    self.last_resistivity_channels[channel] = float(np.mean(e_eta))
+                except Exception:  # pragma: no cover - numpy stub
+                    self.last_resistivity_channels[channel] = float(e_eta)
 
-        if self.anomalous_resistivity is not None:
+        def _enabled(name: str) -> bool:
+            return self.resistivity_gates.get(name, True)
+
+        if self.anomalous_resistivity is not None and _enabled("anomalous_resistivity"):
             e_eta, e_E = _process(self.anomalous_resistivity(J))
-            _accumulate(e_eta, e_E)
+            _accumulate(e_eta, e_E, channel="anomalous_resistivity")
 
-        if self.lower_hybrid_drift is not None:
+        if self.lower_hybrid_drift is not None and _enabled("lower_hybrid_drift"):
             model = self.lower_hybrid_drift
             source = getattr(model, "__self__", model)
             if callable(model):
@@ -504,7 +569,7 @@ class HallMHDSolver(PlasmaSolverBase):
             else:  # pragma: no cover - unexpected type
                 res = model(J)  # type: ignore[misc]
             e_eta, e_E = _process(res)
-            _accumulate(e_eta, e_E, axial=True)
+            _accumulate(e_eta, e_E, axial=True, channel="lower_hybrid_drift")
             s_eta += e_eta
             if e_E.ndim == E.ndim - 1:
                 s_E[..., 2] += e_E
@@ -544,7 +609,7 @@ class HallMHDSolver(PlasmaSolverBase):
             self.last_lh_phase_velocity = 0.0
             self.last_lh_spectrum = None
 
-        if self.m0_instability is not None:
+        if self.m0_instability is not None and _enabled("m0_instability"):
             model = self.m0_instability
             if callable(model):
                 res = model(J)
@@ -553,7 +618,7 @@ class HallMHDSolver(PlasmaSolverBase):
             else:  # pragma: no cover - unexpected type
                 res = model(J)  # type: ignore[misc]
             e_eta, e_E = _process(res)
-            _accumulate(e_eta, e_E, axial=True)
+            _accumulate(e_eta, e_E, axial=True, channel="m0_instability")
             s_eta += e_eta
             if e_E.ndim == E.ndim - 1:
                 s_E[..., 2] += e_E
@@ -564,15 +629,32 @@ class HallMHDSolver(PlasmaSolverBase):
         if self.instability_thresholds:
             self._check_instability_onset(J)
 
-        if hasattr(np, "abs"):
-            mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
-        else:  # pragma: no cover - very small stub fallback
-            mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
+        try:
+            if hasattr(np, "abs"):
+                mag = np.abs(J[..., 0]) + np.abs(J[..., 1]) + np.abs(J[..., 2])
+            else:  # pragma: no cover - very small stub fallback
+                mag = [abs(j[0]) + abs(j[1]) + abs(j[2]) for j in J]
+        except Exception:  # pragma: no cover - numpy stub ellipsis path
+            mag = [[abs(vec[0]) + abs(vec[1]) + abs(vec[2]) for vec in row] for row in J]
 
-        self.last_ez_surge = float(np.max(np.abs(s_E[..., 2])))
+        try:
+            ez_component = np.abs(s_E[..., 2])
+        except Exception:  # pragma: no cover - numpy stub path
+            ez_component = [[abs(vec[2]) for vec in row] for row in s_E]
+        try:
+            self.last_ez_surge = float(np.max(ez_component))
+        except Exception:  # pragma: no cover - list fallback
+            self.last_ez_surge = float(max(max(r) for r in ez_component))
+        try:
+            spike_source = float(np.max(s_eta * mag))
+        except Exception:  # pragma: no cover - list fallback
+            try:
+                spike_source = float(np.max(s_eta))
+            except Exception:
+                spike_source = max(max(row) for row in s_eta)
         spike = float(
             max(
-                np.max(s_eta * mag),
+                spike_source,
                 self.last_ez_surge
             )
         )
@@ -593,17 +675,21 @@ class HallMHDSolver(PlasmaSolverBase):
         if not self.instability_thresholds:
             return
         try:
-            if hasattr(np, "linalg") and hasattr(np.linalg, "norm"):
+            if self.last_mode_spectrum is not None:
+                spectrum = self.last_mode_spectrum
+            elif hasattr(np, "linalg") and hasattr(np.linalg, "norm"):
                 J_mag = np.linalg.norm(J, axis=-1)
+                spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
             else:  # pragma: no cover - manual magnitude for stubs
                 J_mag = np.array([
                     math.sqrt(float(j[0]) ** 2 + float(j[1]) ** 2 + float(j[2]) ** 2)
                     for j in J
                 ])
+                spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
         except Exception:  # pragma: no cover - very small stub fallback
             return
-        spectrum = azimuthal_mode_spectrum(J_mag, axis=-1)
-        self.mode_history.append(spectrum.copy())
+        if not self.mode_history or not np.array_equal(self.mode_history[-1], spectrum):
+            self.mode_history.append(spectrum.copy())
         if (
             not self.sausage_onset
             and "sausage" in self.instability_thresholds
@@ -636,12 +722,25 @@ class HallMHDSolver(PlasmaSolverBase):
 
         return write_growth_rates(times, self.mode_history, outdir)
 
-    def amr_refinement(self, state: MHDState) -> None:
-        """Invoke the refinement callback if provided."""
+    def amr_refinement(
+        self,
+        state: MHDState,
+        *,
+        pressure: np.ndarray | None = None,
+        current: np.ndarray | None = None,
+    ) -> None:
+        """Invoke refinement callbacks and AMR tagging with physics metrics."""
+
         if self.refine is not None:
             stats = self.refine(state)
             if stats:
                 logger.info("AMR callback stats: %s", stats)
+
+        if self.amr is not None and hasattr(self.amr, "refine"):
+            plasma_state = {"density": state.rho, "pressure": pressure, "current": current}
+            stats = self.amr.refine(plasma_state)
+            if stats:
+                logger.info("AMR mesh stats: %s", stats)
 
     def _exchange_array(self, arr: np.ndarray) -> None:
         """Exchange ghost cells of ``arr`` with neighbouring MPI ranks."""
@@ -865,6 +964,12 @@ class HallMHDSolver(PlasmaSolverBase):
 
         # --- Constrained transport via electric fields ---
         J = _curl(B)
+        try:
+            J_mag = np.linalg.norm(J, axis=-1)
+        except Exception:  # pragma: no cover - stub fallback
+            J_mag = np.sqrt(J[..., 0] ** 2 + J[..., 1] ** 2 + J[..., 2] ** 2)
+        self._record_mode_metrics(J_mag, dt)
+
         eta_local = (
             eta_field
             if isinstance(eta_field, np.ndarray)
@@ -872,12 +977,9 @@ class HallMHDSolver(PlasmaSolverBase):
         )
         eta_anom = self.compute_anomalous_resistivity(J)
         try:  # pragma: no cover - allow stub numpy without vector ops
-            eta_spitzer_scalar = float(
-                spitzer_resistivity(float(np.max(ne)), float(np.max(T)), 1.0)
-            )
+            eta_spitzer = spitzer_resistivity(ne, T, zbar)
         except Exception:  # fallback constants
-            eta_spitzer_scalar = float(spitzer_resistivity(1.0, 1.0, 1.0))
-        eta_spitzer = np.full_like(eta_local, eta_spitzer_scalar)
+            eta_spitzer = np.full_like(eta_local, float(spitzer_resistivity(1.0, 1.0, 1.0)))
         eta_eff = eta_local + eta_anom
         eta_total = np.maximum(eta_eff, eta_spitzer)
         if (
@@ -890,9 +992,24 @@ class HallMHDSolver(PlasmaSolverBase):
             logger.error(msg)
             raise RuntimeError(msg)
         try:
+            self.last_eta_spitzer_mean = float(np.mean(eta_spitzer))
+        except Exception:
+            self.last_eta_spitzer_mean = float(eta_spitzer)
+        try:
             self.last_eta_total_mean = float(np.mean(eta_total))
         except Exception:
             self.last_eta_total_mean = 0.0
+        try:
+            anom_mean = float(np.mean(eta_anom))
+        except Exception:  # pragma: no cover - scalar fallback
+            anom_mean = float(eta_anom)
+        self.resistivity_report = {
+            "spitzer_mean": self.last_eta_spitzer_mean,
+            "anomalous_mean": anom_mean,
+            "total_mean": self.last_eta_total_mean,
+            "ratio_anomalous_to_spitzer": anom_mean / max(self.last_eta_spitzer_mean, 1e-30),
+            "channels": dict(self.last_resistivity_channels),
+        }
         E = -np.cross(v, B) + eta_total[..., None] * J - grad_pe_vec / ne[..., None]
         if self.last_E_anom is not None:
             E += self.last_E_anom
@@ -973,7 +1090,7 @@ class HallMHDSolver(PlasmaSolverBase):
         )
 
         self.apply_boundary_conditions(new_state)
-        self.amr_refinement(new_state)
+        self.amr_refinement(new_state, pressure=p, current=J)
         self.exchange_boundaries(new_state)
         self.amr_sync(new_state)
 
