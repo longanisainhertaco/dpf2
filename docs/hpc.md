@@ -77,6 +77,14 @@ To reproduce these measurements on SLURM:
 srun -n 8 python scripts/benchmark_scaling.py --max-workers 8 --outdir docs/performance
 ```
 
+## MPI + GPU enablement roadmap
+
+The project roadmap for porting core solvers to AMReX/CUDA with MPI includes GPU-aware
+exchange paths, asynchronous kernel launches, and profiling guidance (strong/weak
+scaling plus Roofline). Container images with pinned toolchains, CI smoke tests for
+CPU/GPU correctness and performance, and restart-capable parallel I/O benchmarks are
+captured in ``docs/hpc_mpi_gpu_strategy.md``.
+
 ## HPC CLI Example
 
 The command line interface can be launched directly with `srun` to distribute a run:
