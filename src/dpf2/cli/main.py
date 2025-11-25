@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import textwrap
 import random
+import csv
 
 import numpy as np
 
@@ -53,6 +54,7 @@ from dpf2.optimization.param_sweep import (
 from dpf2.gui.project_manager import ProjectManager
 from dpf2.gui import interactive
 from dpf2.indexing import build_code_index, write_markdown_index
+from dpf2.io.manifest import write_batch_manifest
 
 from dpf2.device_profiles import DeviceProfiles
 from dpf2.geometry.parameterized import HollowGeometry, ReentrantGeometry, TaperedGeometry
@@ -104,6 +106,22 @@ def _to_float(val: Any) -> float:
         return float(val)
     except TypeError:
         return float(getattr(val, "data", val))
+
+
+def _load_grid(grid: str) -> dict[str, list[float]]:
+    """Parse a JSON grid mapping parameters to lists of values."""
+
+    candidate = Path(grid)
+    raw = candidate.read_text() if candidate.exists() else grid
+    data = json.loads(raw)
+    if not isinstance(data, dict):
+        raise click.ClickException("Parameter grid must be a JSON object")
+    parsed: dict[str, list[float]] = {}
+    for key, values in data.items():
+        if not isinstance(values, (list, tuple)):
+            raise click.ClickException(f"Grid entry for {key} must be a list")
+        parsed[key] = [float(v) for v in values]
+    return parsed
 
 
 def _launch_notebook() -> None:
@@ -1556,6 +1574,148 @@ def wizard(output: str) -> None:
         json.dump(asdict(cfg), fh, indent=2)
 
     click.echo(f"Configuration saved to {output}")
+
+
+@main.group()
+def project() -> None:
+    """Project management, comparisons and batch sweeps."""
+
+
+@project.command(name="sweep")
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
+@click.option(
+    "--grid",
+    type=str,
+    required=True,
+    help="JSON string or file mapping parameter names to arrays of values",
+)
+@click.option("--output", type=click.Path(file_okay=False), default="campaign_runs")
+@click.option(
+    "--manifest",
+    is_flag=True,
+    help="Write manifest files for every sweep point and combined batch",
+)
+@click.option(
+    "--label",
+    type=str,
+    default=None,
+    help="Optional label for grouping metrics and plots",
+)
+@click.pass_context
+def project_sweep(
+    ctx: click.Context,
+    config: str,
+    grid: str,
+    output: str,
+    manifest: bool,
+    label: str | None,
+) -> None:
+    """Run multiple parametric sweeps with optional manifest capture."""
+
+    cfg = DPFConfig.from_file(config)
+    param_grid = _load_grid(grid)
+    pm = ProjectManager(project=label or Path(output).name)
+
+    batch_records: list[dict[str, object]] = []
+    for parameter, values in param_grid.items():
+        metrics = pm.run_sweep(
+            label or parameter,
+            cfg,
+            parameter,
+            values,
+            output_dir=Path(output) / parameter,
+            manifest=ctx.obj.get("lab_mode") or manifest,
+        )
+        batch_records.append(
+            {
+                "parameter": parameter,
+                "values": list(values),
+                "output_dir": str(Path(output) / parameter),
+            }
+        )
+        if ctx.obj.get("lab_mode") or manifest:
+            write_batch_manifest(Path(output) / parameter, batch_records[-1:])
+
+    Path(output).mkdir(parents=True, exist_ok=True)
+    metrics_path = Path(output) / "campaign_metrics.json"
+    metrics_path.write_text(json.dumps(pm.metrics, indent=2, sort_keys=True))
+    overlay_path = pm.overlay_yield_pressure(Path(output) / "yield_pressure_overlay.png")
+
+    if ctx.obj.get("lab_mode") or manifest:
+        write_batch_manifest(output, batch_records)
+
+    click.echo(f"Stored per-parameter metrics in {metrics_path}")
+    click.echo(f"Comparison overlay written to {overlay_path}")
+
+
+@project.command(name="compare")
+@click.option(
+    "--summary",
+    "summaries",
+    multiple=True,
+    required=True,
+    help="Label=summary.json pairs produced by project sweep",
+)
+@click.option(
+    "--parameter",
+    type=str,
+    required=True,
+    help="Parameter to plot on the x-axis",
+)
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False),
+    default="comparison_overlay.png",
+    show_default=True,
+)
+@click.option(
+    "--table",
+    type=click.Path(dir_okay=False),
+    default="comparison_table.csv",
+    show_default=True,
+)
+def project_compare(
+    summaries: tuple[str, ...], parameter: str, output: str, table: str
+) -> None:
+    """Overlay sweep summaries and export a comparison table."""
+
+    metric_sets: dict[str, dict[float, dict[str, float]]] = {}
+    for item in summaries:
+        if "=" not in item:
+            raise click.BadParameter("Summaries must be formatted as label=path")
+        label, path = item.split("=", 1)
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+        metric_sets[label] = {float(k): v for k, v in raw.items()}
+
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(6, 4))
+    for label, metrics in metric_sets.items():
+        vals = sorted(metrics.keys())
+        yields = [metrics[v].get("yield", metrics[v].get("peak_current", 0.0)) for v in vals]
+        plt.plot(vals, yields, marker="o", label=label)
+    plt.xlabel(parameter)
+    plt.ylabel("Yield / proxy")
+    plt.grid(True)
+    plt.legend()
+    Path(output).parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(output)
+    plt.close()
+
+    all_vals = sorted({val for metrics in metric_sets.values() for val in metrics})
+    with open(table, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow([parameter] + [label for label in metric_sets])
+        for val in all_vals:
+            row = [val]
+            for label in metric_sets:
+                row.append(metric_sets[label].get(val, {}).get("yield"))
+            writer.writerow(row)
+
+    click.echo(f"Overlay plot saved to {output}")
+    click.echo(f"Comparison table saved to {table}")
 
 
 @main.command()

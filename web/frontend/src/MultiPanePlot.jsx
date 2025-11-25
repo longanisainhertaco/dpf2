@@ -61,6 +61,13 @@ export default function MultiPanePlot({ voltage, pressure, runId }) {
       const driveCurrent = voltage * (0.8 + 0.4 * Math.sin(t * 2)) * (1 + pressure * 0.5);
       const driveVoltage = voltage * (1.0 + 0.1 * Math.cos(t));
 
+      // Rough plasma gating for the regime dashboard. The synthetic flow uses
+      // pressure to control collisionality and voltage to set the magnetisation
+      // knob.
+      const lundquist = (driveCurrent / Math.max(pressure, 0.05)) * 0.01;
+      const omegaTau = (driveVoltage * 0.02) / Math.max(pressure, 0.05);
+      const regimeIndex = Math.log10(1 + lundquist) + Math.log10(1 + omegaTau);
+
       setSeries((prev) => {
         const next = [
           ...prev,
@@ -69,6 +76,7 @@ export default function MultiPanePlot({ voltage, pressure, runId }) {
             current: driveCurrent,
             voltage: driveVoltage,
             sheath: sheathRadius,
+            regime: regimeIndex,
           },
         ];
         return next.slice(-120);
@@ -105,6 +113,15 @@ export default function MultiPanePlot({ voltage, pressure, runId }) {
         series: series.map((p) => ({ time: p.time, value: p.sheath })),
         callout:
           'Shrinks as pressure and drive increase. When the radius crosses the red line the pinch overlay should show maximum compression.',
+      },
+      {
+        title: 'Regime Gate',
+        color: '#8b5cf6',
+        threshold: 1.0,
+        unit: 'S, ωτ',
+        series: series.map((p) => ({ time: p.time, value: p.regime ?? 0 })),
+        callout:
+          'Combines Lundquist and magnetisation surrogates. Values above the dashed line indicate magnetised, collisionless sheath motion suited to tight pinches.',
       },
     ];
   }, [series, voltage]);

@@ -11,7 +11,7 @@ metrics from multiple sweeps which can then be overlaid or written to disk.
 from pathlib import Path
 import csv
 import json
-from typing import Any, Callable, Dict, Iterable, List, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Tuple
 
 import numpy as np
 try:  # pragma: no cover - optional dependency for circuit visualisation
@@ -118,6 +118,8 @@ class ProjectManager:
         values: Iterable[float],
         *,
         output_dir: str | Path = "sweep_output",
+        manifest: bool = False,
+        datasets: Mapping[str, Mapping[str, Mapping[str, object]]] | None = None,
     ) -> Dict[float, Dict[str, float]]:
         """Run a parametric sweep and store computed metrics.
 
@@ -136,7 +138,12 @@ class ProjectManager:
         """
 
         results = run_parametric_sweep(
-            base_config, parameter, values, output_dir=output_dir
+            base_config,
+            parameter,
+            values,
+            output_dir=output_dir,
+            manifest=manifest,
+            datasets=datasets,
         )
         metrics = compute_sweep_metrics(base_config, results, parameter)
 

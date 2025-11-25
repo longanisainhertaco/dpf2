@@ -53,6 +53,28 @@ dpf2 plot --input output_dir --output plot.png
 Generate a quick plot of current and voltage from simulation output
 files.
 
+## project sweep
+
+```
+dpf2 project sweep --config config.json --grid '{"initial_pressure":[0.08,0.1,0.12]}' --output campaign_runs --manifest
+```
+
+Orchestrate a batch of parametric sweeps and store a manifest per sweep point
+plus a combined `campaign_metrics.json`. The `--grid` flag accepts an inline JSON
+object or a path to a JSON file mapping parameter names to arrays of values. All
+runs inherit lab-mode manifest logging when the top-level `--lab-mode` flag is
+present.
+
+## project compare
+
+```
+dpf2 project compare --parameter initial_pressure --summary baseline=campaign_runs/initial_pressure/summary.json --summary new_mesh=campaign_runs/new_mesh/summary.json
+```
+
+Overlay multiple sweep summaries and emit a comparison plot along with a CSV
+table. Summary files are the `summary.json` outputs produced by parametric
+sweeps or the `campaign_metrics.json` bundle written by `project sweep`.
+
 ## schema
 
 ```
