@@ -59,3 +59,13 @@ def test_bdot_calibration(tmp_path):
     expected = [v * 0.5 for v in out_base["bdot"]]
     assert all(abs(a - b) < 1e-12 for a, b in zip(out["bdot"], expected))
 
+
+def test_constant_calibration_applies_full_gain():
+    from dpf2.diagnostics.synthetic_signals import _apply_instrument_response
+
+    values = [1.0, 2.0, 3.0, 4.0]
+    dt = 1.0
+    scale = 2.0
+    result = _apply_instrument_response(values, dt, [0.0], [scale])
+    assert result == [v * scale for v in values]
+
