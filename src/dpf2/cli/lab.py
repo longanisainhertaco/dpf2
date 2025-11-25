@@ -107,6 +107,8 @@ def write_manifest(
 
     manifest = {
         "code_hash": _code_hash(),
+        "git_hash": _code_hash(),
+        "container_hash": os.environ.get("CONTAINER_HASH", "unknown"),
         "random_seeds": dict(seeds),
         "particle_per_cell": ppc,
         "config_paths": [str(p) for p in (config_paths or [])],
