@@ -55,6 +55,7 @@ from dpf2.uq.sampling import latin_hypercube, sobol_sample
 from dpf2.uq.analysis import sobol_indices, uncertainty_band
 
 from .errors import format_error
+from .batch import batch
 from .lab import write_manifest
 
 
@@ -1357,5 +1358,6 @@ def index(output: str, package: str, source_root: str | None) -> None:
 from .benchmark import benchmark, match_benchmark
 main.add_command(match_benchmark)
 main.add_command(benchmark)
+main.add_command(batch)
 if __name__ == "__main__":
     main()

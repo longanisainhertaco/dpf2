@@ -65,6 +65,7 @@ class DPFConfig:
     geometry: Dict[str, Any] | None = None
 
     jitter: JitterConfig = field(default_factory=JitterConfig)
+    datasets: Dict[str, Dict[str, Dict[str, object]]] | None = None
 
 
     @classmethod
