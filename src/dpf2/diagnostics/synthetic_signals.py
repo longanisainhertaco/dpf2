@@ -105,6 +105,9 @@ def _apply_instrument_response(
 ) -> List[float]:
     """Convolve ``values`` with an impulse response defined by ``resp_t``/``resp_v``."""
 
+    if len(resp_t) == 1:
+        return [float(v * resp_v[0]) for v in values]
+
     t_grid = np.arange(len(values)) * dt
     try:
         impulse = np.interp(t_grid, resp_t, resp_v, left=0.0, right=0.0)
