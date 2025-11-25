@@ -10,6 +10,9 @@ export default function ProjectManager({ projects = [] }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [results, setResults] = useState({});
 
+  // Lightweight comparison notebook keyed by project id
+  const [notes, setNotes] = useState({});
+
   const [preset, setPreset] = useState('');
   const [cad, setCad] = useState(null);
   const [error, setError] = useState('');
@@ -118,6 +121,11 @@ export default function ProjectManager({ projects = [] }) {
         out[id] = {
           maxYield: Math.max(...vals.map((v) => v.yield)),
           maxEfficiency: Math.max(...vals.map((v) => v.efficiency)),
+          bestShot: vals.find(
+            (v) =>
+              v.yield === Math.max(...vals.map((p) => p.yield)) ||
+              v.efficiency === Math.max(...vals.map((p) => p.efficiency))
+          ),
         };
       }
     });
@@ -186,14 +194,14 @@ export default function ProjectManager({ projects = [] }) {
 
       </form>
 
-      <div>
-        <h4>Import Configuration Set</h4>
-        <input
-          type="file"
-          accept="application/json"
-          onChange={importConfig}
-          title={help.project.import}
-        />
+        <div>
+          <h4>Import Configuration Set</h4>
+          <input
+            type="file"
+            accept="application/json"
+            onChange={importConfig}
+            title={help.project.import}
+          />
         <details>
           <summary>What is this?</summary>
           Import a previously exported configuration to compare or rerun
@@ -208,6 +216,7 @@ export default function ProjectManager({ projects = [] }) {
               <th>Project</th>
               <th>Max Yield</th>
               <th>Max Efficiency</th>
+              <th>Scenario Notes</th>
             </tr>
           </thead>
           <tbody>
@@ -224,6 +233,16 @@ export default function ProjectManager({ projects = [] }) {
                     ? metrics[id].maxEfficiency.toFixed(3)
                     : '-'}
                 </td>
+                <td>
+                  <textarea
+                    rows={2}
+                    placeholder="Record alignment with tutorial flows or diagnostics"
+                    value={notes[id] || ''}
+                    onChange={(e) =>
+                      setNotes((n) => ({ ...n, [id]: e.target.value }))
+                    }
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -234,6 +253,25 @@ export default function ProjectManager({ projects = [] }) {
         <div className="overlays">
           <YieldPressureOverlay datasets={datasets} />
           <EfficiencyCurveOverlay datasets={datasets} />
+          <div className="comparison-cards">
+            {selectedIds.map((id) => (
+              <div key={id} className="card">
+                <h5>{id}</h5>
+                <p>
+                  {metrics[id]?.bestShot
+                    ? `Peak yield ${metrics[id].bestShot.yield.toFixed(
+                        3
+                      )} at parameter ${metrics[id].bestShot.parameter}`
+                    : 'Awaiting sweep results'}
+                </p>
+                <p>
+                  {notes[id]
+                    ? `Notes: ${notes[id]}`
+                    : 'Use the notebook column to annotate sheath visuals, diagnostics, or campaign goals.'}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
