@@ -58,6 +58,7 @@ from .neutron_spectra import (
     angular_spectrum,
     anisotropy_metric,
 )
+from .output_bundle import assemble_diagnostic_outputs, apply_cable_dispersion
 from .performance_metrics import (
     compute_performance_metrics,
     estimate_lifetime_sputtering,
@@ -135,6 +136,8 @@ __all__ = [
     "Diagnostics",
     "DetectorArrayGenerator",
     "OutputField",
+    "assemble_diagnostic_outputs",
+    "apply_cable_dispersion",
 ]
 
 
