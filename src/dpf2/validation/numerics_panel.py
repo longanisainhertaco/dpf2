@@ -64,7 +64,13 @@ class NumericsPanel:
         with open(self.output_dir / f"{name}.json", "w", encoding="utf-8") as fh:
             json.dump(metrics, fh, indent=2)
         if self.quality is not None:
-            self.quality.evaluate_numerics(metrics)
+            passed = self.quality.evaluate_numerics(metrics)
+            self.quality.record_validation_overlay(
+                name,
+                metrics,
+                passed=passed,
+                category="numerics",
+            )
         return metrics
 
 

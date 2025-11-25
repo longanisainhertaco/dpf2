@@ -32,6 +32,8 @@ class QualityDashboard:
     max_K_n: float | None = None
     min_omega_ce_tau_e: float | None = None
     regime_history: list[dict[str, float]] = field(default_factory=list)
+    regime_gates: list[dict[str, float | bool]] = field(default_factory=list)
+    validation_overlays: list[dict[str, object]] = field(default_factory=list)
 
     max_l1_error: float | None = None
     max_divB_norm: float | None = None
@@ -213,12 +215,53 @@ class QualityDashboard:
 
         entry["violations"] = violations
 
+        enabled_thresholds = [
+            v is not None
+            for v in (
+                self.min_S,
+                self.max_beta,
+                self.max_M_A,
+                self.min_R_m,
+                self.max_K_n,
+                self.min_omega_ce_tau_e,
+            )
+        ]
+        active = sum(1 for flag in enabled_thresholds if flag)
+        violation_count = sum(1 for violated in violations.values() if violated)
+        gate_entry = {
+            "step": step,
+            "passed": violation_count == 0,
+            "active_thresholds": active,
+            "violation_fraction": float(violation_count / active) if active else 0.0,
+        }
+        self.regime_gates.append(gate_entry)
+        with open(self.output_dir / "regime_gates.json", "w", encoding="utf-8") as fh:
+            json.dump(self.regime_gates, fh, indent=2)
+
         self.regime_history.append(entry)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         with open(self.output_dir / "regime.json", "w", encoding="utf-8") as fh:
             json.dump(self.regime_history, fh, indent=2)
 
         self._update_regime_plot()
+
+    def record_validation_overlay(
+        self,
+        name: str,
+        metrics: dict[str, float | list[float]],
+        *,
+        passed: bool,
+        category: str | None = None,
+    ) -> None:
+        """Persist validation overlays so dashboards can display pass/fail bands."""
+
+        entry: dict[str, object] = {"name": name, "metrics": metrics, "passed": passed}
+        if category is not None:
+            entry["category"] = category
+        self.validation_overlays.append(entry)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.output_dir / "validation_overlays.json", "w", encoding="utf-8") as fh:
+            json.dump(self.validation_overlays, fh, indent=2)
 
     # ------------------------------------------------------------------
     def evaluate_numerics(self, metrics: dict[str, float]) -> bool:

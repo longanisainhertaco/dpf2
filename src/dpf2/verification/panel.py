@@ -159,6 +159,17 @@ class VerificationPanel:
                 passed = self.quality.evaluate_numerics(metrics) and passed
         orders = _observed_orders(l1, sizes)
         self._write("brio_wu", sizes, l1, divs, drifts, spectrum, orders, shocks)
+        if self.quality is not None:
+            overlay = {
+                "l1_error": l1[-1],
+                "divB_norm": divs[-1],
+                "energy_drift": drifts[-1],
+                "observed_order": orders[-1] if orders else 0.0,
+                "shock_count": shocks[-1],
+            }
+            self.quality.record_validation_overlay(
+                "brio_wu", overlay, passed=passed, category="verification"
+            )
         return {
             "l1_error": l1,
             "divB_norm": divs,
@@ -199,6 +210,17 @@ class VerificationPanel:
                 passed = self.quality.evaluate_numerics(metrics) and passed
         orders = _observed_orders(l1, sizes)
         self._write("orszag_tang", sizes, l1, divs, drifts, spectrum, orders, shocks)
+        if self.quality is not None:
+            overlay = {
+                "l1_error": l1[-1],
+                "divB_norm": divs[-1],
+                "energy_drift": drifts[-1],
+                "observed_order": orders[-1] if orders else 0.0,
+                "shock_count": shocks[-1],
+            }
+            self.quality.record_validation_overlay(
+                "orszag_tang", overlay, passed=passed, category="verification"
+            )
         return {
             "l1_error": l1,
             "divB_norm": divs,
@@ -223,6 +245,14 @@ class VerificationPanel:
                 passed = self.quality.evaluate_numerics({"l1_error": err}) and passed
         orders = _observed_orders(l1, sizes)
         self._write("mms_scalar", sizes, l1, zeros, zeros, None, orders, zeros)
+        if self.quality is not None:
+            overlay = {
+                "l1_error": l1[-1],
+                "observed_order": orders[-1] if orders else 0.0,
+            }
+            self.quality.record_validation_overlay(
+                "mms_scalar", overlay, passed=passed, category="verification"
+            )
         return {
             "l1_error": l1,
             "divB_norm": zeros,
@@ -246,6 +276,14 @@ class VerificationPanel:
                 passed = self.quality.evaluate_numerics({"l1_error": err}) and passed
         orders = _observed_orders(l1, sizes)
         self._write("mms_diffusion", sizes, l1, zeros, zeros, None, orders, zeros)
+        if self.quality is not None:
+            overlay = {
+                "l1_error": l1[-1],
+                "observed_order": orders[-1] if orders else 0.0,
+            }
+            self.quality.record_validation_overlay(
+                "mms_diffusion", overlay, passed=passed, category="verification"
+            )
         return {
             "l1_error": l1,
             "divB_norm": zeros,
@@ -275,6 +313,17 @@ class VerificationPanel:
                 passed = self.quality.evaluate_numerics(metrics) and passed
         orders = _observed_orders(l1, sizes)
         self._write("mms_mhd", sizes, l1, divs, drifts, spectrum, orders, shocks)
+        if self.quality is not None:
+            overlay = {
+                "l1_error": l1[-1],
+                "divB_norm": divs[-1],
+                "energy_drift": drifts[-1],
+                "observed_order": orders[-1] if orders else 0.0,
+                "shock_count": shocks[-1],
+            }
+            self.quality.record_validation_overlay(
+                "mms_mhd", overlay, passed=passed, category="verification"
+            )
         return {
             "l1_error": l1,
             "divB_norm": divs,
