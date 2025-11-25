@@ -150,13 +150,14 @@ def yield_components_with_anisotropy(
     ion_density: Sequence[float],
     dt: float,
 ) -> Dict[str, List[float] | float]:
-    """Return beam-target and thermal yields with angular distributions.
+    """Return separated beam-target and thermal yields with angular spectra.
 
     The beam-target component is computed for each detector angle using
     :func:`compute_beam_target_yield` while the thermonuclear component is
     treated as isotropic.  The combined per-angle totals are used to compute an
     anisotropy factor ``(max-min)/mean``.  Both scalar totals and per-angle
-    lists are exposed for downstream analysis.
+    lists are exposed for downstream analysis along with channel-resolved time
+    of flight (ToF) histograms and phase information derived from ``time_bins``.
 
     Parameters
     ----------
@@ -182,6 +183,14 @@ def yield_components_with_anisotropy(
     th_total = compute_thermonuclear_yield(reactivity, ion_density, dt)
     # distribute thermal yield isotropically across angles
     th_per_angle = [th_total / float(len(angles)) for _ in angles] if angles else []
+    bins = max(len(time_bins) - 1, 1)
+    thermal_tof = [
+        [th_total / max(len(angles), 1) / bins for _ in range(bins)] for _ in angles
+    ]
+    combined_tof = [
+        [b + t for b, t in zip(bt_hist, th_hist)]
+        for bt_hist, th_hist in zip(tofs, thermal_tof)
+    ]
     total_per_angle = [b + t for b, t in zip(bt_yields, th_per_angle)]
     if total_per_angle:
         mean = sum(total_per_angle) / len(total_per_angle)
@@ -191,6 +200,13 @@ def yield_components_with_anisotropy(
             anisotropy = (max(total_per_angle) - min(total_per_angle)) / mean
     else:
         anisotropy = 0.0
+    midpoints = [
+        0.5 * (time_bins[i] + time_bins[i + 1]) for i in range(len(time_bins) - 1)
+    ]
+    window = time_bins[-1] - time_bins[0] if len(time_bins) > 1 else 0.0
+    phase_fraction = [
+        (t - time_bins[0]) / window if window > 0 else 0.0 for t in midpoints
+    ]
     return {
         "beam_target_total": sum(bt_yields),
         "thermal_total": th_total,
@@ -202,6 +218,17 @@ def yield_components_with_anisotropy(
         "thermonuclear": th_total,
         "anisotropy": anisotropy,
         "tof": tofs,
+        "tof_channels": {
+            "beam_target": tofs,
+            "thermonuclear": thermal_tof,
+            "total": combined_tof,
+        },
+        "angular_spectra": {
+            "beam_target": bt_yields,
+            "thermonuclear": th_per_angle,
+            "total": total_per_angle,
+        },
+        "tof_phase": {"time_midpoints": midpoints, "phase_fraction": phase_fraction},
     }
 
 
