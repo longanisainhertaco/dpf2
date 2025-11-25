@@ -37,7 +37,7 @@ except Exception:  # pragma: no cover
     MPI = None
 
 from dpf2.core.bases import CircuitSolverBase, PlasmaSolverBase, CouplingState
-from .eos import EOSBase, IdealGasEOS
+from .eos import EOSBase, IdealGasEOS, SesameLEOS
 from .boundary_conditions import KineticSheath
 from .physics.energy import EnergyTracker
 from .diagnostics.quality_dashboard import QualityDashboard
@@ -48,6 +48,8 @@ from .physics.inductance import (
     CoaxialGeometry,
     dynamic_inductance_with_derivatives,
 )
+from .radiation.optically_thin import GrayRadiationInterface, OpticallyThinRadiation
+from .solvers.petsc_imex import PetscIMEXStepper
 
 logger = logging.getLogger(__name__)
 
@@ -367,6 +369,8 @@ class HallMHDSolver(PlasmaSolverBase):
     instability_thresholds: Dict[str, float] | None = None
     sausage_onset: bool = field(init=False, default=False)
     kink_onset: bool = field(init=False, default=False)
+    imex_stepper: PetscIMEXStepper | None = None
+    gray_transport: GrayRadiationInterface | None = None
     mode_history: list[np.ndarray] = field(init=False, default_factory=list)
     voltage_spikes: list[float] = field(default_factory=list)
     impedance_growth: list[float] = field(default_factory=list)
@@ -404,12 +408,9 @@ class HallMHDSolver(PlasmaSolverBase):
     sheath_velocity_z: float = field(init=False, default=0.0)
     _dL_dz: float = field(init=False, default=0.0)
     _dL_dr: float = field(init=False, default=0.0)
-    resistivity_gates: Dict[str, bool] = field(default_factory=dict)
-    last_resistivity_channels: Dict[str, float] = field(init=False, default_factory=dict)
-    last_eta_spitzer_mean: float = field(init=False, default=0.0)
-    resistivity_report: Dict[str, float | Dict[str, float]] = field(
-        init=False, default_factory=dict
-    )
+
+    _dL_dt: float = field(init=False, default=0.0)
+
     _coord_cache: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = field(
         init=False, default=None
     )
@@ -424,6 +425,18 @@ class HallMHDSolver(PlasmaSolverBase):
                 self.cart_comm = self.comm.Create_cart(dims, periods=[True, True, True])
             except Exception:  # pragma: no cover - fall back to original comm
                 self.cart_comm = self.comm
+
+    def enable_imex(self, *, use_petsc: bool = True, options_prefix: str | None = None) -> None:
+        """Attach a PETSc-backed IMEX stepper for stiff transport terms."""
+
+        self.imex_stepper = PetscIMEXStepper(use_petsc=use_petsc, options_prefix=options_prefix)
+
+    def attach_optically_thin_radiation(self, chemistry: ChemistryModule | None = None) -> None:
+        """Convenience wrapper to enable optically thin radiation losses."""
+
+        chemistry = chemistry or self.chemistry
+        self.radiation = OpticallyThinRadiation(chemistry)
+        self.gray_transport = GrayRadiationInterface(self.radiation)
 
     def apply_boundary_conditions(self, state: MHDState) -> None:
         """Invoke the boundary-condition hook if provided."""
@@ -1068,7 +1081,26 @@ class HallMHDSolver(PlasmaSolverBase):
             heating = eta_total * np.sum(J**2, axis=-1)
         else:
             heating = float(eta_total) * np.sum(J**2, axis=-1)
-        energy += dt * heating
+        if self.imex_stepper is not None:
+            lap_T = np.zeros_like(energy)
+            if self.kappa_par != 0.0:
+                T_local = energy / np.maximum(rho, 1e-30)
+                lap_T = sum(_dd(_dd(T_local, i), i) for i in range(dims))
+
+            def _explicit_rhs(t: float, e_flat: np.ndarray) -> np.ndarray:
+                return np.asarray(heating).ravel()
+
+            def _implicit_rhs(t: float, e_flat: np.ndarray) -> np.ndarray:
+                return (self.kappa_par * lap_T).ravel()
+
+            energy = self.imex_stepper.advance(
+                energy,
+                explicit_rhs=_explicit_rhs,
+                implicit_rhs=_implicit_rhs,
+                dt=dt,
+            )
+        else:
+            energy += dt * heating
         for name in temps:
             temps[name] += dt * heating / np.maximum(rho, 1e-30)
 
@@ -1210,7 +1242,14 @@ class HallMHDSolver(PlasmaSolverBase):
 
         if self.circuit_feedback is not None:
             return self.circuit_feedback
-        return CouplingState(Lp=self.inductance, emf=self.back_emf, current=self.current)
+        back_reaction = -self.current * self._dL_dt
+        return CouplingState(
+            Lp=self.inductance,
+            emf=self.back_emf,
+            current=self.current,
+            back_reaction=back_reaction,
+            dL_dt=self._dL_dt,
+        )
 
     def plasma_inductance(self, state: MHDState | None = None) -> float:
         """Return current plasma inductance estimate.
@@ -1245,6 +1284,7 @@ class HallMHDSolver(PlasmaSolverBase):
         self.sheath_velocity_z = vz_mean
         self._dL_dz = dL_dz
         self._dL_dr = dL_dr
+        self._dL_dt = dL_dz * vz_mean + dL_dr * vr_mean
         return L
 
     # ------------------------------------------------------------------

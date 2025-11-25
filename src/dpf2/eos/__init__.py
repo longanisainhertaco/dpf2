@@ -13,7 +13,7 @@ grid.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TYPE_CHECKING
 
 import numpy as np
 
@@ -85,6 +85,10 @@ try:  # pragma: no cover - optional h5py dependency
 except ModuleNotFoundError:  # pragma: no cover
     h5py = None  # type: ignore
 
+if TYPE_CHECKING:  # pragma: no cover - type hints only
+    from ..chemistry import ChemistryModel
+    from ..radiation import RadiationBase as RadiationModule
+
 # Expose built in tabulated data which is useful for tests and examples.  The
 # tables shipped with the repository are intentionally tiny and are not meant
 # to provide physical accuracy; they merely supply a consistent interface for
@@ -96,6 +100,7 @@ __all__ = [
     "IdealGasEOS",
     "TabulatedEOS",
     "RealGasEOS",
+    "SesameLEOS",
     "create_eos",
     "BUILTIN_TABLES",
 ]
@@ -293,12 +298,43 @@ class RealGasEOS(TabulatedEOS):
         super().__init__(filename=filename, mixture_fractions=mixture_fractions)
 
 
+@dataclass
+class SesameLEOS:
+    """Adapter for SESAME/LEOS tables with chemistry and radiation hooks."""
+
+    table_path: Path
+    ionization: "ChemistryModel | None" = None
+    radiation: "RadiationModule | None" = None
+
+    def __post_init__(self) -> None:
+        self._table = TabulatedEOS(self.table_path)
+        self.last_loss: np.ndarray | None = None
+
+    def pressure(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
+        base = self._table.pressure(rho, T)
+        if self.ionization is None:
+            return base
+        zbar = self.ionization.ionization_state(rho, T)
+        return base + zbar * rho * T
+
+    def energy(self, rho: np.ndarray, T: np.ndarray) -> np.ndarray:
+        e = self._table.energy(rho, T)
+        if self.radiation is not None:
+            self.last_loss = self.radiation.loss(rho, T)
+        return e
+
+    def temperature(self, rho: np.ndarray, e: np.ndarray) -> np.ndarray:
+        return self._table.temperature(rho, e)
+
+
 def create_eos(
     model: EOSModel,
     *,
     table_path: Path | None = None,
     gamma: float = 5.0 / 3.0,
     mixture_fractions: dict[str, float] | str | None = None,
+    ionization: "ChemistryModel | None" = None,
+    radiation: "RadiationModule | None" = None,
 ) -> EOSBase:
     """Factory for EOS implementations."""
 
@@ -310,5 +346,7 @@ def create_eos(
         if mixture_fractions is None:
             raise ValueError("RealGasEOS requires mixture_fractions")
         return RealGasEOS(Path(table_path), mixture_fractions=mixture_fractions)
+    if model in (EOSModel.SESAME, EOSModel.LEOS) and table_path is not None:
+        return SesameLEOS(Path(table_path), ionization=ionization, radiation=radiation)
     raise ValueError(f"Unsupported EOS model: {model}")
 

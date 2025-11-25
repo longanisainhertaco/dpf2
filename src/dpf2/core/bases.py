@@ -35,8 +35,11 @@ class CouplingState:
     voltage: float = 0.0
     mutual_inductance: float = 0.0
     back_reaction: float = 0.0
+    dL_dt: float = 0.0
 
-    def as_tuple(self) -> Tuple[float, float, float, float, float, float]:
+    def as_tuple(
+        self, *, include_dL_dt: bool = False
+    ) -> Tuple[float, float, float, float, float, float] | Tuple[float, ...]:
         """Return the state as ``(Lp, emf, current, voltage, M, V_br)`` tuple.
 
         The final two values correspond to the mutual inductance ``M`` and
@@ -45,7 +48,7 @@ class CouplingState:
         access to the coupling terms.
         """
 
-        return (
+        base = (
             self.Lp,
             self.emf,
             self.current,
@@ -53,6 +56,9 @@ class CouplingState:
             self.mutual_inductance,
             self.back_reaction,
         )
+        if include_dL_dt:
+            return base + (self.dL_dt,)
+        return base
 
 
 class PlasmaSolverBase(ABC):
