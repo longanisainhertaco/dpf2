@@ -548,7 +548,7 @@ class SyntheticDiagnostics(ConfigSectionBase):
     # ------------------------------------------------------------------
     # Global output configuration
     output_dir: str = "synthetic_diagnostics/"
-    output_format: Literal["csv", "hdf5", "ascii"] = "csv"
+    output_format: Literal["csv", "hdf5", "ascii", "openpmd", "json"] = "csv"
     sampling_interval_ns: float = Field(1.0, alias="samplingIntervalNs", metadata={"units": "ns"})
     runtime_synthetic_enabled: bool = Field(True, alias="runtimeSyntheticEnabled")
     postprocessing_only: bool = Field(False, alias="postprocessingOnly")
@@ -793,13 +793,13 @@ def run_diagnostic_calculations(
             tau = float(params.get("rise_time_ns", 0.0)) * 1e-9
         return tau
 
-    def _apply_responses(name: str, values: Sequence[float]) -> List[float]:
+    def _apply_responses(name: str, values: Sequence[Any]) -> List[Any]:
         kind = dtype.get(name, "time_series")
-        if kind != "time_series":
-            return list(values)
+        if values and isinstance(values[0], Sequence) and not isinstance(values[0], (str, bytes)):
+            return [_apply_responses(name, row) for row in values]  # type: ignore[arg-type]
         kernel = _impulse_kernel(name)
         tau = _dispersion_tau()
-        series = list(values)
+        series = [float(v) for v in values]
         if kernel is not None:
             series = _apply_impulse_response(series, kernel)
         if tau > 0.0:
@@ -913,6 +913,13 @@ def _export_openpmd(path: Path, name: str, data: Sequence[Any], metadata: Dict[s
             ds.attrs["instrument_response"] = json.dumps(metadata)
 
 
+def _export_json(path: Path, name: str, data: Sequence[Any], metadata: Dict[str, Any] | None = None) -> None:
+    payload = {"name": name, "data": list(data)}
+    if metadata:
+        payload["instrument_response"] = metadata
+    path.write_text(json.dumps(payload))
+
+
 def export_diagnostic_data(
     data: Dict[str, Sequence[Any]],
     cfg: "SyntheticDiagnostics",
@@ -942,6 +949,10 @@ def export_diagnostic_data(
             file_path = out_dir / f"{name}.h5"
             meta_entry = meta.get(name, cfg.instrument_response)
             _export_openpmd(file_path, name, values, meta_entry)
+        elif cfg.output_format == "json":
+            file_path = out_dir / f"{name}.json"
+            meta_entry = meta.get(name, cfg.instrument_response)
+            _export_json(file_path, name, values, meta_entry)
         else:
             file_path = out_dir / f"{name}.txt"
             if kind == "time_series":

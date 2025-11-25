@@ -10,13 +10,14 @@ that acceptance tests can validate dual-channel yield separation and angular
 distributions without re-implementing analysis logic.
 """
 
-from typing import Any, Callable, Dict, Mapping, Sequence, List
+from typing import Any, Callable, Dict, Mapping, Sequence, List, Tuple
 
 import numpy as np
 
 from .interferometry import interferometer_phase_shift
 from .neutron_yield import IonBeamEDF, yield_components_with_anisotropy
 from .xray_spectra import compute_xray_spectrum
+from .modes import azimuthal_mode_spectrum
 
 
 def apply_cable_dispersion(signal: Sequence[float], tau: float, dt: float) -> List[float]:
@@ -75,6 +76,8 @@ def assemble_diagnostic_outputs(
     reactivity: Sequence[float] | None = None,
     ion_density: Sequence[float] | None = None,
     dt: float | None = None,
+    current_trace: Sequence[float] | None = None,
+    voltage_trace: Sequence[float] | None = None,
     xray_energies_keV: Sequence[float] | None = None,
     xray_intensities: Sequence[float] | None = None,
     xray_bins_keV: Sequence[float] | None = None,
@@ -88,6 +91,9 @@ def assemble_diagnostic_outputs(
     benchmark_band: float | Sequence[float] = 0.1,
     interferometer_irf: Mapping[str, Any] | None = None,
     xray_response: Callable[[float], float] | None = None,
+    azimuthal_field: Sequence[Sequence[float]] | None = None,
+    azimuthal_axis: int = -1,
+    mode_acceptance: Mapping[int, Tuple[float, float]] | None = None,
 ) -> Dict[str, Any]:
     """Generate a consolidated diagnostic output dictionary.
 
@@ -119,6 +125,8 @@ def assemble_diagnostic_outputs(
             list(reactivity),
             list(ion_density),
             float(dt),
+            current_trace=list(current_trace) if current_trace is not None else None,
+            voltage_trace=list(voltage_trace) if voltage_trace is not None else None,
         )
         total_bt = float(neutron["beam_target_total"])
         total_th = float(neutron["thermal_total"])
@@ -150,6 +158,7 @@ def assemble_diagnostic_outputs(
             "anisotropy": neutron.get("anisotropy", 0.0),
             "energy_partition": energy_partition,
             "tof_channels": neutron.get("tof_channels", {}),
+            "iv_phase": neutron.get("iv_phase"),
         }
         outputs["angular_distribution"] = {
             "spectra": neutron.get("angular_spectra", {}),
@@ -179,6 +188,28 @@ def assemble_diagnostic_outputs(
             "raw": tof_channels,
             "processed": processed_tofs,
             "aggregate": aggregate_tof,
+        }
+
+    if azimuthal_field is not None:
+        spectrum = azimuthal_mode_spectrum(np.asarray(azimuthal_field), axis=azimuthal_axis)
+        spec_list = spectrum.tolist() if hasattr(spectrum, "tolist") else [float(v) for v in spectrum]
+        m0 = float(spec_list[0]) if len(spec_list) > 0 else 0.0
+        m1 = float(spec_list[1]) if len(spec_list) > 1 else 0.0
+        gates: Dict[int, Dict[str, float | Tuple[float, float] | bool]] = {}
+        if mode_acceptance:
+            for mode, bounds in mode_acceptance.items():
+                val = float(spectrum[mode]) if mode < len(spectrum) else 0.0
+                lo, hi = bounds
+                gates[int(mode)] = {
+                    "value": val,
+                    "acceptance": (float(lo), float(hi)),
+                    "within": float(lo) <= val <= float(hi),
+                }
+        outputs["azimuthal_modes"] = {
+            "spectrum": spec_list,
+            "m0": m0,
+            "m1": m1,
+            "overlay": {"gates": gates} if gates else None,
         }
 
     if (

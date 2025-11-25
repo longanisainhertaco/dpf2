@@ -18,6 +18,8 @@ def test_output_bundle_includes_dual_channel_and_overlays():
         reactivity=[1.0],
         ion_density=[1.0],
         dt=1.0,
+        current_trace=[0.5, 0.25],
+        voltage_trace=[1.0, 0.5],
         xray_energies_keV=[5.0, 15.0],
         xray_intensities=[1.0, 1.0],
         xray_bins_keV=[0.0, 10.0, 20.0],
@@ -30,12 +32,16 @@ def test_output_bundle_includes_dual_channel_and_overlays():
         benchmark_band=0.01,
         xray_response=lambda v: v * 3.0,
         tof_noise=lambda _: 0.1,
+        azimuthal_field=[[1.0, 2.0], [3.0, 4.0]],
+        azimuthal_axis=1,
+        mode_acceptance={0: (0.0, 10.0), 1: (0.0, 10.0)},
     )
 
     dual = outputs["dual_channel_yield"]
     assert dual["energy_partition"]["beam_target"] > 0.0
     assert dual["energy_partition"]["thermonuclear_fraction"] < 1.0
     assert dual["anisotropy"] > 0.0
+    assert dual["iv_phase"]
 
     angular = outputs["angular_distribution"]
     assert set(angular["per_angle_total"].keys()) == {0.0, 90.0}
@@ -51,3 +57,7 @@ def test_output_bundle_includes_dual_channel_and_overlays():
 
     interferometry = outputs["interferometry"]
     assert "phase_shift_rad" in interferometry
+
+    modes = outputs["azimuthal_modes"]
+    assert modes["m0"] > 0.0
+    assert modes["overlay"]["gates"][0]["within"]
