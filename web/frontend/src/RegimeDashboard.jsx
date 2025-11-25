@@ -40,6 +40,7 @@ export default function RegimeDashboard() {
   // Keep full history for timeline plotting and export.
   const [history, setHistory] = useState([]);
   const [warning, setWarning] = useState('');
+  const [health, setHealth] = useState('Waiting for data');
 
   // Thresholds defining regime validity for the current physics model.
   const thresholds = {
@@ -98,6 +99,17 @@ export default function RegimeDashboard() {
       );
     } else {
       setWarning('');
+    }
+
+    // Provide a short headline for the live dashboard.
+    const hot = latest.beta > 1 && latest.K_n < thresholds.K_n;
+    const magnetized = latest.omega_ce_tau_e > thresholds.omega_ce_tau_e;
+    if (hot && magnetized) {
+      setHealth('Collisionless pinch — prioritize kinetic diagnostics');
+    } else if (magnetized) {
+      setHealth('Magnetized fluid — Hall terms likely active');
+    } else {
+      setHealth('Hydro-like — bulk transport dominates');
     }
   }, [history]);
 
@@ -164,6 +176,7 @@ export default function RegimeDashboard() {
   return (
     <div className="overlay" title="Tracks plasma regime parameters">
       <h4>Regime Dashboard</h4>
+      <p className="status-line">{health}</p>
       {warning && <div className="warning">{warning}</div>}
       <table>
         <tbody>

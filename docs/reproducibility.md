@@ -27,6 +27,13 @@ encountered during the run.
 
 These files enable auditing of large parameter sweeps or shot ensembles.
 
+### UI Snapshots and Tutorials
+
+The web client can export a `snapshot.json` that captures slider positions,
+experimental variability settings, and the current tutorial step. Include this
+artifact alongside run manifests so visual reproductions match numerical
+provenance.
+
 ## Dataset Provenance
 
 Configuration files may optionally include a ``datasets`` section describing
@@ -53,4 +60,19 @@ Each category maps dataset names to a ``path``, ``doi`` and ``version``::
 Hashes of these files along with their DOI and version are embedded in both
 ``run_manifest.json`` and ``run_manifest.h5`` so downstream analyses can
 reconstruct the exact datasets referenced by a simulation.
+
+## Reproducibility Manifests
+
+For large campaigns, capture a **reproducibility manifest** in the project root
+containing:
+
+- the list of configuration files submitted to the Project Manager,
+- any imported geometry files and their hashes,
+- links to shared tutorial snapshots that illustrate how analysts aligned
+  visuals (plots, sheath overlay) with physics milestones, and
+- environment exports (module list, container tag, GPU type).
+
+This manifest can be checked into version control or attached to reports so
+reviewers can rebuild the UI state and numerical inputs that produced a given
+result.
 

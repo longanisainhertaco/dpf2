@@ -5,6 +5,7 @@ import InstabilityVisualizer from './InstabilityVisualizer.jsx';
 import SheathBeamOverlay from './SheathBeamOverlay.jsx';
 import RegimeDashboard from './RegimeDashboard.jsx';
 import DatasetSwap from './DatasetSwap.jsx';
+import MultiPanePlot from './MultiPanePlot.jsx';
 
 import QuickStartTutorial from './QuickStartTutorial.jsx';
 import VoltagePressureSliders from './VoltagePressureSliders.jsx';
@@ -269,6 +270,11 @@ export default function App() {
           <button type="button" onClick={shareSnapshot}>
             Share Scene
           </button>
+          <MultiPanePlot
+            voltage={voltage}
+            pressure={pressure}
+            runId={runId}
+          />
           <InstabilityVisualizer />
           <SheathBeamOverlay voltage={voltage} pressure={pressure} />
           <RegimeDashboard />
