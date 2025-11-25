@@ -197,6 +197,40 @@ def synthetic_tof_trace(
     return times, counts
 
 
+def _apply_impulse_response(signal: Sequence[float], impulse: Sequence[float]) -> List[float]:
+    """Apply a detector impulse response via discrete convolution."""
+
+    if not impulse:
+        return list(signal)
+    sig = [float(s) for s in signal]
+    kernel = [float(k) for k in impulse]
+    n = len(sig)
+    m = len(kernel)
+    filtered = [0.0] * n
+    for i in range(n):
+        acc = 0.0
+        for k in range(m):
+            j = i - m // 2 + k
+            if 0 <= j < n:
+                acc += sig[j] * kernel[k]
+        filtered[i] = acc
+    return filtered
+
+
+def _apply_cable_dispersion(signal: Sequence[float], tau: float, dt: float) -> List[float]:
+    """Apply a simple RC-like dispersion model to ``signal``."""
+
+    if tau <= 0:
+        return list(signal)
+    alpha = dt / (tau + dt)
+    out: List[float] = []
+    prev = 0.0
+    for val in signal:
+        prev = prev + alpha * (val - prev)
+        out.append(prev)
+    return out
+
+
 def correlate_tof_with_iv(
     history: Sequence[CouplingState],
     dt: float,
@@ -444,6 +478,41 @@ def _faraday_eedf(history: Sequence[CouplingState], bins: int = 50) -> List[floa
     return dist.tolist()
 
 
+def _interferogram(history: Sequence[CouplingState], size: int = 64) -> List[List[float]]:
+    """Return a phase-map style synthetic interferogram."""
+
+    phase_scale = max((abs(s.current) for s in history), default=1.0)
+    x = [i * 2.0 / (size - 1) - 1.0 for i in range(size)]
+    fringes: List[List[float]] = []
+    for yi in x:
+        row: List[float] = []
+        for xi in x:
+            phase = phase_scale * (xi * xi + yi * yi)
+            row.append(0.5 * (1.0 + math.cos(2 * math.pi * phase)))
+        fringes.append(row)
+    return fringes
+
+
+def _xrd_signal(history: Sequence[CouplingState], dt: float) -> List[float]:
+    """Synthetic X-ray diode response proportional to voltage slew."""
+
+    if not history:
+        return []
+    voltages = [s.voltage for s in history]
+    times = [i * dt for i in range(len(voltages))]
+    if len(voltages) > 1:
+        dv = []
+        for i, v in enumerate(voltages):
+            if i == 0:
+                dv.append((voltages[i + 1] - v) / (times[i + 1] - times[i]))
+            else:
+                dv.append((v - voltages[i - 1]) / (times[i] - times[i - 1]))
+    else:
+        dv = [0.0]
+    diode_resp = [abs(v) for v in dv]
+    return diode_resp
+
+
 
 class SyntheticInstrument(BaseModel):
     """Per-instrument overrides for synthetic diagnostics."""
@@ -505,6 +574,7 @@ class SyntheticDiagnostics(ConfigSectionBase):
     synthetic_bdot_signal_enabled: bool = Field(True, alias="syntheticBdotSignalEnabled")
     synthetic_neutron_tof_enabled: bool = Field(True, alias="syntheticNeutronTofEnabled")
     synthetic_xray_pinhole_enabled: bool = Field(True, alias="syntheticXrayPinholeEnabled")
+    synthetic_xrd_signal_enabled: bool = Field(False, alias="syntheticXrdSignalEnabled")
     synthetic_thomson_parabola_enabled: bool = Field(False, alias="syntheticThomsonParabolaEnabled")
     synthetic_optical_interferogram_enabled: bool = Field(False, alias="syntheticOpticalInterferogramEnabled")
     synthetic_cr39_image_enabled: bool = Field(False, alias="syntheticCr39ImageEnabled")
@@ -586,7 +656,9 @@ class SyntheticDiagnostics(ConfigSectionBase):
             (self.synthetic_rogowski_signal_enabled, "Rogowski"),
             (self.synthetic_bdot_signal_enabled, "B-dot"),
             (self.synthetic_neutron_tof_enabled, "TOF"),
+            (self.synthetic_xrd_signal_enabled, "XRD"),
             (self.synthetic_xray_pinhole_enabled, "X-ray"),
+            (self.synthetic_optical_interferogram_enabled, "Interferometry"),
             (self.synthetic_cr39_image_enabled, "CR39"),
             (self.synthetic_rcf_image_enabled, "RCF"),
             (self.synthetic_faraday_iedf_enabled, "IEDF"),
@@ -622,6 +694,8 @@ class SyntheticDiagnostics(ConfigSectionBase):
             "rogowski_signal": self.synthetic_rogowski_signal_enabled,
             "bdot_signal": self.synthetic_bdot_signal_enabled,
             "neutron_tof": self.synthetic_neutron_tof_enabled,
+            "xrd_signal": self.synthetic_xrd_signal_enabled,
+            "interferogram": self.synthetic_optical_interferogram_enabled,
             "xray_pinhole": self.synthetic_xray_pinhole_enabled,
             "cr39_image": self.synthetic_cr39_image_enabled,
             "rcf_image": self.synthetic_rcf_image_enabled,
@@ -693,7 +767,45 @@ def run_diagnostic_calculations(
 
     hist = list(history)
     outputs: Dict[str, List[float]] = {}
+    metadata: Dict[str, Dict[str, Any]] = {}
     overrides = cfg.instrument_overrides or {}
+    dtype = cfg.diagnostic_output_type or {}
+
+    def _impulse_kernel(name: str) -> Sequence[float] | None:
+        if not cfg.apply_time_response:
+            return None
+        base_resp = cfg.instrument_response or {}
+        inst = overrides.get(name)
+        if inst and inst.response_file:
+            base_resp = {"response_file": str(inst.response_file)}
+        kernel = base_resp.get("impulse") if isinstance(base_resp, dict) else None
+        if kernel is None:
+            kernel = [0.25, 0.5, 0.25]
+        metadata[name] = metadata.get(name, {}) | {"impulse": kernel}
+        return kernel
+
+    def _dispersion_tau() -> float:
+        if not cfg.apply_electrical_filter or not cfg.filter_parameters:
+            return 0.0
+        params = cfg.filter_parameters
+        tau = float(params.get("cable_ns", 0.0)) * 1e-9
+        if tau <= 0.0:
+            tau = float(params.get("rise_time_ns", 0.0)) * 1e-9
+        return tau
+
+    def _apply_responses(name: str, values: Sequence[float]) -> List[float]:
+        kind = dtype.get(name, "time_series")
+        if kind != "time_series":
+            return list(values)
+        kernel = _impulse_kernel(name)
+        tau = _dispersion_tau()
+        series = list(values)
+        if kernel is not None:
+            series = _apply_impulse_response(series, kernel)
+        if tau > 0.0:
+            series = _apply_cable_dispersion(series, tau, dt)
+            metadata[name] = metadata.get(name, {}) | {"cable_tau_s": tau}
+        return series
 
     def _cal_path(name: str) -> Path | None:
         inst = overrides.get(name)
@@ -702,17 +814,48 @@ def run_diagnostic_calculations(
         return None
 
     if cfg.synthetic_current_waveform_enabled:
-        outputs["current"] = current_waveform(hist)
+        outputs["current"] = _apply_responses("current", current_waveform(hist))
     if cfg.synthetic_voltage_waveform_enabled:
-        outputs["voltage"] = voltage_waveform(hist)
+        outputs["voltage"] = _apply_responses("voltage", voltage_waveform(hist))
     if cfg.synthetic_coupled_current_waveform_enabled:
-        outputs["coupled_current"] = coupled_current_waveform(hist)
+        outputs["coupled_current"] = _apply_responses(
+            "coupled_current", coupled_current_waveform(hist)
+        )
     if cfg.synthetic_coupled_voltage_waveform_enabled:
-        outputs["coupled_voltage"] = coupled_voltage_waveform(hist)
+        outputs["coupled_voltage"] = _apply_responses(
+            "coupled_voltage", coupled_voltage_waveform(hist)
+        )
     if cfg.synthetic_rogowski_signal_enabled:
-        outputs["rogowski"] = rogowski_signal(hist, dt, calibration_file=_cal_path("rogowski"))
+        outputs["rogowski"] = _apply_responses(
+            "rogowski", rogowski_signal(hist, dt, calibration_file=_cal_path("rogowski"))
+        )
     if cfg.synthetic_bdot_signal_enabled:
-        outputs["bdot"] = bdot_signal(hist, bdot_radius, dt, calibration_file=_cal_path("bdot"))
+        outputs["bdot"] = _apply_responses(
+            "bdot", bdot_signal(hist, bdot_radius, dt, calibration_file=_cal_path("bdot"))
+        )
+
+    if cfg.synthetic_xrd_signal_enabled:
+        outputs["xrd"] = _apply_responses("xrd", _xrd_signal(hist, dt))
+    if cfg.synthetic_optical_interferogram_enabled:
+        outputs["interferogram"] = _interferogram(hist)
+
+    if cfg.synthetic_neutron_tof_enabled:
+        energies = []
+        base_resp = cfg.instrument_response or {}
+        if isinstance(base_resp, dict):
+            energies = base_resp.get("tof_energies_mev", [])
+            distance = float(base_resp.get("tof_distance_m", 1.0))
+        else:
+            distance = 1.0
+        if not energies:
+            energies = [2.45, 14.1]
+        times, counts = synthetic_tof_trace(hist, dt, distance, energies)
+        metadata["neutron_tof"] = metadata.get("neutron_tof", {}) | {
+            "time": times,
+            "distance_m": distance,
+            "energies_mev": energies,
+        }
+        outputs["neutron_tof"] = _apply_responses("neutron_tof", counts)
 
     if cfg.synthetic_cr39_image_enabled:
         outputs["cr39_image"] = _cr39_image(hist)
@@ -723,6 +866,8 @@ def run_diagnostic_calculations(
     if cfg.synthetic_faraday_eedf_enabled:
         outputs["faraday_eedf"] = _faraday_eedf(hist)
 
+    if metadata:
+        outputs["__metadata__"] = metadata
     return outputs
 
 
@@ -749,6 +894,25 @@ def _export_hdf5(path: Path, name: str, data: Sequence[Any], metadata: Dict[str,
             ds.attrs["instrument_response"] = json.dumps(metadata)
 
 
+def _export_openpmd(path: Path, name: str, data: Sequence[Any], metadata: Dict[str, Any] | None = None) -> None:
+    """Write a minimal openPMD-conformant HDF5 container."""
+
+    with h5py.File(path, "w") as fh:
+        fh.attrs["openPMD"] = "1.1.0"
+        fh.attrs["openPMDversion"] = "1.1.0"
+        fh.attrs["basePath"] = "/data/%T/"
+        fh.attrs["meshesPath"] = "data/%T/meshes"
+        try:
+            grp = fh.create_group("data/0")
+            meshes = grp.create_group("meshes")
+            ds = meshes.create_dataset(name, data=data)
+        except AttributeError:  # pragma: no cover - stub h5py
+            ds = fh.create_dataset(name, data=data)
+        ds.attrs["unitSI"] = 1.0
+        if metadata:
+            ds.attrs["instrument_response"] = json.dumps(metadata)
+
+
 def export_diagnostic_data(
     data: Dict[str, Sequence[Any]],
     cfg: "SyntheticDiagnostics",
@@ -762,17 +926,22 @@ def export_diagnostic_data(
     out_dir.mkdir(parents=True, exist_ok=True)
     written: List[Path] = []
     dtype = cfg.diagnostic_output_type or {}
+    meta = metadata or data.pop("__metadata__", {})
     for name, values in data.items():
+        if name == "__metadata__":
+            continue
         kind = dtype.get(name, "time_series")
         if cfg.output_format == "csv":
             file_path = out_dir / f"{name}.csv"
             _export_csv(file_path, values, kind)
         elif cfg.output_format == "hdf5":
             file_path = out_dir / f"{name}.h5"
-            meta = cfg.instrument_response
-            if metadata and name in metadata:
-                meta = metadata[name]
-            _export_hdf5(file_path, name, values, meta)
+            meta_entry = meta.get(name, cfg.instrument_response)
+            _export_hdf5(file_path, name, values, meta_entry)
+        elif cfg.output_format == "openpmd":
+            file_path = out_dir / f"{name}.h5"
+            meta_entry = meta.get(name, cfg.instrument_response)
+            _export_openpmd(file_path, name, values, meta_entry)
         else:
             file_path = out_dir / f"{name}.txt"
             if kind == "time_series":

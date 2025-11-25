@@ -81,6 +81,8 @@ def test_yield_components_and_anisotropy():
     assert result["thermonuclear"] == th
     assert result["angular_thermal"] == th_per
     assert result["anisotropy"] == expected_aniso
+    assert "angular_spectra" in result
+    assert "tof_channels" in result
 
 
 def test_detector_models():

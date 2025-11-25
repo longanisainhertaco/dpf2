@@ -14,11 +14,21 @@ outputs without reloading large data files.
 
 from __future__ import annotations
 
-from dataclasses import replace
+import time
+from dataclasses import asdict, replace
 from pathlib import Path
 
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Mapping
 import json
+
+try:  # pragma: no cover - optional dependency
+    import h5py
+except Exception:  # pragma: no cover - h5py may be stubbed
+    h5py = None  # type: ignore[assignment]
+
+
+from ..io.manifest import capture_dataset_metadata, write_hdf5_dataset_manifest
+from ..simulation.openpmd_io import OpenPMDWriter
 
 
 from ..core.config import DPFConfig
@@ -27,6 +37,9 @@ from ..core.simulation import DPFSimulation
 
 # Each sweep result stores the raw traces and derived peaks
 SweepResult = Dict[str, List[float] | float]
+
+
+RUN_MANIFEST_FILENAME = "run_manifest.json"
 
 
 
@@ -38,6 +51,10 @@ def run_parametric_sweep(
     output_dir: str | Path = "sweep_output",
     lab_mode: bool = False,  # retained for API compatibility
     config_path: str | Path | None = None,
+    emit_checkpoints: bool = False,
+    emit_openpmd: bool = False,
+    manifest: bool = False,
+    datasets: Mapping[str, Mapping[str, Mapping[str, object]]] | None = None,
 ) -> Dict[float, SweepResult]:
     """Execute full simulations for a set of parameter values.
 
@@ -72,13 +89,17 @@ def run_parametric_sweep(
     results: Dict[float, SweepResult] = {}
     summary: Dict[float, Dict[str, float]] = {}
 
+    dataset_meta = capture_dataset_metadata(datasets) if datasets else None
+
     for val in values:
 
         cfg = replace(base_config, **{parameter: val})
         run_dir = out_dir / f"{parameter}_{val}"
         run_dir.mkdir(parents=True, exist_ok=True)
         sim = DPFSimulation(cfg)
+        t0 = time.perf_counter()
         times, currents, voltages = sim.run(output_dir=None)
+        runtime = time.perf_counter() - t0
 
         peak = max(currents) if currents else 0.0
         idx = currents.index(peak) if currents else 0
@@ -89,6 +110,18 @@ def run_parametric_sweep(
         if cfg.anode_radius > 0 and cfg.initial_pressure > 0:
             yield_val = (peak ** 2) / (cfg.anode_radius * cfg.initial_pressure)
 
+        bank_energy = 0.5 * cfg.capacitance * (cfg.charging_voltage**2)
+        wall_plug = yield_val / bank_energy if bank_energy > 0 else 0.0
+        throughput = (yield_val / runtime) * 3600.0 if runtime > 0 else 0.0
+
+        a = cfg.anode_radius
+        p = cfg.initial_pressure
+        if parameter == "anode_radius":
+            a = float(val)
+        if parameter == "initial_pressure":
+            p = float(val)
+        S = peak / (a * p) if a > 0 and p > 0 else 0.0
+
         results[float(val)] = {
             "time": [float(t) for t in times],
             "current": [float(i) for i in currents],
@@ -96,18 +129,101 @@ def run_parametric_sweep(
             "peak_current": float(peak),
             "pinch_time": float(pinch_time),
             "yield": float(yield_val),
+            "runtime_s": float(runtime),
+            "yield_per_hour": float(throughput),
+            "wall_plug_efficiency": float(wall_plug),
+            "S": float(S),
         }
         summary[float(val)] = {
             "peak_current": float(peak),
             "pinch_time": float(pinch_time),
             "yield": float(yield_val),
+            "runtime_s": float(runtime),
+            "yield_per_hour": float(throughput),
+            "wall_plug_efficiency": float(wall_plug),
+            "S": float(S),
 
         }
+
+        if emit_checkpoints:
+            _write_checkpoint(
+                run_dir,
+                times,
+                currents,
+                voltages,
+                datasets=dataset_meta,
+            )
+        if emit_openpmd:
+            _write_openpmd(
+                run_dir,
+                times,
+                currents,
+                voltages,
+                datasets=dataset_meta,
+            )
+        if manifest or lab_mode:
+            from ..cli.lab import write_manifest
+
+            write_manifest(
+                run_dir,
+                config_paths=[config_path] if config_path else None,
+                config=asdict(cfg),
+                ppc=None,
+                seeds=None,
+                datasets=datasets,
+            )
 
     with (out_dir / "summary.json").open("w") as fh:
         json.dump(summary, fh, indent=2, sort_keys=True)
 
     return results
+
+
+def _write_checkpoint(
+    run_dir: Path,
+    times: List[float],
+    currents: List[float],
+    voltages: List[float],
+    *,
+    datasets: Mapping[str, Mapping[str, Mapping[str, str]]] | None = None,
+) -> None:
+    """Persist a lightweight HDF5 checkpoint with traces and metadata."""
+
+    if h5py is None:  # pragma: no cover - optional dependency path
+        return
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path = run_dir / "checkpoint.h5"
+    with h5py.File(path, "w") as h5:
+        h5.create_dataset("time", data=times)
+        h5.create_dataset("current", data=currents)
+        h5.create_dataset("voltage", data=voltages)
+        man = h5.require_group("manifest")
+        man.attrs["format"] = "dpf2-timeseries"
+        man.attrs["source"] = RUN_MANIFEST_FILENAME
+        if datasets:
+            write_hdf5_dataset_manifest(h5, datasets)
+
+
+def _write_openpmd(
+    run_dir: Path,
+    times: List[float],
+    currents: List[float],
+    voltages: List[float],
+    *,
+    datasets: Mapping[str, Mapping[str, Mapping[str, str]]] | None = None,
+) -> None:
+    """Emit an openPMD-compliant checkpoint capturing the time series."""
+
+    try:
+        writer = OpenPMDWriter(run_dir / "openpmd.h5", datasets=datasets)
+    except Exception:  # pragma: no cover - optional dependency failure
+        return
+
+    try:
+        writer.write_fields(0, {"current": currents, "voltage": voltages, "time": times})
+    finally:  # pragma: no cover - best-effort cleanup
+        writer.close()
 
 
 def compute_sweep_metrics(

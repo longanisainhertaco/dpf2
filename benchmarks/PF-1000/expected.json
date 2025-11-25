@@ -1,0 +1,11 @@
+{
+  "current": {"time": [0.0, 1.0e-6, 2.0e-6, 3.0e-6, 4.0e-6], "value": [0.0, 450000.0, 900000.0, 600000.0, 200000.0]},
+  "pinch_time": 3.1e-6,
+  "neutron_yield": 1.0e10,
+  "tolerance": {
+    "current": 0.08,
+    "current_slope": 0.1,
+    "pinch_time": 0.05,
+    "neutron_yield": 0.05
+  }
+}

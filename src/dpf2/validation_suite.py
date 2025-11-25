@@ -469,6 +469,30 @@ def score_simulation(
     }
 
 
+def _finite_difference(values: np.ndarray, times: np.ndarray) -> list[float]:
+    """Lightweight finite-difference derivative tolerant of stub numpy."""
+
+    vals = list(float(v) for v in values)
+    ts = list(float(t) for t in times)
+    n = len(vals)
+    if n < 2:
+        return [0.0] * n
+    diffs: list[float] = []
+    for i in range(n):
+        if i == 0:
+            dt = ts[i + 1] - ts[i]
+            dv = vals[i + 1] - vals[i]
+        elif i == n - 1:
+            dt = ts[i] - ts[i - 1]
+            dv = vals[i] - vals[i - 1]
+        else:
+            dt = ts[i + 1] - ts[i - 1]
+            dv = vals[i + 1] - vals[i - 1]
+        dt = dt or 1.0
+        diffs.append(dv / dt)
+    return diffs
+
+
 def evaluate_benchmark(
     sim: Dict[str, Any],
     expected: Dict[str, Any],
@@ -480,21 +504,29 @@ def evaluate_benchmark(
     Parameters
     ----------
     sim:
-        Simulation results containing ``current`` time series, ``neutron_yield``
-        and ``anisotropy`` entries.
+        Simulation results containing ``current`` time series, ``neutron_yield``,
+        ``anisotropy`` and optional ``pinch_time`` entries.
     expected:
         Mapping with the same structure providing the reference values.  May
         contain a ``tolerance`` mapping with relative error bands for each
-        quantity.
+        quantity, including ``current_slope`` and ``pinch_time``.
     tolerances:
         Optional override for the relative tolerances of ``current``,
-        ``neutron_yield`` and ``anisotropy``.  Defaults to the ``tolerance``
-        entry in ``expected`` or ``0.1`` for the current trace and ``0.05`` for
-        the scalar metrics when no tolerance is supplied.
+        ``current_slope``, ``pinch_time``, ``neutron_yield`` and ``anisotropy``.
+        Defaults to the ``tolerance`` entry in ``expected`` or ``0.1`` for the
+        current trace and slope, and ``0.05`` for the scalar metrics when no
+        tolerance is supplied.
     """
 
     tol = expected.get(
-        "tolerance", {"current": 0.1, "neutron_yield": 0.05, "anisotropy": 0.05}
+        "tolerance",
+        {
+            "current": 0.1,
+            "current_slope": 0.1,
+            "pinch_time": 0.05,
+            "neutron_yield": 0.05,
+            "anisotropy": 0.05,
+        },
     )
     if tolerances:
         tol.update(tolerances)
@@ -506,6 +538,8 @@ def evaluate_benchmark(
     v_exp = np.array(exp_cur.get("value", []))
     t_sim = np.array(sim_cur.get("time", []))
     v_sim = np.array(sim_cur.get("value", []))
+    cur_slope_pass = True
+    cur_slope_error = float("inf")
     if len(t_exp) and len(t_sim):
         v_interp = np.interp(t_exp, t_sim, v_sim)
         diff = v_interp - v_exp
@@ -513,6 +547,18 @@ def evaluate_benchmark(
         cur_max_err = float(np.max(np.abs(diff)))
         norm = np.max(np.abs(v_exp)) or 1.0
         cur_pass = cur_max_err <= norm * tol.get("current", 0.0)
+
+        # derivative comparison using central differences where possible
+        if len(t_exp) > 1:
+            dv_exp = _finite_difference(v_exp, t_exp)
+            dv_sim = _finite_difference(v_interp, t_exp)
+            slope_diff = [a - b for a, b in zip(dv_sim, dv_exp)]
+            cur_slope_error = float(max(abs(val) for val in slope_diff))
+            norm_slope = max(abs(val) for val in dv_exp) or 1.0
+        else:
+            cur_slope_error = 0.0
+            norm_slope = 1.0
+        cur_slope_pass = cur_slope_error <= norm_slope * tol.get("current_slope", 0.0)
     else:  # pragma: no cover - defensive
         cur_rmse = float("inf")
         cur_max_err = float("inf")
@@ -520,6 +566,8 @@ def evaluate_benchmark(
 
     # --- Scalar metrics ----------------------------------------------------
     def _rel_err(key: str) -> Tuple[float, bool]:
+        if key not in expected:
+            return 0.0, True
         exp_val = float(expected.get(key, 0.0))
         sim_val = float(sim.get(key, 0.0))
         if exp_val == 0:
@@ -527,18 +575,23 @@ def evaluate_benchmark(
         err = abs(sim_val - exp_val) / abs(exp_val)
         return err, err <= tol[key]
 
+    pinch_err, pinch_pass = _rel_err("pinch_time")
     y_err, y_pass = _rel_err("neutron_yield")
     a_err, a_pass = _rel_err("anisotropy")
 
-    passed = cur_pass and y_pass and a_pass
+    passed = cur_pass and cur_slope_pass and pinch_pass and y_pass and a_pass
     return {
         "current_rmse": cur_rmse,
         "current_max_error": cur_max_err,
+        "current_slope_error": cur_slope_error,
+        "pinch_time_error": pinch_err,
         "neutron_yield_error": y_err,
         "anisotropy_error": a_err,
         "passed": passed,
         "checks": {
             "current": cur_pass,
+            "current_slope": cur_slope_pass,
+            "pinch_time": pinch_pass,
             "neutron_yield": y_pass,
             "anisotropy": a_pass,
         },

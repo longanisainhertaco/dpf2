@@ -200,3 +200,34 @@ def test_new_diagnostics(tmp_path):
     with h5py.File(tmp_path / "rcf_image.h5", "r") as fh:
         assert fh["rcf_image"].shape[0] == len(data["rcf_image"])
 
+
+def test_interferometry_xrd_and_openpmd_export(tmp_path):
+    history = [
+        CouplingState(current=1.0, voltage=2.0),
+        CouplingState(current=3.0, voltage=4.0),
+    ]
+    cfg = SyntheticDiagnostics.with_defaults().model_copy(
+        update={
+            "synthetic_xrd_signal_enabled": True,
+            "synthetic_optical_interferogram_enabled": True,
+            "synthetic_neutron_tof_enabled": True,
+            "apply_time_response": True,
+            "apply_electrical_filter": True,
+            "filter_parameters": {"cable_ns": 5.0},
+            "diagnostic_output_type": {"interferogram": "image"},
+            "instrument_response": {"tof_distance_m": 1.2, "tof_energies_mev": [2.5]},
+            "output_format": "openpmd",
+        }
+    )
+    data = run_diagnostic_calculations(history, cfg, dt=1e-9)
+    assert "xrd" in data and len(data["xrd"]) == len(history)
+    assert "interferogram" in data
+    assert "neutron_tof" in data
+    paths = export_diagnostic_data(data, cfg, tmp_path)
+    assert any(p.suffix == ".h5" for p in paths)
+    with h5py.File(tmp_path / "xrd.h5", "r") as fh:
+        assert "openPMD" in fh.attrs
+    with h5py.File(tmp_path / "neutron_tof.h5", "r") as fh:
+        ds = fh["data/0/meshes/neutron_tof"] if "data" in fh else fh["neutron_tof"]
+        assert "instrument_response" in ds.attrs
+

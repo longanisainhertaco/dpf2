@@ -37,6 +37,8 @@ def test_yield_components_partitioning():
     assert res["angular_thermal"][0] == res["angular_thermal"][1]
     assert "angular_total" in res
     assert res["anisotropy"] > 0.0
+    assert "tof_channels" in res and "thermonuclear" in res["tof_channels"]
+    assert len(res["tof_phase"]["time_midpoints"]) == len(time_bins) - 1
     assert len(res["tof"]) == len(angles)
 
 
