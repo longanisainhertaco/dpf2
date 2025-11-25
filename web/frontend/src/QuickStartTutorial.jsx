@@ -15,7 +15,7 @@ export default function QuickStartTutorial({ setVoltage, setPressure }) {
           setPressure(0.08);
         },
         description:
-          'Increase the bank voltage while keeping neutral pressure modest. The voltage pane should show a fast ramp while the sheath plot begins wide—mirroring early breakdown physics.',
+          'Increase the bank voltage while keeping neutral pressure modest. The voltage pane should show a fast ramp while the sheath plot begins wide—mirroring early breakdown physics and the regime gauge should sit just under the magnetised threshold.',
       },
       {
         title: 'Rundown and Compression',
@@ -24,7 +24,7 @@ export default function QuickStartTutorial({ setVoltage, setPressure }) {
           setPressure(0.12);
         },
         description:
-          'Raise pressure to thicken the sheath and slow the current surge. Watch the current pane peak later while the WebGL sheath narrows, illustrating axial rundown.',
+          'Raise pressure to thicken the sheath and slow the current surge. Watch the current pane peak later while the WebGL sheath narrows, illustrating axial rundown and a climb in the dimensionless gate.',
       },
       {
         title: 'Pinch Optimization',
@@ -33,7 +33,7 @@ export default function QuickStartTutorial({ setVoltage, setPressure }) {
           setPressure(0.16);
         },
         description:
-          'Push into the pinch regime: the sheath radius contracts and the sheath pane spikes. The Regime Dashboard should flip toward magnetized, collisionless values.',
+          'Push into the pinch regime: the sheath radius contracts and the sheath pane spikes. The Regime Dashboard should flip toward magnetized, collisionless values as the gate crosses the dashed line.',
       },
       {
         title: 'Afterglow Diagnostics',
@@ -42,7 +42,7 @@ export default function QuickStartTutorial({ setVoltage, setPressure }) {
           setPressure(0.06);
         },
         description:
-          'Lower both controls to observe afterglow decay. Note how the current tail aligns with the sheath panel and how regime indicators drift back toward fluid-valid ranges.',
+          'Lower both controls to observe afterglow decay. Note how the current tail aligns with the sheath panel and how regime indicators drift back toward fluid-valid ranges with the gate falling below unity.',
       },
     ],
     [setPressure, setVoltage]
@@ -74,8 +74,9 @@ export default function QuickStartTutorial({ setVoltage, setPressure }) {
         <summary>What should I look for?</summary>
         Use the current/voltage/sheath panes to see how electrical drive couples
         into sheath dynamics, then confirm the operating regime with the live
-        dimensionless dashboard. Saving a snapshot preserves these pairings for
-        reproducibility.
+        dimensionless dashboard. The gate mixes Lundquist and ωτ so students can
+        see when numerics should switch to higher-order, magnetised settings.
+        Saving a snapshot preserves these pairings for reproducibility.
       </details>
     </div>
   );
