@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from bisect import bisect_right
-from typing import Callable, Protocol, Sequence, Tuple, Dict, List
+from typing import Callable, Protocol, Sequence, Tuple, Dict, List, Any
 
 import h5py_stub as h5py  # type: ignore
 import math
@@ -128,6 +128,61 @@ def compute_beam_target_yield(
     return yields, tofs
 
 
+def _zero_lag_correlations(
+    tof: Sequence[float], current: Sequence[float], voltage: Sequence[float]
+) -> Dict[str, float]:
+    """Return zero-lag correlations between ToF histogram and I/V waveforms."""
+
+    if not (len(tof) == len(current) == len(voltage)):
+        raise ValueError("ToF, current and voltage sequences must be the same length")
+
+    def _corr(a: Sequence[float], b: Sequence[float]) -> float:
+        mean_a = sum(a) / len(a) if a else 0.0
+        mean_b = sum(b) / len(b) if b else 0.0
+        num = sum((x - mean_a) * (y - mean_b) for x, y in zip(a, b))
+        den = math.sqrt(
+            sum((x - mean_a) ** 2 for x in a) * sum((y - mean_b) ** 2 for y in b)
+        )
+        return num / den if den != 0 else 0.0
+
+    power = [i * v for i, v in zip(current, voltage)]
+    return {
+        "current": _corr(tof, current),
+        "voltage": _corr(tof, voltage),
+        "power": _corr(tof, power),
+    }
+
+
+def _lagged_phase_metrics(
+    tof: Sequence[float],
+    signal: Sequence[float],
+    dt: float,
+) -> Dict[str, Any]:
+    """Return lagged cross-correlation and best phase alignment."""
+
+    if len(tof) != len(signal):
+        raise ValueError("ToF and signal histories must have the same length")
+    if dt <= 0:
+        raise ValueError("dt must be positive for phase estimation")
+
+    n = len(tof)
+    lags: List[int] = []
+    corr: List[float] = []
+    mean_a = sum(tof) / n if n else 0.0
+    mean_b = sum(signal) / n if n else 0.0
+    for lag in range(-n + 1, n):
+        val = 0.0
+        for i in range(n):
+            j = i - lag
+            if 0 <= j < n:
+                val += (tof[i] - mean_a) * (signal[j] - mean_b)
+        lags.append(lag)
+        corr.append(val)
+    best_idx = max(range(len(corr)), key=lambda i: abs(corr[i])) if corr else 0
+    best_lag = lags[best_idx] * dt if lags else 0.0
+    return {"lags": [l * dt for l in lags], "correlation": corr, "best_lag_s": best_lag}
+
+
 def compute_thermonuclear_yield(
     reactivity: Sequence[float], ion_density: Sequence[float], dt: float
 ) -> float:
@@ -149,6 +204,8 @@ def yield_components_with_anisotropy(
     reactivity: Sequence[float],
     ion_density: Sequence[float],
     dt: float,
+    current_trace: Sequence[float] | None = None,
+    voltage_trace: Sequence[float] | None = None,
 ) -> Dict[str, List[float] | float]:
     """Return separated beam-target and thermal yields with angular spectra.
 
@@ -207,6 +264,26 @@ def yield_components_with_anisotropy(
     phase_fraction = [
         (t - time_bins[0]) / window if window > 0 else 0.0 for t in midpoints
     ]
+    dt_hist = window / max(len(midpoints), 1) if midpoints else 0.0
+
+    # Aggregate ToF signal for I–V phasing
+    aggregate_tof = [sum(bin_vals) for bin_vals in zip(*combined_tof)] if combined_tof else []
+    iv_phase: Dict[str, Any] | None = None
+    if current_trace is not None and voltage_trace is not None and aggregate_tof:
+        if len(current_trace) != len(aggregate_tof) or len(voltage_trace) != len(aggregate_tof):
+            raise ValueError("current_trace and voltage_trace must match ToF histogram length")
+        iv_phase = {
+            "zero_lag": _zero_lag_correlations(aggregate_tof, current_trace, voltage_trace),
+        }
+        if dt_hist > 0:
+            iv_phase["lagged"] = {
+                "current": _lagged_phase_metrics(aggregate_tof, current_trace, dt_hist),
+                "voltage": _lagged_phase_metrics(aggregate_tof, voltage_trace, dt_hist),
+                "power": _lagged_phase_metrics(
+                    aggregate_tof, [i * v for i, v in zip(current_trace, voltage_trace)], dt_hist
+                ),
+            }
+        iv_phase["timebase_s"] = dt_hist
     return {
         "beam_target_total": sum(bt_yields),
         "thermal_total": th_total,
@@ -229,6 +306,7 @@ def yield_components_with_anisotropy(
             "total": total_per_angle,
         },
         "tof_phase": {"time_midpoints": midpoints, "phase_fraction": phase_fraction},
+        "iv_phase": iv_phase,
     }
 
 

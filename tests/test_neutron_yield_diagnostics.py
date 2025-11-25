@@ -70,6 +70,8 @@ def test_yield_components_and_anisotropy():
         reactivity,
         ion_density,
         dt,
+        current_trace=[1.0],
+        voltage_trace=[2.0],
     )
     bt, _ = compute_beam_target_yield(beam, cross_section, angles, distance, time_bins)
     th = compute_thermonuclear_yield(reactivity, ion_density, dt)
@@ -83,6 +85,8 @@ def test_yield_components_and_anisotropy():
     assert result["anisotropy"] == expected_aniso
     assert "angular_spectra" in result
     assert "tof_channels" in result
+    assert result["iv_phase"]["zero_lag"]["current"] == 0.0
+    assert "lagged" in result["iv_phase"]
 
 
 def test_detector_models():
