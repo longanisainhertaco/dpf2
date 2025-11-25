@@ -7,6 +7,7 @@ from pathlib import Path
 import logging
 import csv
 from typing import Dict
+import numpy as np
 
 from .plasma import (
     lundquist_number,
@@ -39,6 +40,7 @@ class RegimePanel:
             "R_m": 1.0,
             "K_n": 0.1,
             "omega_ce_tau_e": 1.0,
+            "di_over_L": 0.01,
         }
     )
     history: list[Dict[str, float]] = field(default_factory=list)
@@ -69,6 +71,16 @@ class RegimePanel:
         R_m = magnetic_reynolds_number(v, self.L, sigma)
         K_n = mfp / self.L
         omega_ce_tau_e = (e * B / m_e) * tau_e
+        di_over_L = 0.0
+        try:
+            # Ion inertial length d_i = sqrt(m_i / (mu0 n q^2))
+            # Use proton mass as a proxy; this is sufficient for gating logic.
+            import scipy.constants as const
+
+            di = np.sqrt(const.m_p / (const.mu_0 * (const.e ** 2) * n)) if n > 0 else 0.0
+            di_over_L = di / self.L if self.L > 0 else 0.0
+        except Exception:  # pragma: no cover - optional SciPy
+            di_over_L = 0.0
 
         entry = {
             "step": step,
@@ -78,6 +90,7 @@ class RegimePanel:
             "R_m": float(R_m),
             "K_n": float(K_n),
             "omega_ce_tau_e": float(omega_ce_tau_e),
+            "di_over_L": float(di_over_L),
         }
         self.history.append(entry)
 
@@ -90,6 +103,7 @@ class RegimePanel:
                 entry["R_m"],
                 entry["K_n"],
                 entry["omega_ce_tau_e"],
+                entry["di_over_L"],
             )
 
         violations: Dict[str, bool] = {}
@@ -143,14 +157,15 @@ class RegimePanel:
             ("R_m", "R_m"),
             ("K_n", "K_n"),
             ("omega_ce_tau_e", "ω_ce τ_e"),
+            ("di_over_L", "d_i/L"),
         ]
 
-        fig, axes = plt.subplots(3, 2, sharex=True)
+        fig, axes = plt.subplots(4, 2, sharex=True)
         for ax, (key, label) in zip(axes.flat, metrics):
             ax.plot(steps, [h[key] for h in self.history])
             ax.set_ylabel(label)
-        axes[2, 0].set_xlabel("step")
-        axes[2, 1].set_xlabel("step")
+        axes[-1, 0].set_xlabel("step")
+        axes[-1, 1].set_xlabel("step")
         fig.tight_layout()
 
         p = Path(path)

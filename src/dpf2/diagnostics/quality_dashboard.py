@@ -31,6 +31,7 @@ class QualityDashboard:
     min_R_m: float | None = None
     max_K_n: float | None = None
     min_omega_ce_tau_e: float | None = None
+    min_di_over_L: float | None = None
     regime_history: list[dict[str, float]] = field(default_factory=list)
     regime_gates: list[dict[str, float | bool]] = field(default_factory=list)
     validation_overlays: list[dict[str, object]] = field(default_factory=list)
@@ -156,6 +157,7 @@ class QualityDashboard:
         R_m: float,
         K_n: float,
         omega_ce_tau_e: float,
+        di_over_L: float,
     ) -> None:
         """Record dimensionless regime parameters and flag threshold violations."""
 
@@ -167,6 +169,7 @@ class QualityDashboard:
             "R_m": R_m,
             "K_n": K_n,
             "omega_ce_tau_e": omega_ce_tau_e,
+            "di_over_L": di_over_L,
         }
 
         def _warn_or_abort(msg: str) -> None:
@@ -182,6 +185,8 @@ class QualityDashboard:
             "K_n": self.max_K_n is not None and K_n > self.max_K_n,
             "omega_ce_tau_e": self.min_omega_ce_tau_e is not None
             and omega_ce_tau_e < self.min_omega_ce_tau_e,
+            "di_over_L": self.min_di_over_L is not None
+            and di_over_L < self.min_di_over_L,
         }
 
         for key, violated in violations.items():
@@ -211,6 +216,10 @@ class QualityDashboard:
                 _warn_or_abort(
                     "Cyclotron frequency–collision time below threshold: "
                     f"{omega_ce_tau_e:g} < {self.min_omega_ce_tau_e:g}"
+                )
+            elif key == "di_over_L":
+                _warn_or_abort(
+                    f"Ion inertial length under-resolved: {di_over_L:g} < {self.min_di_over_L:g}"
                 )
 
         entry["violations"] = violations

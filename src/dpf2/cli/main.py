@@ -59,6 +59,7 @@ from dpf2.geometry.parameterized import HollowGeometry, ReentrantGeometry, Taper
 from dpf2.scaling_laws import sweep_yield_scaling
 from dpf2.uq.sampling import latin_hypercube, sobol_sample
 from dpf2.uq.analysis import sobol_indices, uncertainty_band
+from dpf2.verification.standard_suite import run_suite as run_verification_suite, summarize
 
 from .errors import format_error
 from .batch import batch
@@ -1428,6 +1429,18 @@ def index(output: str, package: str, source_root: str | None) -> None:
         raise
     except Exception as exc:  # pragma: no cover - defensive
         raise click.ClickException(format_error("INDEX", str(exc)))
+
+
+@main.command("verify")
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON instead of human text")
+def verify(as_json: bool) -> None:
+    """Run Brio–Wu, Orszag–Tang, MMS and DPF acceptance checks."""
+
+    outcomes = run_verification_suite()
+    if as_json:
+        click.echo(json.dumps(outcomes, indent=2))
+    else:
+        click.echo(summarize(outcomes))
 
 
 from .benchmark import benchmark, match_benchmark

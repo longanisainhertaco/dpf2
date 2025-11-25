@@ -53,10 +53,12 @@ except Exception:  # pragma: no cover - fallback for stripped environments
 from ..mesh import Mesh2D, Mesh3D
 
 try:  # pragma: no cover - SciPy optional
-    from scipy.constants import k as k_B, m_p
+    from scipy.constants import e as q_e, k as k_B, m_p, mu_0
 except Exception:  # pragma: no cover - fallback values
     k_B = 1.380649e-23
     m_p = 1.67262192369e-27
+    q_e = 1.602176634e-19
+    mu_0 = 4e-7 * np.pi
 
 
 @dataclass
@@ -175,10 +177,22 @@ class ResistiveMHD:
         B = np.sqrt(B_x ** 2 + B_y ** 2 + B_z ** 2)
         eta = self.eta
 
+        di_over_L = 0.0
+        if n > 0 and self.regime_panel is not None:
+            try:
+                di = np.sqrt(m_p / (mu_0 * (q_e ** 2) * n))
+                di_over_L = di / self.regime_panel.L if self.regime_panel.L else 0.0
+            except Exception:  # pragma: no cover - fallback path
+                di_over_L = 0.0
+
         self._regime_step += 1
         self.regime_panel.log(
             self._regime_step, n, T, B, v, eta, mfp, tau_e
         )
+        # Store the d_i/L gate alongside the logged entry so dashboards and
+        # CLI reports can surface when Hall/electron inertia physics is active.
+        if self.regime_panel.history:
+            self.regime_panel.history[-1]["di_over_L"] = di_over_L
 
     # ------------------------------------------------------------------
     # Fluxes

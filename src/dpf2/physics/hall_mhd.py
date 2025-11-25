@@ -127,6 +127,23 @@ class HallMHD(ResistiveMHD):
         self.nernst = coeffs["nernst"]
         self.righi_leduc = coeffs["righi_leduc"]
 
+    def regime_metrics(self, ne: float, Te: float, B: float, L: float) -> dict[str, float]:
+        """Return key activation metrics used by Hall and two-fluid gating."""
+
+        omega_tau, di_over_L = hall_parameters(ne, Te, B, L)
+        return {
+            "omega_ce_tau_e": float(omega_tau),
+            "di_over_L": float(di_over_L),
+            "hall_active": bool(
+                self.hall_enabled
+                and omega_tau > self.omega_ce_tau_e_min
+                and di_over_L > self.di_over_L_min
+            ),
+            "electron_inertia_active": bool(
+                self.electron_inertia != 0.0 and di_over_L > self.di_over_L_min
+            ),
+        }
+
     # ------------------------------------------------------------------
     # Primitive ↔ conservative conversions
     # ------------------------------------------------------------------
@@ -221,7 +238,7 @@ class HallMHD(ResistiveMHD):
                 eta_total = eta + eta_spitzer
                 self.plasma_impedance = float(np.max(eta_total))
                 try:
-                    magJ = np.linalg.norm(J, axis=-1)
+                    magJ = np.sqrt(np.sum(J ** 2, axis=-1))
                 except Exception:  # pragma: no cover - stub fallback
                     magJ = np.sum(np.abs(J), axis=-1)
                 if np.any(eta > eta_spitzer):
@@ -256,6 +273,13 @@ class HallMHD(ResistiveMHD):
         self.log_regime(state, mfp, tau_e)
 
         return state
+
+    def effective_impedance(self) -> float:
+        """Return the last effective plasma impedance including anomalies."""
+
+        if self.plasma_impedance:
+            return float(self.plasma_impedance)
+        return float(self.eta)
 
     # ------------------------------------------------------------------
     # Fluxes with Hall term and back EMF
@@ -496,6 +520,55 @@ def hall_shock_speed(B: float, ne: float, L: float) -> float:
     return vA * (1.0 + di / L)
 
 
+@dataclass
+class TwoFluidHallMHD(HallMHD):
+    """Lightweight two-fluid wrapper around :class:`HallMHD`.
+
+    The class estimates separate ion and electron velocities using a simple
+    drift model, computes Hall activation gates and exposes an effective
+    impedance that includes anomalous resistivity contributions.
+    """
+
+    electron_pressure_fraction: float = 0.5
+    ion_mass: float = m_p
+    charge_state: float = 1.0
+
+    def split_fluid_velocities(self, U: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Return ion and electron bulk velocities from a conservative state."""
+
+        prim = self.primitive_variables(U)
+        rho = prim[0]
+        v_i = prim[1:4]
+        n = rho / max(self.ion_mass, 1e-30)
+        B = prim[5:8]
+        speed_i = float(np.sqrt(np.sum(v_i ** 2)))
+        J = n * self.charge_state * q_e * speed_i if n > 0 else 0.0
+        drift = (J / (n * self.charge_state * q_e)) if n > 0 else 0.0
+        Bmag = float(np.sqrt(np.sum(B ** 2)))
+        v_e = v_i - drift * (B / Bmag if Bmag > 0 else np.ones_like(v_i))
+        return v_i, v_e
+
+    def step_twofluid(self, U: np.ndarray, dt: float, L: float) -> dict[str, float]:
+        """Compute two-fluid diagnostics without advancing ``U``."""
+
+        v_i, v_e = self.split_fluid_velocities(U)
+        prim = self.primitive_variables(U)
+        rho = prim[0]
+        n = rho / max(self.ion_mass, 1e-30)
+        p = prim[4]
+        Bmag = float(np.sqrt(np.sum(prim[5:8] ** 2)))
+        T = p / (n * k_B) if n > 0 else 0.0
+        metrics = self.regime_metrics(n, T, Bmag, L)
+        impedance = self.effective_impedance()
+        return {
+            "ion_velocity": float(np.sqrt(np.sum(v_i ** 2))),
+            "electron_velocity": float(np.sqrt(np.sum(v_e ** 2))),
+            "effective_impedance": impedance,
+            **metrics,
+            "dt": dt,
+        }
+
+
 __all__ = [
     "HallMHD",
     "LHDIResistivity",
@@ -505,4 +578,5 @@ __all__ = [
     "braginskii_coefficients",
     "whistler_dispersion",
     "hall_shock_speed",
+    "TwoFluidHallMHD",
 ]
