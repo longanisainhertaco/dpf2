@@ -1,5 +1,5 @@
 """Verification helpers and regression panels."""
 
-from .panel import VerificationPanel
-
-__all__ = ["VerificationPanel"]
+# Lazy modules are imported directly by callers to avoid hard dependencies
+# during lightweight verification runs.
+__all__: list[str] = []
