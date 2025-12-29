@@ -4,6 +4,23 @@ A Dense Plasma Focus (DPF) simulator implemented in Python. This project provide
 The purpose of this project is to experiment with LLM capabilities and to use existing, verified research papers to drive a dense plasma focus simulation tool, that will be open
 to the scientific community to further explore.
 
+## DPF-NextGen Architecture and Rationale
+
+DPF-NextGen targets a hybrid-PIC architecture with **Energy Conserving Semi-Implicit Methods (ECSIM)** for ion kinetics and fluid closures for electrons. ECSIM enables stable, energy-conserving time steps on the order of microseconds—orders of magnitude larger than explicit Boris pushers—while retaining ion-kinetic fidelity needed for pinch and sheath dynamics. The hybrid split keeps fluid electron models lightweight while allocating computational intensity to kinetic ions and fusion sampling.
+
+### Surpassing Legacy Standards
+
+In this context, “surpassing” Sandia’s legacy Chicago code means **achieving parity in ion-kinetic physics while reducing problem setup time by 90% through CAD integration and stable semi-implicit time-stepping**. CAD-native ingest (OpenCASCADE) with automated voxel/cut-cell meshing removes manual block-meshing overhead, while ECSIM shrinks the number of required steps without compromising energy conservation.
+
+### Repository Scaffold (DPF-NextGen)
+
+- `src/hybrid_core/` – Explicit separation of fluid (`fluid/`) and kinetic (`kinetic/`) handlers for hybrid-PIC solvers.
+- `src/cad_interface/` – CAD-native ingest and meshing adapters (OpenCASCADE bindings).
+- `benchmarks/pirt/` – Phenomena Identification and Ranking Table validation cases.
+- `tests/mms/` – Method of Manufactured Solutions verification problems.
+
+See `docs/repository_structure.md` for the full scaffold and `docs/gap_analysis_dpf_nextgen.md` for the Chicago vs. Charge Plus comparison that motivated these choices.
+
 ## Documentation
 
 Full documentation, including a user guide, CLI reference, and API reference, lives in the [docs/](docs/index.md) directory and is available as a MkDocs site. Build and view it locally with:
