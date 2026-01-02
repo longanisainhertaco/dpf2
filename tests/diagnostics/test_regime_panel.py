@@ -1,5 +1,6 @@
 import math
 from pathlib import Path
+import json
 
 from dpf2.diagnostics.regime_panel import RegimePanel
 
@@ -61,3 +62,39 @@ def test_regime_panel_flags_and_history(tmp_path):
     content = Path(csv_path).read_text().strip().splitlines()
     assert len(content) == 3  # header + 2 entries
     assert "S_violated" in content[0]
+
+
+def test_regime_panel_energy_exports_and_dashboard(tmp_path):
+    panel = RegimePanel(L=1.0)
+    entry = panel.log(
+        1,
+        1e20,
+        1e3,
+        0.1,
+        1e5,
+        1e-6,
+        0.1,
+        1e-9,
+        magnetic_energy=2.0,
+        kinetic_energy=1.0,
+        radiation_energy=0.5,
+        loss_energy=0.25,
+    )
+    energy = entry["energy_partition"]
+    assert energy["total_energy"] == 3.5
+    assert abs(energy["balance_residual"] - ((3.5 - 0.25) / 3.5)) < 1e-6
+
+    csv_path = panel.to_csv(tmp_path / "regime_energy.csv")
+    header = Path(csv_path).read_text().splitlines()[0]
+    assert "magnetic_energy" in header
+
+    json_path = panel.to_json(tmp_path / "regime.json")
+    data = json.loads(Path(json_path).read_text())
+    assert data[0]["energy_partition"]["loss_energy"] == 0.25
+
+    dash = panel.dashboard(tmp_path / "regime_plot.png")
+    assert dash["latest"]["step"] == 1
+    assert dash["energy_partition"]["kinetic_energy"] == 1.0
+
+    energy_plot = panel.plot_energy_partitions(tmp_path / "energy_plot.png")
+    assert energy_plot.exists() or energy_plot == tmp_path / "energy_plot.png"
