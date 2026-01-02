@@ -53,12 +53,13 @@ except Exception:  # pragma: no cover - fallback for stripped environments
 from ..mesh import Mesh2D, Mesh3D
 
 try:  # pragma: no cover - SciPy optional
-    from scipy.constants import e as q_e, k as k_B, m_p, mu_0
+    from scipy.constants import e as q_e, k as k_B, m_p, mu_0, m_e
 except Exception:  # pragma: no cover - fallback values
     k_B = 1.380649e-23
     m_p = 1.67262192369e-27
     q_e = 1.602176634e-19
     mu_0 = 4e-7 * np.pi
+    m_e = 9.1093837015e-31
 
 
 @dataclass
@@ -178,12 +179,21 @@ class ResistiveMHD:
         eta = self.eta
 
         di_over_L = 0.0
+        omega_ce_tau_e = 0.0
         if n > 0 and self.regime_panel is not None:
             try:
                 di = np.sqrt(m_p / (mu_0 * (q_e ** 2) * n))
                 di_over_L = di / self.regime_panel.L if self.regime_panel.L else 0.0
             except Exception:  # pragma: no cover - fallback path
                 di_over_L = 0.0
+            try:
+                # When an explicit collision time is not supplied, fall back
+                # to a Spitzer-like estimate derived from the resistivity.
+                tau = tau_e if tau_e > 0.0 else m_e / (n * (q_e ** 2) * max(eta, 1e-30))
+                omega = abs(q_e) * B / m_e
+                omega_ce_tau_e = omega * tau
+            except Exception:  # pragma: no cover - stubbed numpy path
+                omega_ce_tau_e = 0.0
 
         self._regime_step += 1
         self.regime_panel.log(
@@ -193,6 +203,7 @@ class ResistiveMHD:
         # CLI reports can surface when Hall/electron inertia physics is active.
         if self.regime_panel.history:
             self.regime_panel.history[-1]["di_over_L"] = di_over_L
+            self.regime_panel.history[-1]["omega_ce_tau_e"] = omega_ce_tau_e
 
     # ------------------------------------------------------------------
     # Fluxes
@@ -388,4 +399,3 @@ class ResistiveMHD:
 
 
 __all__ = ["ResistiveMHD"]
-

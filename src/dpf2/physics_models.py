@@ -101,6 +101,21 @@ class PhysicsModels(ConfigSectionBase):
         alias="resistivityModel",
         metadata={"category": "PhysicsModels", "group": "Resistivity"},
     )
+    anomalous_resistivity_enabled: bool = Field(
+        False,
+        alias="anomalousResistivityEnabled",
+        metadata={"category": "PhysicsModels", "group": "Resistivity"},
+    )
+    lower_hybrid_drift_enabled: bool = Field(
+        False,
+        alias="lowerHybridDriftEnabled",
+        metadata={"category": "PhysicsModels", "group": "Resistivity"},
+    )
+    braginskii_transport_enabled: bool = Field(
+        False,
+        alias="braginskiiTransportEnabled",
+        metadata={"category": "PhysicsModels", "group": "Resistivity"},
+    )
 
     ionization_model: IonizationModel = Field(
         IonizationModel.SAHA,
@@ -158,6 +173,21 @@ class PhysicsModels(ConfigSectionBase):
     hall_mhd_enabled: bool = Field(
         False,
         alias="hallMhdEnabled",
+        metadata={"category": "PhysicsModels", "group": "Instabilities"},
+    )
+    hall_two_fluid_enabled: bool = Field(
+        False,
+        alias="hallTwoFluidEnabled",
+        metadata={"category": "PhysicsModels", "group": "Instabilities"},
+    )
+    hall_activation_omega_ce_tau_e: float = Field(
+        1.0,
+        alias="hallActivationOmegaCeTauE",
+        metadata={"category": "PhysicsModels", "group": "Instabilities"},
+    )
+    hall_activation_di_over_L: float = Field(
+        0.01,
+        alias="hallActivationDiOverL",
         metadata={"category": "PhysicsModels", "group": "Instabilities"},
     )
     pease_bragginski_limit_check: bool = Field(

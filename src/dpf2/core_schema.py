@@ -107,6 +107,7 @@ class ResistivityModel(str, Enum):
     SPITZER = "Spitzer"
     LHDI = "LHDI"
     ANOMALOUS = "anomalous"
+    LOWER_HYBRID_DRIFT = "lower_hybrid_drift"
 
 
 class IonizationModel(str, Enum):

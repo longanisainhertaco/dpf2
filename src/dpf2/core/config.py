@@ -68,6 +68,13 @@ class DPFConfig:
     saturable_inductor: Optional[Dict[str, float]] = None
     neutral_gas_puff: Optional[Dict[str, float]] = None
     lp_trace: Optional[List[Tuple[float, float]]] = None
+    hall_mhd_enabled: bool = False
+    hall_two_fluid_enabled: bool = False
+    braginskii_transport_enabled: bool = False
+    anomalous_resistivity_enabled: bool = False
+    lower_hybrid_drift_enabled: bool = False
+    hall_activation_omega_ce_tau_e: float = 1.0
+    hall_activation_di_over_L: float = 0.01
 
     jitter: JitterConfig = field(default_factory=JitterConfig)
     datasets: Dict[str, Dict[str, Dict[str, object]]] | None = None

@@ -352,6 +352,7 @@ class HallMHDSolver(PlasmaSolverBase):
     braginskii: Callable[[np.ndarray, np.ndarray, np.ndarray], Tuple[float, float]] | None = None
     electron_inertia: float = 0.0
     hall_threshold: float = 1.0
+    hall_di_over_L_threshold: float | None = None
     ei_threshold: float = 0.1
     scale_length: float = 1.0
     current: float = 0.0
@@ -367,6 +368,7 @@ class HallMHDSolver(PlasmaSolverBase):
     lower_hybrid_drift: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
     m0_instability: Callable[[np.ndarray], np.ndarray | tuple[np.ndarray, np.ndarray]] | None = None
     instability_thresholds: Dict[str, float] | None = None
+    resistivity_gates: Dict[str, bool] = field(default_factory=dict)
     sausage_onset: bool = field(init=False, default=False)
     kink_onset: bool = field(init=False, default=False)
     imex_stepper: PetscIMEXStepper | None = None
@@ -961,11 +963,20 @@ class HallMHDSolver(PlasmaSolverBase):
         tau_e = m_e / (ne * q_e**2 * np.maximum(eta_local, 1e-30))
         wce_tau_e = w_ce * tau_e
         self.last_wce_tau_e = float(np.max(wce_tau_e))
-        self.hall_active = self.last_wce_tau_e > self.hall_threshold
 
         ni = rho
         d_i = np.sqrt(m_p / (mu_0 * ni * q_e**2))
         self.last_di_over_L = float(np.max(d_i) / max(self.scale_length, 1e-30))
+
+        di_gate = (
+            self.hall_di_over_L_threshold
+            if self.hall_di_over_L_threshold is not None
+            else self.ei_threshold
+        )
+        self.hall_active = (
+            self.last_wce_tau_e > self.hall_threshold
+            and self.last_di_over_L > di_gate
+        )
         self.electron_inertia_active = self.last_di_over_L > self.ei_threshold
 
         # electron pressure gradient for Ohm's law
@@ -1230,6 +1241,7 @@ class HallMHDSolver(PlasmaSolverBase):
                 wce_tau_e=self.last_wce_tau_e,
                 di_over_L=self.last_di_over_L,
                 hall_threshold=self.hall_threshold,
+                hall_di_over_L_threshold=self.hall_di_over_L_threshold,
                 ei_threshold=self.ei_threshold,
 
             )
@@ -1291,6 +1303,8 @@ class HallMHDSolver(PlasmaSolverBase):
     def _ensure_coordinate_cache(
         self, shape: Tuple[int, int, int]
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if len(shape) == 2:  # tolerate 2-D inputs used in lightweight tests
+            shape = (shape[0], shape[1], 1)
         if self._coord_shape == tuple(shape) and self._coord_cache is not None:
             return self._coord_cache
 
@@ -1319,6 +1333,8 @@ class HallMHDSolver(PlasmaSolverBase):
     def _estimate_sheath_state(self, state: MHDState) -> tuple[float, float, float, float]:
         R, Z, X, Y = self._ensure_coordinate_cache(state.rho.shape)
         rho = np.asarray(state.rho)
+        if rho.ndim == 2:
+            rho = rho[..., None]
         weights = np.clip(rho, a_min=0.0, a_max=None)
         total = float(np.sum(weights))
         if not np.isfinite(total) or total <= 0.0:
@@ -1332,10 +1348,11 @@ class HallMHDSolver(PlasmaSolverBase):
         z_mean = float(np.sum(weights * Z) / total)
 
         momentum = np.asarray(state.mom)
-        denom = np.maximum(rho, 1e-30)
-        vx = momentum[..., 0] / denom
-        vy = momentum[..., 1] / denom
-        vz = momentum[..., 2] / denom
+        weights = np.broadcast_to(weights, R.shape)
+        rho_b = np.broadcast_to(rho, R.shape)
+        vx = np.broadcast_to(momentum[..., 0][..., None], R.shape) / np.maximum(rho_b, 1e-30)
+        vy = np.broadcast_to(momentum[..., 1][..., None], R.shape) / np.maximum(rho_b, 1e-30)
+        vz = np.broadcast_to(momentum[..., 2][..., None], R.shape) / np.maximum(rho_b, 1e-30)
 
         radial_speed = np.zeros_like(R)
         mask = R > 1e-9
