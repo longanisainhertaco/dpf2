@@ -69,8 +69,12 @@ def _spectrum_1d(arr: np.ndarray) -> list[float]:
 
 
 def _flatten(arr) -> list[float]:
-    if isinstance(arr, np.Array):  # type: ignore[attr-defined]
-        arr = arr.data
+    try:
+        if hasattr(arr, "flatten"):
+            flat = np.array(arr).flatten()
+            return [float(v) for v in flat]
+    except Exception:
+        pass
     if isinstance(arr, list):
         out: list[float] = []
         for v in arr:
@@ -331,6 +335,21 @@ class VerificationPanel:
             "shock_count": shocks,
             "observed_order": orders,
             "passed": passed,
+        }
+
+    # --------------------------------------------------------------
+    def run_mms(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, list[float]]:
+        """Backwards-compatible entry point for MMS ideal MHD."""
+
+        return self.run_mms_ideal_mhd(sizes)
+
+    def run_all(self, sizes: Iterable[int] = (16, 32, 64)) -> dict[str, dict[str, list[float]]]:
+        """Execute all numerics verification problems and return results."""
+
+        return {
+            "brio_wu": self.run_brio_wu(sizes),
+            "orszag_tang": self.run_orszag_tang(sizes),
+            "mms": self.run_mms_ideal_mhd(sizes),
         }
 
     # --------------------------------------------------------------

@@ -62,6 +62,7 @@ from dpf2.geometry.parameterized import HollowGeometry, ReentrantGeometry, Taper
 from dpf2.scaling_laws import sweep_yield_scaling
 from dpf2.uq.sampling import latin_hypercube, sobol_sample
 from dpf2.uq.analysis import sobol_indices, uncertainty_band
+from dpf2.verification import VerificationPanel
 from dpf2.verification.standard_suite import run_suite as run_verification_suite, summarize
 
 from .errors import format_error
@@ -1775,6 +1776,44 @@ def verify(as_json: bool) -> None:
         click.echo(json.dumps(outcomes, indent=2))
     else:
         click.echo(summarize(outcomes))
+
+
+def _summarize_numerics(outcomes: dict[str, dict[str, Any]]) -> str:
+    """Format observed-order results for CLI output."""
+
+    lines = ["Numerics verification results:"]
+    for name, res in outcomes.items():
+        obs = res.get("observed_order", [])
+        order = obs[-1] if obs else 0.0
+        lines.append(f"- {name}: observed {order:.2f} vs design 1.0")
+    return "\n".join(lines)
+
+
+@main.command("verify-numerics")
+@click.option(
+    "--sizes",
+    type=int,
+    multiple=True,
+    help="Grid sizes used for convergence tests (repeat flag; default: 16,32,64)",
+)
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False),
+    default="synthetic_diagnostics/verification.h5",
+    show_default=True,
+    help="Where to write verification metrics",
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON instead of text")
+def verify_numerics(sizes: tuple[int, ...], output: str, as_json: bool) -> None:
+    """Run numerics verification problems with observed-order reporting."""
+
+    grid = sizes or (16, 32, 64)
+    panel = VerificationPanel(output_file=Path(output))
+    outcomes = panel.run_all(grid)
+    if as_json:
+        click.echo(json.dumps(outcomes, indent=2))
+    else:
+        click.echo(_summarize_numerics(outcomes))
 
 
 from .benchmark import benchmark, match_benchmark

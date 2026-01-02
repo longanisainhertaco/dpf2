@@ -13,7 +13,10 @@ import numpy as np
 class _FakeDataset:
     def __init__(self, array: Any):
         arr = np.array(array)
-        self.data = getattr(arr, "data", arr)
+        try:
+            self.data = arr.tolist()
+        except Exception:  # pragma: no cover - fallback for unusual types
+            self.data = getattr(arr, "data", arr)
         self.attrs: Dict[str, Any] = {}
 
     def __getitem__(self, key: Any) -> Any:  # pragma: no cover - trivial

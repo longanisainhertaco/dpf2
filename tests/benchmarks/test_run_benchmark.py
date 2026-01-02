@@ -51,15 +51,18 @@ dummy_pyplot = _DummyPyplot()
 sys.modules["matplotlib"] = types.SimpleNamespace(pyplot=dummy_pyplot)
 sys.modules["matplotlib.pyplot"] = dummy_pyplot
 
+import pytest
+
 from scripts import run_benchmark
 
 
-def test_run_benchmark(tmp_path):
+@pytest.mark.parametrize("case_name", ["unu_pff", "gv_trajectory", "inductance_overlay"])
+def test_run_benchmark(tmp_path, case_name):
     metrics = run_benchmark.run_benchmark(
-        "unu_pff", benchmark_dir="benchmarks", output=str(tmp_path)
+        case_name, benchmark_dir="benchmarks", output=str(tmp_path)
     )
     assert metrics["passed"]
-    case_dir = tmp_path / "unu_pff"
+    case_dir = tmp_path / case_name
     assert (case_dir / "overlay.png").exists()
     assert (case_dir / "metrics.json").exists()
     h5_path = case_dir / "results.h5"
