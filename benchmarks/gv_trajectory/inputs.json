@@ -1,0 +1,8 @@
+{
+  "inductance": 2.2e-08,
+  "capacitance": 6.5e-08,
+  "resistance": 1.5,
+  "charging_voltage": 18000.0,
+  "initial_voltage": 0.0,
+  "end_time": 6e-07
+}

@@ -1,4 +1,4 @@
-"""Simple CLI/CLI helpers for running verification problems."""
+"""Simple CLI/GUI helpers for running verification problems."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,12 +18,18 @@ class VerificationPanelUI:
 
     def run_all(self) -> dict[str, Any]:
         panel = VerificationPanel(self.output_file, self.quality)
-        results = {
-            "brio_wu": panel.run_brio_wu(),
-            "orszag_tang": panel.run_orszag_tang(),
-            "mms": panel.run_mms(),
-        }
-        return results
+        return panel.run_all()
+
+    def summarize(self) -> str:
+        """Return a compact human-readable summary of observed orders."""
+
+        results = self.run_all()
+        lines = ["Numerics verification results:"]
+        for key, res in results.items():
+            obs = res.get("observed_order", [])
+            order = obs[-1] if obs else 0.0
+            lines.append(f"- {key}: observed order {order:.2f}")
+        return "\n".join(lines)
 
 
 def _main() -> None:  # pragma: no cover - CLI helper

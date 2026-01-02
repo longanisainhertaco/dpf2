@@ -1,5 +1,11 @@
 """Verification helpers and regression panels."""
 
-# Lazy modules are imported directly by callers to avoid hard dependencies
-# during lightweight verification runs.
-__all__: list[str] = []
+from .panel import VerificationPanel
+from .standard_suite import VerificationCase, run_suite, summarize
+
+__all__ = [
+    "VerificationPanel",
+    "VerificationCase",
+    "run_suite",
+    "summarize",
+]
