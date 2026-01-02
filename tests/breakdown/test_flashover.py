@@ -4,6 +4,8 @@ from dpf2.breakdown.flashover import (
     seea_stochastic_delay,
     holdoff_voltage,
     holdoff_series,
+    vacuum_surface_flashover,
+    FlashoverSwitchCoupler,
 )
 from dpf2.geometry import (
     triple_junction_field,
@@ -12,6 +14,8 @@ from dpf2.geometry import (
 )
 from dpf2.dpf_config import BreakdownModel
 from dpf2.synthetic_diagnostics import flashover_delay_stats, flashover_jitter_stats
+from dpf2.circuit.switches import TriggeredSwitch
+import pytest
 
 def test_conditioning_curve_monotonic():
     vals = [conditioning_curve(i, 0.1) for i in range(5)]
@@ -65,3 +69,21 @@ def test_flashover_jitter_stats():
     stats = flashover_jitter_stats(series)
     assert stats["count"] == 5
     assert stats["stddev"] > 0
+
+
+def test_flashover_switch_coupling_with_triple_point_field():
+    params = FlashoverParameters(field_threshold=5.0, sigma=0.0, conditioning=0.0, seed=42)
+    switch = TriggeredSwitch(from_node=0, to_node=1, closed=False, trigger_times=[])
+    coupler = FlashoverSwitchCoupler(
+        geometry="tapered",
+        params=params,
+        switch=switch,
+        anode_radius_cm=1.0,
+        cathode_radius_cm=3.0,
+    )
+    result = coupler.schedule(field=10.0, t0=1e-6)
+    assert pytest.approx(switch.trigger_times[0]) == result.switch_trigger_time
+    # ensure triple junction scaling is applied
+    assert result.triple_junction_factor > 1.0
+    switch.update(result.switch_trigger_time or 0.0)
+    assert switch.closed is True

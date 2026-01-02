@@ -59,19 +59,25 @@ if not hasattr(BaseModel, "model_dump_json"):
         )  # type: ignore[attr-defined]
 
 if not hasattr(BaseModel, "model_copy"):
-    if hasattr(BaseModel, "copy"):
-        BaseModel.model_copy = BaseModel.copy  # type: ignore[attr-defined]
-    else:  # pragma: no cover - minimal stub
-        def _copy(self, update=None, **__):  # type: ignore
+    import inspect as _inspect
+
+    def _copy(self, update=None, **__):  # type: ignore
+        if hasattr(self.__class__, "copy"):
+            sig = _inspect.signature(self.__class__.copy)
+            if "update" in sig.parameters:
+                new = self.__class__.copy(self, update=update)  # type: ignore[misc]
+            else:
+                new = self.__class__.copy(self)  # type: ignore[misc]
+        else:  # pragma: no cover - minimal stub
             new = self.__class__()  # type: ignore[attr-defined]
             for k, v in getattr(self, "__dict__", {}).items():
                 setattr(new, k, v)
-            if update:
-                for k, v in update.items():
-                    setattr(new, k, v)
-            return new
+        if update:
+            for k, v in update.items():
+                setattr(new, k, v)
+        return new
 
-        BaseModel.model_copy = _copy  # type: ignore[attr-defined]
+    BaseModel.model_copy = _copy  # type: ignore[attr-defined]
 
 
 if not hasattr(BaseModel, "model_rebuild"):
@@ -83,4 +89,3 @@ if not hasattr(BaseModel, "model_rebuild"):
         BaseModel.model_rebuild = classmethod(lambda cls, *_, **__: None)
 
 __all__ = ["model_validator"]
-

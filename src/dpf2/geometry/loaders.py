@@ -3,12 +3,72 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Dict, Any, List, Sequence
+from typing import Dict, Any, List, Sequence, Callable
 
 try:  # pragma: no cover - optional dependency
     import meshio  # type: ignore
 except Exception:  # pragma: no cover - meshio may not be installed
     meshio = None
+
+
+def _opencascade_reader() -> Callable[[Path], Dict[str, Any]] | None:
+    """Return an OpenCASCADE based STEP/IGES reader when available.
+
+    The helper is intentionally lightweight and only tessellates faces into
+    triangles to mirror the structure expected by :func:`load_cad_geometry`.
+    When the OpenCASCADE bindings are unavailable the function returns
+    ``None`` so callers can fall back to the pure-Python parsers.
+    """
+
+    try:  # pragma: no cover - exercised when pythonocc-core is installed
+        from OCC.Extend.DataExchange import read_step_file, read_iges_file  # type: ignore
+        from OCC.Core.BRepMesh import BRepMesh_IncrementalMesh  # type: ignore
+        from OCC.Core.TopExp import TopExp_Explorer  # type: ignore
+        from OCC.Core.TopAbs import TopAbs_FACE  # type: ignore
+        from OCC.Core.TopoDS import topods_Face  # type: ignore
+        from OCC.Core.BRep import BRep_Tool  # type: ignore
+    except Exception:
+        return None
+
+    def _reader(path: Path) -> Dict[str, Any]:
+        suffix = path.suffix.lower()
+        if suffix in {".step", ".stp"}:
+            shape = read_step_file(str(path))
+        elif suffix in {".iges", ".igs"}:
+            shape = read_iges_file(str(path))
+        else:
+            raise ValueError(f"OpenCASCADE reader does not support {suffix}")
+        mesh = BRepMesh_IncrementalMesh(shape, 0.0, True)
+        mesh.Perform()
+
+        nodes: List[List[float]] = []
+        elements: List[List[int]] = []
+        node_map: Dict[tuple[float, float, float], int] = {}
+
+        exp = TopExp_Explorer(shape, TopAbs_FACE)
+        while exp.More():
+            face = topods_Face(exp.Current())
+            loc = face.Location()
+            tri = BRep_Tool.Triangulation(face, loc)
+            if tri is None:
+                exp.Next()
+                continue
+            pts = tri.Points()
+            for idx in range(1, pts.Length() + 1):
+                pt = pts.Value(idx)
+                key = (pt.X(), pt.Y(), pt.Z())
+                if key not in node_map:
+                    node_map[key] = len(nodes)
+                    nodes.append([pt.X(), pt.Y(), pt.Z()])
+            tris = tri.Triangles()
+            for i in range(1, tris.Length() + 1):
+                t = tris.Value(i)
+                elements.append([t.Value(1) - 1, t.Value(2) - 1, t.Value(3) - 1])
+            exp.Next()
+
+        return {"nodes": nodes, "elements": elements}
+
+    return _reader
 
 
 def _parse_step_like(lines: List[str]) -> Dict[str, Any]:
@@ -76,6 +136,12 @@ def load_cad_geometry(path: Path) -> Dict[str, Any]:
     if suffix == ".json":
         return json.loads(p.read_text())
     if suffix in {".step", ".stp", ".iges", ".igs", ".stl", ".vtk"}:
+        occ_reader = _opencascade_reader()
+        if occ_reader is not None and suffix in {".step", ".stp", ".iges", ".igs"}:
+            try:  # pragma: no cover - optional dependency pathway
+                return occ_reader(p)
+            except Exception:
+                pass
         if meshio is not None:
             try:  # pragma: no cover - exercised when meshio is available
                 m = meshio.read(p)

@@ -15,6 +15,8 @@ from typing import Sequence, Dict
 
 from ..geometry import triple_junction_field, triple_junction_enhancement
 from ..neutral.flashover import NeutralGasPuff
+from ..circuit.switches import TriggeredSwitch
+from ..materials.library import Material
 
 
 @dataclass
@@ -158,6 +160,7 @@ class SurfaceFlashoverResult:
     holdoff_voltage: float
     neutral_density: float
     triple_junction_factor: float
+    switch_trigger_time: float | None = None
 
 
 def vacuum_surface_flashover(
@@ -168,6 +171,8 @@ def vacuum_surface_flashover(
     puff: NeutralGasPuff | None = None,
     anode_radius_cm: float = 1.0,
     cathode_radius_cm: float = 2.0,
+    material: Material | None = None,
+    t0: float = 0.0,
 ) -> SurfaceFlashoverResult:
     """Couple stochastic delay, triple-junction field enhancement and neutral puffing.
 
@@ -183,10 +188,62 @@ def vacuum_surface_flashover(
     neutral_density = puff.density(delay) if puff else 0.0
     if puff:
         holdoff *= 1.0 + 0.05 * puff.coupling_efficiency
+    if material is not None:
+        holdoff = material.conditioned_field(holdoff)
+    switch_time = t0 + delay
     return SurfaceFlashoverResult(
         delay=delay,
         holdoff_voltage=holdoff,
         neutral_density=neutral_density,
         triple_junction_factor=tj,
+        switch_trigger_time=switch_time,
     )
 
+
+class FlashoverSwitchCoupler:
+    """Apply vacuum flashover timing to a circuit switch model.
+
+    The coupler computes a stochastic delay and appends the resulting trigger
+    time to a :class:`~dpf2.circuit.switches.TriggeredSwitch`.  Repeated calls
+    accumulate additional triggers, allowing conditioning studies to drive
+    circuit timing directly.
+    """
+
+    def __init__(
+        self,
+        geometry: str,
+        params: FlashoverParameters,
+        switch: TriggeredSwitch,
+        *,
+        puff: NeutralGasPuff | None = None,
+        anode_radius_cm: float = 1.0,
+        cathode_radius_cm: float = 2.0,
+        material: Material | None = None,
+    ) -> None:
+        self.geometry = geometry
+        self.params = params
+        self.switch = switch
+        self.puff = puff
+        self.anode_radius_cm = anode_radius_cm
+        self.cathode_radius_cm = cathode_radius_cm
+        self.material = material
+
+    def schedule(self, field: float, *, t0: float = 0.0) -> SurfaceFlashoverResult:
+        """Compute flashover timing and push it into the switch trigger list."""
+
+        result = vacuum_surface_flashover(
+            self.geometry,
+            field,
+            self.params,
+            puff=self.puff,
+            anode_radius_cm=self.anode_radius_cm,
+            cathode_radius_cm=self.cathode_radius_cm,
+            material=self.material,
+            t0=t0,
+        )
+        triggers = list(self.switch.trigger_times or [])
+        triggers.append(result.switch_trigger_time if result.switch_trigger_time is not None else t0 + result.delay)
+        triggers = sorted(triggers)
+        self.switch.trigger_times = triggers
+        self.switch._next_trigger = 0  # reset internal pointer for deterministic behaviour in tests
+        return result
