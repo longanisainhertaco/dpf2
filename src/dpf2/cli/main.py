@@ -50,6 +50,7 @@ from dpf2.optimization.param_sweep import (
     compute_sweep_metrics,
     plot_metric_overlay,
     plot_yield_vs_S,
+    multiobjective_voltage_pressure,
 )
 from dpf2.gui.project_manager import ProjectManager
 from dpf2.gui import interactive
@@ -62,6 +63,7 @@ from dpf2.geometry.parameterized import HollowGeometry, ReentrantGeometry, Taper
 from dpf2.scaling_laws import sweep_yield_scaling
 from dpf2.uq.sampling import latin_hypercube, sobol_sample
 from dpf2.uq.analysis import sobol_indices, uncertainty_band
+from dpf2.verification import VerificationPanel
 from dpf2.verification.standard_suite import run_suite as run_verification_suite, summarize
 
 from .errors import format_error
@@ -98,6 +100,16 @@ def _validate_range(
             f"{name} must be between {minimum} and {maximum}. {tip}"
         )
     return value
+
+
+def _parse_bounds(bounds: str, label: str) -> tuple[float, float]:
+    """Parse CLI bounds formatted as ``min:max``."""
+
+    try:
+        lo, hi = bounds.split(":")
+        return float(lo), float(hi)
+    except Exception as exc:
+        raise click.BadParameter(f"{label} bounds must be provided as min:max") from exc
 
 
 def _to_float(val: Any) -> float:
@@ -1110,6 +1122,51 @@ def param_sweep_cmd(
     click.echo(f"Sweep complete. Results written to {output}")
 
 
+@main.command("pareto-opt")
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
+@click.option("--pressure-bounds", required=True, help="Bounds as min:max for initial pressure [Pa]")
+@click.option("--voltage-bounds", required=True, help="Bounds as min:max for charging voltage [V]")
+@click.option("--generations", type=int, default=20, show_default=True, help="Number of NSGA-II generations")
+@click.option("--pop-size", type=int, default=24, show_default=True, help="Population size for NSGA-II")
+@click.option("--seed", type=int, default=None, help="Random seed for reproducibility")
+@click.option("--output", type=click.Path(file_okay=False), default="pareto_output")
+@click.pass_context
+def pareto_opt_cmd(
+    ctx: click.Context,
+    config: str,
+    pressure_bounds: str,
+    voltage_bounds: str,
+    generations: int,
+    pop_size: int,
+    seed: int | None,
+    output: str,
+) -> None:
+    """Estimate a Pareto front balancing yield vs pressure/voltage."""
+
+    try:
+        cfg = DPFConfig.from_file(config)
+        p_bounds = _parse_bounds(pressure_bounds, "pressure")
+        v_bounds = _parse_bounds(voltage_bounds, "voltage")
+        pareto, history = multiobjective_voltage_pressure(
+            cfg,
+            p_bounds,
+            v_bounds,
+            n_generations=generations,
+            pop_size=pop_size,
+            seed=seed,
+            output_dir=output,
+            manifest=ctx.obj.get("lab_mode", False),
+        )
+        out_dir = Path(output)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "pareto.json").write_text(json.dumps(pareto, indent=2))
+        (out_dir / "convergence.json").write_text(json.dumps([dataclasses.asdict(h) for h in history], indent=2))
+    except Exception as e:
+        raise click.ClickException(format_error("PARETO", str(e)))
+
+    click.echo(f"Pareto search complete. Results written to {output}")
+
+
 @main.command("uq-sweep")
 @click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
 @click.option(
@@ -1775,6 +1832,44 @@ def verify(as_json: bool) -> None:
         click.echo(json.dumps(outcomes, indent=2))
     else:
         click.echo(summarize(outcomes))
+
+
+def _summarize_numerics(outcomes: dict[str, dict[str, Any]]) -> str:
+    """Format observed-order results for CLI output."""
+
+    lines = ["Numerics verification results:"]
+    for name, res in outcomes.items():
+        obs = res.get("observed_order", [])
+        order = obs[-1] if obs else 0.0
+        lines.append(f"- {name}: observed {order:.2f} vs design 1.0")
+    return "\n".join(lines)
+
+
+@main.command("verify-numerics")
+@click.option(
+    "--sizes",
+    type=int,
+    multiple=True,
+    help="Grid sizes used for convergence tests (repeat flag; default: 16,32,64)",
+)
+@click.option(
+    "--output",
+    type=click.Path(dir_okay=False),
+    default="synthetic_diagnostics/verification.h5",
+    show_default=True,
+    help="Where to write verification metrics",
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit JSON instead of text")
+def verify_numerics(sizes: tuple[int, ...], output: str, as_json: bool) -> None:
+    """Run numerics verification problems with observed-order reporting."""
+
+    grid = sizes or (16, 32, 64)
+    panel = VerificationPanel(output_file=Path(output))
+    outcomes = panel.run_all(grid)
+    if as_json:
+        click.echo(json.dumps(outcomes, indent=2))
+    else:
+        click.echo(_summarize_numerics(outcomes))
 
 
 from .benchmark import benchmark, match_benchmark

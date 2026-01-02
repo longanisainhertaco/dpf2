@@ -200,12 +200,19 @@ class ElectrodeGeometry(BaseModel):
     reentrant_depth: Optional[float] = None
     taper_angle: Optional[float] = None
     inner_radius: Optional[float] = None
+    default_material: str = "stainless_steel"
+    material_overrides: Dict[str, str] = Field(default_factory=dict)
+    material_properties: Dict[str, Dict[str, float]] = Field(default_factory=dict)
 
     @validator("mesh_file")
     def _check_mesh_file(cls, v: Optional[Path]):
         if v is not None and not Path(v).exists():
             raise ValueError(f"mesh_file not found: {v}")
         return v
+
+    @validator("material_overrides", "material_properties", pre=True, always=True)
+    def _ensure_maps(cls, v):
+        return v or {}
 
     @classmethod
     def with_defaults(cls, geometry_preset: Optional[str] = None):

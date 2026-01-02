@@ -14,12 +14,14 @@ outputs without reloading large data files.
 
 from __future__ import annotations
 
-import time
 from dataclasses import asdict, replace
 from pathlib import Path
 
 from typing import Dict, Iterable, List, Mapping
 import json
+import time
+
+from .multi_objective import ConvergenceRecord, nsga2
 
 try:  # pragma: no cover - optional dependency
     import h5py
@@ -41,6 +43,99 @@ SweepResult = Dict[str, List[float] | float]
 
 RUN_MANIFEST_FILENAME = "run_manifest.json"
 
+
+def multiobjective_voltage_pressure(
+    base_config: DPFConfig,
+    pressure_bounds: tuple[float, float],
+    voltage_bounds: tuple[float, float],
+    *,
+    n_generations: int = 20,
+    pop_size: int = 24,
+    seed: int | None = None,
+    output_dir: str | Path = "pareto_output",
+    manifest: bool = False,
+    datasets: Mapping[str, Mapping[str, Mapping[str, object]]] | None = None,
+) -> tuple[list[dict[str, float]], list[ConvergenceRecord]]:
+    """Estimate a Pareto front between yield and driver stress.
+
+    The optimisation attempts to maximise yield while minimising an aggregate
+    driver stress proxy based on pressure and charging voltage. The second
+    objective is the average of pressure and voltage normalised to their
+    respective bounds so that the optimiser prefers lower pressure/voltage
+    combinations with comparable yield.
+    """
+
+    bounds = {
+        "initial_pressure": pressure_bounds,
+        "charging_voltage": voltage_bounds,
+    }
+
+    p_span = abs(pressure_bounds[1] - pressure_bounds[0]) or 1.0
+    v_span = abs(voltage_bounds[1] - voltage_bounds[0]) or 1.0
+
+    def evaluate(vec):
+        pressure_val = float(vec[0])
+        voltage_val = float(vec[1])
+        cfg = replace(
+            base_config,
+            initial_pressure=pressure_val,
+            charging_voltage=voltage_val,
+        )
+        sim = DPFSimulation(cfg)
+        res = sim.run(return_metrics=True)
+        metrics = dict(res.metrics)
+        metrics["initial_pressure"] = pressure_val
+        metrics["charging_voltage"] = voltage_val
+        stress = (pressure_val - pressure_bounds[0]) / p_span + (voltage_val - voltage_bounds[0]) / v_span
+        stress *= 0.5
+        return metrics.get("yield", 0.0), stress
+
+    pareto_params, history = nsga2(
+        evaluate,
+        bounds,
+        n_generations=n_generations,
+        pop_size=pop_size,
+        seed=seed,
+        return_history=True,
+    )  # type: ignore[assignment]
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    enriched: list[dict[str, float]] = []
+    for params in pareto_params:
+        pressure_val = float(params["initial_pressure"])
+        voltage_val = float(params["charging_voltage"])
+        cfg = replace(
+            base_config,
+            initial_pressure=pressure_val,
+            charging_voltage=voltage_val,
+        )
+        sim = DPFSimulation(cfg)
+        res = sim.run(return_metrics=True)
+        metrics = dict(res.metrics)
+        metrics["initial_pressure"] = pressure_val
+        metrics["charging_voltage"] = voltage_val
+        enriched.append(metrics)
+
+        if manifest:
+            run_dir = out_dir / f"pressure_{pressure_val:.3g}_voltage_{voltage_val:.3g}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            _write_checkpoint(
+                run_dir,
+                [float(t) for t in res.times] if "res" in locals() else [],
+                [float(c) for c in res.currents] if "res" in locals() else [],
+                [float(v) for v in res.voltages] if "res" in locals() else [],
+                datasets=capture_dataset_metadata(datasets) if datasets else None,
+            )
+            from ..cli.lab import write_manifest
+
+            write_manifest(
+                run_dir,
+                config=asdict(cfg if "cfg" in locals() else base_config),
+                datasets=datasets,
+            )
+
+    return enriched, history
 
 
 def run_parametric_sweep(
@@ -97,22 +192,14 @@ def run_parametric_sweep(
         run_dir = out_dir / f"{parameter}_{val}"
         run_dir.mkdir(parents=True, exist_ok=True)
         sim = DPFSimulation(cfg)
-        t0 = time.perf_counter()
-        times, currents, voltages = sim.run(output_dir=None)
-        runtime = time.perf_counter() - t0
+        result = sim.run(output_dir=None, return_metrics=True)
 
-        peak = max(currents) if currents else 0.0
-        idx = currents.index(peak) if currents else 0
-        pinch_time = times[idx] if times else 0.0
-
-        # Simple proxy for neutron yield: I^2 scaled by geometry and pressure
-        yield_val = 0.0
-        if cfg.anode_radius > 0 and cfg.initial_pressure > 0:
-            yield_val = (peak ** 2) / (cfg.anode_radius * cfg.initial_pressure)
-
-        bank_energy = 0.5 * cfg.capacitance * (cfg.charging_voltage**2)
-        wall_plug = yield_val / bank_energy if bank_energy > 0 else 0.0
-        throughput = (yield_val / runtime) * 3600.0 if runtime > 0 else 0.0
+        peak = float(result.metrics.get("peak_current", 0.0))
+        pinch_time = float(result.metrics.get("pinch_time", 0.0))
+        yield_val = float(result.metrics.get("yield", 0.0))
+        runtime = float(result.metrics.get("runtime_s", 0.0))
+        throughput = float(result.metrics.get("yield_per_hour", 0.0))
+        wall_plug = float(result.metrics.get("wall_plug_efficiency", 0.0))
 
         a = cfg.anode_radius
         p = cfg.initial_pressure
@@ -123,24 +210,24 @@ def run_parametric_sweep(
         S = peak / (a * p) if a > 0 and p > 0 else 0.0
 
         results[float(val)] = {
-            "time": [float(t) for t in times],
-            "current": [float(i) for i in currents],
-            "voltage": [float(v) for v in voltages],
-            "peak_current": float(peak),
-            "pinch_time": float(pinch_time),
-            "yield": float(yield_val),
-            "runtime_s": float(runtime),
-            "yield_per_hour": float(throughput),
-            "wall_plug_efficiency": float(wall_plug),
+            "time": [float(t) for t in result.times],
+            "current": [float(i) for i in result.currents],
+            "voltage": [float(v) for v in result.voltages],
+            "peak_current": peak,
+            "pinch_time": pinch_time,
+            "yield": yield_val,
+            "runtime_s": runtime,
+            "yield_per_hour": throughput,
+            "wall_plug_efficiency": wall_plug,
             "S": float(S),
         }
         summary[float(val)] = {
-            "peak_current": float(peak),
-            "pinch_time": float(pinch_time),
-            "yield": float(yield_val),
-            "runtime_s": float(runtime),
-            "yield_per_hour": float(throughput),
-            "wall_plug_efficiency": float(wall_plug),
+            "peak_current": peak,
+            "pinch_time": pinch_time,
+            "yield": yield_val,
+            "runtime_s": runtime,
+            "yield_per_hour": throughput,
+            "wall_plug_efficiency": wall_plug,
             "S": float(S),
 
         }
@@ -148,17 +235,17 @@ def run_parametric_sweep(
         if emit_checkpoints:
             _write_checkpoint(
                 run_dir,
-                times,
-                currents,
-                voltages,
+                result.times,
+                result.currents,
+                result.voltages,
                 datasets=dataset_meta,
             )
         if emit_openpmd:
             _write_openpmd(
                 run_dir,
-                times,
-                currents,
-                voltages,
+                result.times,
+                result.currents,
+                result.voltages,
                 datasets=dataset_meta,
             )
         if manifest or lab_mode:
@@ -239,6 +326,8 @@ def compute_sweep_metrics(
         peak = float(data.get("peak_current", 0.0))
         pinch = float(data.get("pinch_time", 0.0))
         yld = float(data.get("yield", 0.0))
+        throughput = float(data.get("yield_per_hour", 0.0))
+        wall_plug = float(data.get("wall_plug_efficiency", 0.0))
 
         a = base_config.anode_radius
         p = base_config.initial_pressure
@@ -252,8 +341,9 @@ def compute_sweep_metrics(
             "yield": yld,
             "pinch_time": pinch,
             "S": S,
-
-            "efficiency": 0.0,
+            "yield_per_hour": throughput,
+            "wall_plug_efficiency": wall_plug,
+            "efficiency": wall_plug,
         }
 
     return metrics
@@ -357,6 +447,7 @@ def plot_yield_pressure_overlay(
 __all__ = [
     "run_parametric_sweep",
     "compute_sweep_metrics",
+    "multiobjective_voltage_pressure",
     "plot_metric_overlay",
     "plot_yield_vs_S",
     "plot_yield_pressure_overlay",

@@ -11,6 +11,7 @@ distributions without re-implementing analysis logic.
 """
 
 from typing import Any, Callable, Dict, Mapping, Sequence, List, Tuple
+from pathlib import Path
 
 import numpy as np
 
@@ -18,6 +19,9 @@ from .interferometry import interferometer_phase_shift
 from .neutron_yield import IonBeamEDF, yield_components_with_anisotropy
 from .xray_spectra import compute_xray_spectrum
 from .modes import azimuthal_mode_spectrum
+from .detector_models import apply_irf
+from .neutron_spectra import correlate_tof_peaks_with_circuit_iv
+from .regime_panel import RegimePanel
 
 
 def apply_cable_dispersion(signal: Sequence[float], tau: float, dt: float) -> List[float]:
@@ -86,6 +90,8 @@ def assemble_diagnostic_outputs(
     interferometer_wavelength: float | None = None,
     detector_response: Callable[[float], float] | None = None,
     tof_noise: Callable[[float], float] | None = None,
+    tof_irf: Mapping[str, Any] | None = None,
+    align_tof_to_iv: bool = False,
     cable_tau: float | None = None,
     benchmark_reference: Sequence[float] | None = None,
     benchmark_band: float | Sequence[float] = 0.1,
@@ -94,6 +100,9 @@ def assemble_diagnostic_outputs(
     azimuthal_field: Sequence[Sequence[float]] | None = None,
     azimuthal_axis: int = -1,
     mode_acceptance: Mapping[int, Tuple[float, float]] | None = None,
+    regime_panel: RegimePanel | None = None,
+    regime_plot_path: str | Path | None = None,
+    energy_partitions: Mapping[str, float] | None = None,
 ) -> Dict[str, Any]:
     """Generate a consolidated diagnostic output dictionary.
 
@@ -169,6 +178,7 @@ def assemble_diagnostic_outputs(
 
         tof_channels = neutron.get("tof_channels", {}).get("total", [])
         processed_tofs: List[List[float]] = []
+        dt_bin = 0.0
         if time_bins:
             dt_bin = float(time_bins[1] - time_bins[0]) if len(time_bins) > 1 else 1.0
             for hist in tof_channels:
@@ -177,17 +187,46 @@ def assemble_diagnostic_outputs(
                     vals = [float(detector_response(v)) for v in vals]
                 if tof_noise is not None:
                     vals = [v + float(tof_noise(v)) for v in vals]
+                if tof_irf is not None:
+                    mid = [
+                        0.5 * (time_bins[i] + time_bins[i + 1]) for i in range(len(time_bins) - 1)
+                    ]
+                    vals = apply_irf(mid, vals, tof_irf)
                 if cable_tau is not None:
                     vals = apply_cable_dispersion(vals, float(cable_tau), dt_bin)
                 processed_tofs.append(vals)
         aggregate_tof: List[float] = []
         if processed_tofs:
             aggregate_tof = [sum(bin_vals) for bin_vals in zip(*processed_tofs)]
+        tof_alignment: Dict[str, Any] | None = None
+        if (
+            align_tof_to_iv
+            and aggregate_tof
+            and current_trace is not None
+            and voltage_trace is not None
+            and time_bins is not None
+        ):
+            circuit_time = [i * dt for i in range(len(current_trace))]
+            peaks, lags, corr, max_lag = correlate_tof_peaks_with_circuit_iv(
+                time_bins, aggregate_tof, circuit_time, current_trace, voltage_trace
+            )
+            shift_bins = int(round(max_lag / dt_bin)) if dt_bin > 0 else 0
+            if shift_bins != 0:
+                aggregate_tof = _shift_hist(aggregate_tof, shift_bins)
+                processed_tofs = [_shift_hist(hist, shift_bins) for hist in processed_tofs]
+            tof_alignment = {
+                "peaks": peaks,
+                "lags": lags,
+                "correlation": corr,
+                "applied_shift_bins": shift_bins,
+                "timebase_s": dt_bin,
+            }
         outputs["tof"] = {
             "time_bins": list(time_bins) if time_bins is not None else [],
             "raw": tof_channels,
             "processed": processed_tofs,
             "aggregate": aggregate_tof,
+            "alignment": tof_alignment,
         }
 
     if azimuthal_field is not None:
@@ -239,7 +278,48 @@ def assemble_diagnostic_outputs(
             phase = float(detector_response(phase))
         outputs["interferometry"] = {"phase_shift_rad": phase}
 
+    if energy_partitions is not None:
+        parts = _format_energy_partitions(energy_partitions)
+        outputs["energy_partition"] = parts
+
+    if regime_panel is not None:
+        outputs["regime_dashboard"] = regime_panel.dashboard(regime_plot_path)
+
     return outputs
+
+
+def _shift_hist(values: Sequence[float], bins: int) -> List[float]:
+    """Shift histogram entries by ``bins`` with zero padding."""
+    vals = list(values)
+    if bins == 0:
+        return vals
+    if bins > 0:
+        return vals[bins:] + [0.0] * bins
+    return [0.0] * (-bins) + vals[:bins]
+
+
+def _format_energy_partitions(parts: Mapping[str, float]) -> Dict[str, float]:
+    """Normalize energy partitions to include fractions and residual."""
+
+    mag = float(parts.get("magnetic", 0.0))
+    kin = float(parts.get("kinetic", 0.0))
+    rad = float(parts.get("radiation", 0.0))
+    losses = float(parts.get("losses", 0.0))
+    total = mag + kin + rad
+    total_non_negative = total if total > 0 else 1.0
+    return {
+        "magnetic": mag,
+        "kinetic": kin,
+        "radiation": rad,
+        "losses": losses,
+        "total": total,
+        "net": total - losses,
+        "magnetic_fraction": mag / total_non_negative,
+        "kinetic_fraction": kin / total_non_negative,
+        "radiation_fraction": rad / total_non_negative,
+        "loss_fraction": losses / total_non_negative,
+        "balance_residual": (total - losses) / total_non_negative,
+    }
 
 
 __all__ = ["assemble_diagnostic_outputs", "apply_cable_dispersion"]

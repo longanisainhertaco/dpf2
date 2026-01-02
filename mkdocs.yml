@@ -13,6 +13,7 @@ nav:
       - Driver Design: tutorials/driver_design.md  # persona: engineer
       - Parameter Sweeps: tutorials/param_sweeps.md  # persona: engineer
       - Uncertainty Quantification: tutorials/uq.md  # persona: engineer
+      - Lab Mode (guided): tutorials/lab_mode_guided.md  # persona: engineer
   - Scientist Theory:
       - Overview: scientist_theory.md  # persona: scientist
       - MHD: theory/mhd.md  # persona: scientist

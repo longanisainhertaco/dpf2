@@ -32,3 +32,11 @@ EOF
 
 See `SCALING.md` in this directory for tips on MPI ranks, threading, and batch
 orchestrations using the new CLI pipeline helper.
+
+## Provenance and scaling plots
+
+The `scripts/bench_scaling.py` helper now emits `run_manifest.json` alongside
+`strong.png`, `weak.png`, and `hdf5_io.png`. The manifest captures the current
+git hash, container hash, and SHA256 digests of the scaling plots (with an
+optional DOI attached via `--artifact-doi`) so that published HPC images ship
+with documented performance envelopes.

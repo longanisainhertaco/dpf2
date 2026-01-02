@@ -9,6 +9,8 @@ from .flashover import (
     holdoff_voltage,
     holdoff_series,
     jitter_statistics,
+    vacuum_surface_flashover,
+    FlashoverSwitchCoupler,
 )
 
 __all__ = [
@@ -20,4 +22,6 @@ __all__ = [
     "holdoff_voltage",
     "holdoff_series",
     "jitter_statistics",
+    "vacuum_surface_flashover",
+    "FlashoverSwitchCoupler",
 ]

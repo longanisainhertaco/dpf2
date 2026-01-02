@@ -1,16 +1,27 @@
 """Core simulation driver."""
 from __future__ import annotations
 
+from dataclasses import asdict, dataclass
+import logging
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict
-import logging
-from dataclasses import asdict
 
 from ..mesh import Mesh2D
 from .config import DPFConfig
 from ..io.data_writer import DataWriter
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SimulationResult:
+    """Container bundling simulation traces and derived metrics."""
+
+    times: list[float]
+    currents: list[float]
+    voltages: list[float]
+    metrics: Dict[str, float]
 
 
 class DPFSimulation:
@@ -54,7 +65,9 @@ class DPFSimulation:
         seeds: Dict[str, int] | None = None,
         verbose: bool = False,
         progress_cb: Callable[[int, float], None] | None = None,
-    ) -> tuple[list[float], list[float], list[float]]:
+        *,
+        return_metrics: bool = False,
+    ) -> tuple[list[float], list[float], list[float]] | SimulationResult:
         """Advance the simulation until ``end_time``.
 
         Parameters
@@ -73,11 +86,14 @@ class DPFSimulation:
         -------
         (times, currents, voltages): tuple[list[float], list[float], list[float]]
             Time history of the main circuit quantities for quick-look plotting
-            or diagnostics.
+            or diagnostics. When ``return_metrics`` is ``True`` a
+            :class:`SimulationResult` bundle including derived metrics is
+            returned instead.
         """
 
         end = end_time or self.config.end_time
         interval = output_interval or end
+        t_start = time.perf_counter()
 
         out = output_dir
         last_output = self.time
@@ -156,3 +172,30 @@ class DPFSimulation:
             except Exception:
                 pass
         return outputs
+        if not return_metrics:
+            return times, currents, voltages
+
+        energy = 0.5 * self.config.capacitance * self.voltage**2 + 0.5 * self.config.inductance * self.current**2
+        runtime = float(time.perf_counter() - t_start)
+        metrics = {
+            "peak_current": max(currents) if currents else 0.0,
+            "pinch_time": times[currents.index(max(currents))] if currents else 0.0,
+            "yield": (max(currents) ** 2) / (self.config.anode_radius * self.config.initial_pressure)
+            if self.config.anode_radius > 0 and self.config.initial_pressure > 0 and currents
+            else 0.0,
+            "runtime_s": runtime,
+            "wall_plug_efficiency": ((max(currents) ** 2) / (self.config.anode_radius * self.config.initial_pressure))
+            / energy
+            if energy > 0 and self.config.anode_radius > 0 and self.config.initial_pressure > 0 and currents
+            else 0.0,
+            "yield_per_hour": ((max(currents) ** 2) / (self.config.anode_radius * self.config.initial_pressure))
+            / runtime
+            * 3600.0
+            if runtime > 0 and self.config.anode_radius > 0 and self.config.initial_pressure > 0 and currents
+            else 0.0,
+            "S": max(currents) / (self.config.anode_radius * self.config.initial_pressure)
+            if self.config.anode_radius > 0 and self.config.initial_pressure > 0 and currents
+            else 0.0,
+        }
+
+        return SimulationResult(times=times, currents=currents, voltages=voltages, metrics=metrics)

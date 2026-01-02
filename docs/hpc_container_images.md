@@ -21,6 +21,9 @@ clusters:
    code hash, container hash, RNG seeds, CPU/GPU model and MPI/HDF5 versions.
 3. Plots are emitted to `docs/images/scaling` so they surface automatically on
    the performance dashboard.
+4. When invoked with `--artifact-doi`, the manifest also stores SHA256 hashes
+   of `strong.png`, `weak.png`, and `hdf5_io.png` alongside the DOI for the
+   published benchmark artefacts.
 
 ### Reproducibility metadata
 

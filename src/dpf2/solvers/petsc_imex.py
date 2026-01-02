@@ -20,10 +20,15 @@ try:  # pragma: no cover - petsc4py optional in CI
 except Exception:  # pragma: no cover
     PETSc = None
 
+try:  # pragma: no cover - numpy stub compatibility
+    NDArray = np.ndarray
+except AttributeError:  # pragma: no cover - stubbed numpy
+    NDArray = object
+
 logger = logging.getLogger(__name__)
 
-ExplicitFunc = Callable[[float, np.ndarray], np.ndarray]
-ImplicitFunc = Callable[[float, np.ndarray], np.ndarray]
+ExplicitFunc = Callable[[float, NDArray], NDArray]
+ImplicitFunc = Callable[[float, NDArray], NDArray]
 
 
 @dataclass

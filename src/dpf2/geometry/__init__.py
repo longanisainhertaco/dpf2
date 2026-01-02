@@ -14,6 +14,7 @@ from .importer import (
     ImportedGeometry,
     load_geometry_with_materials,
     parametrized_geometry,
+    ingest_electrode_geometry,
 )
 from .axisymmetric import AxisymmetricProfile
 from .parameterized import (
@@ -37,6 +38,7 @@ __all__ = [
     "ImportedGeometry",
     "load_geometry_with_materials",
     "parametrized_geometry",
+    "ingest_electrode_geometry",
     "AxisymmetricProfile",
     "TaperedGeometry",
     "HollowGeometry",
