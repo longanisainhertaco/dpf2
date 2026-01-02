@@ -51,6 +51,20 @@ class ElectrodeGeometry(ConfigSectionBase):
     inner_radius: Optional[float] = Field(
         None, gt=0.0, description="Inner radius for hollow electrodes [m]"
     )
+    default_material: str = "copper"
+    material_overrides: Dict[str, str] = Field(default_factory=dict)
+    material_properties: Dict[str, Dict[str, float]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _material_defaults(cls, values: "ElectrodeGeometry") -> "ElectrodeGeometry":
+        material_overrides = values.material_overrides or {}
+        material_properties = values.material_properties or {}
+        return values.model_copy(
+            update={
+                "material_overrides": material_overrides,
+                "material_properties": material_properties,
+            }
+        )
 
     # ------------------------------------------------------------------
     @classmethod
