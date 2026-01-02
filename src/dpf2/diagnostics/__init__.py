@@ -64,6 +64,11 @@ from .performance_metrics import (
     estimate_lifetime_sputtering,
     export_performance_metrics,
 )
+from .synthetic_diagnostics import (
+    synthetic_neutron_diagnostics,
+    synthetic_xray_diagnostics,
+    synthetic_interferometer_diagnostics,
+)
 
 
 def apply_noise(
@@ -132,6 +137,9 @@ __all__ = [
     "synthetic_tof_spectrum",
     "angular_spectrum",
     "anisotropy_metric",
+    "synthetic_neutron_diagnostics",
+    "synthetic_xray_diagnostics",
+    "synthetic_interferometer_diagnostics",
     "RegimePanel",
     "Diagnostics",
     "DetectorArrayGenerator",
@@ -431,5 +439,3 @@ class Diagnostics(ConfigSectionBase):
         obj = cls(**validated)
         setattr(obj, "_context", context)
         return obj
-
-
