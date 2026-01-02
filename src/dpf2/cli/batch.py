@@ -8,10 +8,12 @@ from typing import Sequence
 
 import click
 import numpy as np
+from dataclasses import asdict, replace
 
 from ..core.config import DPFConfig
 from ..optimization.param_sweep import (
     compute_sweep_metrics,
+    multiobjective_voltage_pressure,
     run_parametric_sweep,
 )
 from ..io.manifest import write_batch_manifest
@@ -39,6 +41,14 @@ def _load_datasets(path: str | None) -> dict[str, dict[str, dict[str, object]]] 
     return payload  # type: ignore[return-value]
 
 
+def _parse_bounds(bounds: str, label: str) -> tuple[float, float]:
+    try:
+        lo, hi = bounds.split(":")
+        return float(lo), float(hi)
+    except Exception as exc:  # pragma: no cover - click will surface message
+        raise click.ClickException(f"Bounds for {label} must be start:stop") from exc
+
+
 @click.group()
 def batch() -> None:
     """Batch utilities for sweeps and optimisation."""
@@ -53,6 +63,19 @@ def batch() -> None:
     type=str,
     help="Generate evenly spaced values as start:stop:count",
 )
+@click.option("--secondary-parameter", help="Optional second parameter for grid sweeps")
+@click.option(
+    "--secondary-value",
+    "secondary_values",
+    type=float,
+    multiple=True,
+    help="Explicit values for the secondary parameter",
+)
+@click.option(
+    "--secondary-linspace",
+    type=str,
+    help="Generate evenly spaced secondary values start:stop:count",
+)
 @click.option("--output", type=click.Path(), default="sweep_output", help="Output directory")
 @click.option("--emit-checkpoints", is_flag=True, help="Write HDF5 checkpoints for each shot")
 @click.option("--openpmd", "emit_openpmd", is_flag=True, help="Emit openPMD checkpoints")
@@ -65,6 +88,9 @@ def sweep(
     parameter: str,
     values: Sequence[float],
     linspace: str | None,
+    secondary_parameter: str | None,
+    secondary_values: Sequence[float],
+    secondary_linspace: str | None,
     output: str,
     emit_checkpoints: bool,
     emit_openpmd: bool,
@@ -77,6 +103,39 @@ def sweep(
     vals = _parse_values(values, linspace)
     datasets_meta = _load_datasets(datasets)
     manifest = manifest or ctx.obj.get("lab_mode", False)
+
+    if secondary_parameter:
+        sec_vals = _parse_values(secondary_values, secondary_linspace)
+        summary_rows: list[dict[str, float]] = []
+        for s_val in sec_vals:
+            cfg_sec = replace(cfg, **{secondary_parameter: s_val})
+            sec_out = Path(output) / f"{secondary_parameter}_{s_val}"
+            res = run_parametric_sweep(
+                cfg_sec,
+                parameter,
+                vals,
+                output_dir=sec_out,
+                lab_mode=ctx.obj.get("lab_mode", False),
+                config_path=config,
+                emit_checkpoints=emit_checkpoints,
+                emit_openpmd=emit_openpmd,
+                manifest=manifest,
+                datasets=datasets_meta,
+            )
+            metrics = compute_sweep_metrics(cfg_sec, res, parameter=parameter)
+            for v, m in metrics.items():
+                summary_rows.append(
+                    {
+                        "primary_parameter": parameter,
+                        "primary_value": v,
+                        "secondary_parameter": secondary_parameter,
+                        "secondary_value": s_val,
+                        **m,
+                    }
+                )
+        write_batch_manifest(output, summary_rows)
+        click.echo(json.dumps(summary_rows, indent=2))
+        return
 
     results = run_parametric_sweep(
         cfg,
@@ -212,6 +271,57 @@ def pipeline(
     }
     write_batch_manifest(output, [summary])
     click.echo(json.dumps(summary, indent=2))
+
+
+@batch.command(name="multi-objective")
+@click.option("--config", type=click.Path(exists=False), help="Configuration file")
+@click.option("--pressure-bounds", required=True, help="Bounds as min:max for initial pressure")
+@click.option("--voltage-bounds", required=True, help="Bounds as min:max for charging voltage")
+@click.option("--generations", type=int, default=20, show_default=True, help="Number of NSGA-II generations")
+@click.option("--pop-size", type=int, default=24, show_default=True, help="Population size for NSGA-II")
+@click.option("--seed", type=int, default=None, help="Random seed for reproducibility")
+@click.option("--output", type=click.Path(), default="pareto_output", help="Output directory")
+@click.option("--datasets", type=click.Path(), help="JSON mapping of dataset references")
+@click.option("--manifest", is_flag=True, help="Write run manifests for each Pareto point")
+@click.pass_context
+def multi_objective(
+    ctx: click.Context,
+    config: str | None,
+    pressure_bounds: str,
+    voltage_bounds: str,
+    generations: int,
+    pop_size: int,
+    seed: int | None,
+    output: str,
+    datasets: str | None,
+    manifest: bool,
+) -> None:
+    """Run a multi-objective search on pressure/voltage vs yield."""
+
+    cfg = DPFConfig.from_file(config) if config else DPFConfig()
+    p_bounds = _parse_bounds(pressure_bounds, "pressure")
+    v_bounds = _parse_bounds(voltage_bounds, "voltage")
+    datasets_meta = _load_datasets(datasets)
+    manifest = manifest or ctx.obj.get("lab_mode", False)
+
+    pareto, history = multiobjective_voltage_pressure(
+        cfg,
+        p_bounds,
+        v_bounds,
+        n_generations=generations,
+        pop_size=pop_size,
+        seed=seed,
+        output_dir=output,
+        manifest=manifest,
+        datasets=datasets_meta,
+    )
+
+    out_dir = Path(output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "pareto.json").write_text(json.dumps(pareto, indent=2))
+    (out_dir / "convergence.json").write_text(json.dumps([asdict(h) for h in history], indent=2))
+    write_batch_manifest(output, pareto)
+    click.echo(json.dumps({"pareto_points": len(pareto), "output": output}, indent=2))
 
 
 __all__ = ["batch"]

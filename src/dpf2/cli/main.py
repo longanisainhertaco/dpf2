@@ -50,6 +50,7 @@ from dpf2.optimization.param_sweep import (
     compute_sweep_metrics,
     plot_metric_overlay,
     plot_yield_vs_S,
+    multiobjective_voltage_pressure,
 )
 from dpf2.gui.project_manager import ProjectManager
 from dpf2.gui import interactive
@@ -99,6 +100,16 @@ def _validate_range(
             f"{name} must be between {minimum} and {maximum}. {tip}"
         )
     return value
+
+
+def _parse_bounds(bounds: str, label: str) -> tuple[float, float]:
+    """Parse CLI bounds formatted as ``min:max``."""
+
+    try:
+        lo, hi = bounds.split(":")
+        return float(lo), float(hi)
+    except Exception as exc:
+        raise click.BadParameter(f"{label} bounds must be provided as min:max") from exc
 
 
 def _to_float(val: Any) -> float:
@@ -1109,6 +1120,51 @@ def param_sweep_cmd(
         raise click.ClickException(format_error("SWEEP", str(e)))
 
     click.echo(f"Sweep complete. Results written to {output}")
+
+
+@main.command("pareto-opt")
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), required=True)
+@click.option("--pressure-bounds", required=True, help="Bounds as min:max for initial pressure [Pa]")
+@click.option("--voltage-bounds", required=True, help="Bounds as min:max for charging voltage [V]")
+@click.option("--generations", type=int, default=20, show_default=True, help="Number of NSGA-II generations")
+@click.option("--pop-size", type=int, default=24, show_default=True, help="Population size for NSGA-II")
+@click.option("--seed", type=int, default=None, help="Random seed for reproducibility")
+@click.option("--output", type=click.Path(file_okay=False), default="pareto_output")
+@click.pass_context
+def pareto_opt_cmd(
+    ctx: click.Context,
+    config: str,
+    pressure_bounds: str,
+    voltage_bounds: str,
+    generations: int,
+    pop_size: int,
+    seed: int | None,
+    output: str,
+) -> None:
+    """Estimate a Pareto front balancing yield vs pressure/voltage."""
+
+    try:
+        cfg = DPFConfig.from_file(config)
+        p_bounds = _parse_bounds(pressure_bounds, "pressure")
+        v_bounds = _parse_bounds(voltage_bounds, "voltage")
+        pareto, history = multiobjective_voltage_pressure(
+            cfg,
+            p_bounds,
+            v_bounds,
+            n_generations=generations,
+            pop_size=pop_size,
+            seed=seed,
+            output_dir=output,
+            manifest=ctx.obj.get("lab_mode", False),
+        )
+        out_dir = Path(output)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "pareto.json").write_text(json.dumps(pareto, indent=2))
+        (out_dir / "convergence.json").write_text(json.dumps([dataclasses.asdict(h) for h in history], indent=2))
+    except Exception as e:
+        raise click.ClickException(format_error("PARETO", str(e)))
+
+    click.echo(f"Pareto search complete. Results written to {output}")
 
 
 @main.command("uq-sweep")

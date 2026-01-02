@@ -28,6 +28,9 @@ from typing import Iterable, List
 import matplotlib.pyplot as plt
 import numpy as np
 
+from dpf2.cli.lab import _code_hash, write_manifest
+from dpf2.io.manifest import capture_dataset_metadata
+
 try:  # pragma: no cover - MPI optional
     from mpi4py import MPI  # type: ignore
 except Exception:  # pragma: no cover
@@ -138,6 +141,38 @@ def driver(max_procs: int, size: int, outdir: Path) -> None:
         _plot(ranks, bandwidth, "Write bandwidth (MB/s)", outdir / "hdf5_io.png")
 
 
+def _write_scaling_manifest(outdir: Path, doi: str | None, include_io: bool) -> None:
+    """Record hashes and provenance for scaling plots."""
+
+    plots = {
+        "strong": outdir / "strong.png",
+        "weak": outdir / "weak.png",
+    }
+    if include_io:
+        plots["hdf5_io"] = outdir / "hdf5_io.png"
+
+    datasets: dict[str, dict[str, dict[str, object]]] = {"scaling_plots": {}}
+    version = _code_hash()
+    for name, path in plots.items():
+        if path.exists():
+            datasets["scaling_plots"][name] = {
+                "path": str(path),
+                "doi": doi or "pending",
+                "version": version,
+            }
+
+    try:
+        capture_dataset_metadata(datasets)
+    except Exception:
+        # If hashing fails we still want to persist the manifest
+        pass
+    write_manifest(
+        outdir,
+        config={"benchmark": "bench_scaling"},
+        datasets=datasets,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -147,6 +182,7 @@ def main() -> None:
     parser.add_argument("--max-procs", type=int, default=4, help="Maximum number of MPI ranks")
     parser.add_argument("--size", type=int, default=1_000_000, help="Problem size for each kernel")
     parser.add_argument("--outdir", type=Path, default=Path("scaling_results"), help="Output directory")
+    parser.add_argument("--artifact-doi", type=str, default=None, help="Optional DOI to attach to scaling artifacts")
     parser.add_argument("--mode", choices=["strong", "weak", "io"], help=argparse.SUPPRESS)
     parser.add_argument("--outfile", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -166,6 +202,7 @@ def main() -> None:
         return
 
     driver(args.max_procs, args.size, args.outdir)
+    _write_scaling_manifest(args.outdir, args.artifact_doi, include_io=h5py is not None)
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution only

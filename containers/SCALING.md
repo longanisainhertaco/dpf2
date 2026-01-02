@@ -28,3 +28,11 @@ containerised HPC environments.
 * Use checkpoint emitting (`--emit-checkpoints`) to make long optimisations restartable.
 * Persist manifests on a shared filesystem so that downstream analytics can pick up partial sweeps.
 * Prefer immutable container tags for reproducibility across clusters.
+
+## Provenance for scaling artefacts
+
+Running `python scripts/bench_scaling.py --max-procs 8 --outdir scaling_results` now
+writes a `run_manifest.json` that records the container hash, git revision, MPI/HDF5
+versions, and SHA256 hashes of the generated scaling plots. Attach a DOI to the
+artefacts with `--artifact-doi` to make the performance envelope citeable when
+publishing container images or benchmark suites.
