@@ -44,6 +44,7 @@ class DPFSimulation:
         self.plasma_state: Any = 0.0
         self.current = 0.0
         self.voltage = self.config.charging_voltage
+        self.run_outputs: list[dict[str, float]] = []
 
     def _setup_mesh(self) -> Mesh2D:
         cfg = self.config
@@ -96,12 +97,14 @@ class DPFSimulation:
 
         out = output_dir
         last_output = self.time
+        initial_outputs = self._collect_outputs()
         if out is not None:
             Path(out).mkdir(parents=True, exist_ok=True)
             self.writer = DataWriter(out, config=asdict(self.config), seeds=seeds)
-            self.writer.write_hdf5({"current": self.current, "voltage": self.voltage}, time=self.time)
+            self.writer.write_hdf5(initial_outputs, time=self.time)
         else:
             self.writer = None
+        self.run_outputs.append({"time": self.time, **initial_outputs})
 
         times = [self.time]
         currents = [self.current]
@@ -146,13 +149,29 @@ class DPFSimulation:
                 progress_cb(step, self.time)
 
             if (self.time - last_output) >= interval or self.time >= end:
+                outputs = self._collect_outputs(feedback)
                 if self.writer is not None:
-                    self.writer.write_hdf5(
-                        {"current": self.current, "voltage": self.voltage},
-                        time=self.time,
-                    )
+                    self.writer.write_hdf5(outputs, time=self.time)
+                self.run_outputs.append({"time": self.time, **outputs})
                 last_output = self.time
 
+        return times, currents, voltages
+
+    def _collect_outputs(self, feedback: Any | None = None) -> Dict[str, float]:
+        """Assemble a snapshot of run outputs for diagnostics."""
+
+        outputs: Dict[str, float] = {
+            "current": float(self.current),
+            "voltage": float(self.voltage),
+        }
+        if feedback is not None:
+            outputs["plasma_inductance"] = float(getattr(feedback, "Lp", 0.0))
+        if self.plasma_solver is not None and hasattr(self.plasma_solver, "effective_impedance"):
+            try:
+                outputs["effective_impedance"] = float(self.plasma_solver.effective_impedance())  # type: ignore[call-arg]
+            except Exception:
+                pass
+        return outputs
         if not return_metrics:
             return times, currents, voltages
 

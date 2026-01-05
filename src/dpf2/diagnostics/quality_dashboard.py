@@ -65,6 +65,7 @@ class QualityDashboard:
         wce_tau_e: float | None = None,
         di_over_L: float | None = None,
         hall_threshold: float | None = None,
+        hall_di_over_L_threshold: float | None = None,
         ei_threshold: float | None = None,
 
     ) -> None:
@@ -109,6 +110,8 @@ class QualityDashboard:
             entry["di_over_L"] = di_over_L
         if hall_threshold is not None:
             entry["hall_threshold"] = hall_threshold
+        if hall_di_over_L_threshold is not None:
+            entry["hall_di_over_L_threshold"] = hall_di_over_L_threshold
         if ei_threshold is not None:
             entry["ei_threshold"] = ei_threshold
 

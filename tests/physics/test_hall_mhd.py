@@ -83,7 +83,12 @@ def test_activation_gates_and_closure():
         B=np.zeros((2, 1, 3)) + np.array([5.0, 0.0, 0.0]),
         eta=np.ones((2, 1)) * 1e-6,
     )
-    solver = HallMHDSolver(hall_threshold=0.1, ei_threshold=0.2, scale_length=1e12)
+    solver = HallMHDSolver(
+        hall_threshold=0.1,
+        ei_threshold=1.0,
+        hall_di_over_L_threshold=0.1,
+        scale_length=7e8,
+    )
     solver.step(state, 0.0)
     assert solver.hall_active
     assert solver.last_wce_tau_e > 0.1

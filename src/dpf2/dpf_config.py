@@ -129,6 +129,11 @@ class PhysicsModels(BaseModel):
     resistivity_model: Optional[str] = None
     anomalous_resistivity_enabled: bool = False
     anomalous_resistivity_parameters: Dict[str, float] = Field(default_factory=dict)
+    lower_hybrid_drift_enabled: bool = False
+    hall_two_fluid_enabled: bool = False
+    braginskii_transport_enabled: bool = False
+    hall_activation_omega_ce_tau_e: float = 1.0
+    hall_activation_di_over_L: float = 0.01
     ionization_model: Optional[str] = None
     radiation_model: Optional[str] = None
     radiation_transport_model: Optional[str] = None

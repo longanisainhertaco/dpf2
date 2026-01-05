@@ -25,12 +25,13 @@ from typing import Any, Callable, Dict
 import numpy as np
 
 try:  # pragma: no cover - allow running without SciPy
-    from scipy.constants import e as q_e, m_e, m_p, mu_0
+    from scipy.constants import e as q_e, m_e, m_p, mu_0, k as k_B
 except Exception:  # pragma: no cover
     q_e = 1.602176634e-19
     m_e = 9.1093837015e-31
     m_p = 1.67262192369e-27
     mu_0 = 4e-7 * np.pi
+    k_B = 1.380649e-23
 
 from .mhd import ResistiveMHD
 from .anomalous_resistivity import SpectralResistivity as LHDIResistivity
@@ -71,6 +72,8 @@ class HallMHD(ResistiveMHD):
     righi_leduc: float = 0.0
     hall_active: bool = field(default=False, init=False)
     electron_inertia_active: bool = field(default=False, init=False)
+    omega_ce_tau_e: float = field(default=0.0, init=False)
+    di_over_L: float = field(default=0.0, init=False)
     current: float = 0.0
     back_emf: float = 0.0
     beam_velocity: float = 0.0
@@ -118,6 +121,7 @@ class HallMHD(ResistiveMHD):
             self.kappa_perp = 0.0
             self.nernst = 0.0
             self.righi_leduc = 0.0
+            self.plasma_impedance = 0.0
             return
 
         coeffs = braginskii_coefficients(ne, Te, B)
@@ -126,6 +130,7 @@ class HallMHD(ResistiveMHD):
         self.eta = coeffs["eta_parallel"]
         self.nernst = coeffs["nernst"]
         self.righi_leduc = coeffs["righi_leduc"]
+        self.plasma_impedance = self.eta
 
     def regime_metrics(self, ne: float, Te: float, B: float, L: float) -> dict[str, float]:
         """Return key activation metrics used by Hall and two-fluid gating."""
@@ -142,6 +147,8 @@ class HallMHD(ResistiveMHD):
             "electron_inertia_active": bool(
                 self.electron_inertia != 0.0 and di_over_L > self.di_over_L_min
             ),
+            "omega_ce_tau_e_min": float(self.omega_ce_tau_e_min),
+            "di_over_L_min": float(self.di_over_L_min),
         }
 
     # ------------------------------------------------------------------
@@ -220,8 +227,8 @@ class HallMHD(ResistiveMHD):
         Lp = self.plasma_inductance(state)
 
         amp = instability_amp
-        if isinstance(amp, (list, tuple)):
-            amp_sum = sum(amp)
+        if isinstance(amp, (list, tuple, np.ndarray)):
+            amp_sum = float(np.sum(amp))
         else:
             amp_sum = float(amp)
         emf = amp_sum
