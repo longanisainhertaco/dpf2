@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+import os
+import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 import asyncio
 import random
 import tempfile
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     Depends,
@@ -21,6 +23,8 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from dpf2.dpf_config import DPFConfig
@@ -32,12 +36,38 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 AUDIT_LOG = BASE_DIR / "audit.log"
 UPLOAD_DIR = BASE_DIR / "uploads"
 SNAPSHOT_DIR = BASE_DIR / "snapshots"
+RESULTS_DIR = BASE_DIR / "results"
+CONFIG_DIR = BASE_DIR / "configs"
+
 logging.basicConfig(level=logging.INFO, filename=str(AUDIT_LOG), format="%(asctime)s %(message)s")
 logger = logging.getLogger("dpf-web")
 
+# JWT Configuration - should be loaded from environment variables in production
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dpf2-development-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Load users from environment or use development defaults
+# In production, users should be stored in a database
+def get_hashed_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+# Development users with hashed passwords
+# TODO: Replace with database-backed user management
 users = {
-    "admin": {"username": "admin", "password": "secret", "role": "admin"},
-    "user": {"username": "user", "password": "secret", "role": "user"},
+    "admin": {
+        "username": "admin",
+        "hashed_password": get_hashed_password(os.getenv("ADMIN_PASSWORD", "secret")),
+        "role": "admin"
+    },
+    "user": {
+        "username": "user",
+        "hashed_password": get_hashed_password(os.getenv("USER_PASSWORD", "secret")),
+        "role": "user"
+    },
 }
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -49,14 +79,65 @@ sweep_clients: Dict[str, set[WebSocket]] = {}
 sweep_results: Dict[str, Dict[float, Dict[str, float]]] = {}
 regime_clients: set[WebSocket] = set()
 
+# Locks for WebSocket client management to prevent race conditions
+clients_lock = asyncio.Lock()
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
-    user = users.get(token)
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against its hash."""
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def authenticate_user(username: str, password: str) -> Optional[Dict[str, Any]]:
+    """Authenticate a user by username and password."""
+    user = users.get(username)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-        )
+        return None
+    if not verify_password(password, user["hashed_password"]):
+        return None
+    return user
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a JWT access token."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
+    """Get current user from JWT token."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    
+    user = users.get(token_data.username)
+    if user is None:
+        raise credentials_exception
     return user
 
 
@@ -69,12 +150,25 @@ def require_role(role: str):
     return _checker
 
 
-@app.post("/token")
+@app.post("/token", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = users.get(form_data.username)
-    if not user or user["password"] != form_data.password:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-    return {"access_token": user["username"], "token_type": "bearer"}
+    """Authenticate user and return JWT access token."""
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        logger.warning("action=login_failed username=%s", form_data.username)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["username"], "role": user["role"]}, 
+        expires_delta=access_token_expires
+    )
+    logger.info("action=login_success username=%s", user["username"])
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 class RunRequest(BaseModel):
@@ -101,25 +195,54 @@ class LabBundleRequest(BaseModel):
 
 
 async def broadcast_progress(run_id: str, progress: float) -> None:
-    for ws in list(progress_clients.get(run_id, set())):
-        await ws.send_json({"run_id": run_id, "progress": progress})
+    """Broadcast progress updates to connected WebSocket clients."""
+    async with clients_lock:
+        clients = list(progress_clients.get(run_id, set()))
+    
+    for ws in clients:
+        try:
+            await ws.send_json({"run_id": run_id, "progress": progress})
+        except Exception as e:
+            logger.warning("action=broadcast_progress_failed run_id=%s error=%s", run_id, str(e))
 
 
 async def broadcast_diagnostics(run_id: str, data: Dict[str, Any]) -> None:
-    for ws in list(diagnostic_clients.get(run_id, set())):
-        await ws.send_json({"run_id": run_id, "diagnostics": data})
+    """Broadcast diagnostic data to connected WebSocket clients."""
+    async with clients_lock:
+        clients = list(diagnostic_clients.get(run_id, set()))
+    
+    for ws in clients:
+        try:
+            await ws.send_json({"run_id": run_id, "diagnostics": data})
+        except Exception as e:
+            logger.warning("action=broadcast_diagnostics_failed run_id=%s error=%s", run_id, str(e))
 
 
 async def broadcast_sweep(run_id: str, param: float, metrics: Dict[str, float]) -> None:
+    """Broadcast parameter sweep results to connected WebSocket clients."""
     sweep_results.setdefault(run_id, {})[param] = metrics
     payload = {"run_id": run_id, "parameter": param, **metrics}
-    for ws in list(sweep_clients.get(run_id, set())):
-        await ws.send_json(payload)
+    
+    async with clients_lock:
+        clients = list(sweep_clients.get(run_id, set()))
+    
+    for ws in clients:
+        try:
+            await ws.send_json(payload)
+        except Exception as e:
+            logger.warning("action=broadcast_sweep_failed run_id=%s error=%s", run_id, str(e))
 
 
 async def broadcast_regime(data: Dict[str, float]) -> None:
-    for ws in list(regime_clients):
-        await ws.send_json(data)
+    """Broadcast regime panel data to connected WebSocket clients."""
+    async with clients_lock:
+        clients = list(regime_clients)
+    
+    for ws in clients:
+        try:
+            await ws.send_json(data)
+        except Exception as e:
+            logger.warning("action=broadcast_regime_failed error=%s", str(e))
 
 
 @app.post("/run")
@@ -197,20 +320,64 @@ async def run_sweep(req: SweepRequest, user=Depends(get_current_user)):
 
 
 def dispatch_to_hpc(cfg: DPFConfig, username: str) -> str:
-    run_id = f"run-{int(datetime.utcnow().timestamp())}"
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    (UPLOAD_DIR / f"{run_id}.json").write_text(cfg.model_dump_json())
-    # Placeholder for real HPC dispatch
+    """Save configuration for HPC dispatch and return unique run ID.
+    
+    Note: This is currently a placeholder for actual HPC job submission.
+    In production, this should dispatch to a real job scheduler.
+    """
+    run_id = str(uuid.uuid4())
+    
+    # Create necessary directories
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Save configuration
+    config_path = CONFIG_DIR / f"{run_id}.json"
+    try:
+        config_path.write_text(cfg.model_dump_json())
+    except Exception as e:
+        logger.error("action=save_config_failed run_id=%s error=%s", run_id, str(e))
+        raise HTTPException(status_code=500, detail="Failed to save configuration")
+    
+    # TODO: Implement actual HPC job dispatch here
+    # For now, this is a placeholder that only saves the configuration
+    
     return run_id
+
+
+@app.get("/config/{run_id}")
+def get_config(run_id: str, user=Depends(require_role("admin"))):
+    """Retrieve the configuration for a specific run."""
+    config_path = CONFIG_DIR / f"{run_id}.json"
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    
+    try:
+        logger.info("action=get_config user=%s run_id=%s", user["username"], run_id)
+        return json.loads(config_path.read_text())
+    except Exception as e:
+        logger.error("action=get_config_failed run_id=%s error=%s", run_id, str(e))
+        raise HTTPException(status_code=500, detail="Failed to read configuration")
 
 
 @app.get("/results/{run_id}")
 def get_results(run_id: str, user=Depends(require_role("admin"))):
-    path = UPLOAD_DIR / f"{run_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Run not found")
-    logger.info("action=get_results user=%s run_id=%s", user["username"], run_id)
-    return json.loads(path.read_text())
+    """Retrieve the simulation results for a specific run."""
+    results_path = RESULTS_DIR / f"{run_id}.json"
+    if not results_path.exists():
+        # If results don't exist yet, check if the run exists
+        config_path = CONFIG_DIR / f"{run_id}.json"
+        if not config_path.exists():
+            raise HTTPException(status_code=404, detail="Run not found")
+        else:
+            raise HTTPException(status_code=202, detail="Results not ready yet")
+    
+    try:
+        logger.info("action=get_results user=%s run_id=%s", user["username"], run_id)
+        return json.loads(results_path.read_text())
+    except Exception as e:
+        logger.error("action=get_results_failed run_id=%s error=%s", run_id, str(e))
+        raise HTTPException(status_code=500, detail="Failed to read results")
 
 
 @app.get("/sweep/{run_id}")
@@ -222,27 +389,69 @@ async def get_sweep(run_id: str, user=Depends(get_current_user)):
 async def save_snapshot(req: SnapshotRequest, user=Depends(get_current_user)):
     """Persist a sandbox state and return a shareable reference."""
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    snap_id = f"snap-{datetime.utcnow().timestamp():.0f}-{len(req.state)}"
+    snap_id = str(uuid.uuid4())
     path = SNAPSHOT_DIR / f"{snap_id}.json"
-    path.write_text(json.dumps(req.state))
-    logger.info("action=save_snapshot user=%s id=%s", user["username"], snap_id)
-    return {"id": snap_id, "url": f"/snapshot/{snap_id}"}
+    
+    try:
+        path.write_text(json.dumps(req.state))
+        logger.info("action=save_snapshot user=%s id=%s", user["username"], snap_id)
+        return {"id": snap_id, "url": f"/snapshot/{snap_id}"}
+    except Exception as e:
+        logger.error("action=save_snapshot_failed user=%s error=%s", user["username"], str(e))
+        raise HTTPException(status_code=500, detail="Failed to save snapshot")
 
 
 @app.get("/snapshot/{snap_id}")
-async def get_snapshot(snap_id: str):
+async def get_snapshot(snap_id: str, user=Depends(get_current_user)):
+    """Retrieve a previously saved snapshot. Requires authentication."""
     path = SNAPSHOT_DIR / f"{snap_id}.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Snapshot not found")
-    logger.info("action=get_snapshot id=%s", snap_id)
-    return json.loads(path.read_text())
+    
+    try:
+        logger.info("action=get_snapshot user=%s id=%s", user["username"], snap_id)
+        return json.loads(path.read_text())
+    except Exception as e:
+        logger.error("action=get_snapshot_failed id=%s error=%s", snap_id, str(e))
+        raise HTTPException(status_code=500, detail="Failed to read snapshot")
 
 
 @app.post("/snapshot/upload")
-async def upload_snapshot(file: UploadFile = File(...)):
-    """Load a snapshot from a user-uploaded JSON file."""
-    data = json.loads(await file.read())
-    return data
+async def upload_snapshot(
+    file: UploadFile = File(...),
+    user=Depends(get_current_user)
+):
+    """Load a snapshot from a user-uploaded JSON file.
+    
+    Security: Requires authentication, validates file size and content type.
+    """
+    # Validate content type
+    if file.content_type not in ["application/json", "text/json"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Only JSON files are allowed."
+        )
+    
+    # Read with size limit (10 MB)
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+    try:
+        content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum size is {MAX_FILE_SIZE} bytes."
+            )
+        
+        # Parse JSON
+        data = json.loads(content)
+        logger.info("action=upload_snapshot user=%s size=%d", user["username"], len(content))
+        return data
+    except json.JSONDecodeError as e:
+        logger.warning("action=upload_snapshot_invalid user=%s error=%s", user["username"], str(e))
+        raise HTTPException(status_code=400, detail="Invalid JSON format")
+    except Exception as e:
+        logger.error("action=upload_snapshot_failed user=%s error=%s", user["username"], str(e))
+        raise HTTPException(status_code=500, detail="Failed to process upload")
 
 
 @app.post("/lab-mode/manifests")
@@ -257,43 +466,55 @@ def create_lab_manifest_bundle(req: LabBundleRequest, user=Depends(get_current_u
 
 @app.websocket("/ws/progress/{run_id}")
 async def ws_progress(websocket: WebSocket, run_id: str):
+    """WebSocket endpoint for simulation progress updates."""
     await websocket.accept()
-    progress_clients.setdefault(run_id, set()).add(websocket)
+    async with clients_lock:
+        progress_clients.setdefault(run_id, set()).add(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        progress_clients[run_id].discard(websocket)
+        async with clients_lock:
+            progress_clients[run_id].discard(websocket)
 
 
 @app.websocket("/ws/diagnostics/{run_id}")
 async def ws_diagnostics(websocket: WebSocket, run_id: str):
+    """WebSocket endpoint for diagnostic data updates."""
     await websocket.accept()
-    diagnostic_clients.setdefault(run_id, set()).add(websocket)
+    async with clients_lock:
+        diagnostic_clients.setdefault(run_id, set()).add(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        diagnostic_clients[run_id].discard(websocket)
+        async with clients_lock:
+            diagnostic_clients[run_id].discard(websocket)
 
 
 @app.websocket("/ws/sweep/{run_id}")
 async def ws_sweep(websocket: WebSocket, run_id: str):
+    """WebSocket endpoint for parameter sweep updates."""
     await websocket.accept()
-    sweep_clients.setdefault(run_id, set()).add(websocket)
+    async with clients_lock:
+        sweep_clients.setdefault(run_id, set()).add(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        sweep_clients[run_id].discard(websocket)
+        async with clients_lock:
+            sweep_clients[run_id].discard(websocket)
 
 
 @app.websocket("/ws/regime")
 async def ws_regime(websocket: WebSocket):
+    """WebSocket endpoint for regime panel updates."""
     await websocket.accept()
-    regime_clients.add(websocket)
+    async with clients_lock:
+        regime_clients.add(websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        regime_clients.discard(websocket)
+        async with clients_lock:
+            regime_clients.discard(websocket)
