@@ -15,6 +15,15 @@ web/frontend/dist/
 # Web runtime logs and uploads
 web/audit.log
 web/uploads/
+web/snapshots/
+web/configs/
+web/results/
+
+# Build artifacts
+src/*.egg-info/
+*.egg-info/
+dist/
+build/
 
 # Benchmark artifacts
 docs/performance/*.png

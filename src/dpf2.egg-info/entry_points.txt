@@ -1,2 +1,0 @@
-[console_scripts]
-dpf2 = dpf2.cli.main:main
