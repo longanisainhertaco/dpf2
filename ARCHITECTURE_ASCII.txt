@@ -1,0 +1,170 @@
+# DPF2 Architecture Data Flow - ASCII Visualization
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                         DPF2 APPLICATION ARCHITECTURE                         │
+│                  User → Service A (FastAPI) → Database (Files)                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────┐
+│  USER   │
+└────┬────┘
+     │
+     │ 1. POST /token
+     │    (username, password)
+     ▼
+┌────────────────────────────┐
+│   FastAPI Backend          │◄──── 🔴 ERROR: Hardcoded passwords "secret"
+│   (Service A)              │
+│   - Validates against      │
+│     in-memory dict         │◄──── 🔴 ERROR: Token = username (no JWT!)
+└────────┬───────────────────┘
+         │
+         │ 2. Returns access_token
+         │    (just the username!)
+         ▼
+┌─────────┐
+│  USER   │
+└────┬────┘
+     │
+     │ 3. POST /run
+     │    (config, token="admin")
+     ▼
+┌────────────────────────────┐
+│   FastAPI Backend          │
+│   - get_current_user()     │◄──── 🔴 ERROR: Just looks up username in dict
+│   - dispatch_to_hpc()      │◄──── 🟡 ERROR: No real HPC dispatch!
+└────────┬───────────────────┘
+         │
+         │ 4. Saves config to filesystem
+         │    (predictable timestamp ID) 🟡
+         ▼
+┌────────────────────────────┐
+│   Filesystem               │
+│   ("Database")             │
+│   uploads/run-{timestamp}  │
+│   .json                    │◄──── 💾 JSON files, not real database
+└────────┬───────────────────┘
+         │
+         │ 5. File written
+         ▼
+     [DISK]
+
+┌─────────┐
+│  USER   │
+└────┬────┘
+     │
+     │ 6. GET /results/{run_id}
+     │    (with admin token)
+     ▼
+┌────────────────────────────┐
+│   FastAPI Backend          │
+│   - require_role("admin")  │
+│   - Reads file             │
+└────────┬───────────────────┘
+         │
+         │ 7. Read {run_id}.json
+         ▼
+┌────────────────────────────┐
+│   Filesystem               │
+│   uploads/run-{id}.json    │◄──── 🔴 ERROR: Returns CONFIG not RESULTS!
+└────────┬───────────────────┘
+         │
+         │ 8. Returns config data
+         │    (not simulation results!)
+         ▼
+┌─────────┐
+│  USER   │◄──── User expects results but gets config!
+└─────────┘
+
+┌─────────┐
+│  USER   │
+└────┬────┘
+     │
+     │ 9. GET /snapshot/{snap_id}
+     │    (NO TOKEN SENT!)
+     ▼
+┌────────────────────────────┐
+│   FastAPI Backend          │◄──── 🔴 ERROR: No authentication check!
+│   - No user validation     │
+│   - Reads snapshot         │
+└────────┬───────────────────┘
+         │
+         │ 10. Read snapshot file
+         ▼
+┌────────────────────────────┐
+│   Filesystem               │
+│   snapshots/{snap_id}.json │◄──── Anyone can access any snapshot!
+└────────┬───────────────────┘
+         │
+         │ 11. Returns snapshot data
+         ▼
+┌─────────┐
+│  USER   │◄──── Anonymous access to sensitive data
+└─────────┘
+
+┌─────────┐
+│  USER   │
+└────┬────┘
+     │
+     │ 12. POST /snapshot/upload
+     │     (huge file, no auth)
+     ▼
+┌────────────────────────────┐
+│   FastAPI Backend          │◄──── 🔴 ERROR: No auth, no size limit!
+│   - json.loads(file)       │◄──── 🔴 ERROR: No validation, DoS risk
+│   - No error handling      │
+└────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+                              CRITICAL ISSUES
+═══════════════════════════════════════════════════════════════════════════════
+
+🔴 CRITICAL SEVERITY:
+1. Authentication Bypass: Token is literally the username (no JWT, no signing)
+2. Hardcoded Passwords: "secret" in plain text in source code
+3. Results Endpoint: Returns config instead of actual simulation results
+4. Missing Auth: Snapshot retrieval has no authentication
+5. Insecure Upload: No auth, validation, or size limits
+
+🟡 HIGH SEVERITY:
+6. Mock HPC Dispatch: dispatch_to_hpc() just saves config, doesn't run jobs
+7. Predictable IDs: Timestamp-based run_id allows enumeration
+8. No Rate Limiting: Brute force and DoS attacks possible
+
+🟢 MEDIUM SEVERITY:
+9. No Error Handling: File operations can crash the application
+10. Race Conditions: WebSocket clients modified during iteration
+
+═══════════════════════════════════════════════════════════════════════════════
+                            ARCHITECTURAL NOTES
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ NO REAL DATABASE
+   - Uses JSON files on filesystem
+   - No transactions, no ACID properties
+   - No concurrent access protection
+
+❌ NO REAL HPC INTEGRATION
+   - dispatch_to_hpc() is a placeholder
+   - Mock progress generation
+   - No actual simulation execution
+
+❌ NO SESSION MANAGEMENT
+   - Users dict in memory (lost on restart)
+   - No session storage
+   - No logout functionality
+
+❌ NO INPUT VALIDATION
+   - File uploads not validated
+   - No path traversal checks
+   - No size limits
+
+═══════════════════════════════════════════════════════════════════════════════
+
+For detailed analysis, see:
+- ARCHITECTURE_ANALYSIS.md (complete documentation)
+- architecture_diagram.mmd (Mermaid sequence diagram)
+- evaluation_report.md (updated project evaluation)
+```

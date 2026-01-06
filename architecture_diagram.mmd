@@ -1,0 +1,55 @@
+sequenceDiagram
+    participant User
+    participant FastAPI as Service A (FastAPI Backend)
+    participant FileSystem as Database (JSON Files)
+    participant Logger as Audit Log
+
+    Note over User,FileSystem: Authentication Flow
+    User->>FastAPI: POST /token (username, password)
+    FastAPI->>FastAPI: Validate credentials (in-memory dict)
+    Note right of FastAPI: 🔴 ERROR: Token = Username!<br/>No JWT, no signing, no expiry
+    FastAPI-->>User: Return access_token (username as token)
+    
+    Note over User,FileSystem: Simulation Run Flow
+    User->>FastAPI: POST /run (config, token)
+    FastAPI->>FastAPI: get_current_user(token)
+    Note right of FastAPI: 🔴 ERROR: Simply looks up<br/>username in dict
+    FastAPI->>FastAPI: Validate DPFConfig
+    FastAPI->>FastAPI: dispatch_to_hpc(cfg, username)
+    Note right of FastAPI: 🟡 ERROR: No actual HPC dispatch<br/>Just saves config file
+    FastAPI->>FileSystem: Write config to {run_id}.json
+    Note right of FileSystem: 🟡 Uses predictable<br/>timestamp-based IDs
+    FastAPI->>Logger: Log action to audit.log
+    FastAPI-->>User: Return run_id
+    FastAPI->>FastAPI: Spawn async progress task
+    Note right of FastAPI: Mock progress, not real simulation
+    
+    Note over User,FileSystem: Results Retrieval Flow
+    User->>FastAPI: GET /results/{run_id} (admin token)
+    FastAPI->>FastAPI: require_role("admin")
+    FastAPI->>FastAPI: get_current_user(token)
+    FastAPI->>FileSystem: Read {run_id}.json
+    Note right of FileSystem: 🔴 ERROR: Returns CONFIG<br/>not actual results!
+    FastAPI->>Logger: Log access to audit.log
+    FastAPI-->>User: Return JSON config data
+    
+    Note over User,FileSystem: Snapshot Save Flow
+    User->>FastAPI: POST /snapshot/save (state, token)
+    FastAPI->>FastAPI: get_current_user(token)
+    FastAPI->>FileSystem: Write to {snap_id}.json
+    Note right of FileSystem: No error handling<br/>for disk operations
+    FastAPI->>Logger: Log snapshot save
+    FastAPI-->>User: Return snapshot id and URL
+    
+    Note over User,FileSystem: Snapshot Retrieve Flow
+    User->>FastAPI: GET /snapshot/{snap_id}
+    Note right of FastAPI: 🔴 ERROR: No authentication!<br/>Anyone can access
+    FastAPI->>FileSystem: Read {snap_id}.json
+    FastAPI->>Logger: Log snapshot access
+    FastAPI-->>User: Return snapshot data
+    
+    Note over User,FileSystem: File Upload Flow
+    User->>FastAPI: POST /snapshot/upload (file)
+    Note right of FastAPI: 🔴 ERROR: No auth, no size limit<br/>No validation, DoS risk
+    FastAPI->>FastAPI: json.loads(file contents)
+    FastAPI-->>User: Return parsed data
