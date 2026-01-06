@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import asyncio
 import random
@@ -43,7 +43,15 @@ logging.basicConfig(level=logging.INFO, filename=str(AUDIT_LOG), format="%(ascti
 logger = logging.getLogger("dpf-web")
 
 # JWT Configuration - should be loaded from environment variables in production
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dpf2-development-secret-key-change-in-production")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    # Generate a random key for development, but warn about it
+    import secrets
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning(
+        "JWT_SECRET_KEY not set in environment. Using randomly generated key. "
+        "This is insecure for production! Set JWT_SECRET_KEY environment variable."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -55,17 +63,33 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def get_hashed_password(password: str) -> str:
     return pwd_context.hash(password)
 
+# Cache for hashed passwords to avoid re-hashing on every startup
+_password_cache = {}
+
+def get_or_hash_password(username: str, env_var: str, default: str) -> str:
+    """Get cached password hash or hash the password if not cached."""
+    cache_key = f"{username}:{env_var}"
+    if cache_key not in _password_cache:
+        password = os.getenv(env_var, default)
+        _password_cache[cache_key] = get_hashed_password(password)
+        if password == default:
+            logger.warning(
+                f"Using default password for {username}. "
+                f"Set {env_var} environment variable in production."
+            )
+    return _password_cache[cache_key]
+
 # Development users with hashed passwords
 # TODO: Replace with database-backed user management
 users = {
     "admin": {
         "username": "admin",
-        "hashed_password": get_hashed_password(os.getenv("ADMIN_PASSWORD", "secret")),
+        "hashed_password": get_or_hash_password("admin", "ADMIN_PASSWORD", "secret"),
         "role": "admin"
     },
     "user": {
         "username": "user",
-        "hashed_password": get_hashed_password(os.getenv("USER_PASSWORD", "secret")),
+        "hashed_password": get_or_hash_password("user", "USER_PASSWORD", "secret"),
         "role": "user"
     },
 }
@@ -111,9 +135,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -432,20 +456,34 @@ async def upload_snapshot(
             detail="Invalid file type. Only JSON files are allowed."
         )
     
-    # Read with size limit (10 MB)
+    # Read with size limit (10 MB) - streaming to avoid DoS
     MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+    MAX_CHUNK_SIZE = 1024 * 1024  # 1 MB chunks
+    
     try:
-        content = await file.read()
-        if len(content) > MAX_FILE_SIZE:
-            logger.warning("action=upload_snapshot_too_large user=%s size=%d", user["username"], len(content))
-            raise HTTPException(
-                status_code=413,
-                detail=f"File too large. Maximum size is {MAX_FILE_SIZE} bytes."
-            )
+        # Read file in chunks and check size progressively
+        content_chunks = []
+        total_size = 0
         
-        # Parse JSON
+        while True:
+            chunk = await file.read(MAX_CHUNK_SIZE)
+            if not chunk:
+                break
+            
+            total_size += len(chunk)
+            if total_size > MAX_FILE_SIZE:
+                logger.warning("action=upload_snapshot_too_large user=%s size=%d", user["username"], total_size)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large. Maximum size is {MAX_FILE_SIZE} bytes."
+                )
+            
+            content_chunks.append(chunk)
+        
+        # Combine chunks and parse JSON
+        content = b''.join(content_chunks)
         data = json.loads(content)
-        logger.info("action=upload_snapshot user=%s size=%d", user["username"], len(content))
+        logger.info("action=upload_snapshot user=%s size=%d", user["username"], total_size)
         return data
     except HTTPException:
         # Re-raise HTTP exceptions (including 413) without wrapping
