@@ -437,6 +437,7 @@ async def upload_snapshot(
     try:
         content = await file.read()
         if len(content) > MAX_FILE_SIZE:
+            logger.warning("action=upload_snapshot_too_large user=%s size=%d", user["username"], len(content))
             raise HTTPException(
                 status_code=413,
                 detail=f"File too large. Maximum size is {MAX_FILE_SIZE} bytes."
@@ -446,6 +447,9 @@ async def upload_snapshot(
         data = json.loads(content)
         logger.info("action=upload_snapshot user=%s size=%d", user["username"], len(content))
         return data
+    except HTTPException:
+        # Re-raise HTTP exceptions (including 413) without wrapping
+        raise
     except json.JSONDecodeError as e:
         logger.warning("action=upload_snapshot_invalid user=%s error=%s", user["username"], str(e))
         raise HTTPException(status_code=400, detail="Invalid JSON format")
