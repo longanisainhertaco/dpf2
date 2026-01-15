@@ -1,0 +1,881 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9', 'primaryTextColor': '#000', 'primaryBorderColor': '#2d5986', 'lineColor': '#5b9bd5', 'secondaryColor': '#e8f4f8', 'tertiaryColor': '#fff', 'background': '#f5f5f5', 'fontSize': '14px'}}}%%
+
+flowchart TB
+    subgraph TITLE["🔧 DPF2 CRITICAL ANALYSIS - IMPLEMENTATION GUIDE WITH CODE SNIPPETS"]
+        direction TB
+        INTRO["This diagram provides specific implementation guidance<br/>for addressing all issues identified in CRITICAL_ANALYSIS.md"]
+    end
+
+    %% =====================================================
+    %% ISSUE 1: Authentication System Bypass
+    %% =====================================================
+    subgraph ISSUE1["🔴 ISSUE 1: Authentication System Bypass"]
+        direction TB
+        
+        subgraph ISSUE1_WHERE["📍 WHERE: web/backend/main.py:72-77"]
+            ISSUE1_CURRENT["```python
+# ❌ CURRENT CODE (VULNERABLE)
+@app.post('/token')
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = users.get(form_data.username)
+    if not user or user['password'] != form_data.password:
+        raise HTTPException(status_code=400, detail='Incorrect...')
+    # Token is just username - NO cryptographic security!
+    return {'access_token': user['username'], 'token_type': 'bearer'}
+```"]
+        end
+
+        subgraph ISSUE1_HOW["🔨 HOW: Implement JWT with PyJWT"]
+            ISSUE1_FIX["```python
+# ✅ FIXED CODE
+import jwt
+import secrets
+from datetime import datetime, timedelta
+import os
+
+SECRET_KEY = os.environ.get('JWT_SECRET_KEY', secrets.token_urlsafe(32))
+ALGORITHM = 'HS256'
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    to_encode.update({'exp': expire, 'iat': datetime.utcnow()})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+@app.post('/token')
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=401, detail='Incorrect credentials')
+    access_token = create_access_token(
+        data={'sub': user['username'], 'role': user['role']},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return {'access_token': access_token, 'token_type': 'bearer'}
+```"]
+        end
+
+        subgraph ISSUE1_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE1_TASKS["1. Add PyJWT to requirements.txt<br/>2. Create JWT secret key management<br/>3. Add token expiration (30 min default)<br/>4. Update get_current_user() to decode JWT<br/>5. Add token refresh endpoint"]
+        end
+
+        ISSUE1_CURRENT --> ISSUE1_FIX
+        ISSUE1_FIX --> ISSUE1_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 2: Hardcoded Credentials
+    %% =====================================================
+    subgraph ISSUE2["🔴 ISSUE 2: Hardcoded Credentials"]
+        direction TB
+        
+        subgraph ISSUE2_WHERE["📍 WHERE: web/backend/main.py:38-41"]
+            ISSUE2_CURRENT["```python
+# ❌ CURRENT CODE (VULNERABLE)
+users = {
+    'admin': {'username': 'admin', 'password': 'secret', 'role': 'admin'},
+    'user': {'username': 'user', 'password': 'secret', 'role': 'user'},
+}
+```"]
+        end
+
+        subgraph ISSUE2_HOW["🔨 HOW: Use bcrypt + database + env vars"]
+            ISSUE2_FIX["```python
+# ✅ FIXED CODE
+import bcrypt
+from sqlalchemy import create_engine, Column, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import os
+
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///./dpf2.db')
+engine = create_engine(DATABASE_URL)
+Base = declarative_base()
+
+class User(Base):
+    __tablename__ = 'users'
+    username = Column(String, primary_key=True)
+    password_hash = Column(String)  # bcrypt hash
+    role = Column(String)
+
+def verify_password(plain_password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(
+        plain_password.encode('utf-8'),
+        hashed.encode('utf-8')
+    )
+
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(
+        password.encode('utf-8'),
+        bcrypt.gensalt()
+    ).decode('utf-8')
+
+# Initial admin setup via environment variable
+INITIAL_ADMIN_PASSWORD = os.environ.get('DPF2_ADMIN_PASSWORD')
+```"]
+        end
+
+        subgraph ISSUE2_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE2_TASKS["1. Add bcrypt, sqlalchemy to requirements.txt<br/>2. Create User model with password_hash column<br/>3. Remove hardcoded users dict<br/>4. Add database migration script<br/>5. Document env var setup in README"]
+        end
+
+        ISSUE2_CURRENT --> ISSUE2_FIX
+        ISSUE2_FIX --> ISSUE2_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 3: Missing Physics Capabilities
+    %% =====================================================
+    subgraph ISSUE3["🔴 ISSUE 3: Missing Physics Capabilities"]
+        direction TB
+        
+        subgraph ISSUE3_WHERE["📍 WHERE: src/dpf2/hall_mhd_solver.py (stub exists)"]
+            ISSUE3_CURRENT["```python
+# ❌ CURRENT: Stub implementation only
+# Need to implement:
+# - Hall-MHD with constrained transport
+# - Kinetic/PIC physics for beam-target fusion
+# - Radiation transport for X-ray output
+# - Ionization/EOS tables for plasma states
+```"]
+        end
+
+        subgraph ISSUE3_HOW["🔨 HOW: Implement Hall-MHD solver"]
+            ISSUE3_FIX["```python
+# ✅ NEW FILE: src/dpf2/advanced_physics/hall_mhd/solver.py
+import numpy as np
+from typing import Tuple
+
+class HallMHDSolver:
+    '''3D Hall-MHD solver with constrained transport.'''
+    
+    def __init__(self, grid: 'Grid3D', eta: float, eta_H: float):
+        self.grid = grid
+        self.eta = eta        # Resistivity
+        self.eta_H = eta_H    # Hall coefficient = c/(4*pi*n*e)
+        
+    def compute_hall_field(
+        self, 
+        J: np.ndarray,  # Current density [3, nx, ny, nz]
+        B: np.ndarray   # Magnetic field [3, nx, ny, nz]
+    ) -> np.ndarray:
+        '''E_H = (eta_H / |B|) * (J x B)'''
+        B_mag = np.linalg.norm(B, axis=0, keepdims=True) + 1e-10
+        JxB = np.cross(J, B, axis=0)
+        return (self.eta_H / B_mag) * JxB
+    
+    def constrained_transport_update(
+        self,
+        B: np.ndarray,
+        E: np.ndarray,
+        dt: float
+    ) -> np.ndarray:
+        '''CT update: dB/dt = -curl(E), preserves div(B)=0'''
+        curl_E = self._compute_curl(E)
+        return B - dt * curl_E
+```"]
+        end
+
+        subgraph ISSUE3_WHAT["📋 WHAT TO IMPLEMENT"]
+            ISSUE3_TASKS["1. Create src/dpf2/advanced_physics/ directory<br/>2. Implement Hall-MHD solver (Months 3-8)<br/>3. Add AMReX integration for GPU support<br/>4. Implement EOS/ionization tables<br/>5. Add radiation transport module<br/>6. Create hybrid PIC for kinetic effects"]
+        end
+
+        ISSUE3_CURRENT --> ISSUE3_FIX
+        ISSUE3_FIX --> ISSUE3_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 4: API Data Integrity - Results Endpoint
+    %% =====================================================
+    subgraph ISSUE4["🟡 ISSUE 4: API Returns Config Instead of Results"]
+        direction TB
+        
+        subgraph ISSUE4_WHERE["📍 WHERE: web/backend/main.py:207-213"]
+            ISSUE4_CURRENT["```python
+# ❌ CURRENT CODE (WRONG DATA)
+@app.get('/results/{run_id}')
+def get_results(run_id: str, user=Depends(require_role('admin'))):
+    path = UPLOAD_DIR / f'{run_id}.json'
+    # Returns CONFIG, not actual simulation RESULTS!
+    return json.loads(path.read_text())
+```"]
+        end
+
+        subgraph ISSUE4_HOW["🔨 HOW: Separate config/results/status endpoints"]
+            ISSUE4_FIX["```python
+# ✅ FIXED CODE
+RESULTS_DIR = BASE_DIR / 'results'
+
+@app.get('/runs/{run_id}/config')
+def get_run_config(run_id: str, user=Depends(get_current_user)):
+    '''Get the configuration used for a run.'''
+    path = UPLOAD_DIR / f'{run_id}.json'
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Run not found')
+    return json.loads(path.read_text())
+
+@app.get('/runs/{run_id}/results')
+def get_run_results(run_id: str, user=Depends(get_current_user)):
+    '''Get the simulation results for a run.'''
+    path = RESULTS_DIR / f'{run_id}_results.json'
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Results not ready')
+    return json.loads(path.read_text())
+
+@app.get('/runs/{run_id}/status')
+def get_run_status(run_id: str, user=Depends(get_current_user)):
+    '''Get the current status of a simulation run.'''
+    # Check job queue for status
+    status = job_queue.get_status(run_id)
+    return {'run_id': run_id, 'status': status}
+```"]
+        end
+
+        subgraph ISSUE4_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE4_TASKS["1. Create RESULTS_DIR for simulation outputs<br/>2. Add /runs/{run_id}/config endpoint<br/>3. Add /runs/{run_id}/results endpoint<br/>4. Add /runs/{run_id}/status endpoint<br/>5. Update dispatch_to_hpc to store results separately"]
+        end
+
+        ISSUE4_CURRENT --> ISSUE4_FIX
+        ISSUE4_FIX --> ISSUE4_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 5: No Real HPC Dispatch
+    %% =====================================================
+    subgraph ISSUE5["🟡 ISSUE 5: No Real HPC Dispatch"]
+        direction TB
+        
+        subgraph ISSUE5_WHERE["📍 WHERE: web/backend/main.py:199-204"]
+            ISSUE5_CURRENT["```python
+# ❌ CURRENT CODE (PLACEHOLDER)
+def dispatch_to_hpc(cfg: DPFConfig, username: str) -> str:
+    run_id = f'run-{int(datetime.utcnow().timestamp())}'
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    (UPLOAD_DIR / f'{run_id}.json').write_text(cfg.model_dump_json())
+    # Placeholder for real HPC dispatch - DOES NOTHING!
+    return run_id
+```"]
+        end
+
+        subgraph ISSUE5_HOW["🔨 HOW: Implement Celery + SLURM integration"]
+            ISSUE5_FIX["```python
+# ✅ NEW FILE: web/backend/job_queue.py
+from celery import Celery
+import subprocess
+import os
+
+celery_app = Celery(
+    'dpf2',
+    broker=os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0'),
+    backend=os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+)
+
+@celery_app.task(bind=True)
+def run_simulation_task(self, run_id: str, config_path: str):
+    '''Execute simulation via SLURM or local process.'''
+    self.update_state(state='RUNNING', meta={'progress': 0})
+    
+    if os.environ.get('USE_SLURM', 'false').lower() == 'true':
+        # Submit to SLURM cluster
+        job_id = submit_slurm_job(run_id, config_path)
+        return {'slurm_job_id': job_id}
+    else:
+        # Run locally for development
+        from dpf2.simulation_engine import run_simulation
+        result = run_simulation(config_path)
+        return {'result': result}
+
+def submit_slurm_job(run_id: str, config_path: str) -> str:
+    '''Submit a job to SLURM scheduler.'''
+    script = f'''#!/bin/bash
+#SBATCH --job-name=dpf2-{run_id}
+#SBATCH --output=logs/{run_id}.out
+#SBATCH --error=logs/{run_id}.err
+#SBATCH --time=04:00:00
+#SBATCH --nodes=1
+
+source activate dpf2
+python -m dpf2 run --config {config_path}
+'''
+    result = subprocess.run(['sbatch'], input=script, capture_output=True, text=True)
+    return result.stdout.strip().split()[-1]  # Job ID
+```"]
+        end
+
+        subgraph ISSUE5_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE5_TASKS["1. Add celery, redis to requirements.txt<br/>2. Create job_queue.py with Celery tasks<br/>3. Add SLURM job submission logic<br/>4. Update dispatch_to_hpc to use Celery<br/>5. Add job status tracking endpoints<br/>6. Create worker deployment guide"]
+        end
+
+        ISSUE5_CURRENT --> ISSUE5_FIX
+        ISSUE5_FIX --> ISSUE5_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 6: Missing Auth on Endpoints
+    %% =====================================================
+    subgraph ISSUE6["🟡 ISSUE 6: Missing Authentication on Endpoints"]
+        direction TB
+        
+        subgraph ISSUE6_WHERE["📍 WHERE: web/backend/main.py:232-245"]
+            ISSUE6_CURRENT["```python
+# ❌ CURRENT CODE (NO AUTH)
+@app.get('/snapshot/{snap_id}')
+async def get_snapshot(snap_id: str):
+    # NO AUTHENTICATION - Anyone can access!
+    path = SNAPSHOT_DIR / f'{snap_id}.json'
+    ...
+
+@app.post('/snapshot/upload')
+async def upload_snapshot(file: UploadFile = File(...)):
+    # NO AUTHENTICATION - Anyone can upload!
+    # NO SIZE LIMIT - DoS risk!
+    # NO VALIDATION - Security risk!
+    data = json.loads(await file.read())
+    return data
+```"]
+        end
+
+        subgraph ISSUE6_HOW["🔨 HOW: Add auth, validation, limits"]
+            ISSUE6_FIX["```python
+# ✅ FIXED CODE
+import re  # For input validation
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+ALLOWED_CONTENT_TYPES = {'application/json'}
+
+@app.get('/snapshot/{snap_id}')
+async def get_snapshot(snap_id: str, user=Depends(get_current_user)):
+    # Validate snap_id format to prevent path traversal
+    if not re.match(r'^snap-[0-9]+-[0-9]+$', snap_id):
+        raise HTTPException(status_code=400, detail='Invalid snapshot ID')
+    path = SNAPSHOT_DIR / f'{snap_id}.json'
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Snapshot not found')
+    return json.loads(path.read_text())
+
+@app.post('/snapshot/upload')
+async def upload_snapshot(
+    file: UploadFile = File(...),
+    user=Depends(get_current_user)
+):
+    # Validate content type
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail='Invalid file type')
+    
+    # Read with size limit
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail='File too large')
+    
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail='Invalid JSON')
+    
+    return data
+```"]
+        end
+
+        subgraph ISSUE6_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE6_TASKS["1. Add authentication to get_snapshot<br/>2. Add authentication to upload_snapshot<br/>3. Add file size limit (10MB default)<br/>4. Add content type validation<br/>5. Add input sanitization<br/>6. Add path traversal protection"]
+        end
+
+        ISSUE6_CURRENT --> ISSUE6_FIX
+        ISSUE6_FIX --> ISSUE6_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 7: Predictable Resource Identifiers
+    %% =====================================================
+    subgraph ISSUE7["🟢 ISSUE 7: Predictable Resource Identifiers"]
+        direction TB
+        
+        subgraph ISSUE7_WHERE["📍 WHERE: web/backend/main.py:200, 225"]
+            ISSUE7_CURRENT["```python
+# ❌ CURRENT CODE (PREDICTABLE)
+# Line 200 in dispatch_to_hpc():
+run_id = f'run-{int(datetime.utcnow().timestamp())}'
+# Line 225 in save_snapshot() (req is SnapshotRequest):
+snap_id = f'snap-{datetime.utcnow().timestamp():.0f}-{len(req.state)}'
+# Attackers can enumerate: run-1704067200, run-1704067201...
+```"]
+        end
+
+        subgraph ISSUE7_HOW["🔨 HOW: Use UUID4 for all identifiers"]
+            ISSUE7_FIX["```python
+# ✅ FIXED CODE
+import uuid
+
+def dispatch_to_hpc(cfg: DPFConfig, username: str) -> str:
+    run_id = f'run-{uuid.uuid4().hex}'  # e.g., run-a1b2c3d4e5f6...
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    (UPLOAD_DIR / f'{run_id}.json').write_text(cfg.model_dump_json())
+    return run_id
+
+@app.post('/snapshot/save')
+async def save_snapshot(req: SnapshotRequest, user=Depends(get_current_user)):
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    snap_id = f'snap-{uuid.uuid4().hex}'  # Unpredictable
+    path = SNAPSHOT_DIR / f'{snap_id}.json'
+    path.write_text(json.dumps(req.state))
+    logger.info('action=save_snapshot user=%s id=%s', user['username'], snap_id)
+    return {'id': snap_id, 'url': f'/snapshot/{snap_id}'}
+```"]
+        end
+
+        subgraph ISSUE7_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE7_TASKS["1. Import uuid module<br/>2. Replace timestamp-based run_id with UUID<br/>3. Replace timestamp-based snap_id with UUID<br/>4. Update ID validation regex if needed"]
+        end
+
+        ISSUE7_CURRENT --> ISSUE7_FIX
+        ISSUE7_FIX --> ISSUE7_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 8: No Rate Limiting
+    %% =====================================================
+    subgraph ISSUE8["🟢 ISSUE 8: No Rate Limiting"]
+        direction TB
+        
+        subgraph ISSUE8_WHERE["📍 WHERE: web/backend/main.py (entire API)"]
+            ISSUE8_CURRENT["```python
+# ❌ CURRENT: No rate limiting anywhere
+# Attackers can:
+# - Brute force /token endpoint
+# - DoS simulation endpoints
+# - Exhaust server resources
+```"]
+        end
+
+        subgraph ISSUE8_HOW["🔨 HOW: Implement slowapi rate limiting"]
+            ISSUE8_FIX["```python
+# ✅ FIXED CODE
+from fastapi import Request  # Required for rate limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.post('/token')
+@limiter.limit('5/minute')  # Strict limit on auth
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+    ...
+
+@app.post('/run')
+@limiter.limit('10/minute')  # Limit expensive operations
+async def run_simulation(request: Request, ...):
+    ...
+
+@app.post('/snapshot/upload')
+@limiter.limit('20/minute')
+async def upload_snapshot(request: Request, ...):
+    ...
+```"]
+        end
+
+        subgraph ISSUE8_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE8_TASKS["1. Add slowapi to requirements.txt<br/>2. Initialize Limiter with key function<br/>3. Add rate limits to /token (5/min)<br/>4. Add rate limits to /run (10/min)<br/>5. Add rate limits to upload endpoints<br/>6. Add exception handler for 429 responses"]
+        end
+
+        ISSUE8_CURRENT --> ISSUE8_FIX
+        ISSUE8_FIX --> ISSUE8_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 9: WebSocket Race Conditions
+    %% =====================================================
+    subgraph ISSUE9["🟢 ISSUE 9: WebSocket Race Conditions"]
+        direction TB
+        
+        subgraph ISSUE9_WHERE["📍 WHERE: web/backend/main.py:103-122"]
+            ISSUE9_CURRENT["```python
+# ❌ CURRENT CODE (RACE CONDITION)
+async def broadcast_progress(run_id: str, progress: float) -> None:
+    for ws in list(progress_clients.get(run_id, set())):
+        # Set can be modified during iteration!
+        await ws.send_json({'run_id': run_id, 'progress': progress})
+```"]
+        end
+
+        subgraph ISSUE9_HOW["🔨 HOW: Use asyncio.Lock for thread safety"]
+            ISSUE9_FIX["```python
+# ✅ FIXED CODE
+import asyncio
+from contextlib import asynccontextmanager
+
+class ConnectionManager:
+    def __init__(self):
+        self._clients: Dict[str, set[WebSocket]] = {}
+        self._lock = asyncio.Lock()
+    
+    async def add_client(self, key: str, ws: WebSocket):
+        async with self._lock:
+            self._clients.setdefault(key, set()).add(ws)
+    
+    async def remove_client(self, key: str, ws: WebSocket):
+        async with self._lock:
+            if key in self._clients:
+                self._clients[key].discard(ws)
+    
+    async def broadcast(self, key: str, message: dict):
+        async with self._lock:
+            clients = list(self._clients.get(key, set()))
+        for ws in clients:
+            try:
+                await ws.send_json(message)
+            except Exception:
+                await self.remove_client(key, ws)
+
+progress_manager = ConnectionManager()
+diagnostic_manager = ConnectionManager()
+```"]
+        end
+
+        subgraph ISSUE9_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE9_TASKS["1. Create ConnectionManager class<br/>2. Add asyncio.Lock for thread safety<br/>3. Replace direct dict access with manager<br/>4. Handle disconnected clients gracefully<br/>5. Update all broadcast functions"]
+        end
+
+        ISSUE9_CURRENT --> ISSUE9_FIX
+        ISSUE9_FIX --> ISSUE9_TASKS
+    end
+
+    %% =====================================================
+    %% ISSUE 10: Incomplete Error Handling
+    %% =====================================================
+    subgraph ISSUE10["🟢 ISSUE 10: Incomplete Error Handling"]
+        direction TB
+        
+        subgraph ISSUE10_WHERE["📍 WHERE: web/backend/main.py (file operations)"]
+            ISSUE10_CURRENT["```python
+# ❌ CURRENT CODE (NO ERROR HANDLING)
+path.write_text(json.dumps(req.state))  # Can throw IOError
+return json.loads(path.read_text())      # Can throw IOError/JSONDecodeError
+```"]
+        end
+
+        subgraph ISSUE10_HOW["🔨 HOW: Add comprehensive try/except"]
+            ISSUE10_FIX["```python
+# ✅ FIXED CODE
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error('Unhandled exception: %s', exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={'detail': 'Internal server error'}
+    )
+
+async def safe_read_json(path: Path) -> dict:
+    '''Read JSON file with proper error handling.'''
+    try:
+        content = path.read_text()
+        return json.loads(content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail='Resource not found')
+    except PermissionError:
+        logger.error('Permission denied: %s', path)
+        raise HTTPException(status_code=500, detail='Storage access error')
+    except json.JSONDecodeError as e:
+        logger.error('Invalid JSON in %s: %s', path, e)
+        raise HTTPException(status_code=500, detail='Data corruption detected')
+
+async def safe_write_json(path: Path, data: dict) -> None:
+    '''Write JSON file with proper error handling.'''
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2))
+    except PermissionError:
+        logger.error('Permission denied writing: %s', path)
+        raise HTTPException(status_code=500, detail='Storage write error')
+    except OSError as e:
+        logger.error('OS error writing %s: %s', path, e)
+        raise HTTPException(status_code=500, detail='Storage error')
+```"]
+        end
+
+        subgraph ISSUE10_WHAT["📋 WHAT TO CHANGE"]
+            ISSUE10_TASKS["1. Add global exception handler<br/>2. Create safe_read_json helper<br/>3. Create safe_write_json helper<br/>4. Replace all raw file operations<br/>5. Add structured logging for errors<br/>6. Return proper HTTP status codes"]
+        end
+
+        ISSUE10_CURRENT --> ISSUE10_FIX
+        ISSUE10_FIX --> ISSUE10_TASKS
+    end
+
+    %% =====================================================
+    %% PERSONA: STUDENT REQUIREMENTS
+    %% =====================================================
+    subgraph PERSONA_STUDENT["👨‍🎓 STUDENT REQUIREMENTS"]
+        direction TB
+        
+        subgraph STUDENT_WHERE["📍 WHERE: docs/education/ (new directory)"]
+            STUDENT_STRUCTURE["```
+docs/education/
+├── plasma_fundamentals/
+│   ├── ionization_primer.md
+│   ├── magnetic_pressure.md
+│   └── bennett_relation.md
+├── safety/
+│   ├── electrical_hazards.md
+│   └── radiation_awareness.md
+├── exercises/
+│   ├── beginner/
+│   │   └── circuit_analysis.ipynb
+│   └── advanced/
+│       └── validation_against_data.ipynb
+└── assessments/
+    └── quiz_plasma_basics.md
+```"]
+        end
+
+        subgraph STUDENT_HOW["🔨 HOW: Create interactive notebooks"]
+            STUDENT_EXAMPLE["```python
+# ✅ Example: exercises/beginner/circuit_analysis.ipynb
+'''
+# DPF Circuit Analysis Tutorial
+
+## Learning Objectives
+1. Understand RLC circuit fundamentals
+2. Model energy storage and transfer
+3. Calculate peak current and timing
+
+## Interactive Exercise
+'''
+import numpy as np
+import matplotlib.pyplot as plt
+from dpf2.circuit_solver import solve_rlc
+
+# Try different capacitor values
+C = 10e-6  # 10 μF - change this!
+V0 = 20e3  # 20 kV
+L = 50e-9  # 50 nH
+R = 10e-3  # 10 mΩ
+
+t, I, V = solve_rlc(C, V0, L, R)
+plt.plot(t * 1e6, I / 1e3)
+plt.xlabel('Time (μs)')
+plt.ylabel('Current (kA)')
+plt.title('DPF Current Waveform')
+
+# Quiz: What happens when you double C?
+```"]
+        end
+
+        STUDENT_STRUCTURE --> STUDENT_EXAMPLE
+    end
+
+    %% =====================================================
+    %% PERSONA: ENGINEER REQUIREMENTS
+    %% =====================================================
+    subgraph PERSONA_ENGINEER["👷 ENGINEER REQUIREMENTS"]
+        direction TB
+        
+        subgraph ENGINEER_WHERE["📍 WHERE: tools/engineering/ (new directory)"]
+            ENGINEER_STRUCTURE["```
+tools/engineering/
+├── design/
+│   ├── electrode_optimizer.py
+│   ├── capacitor_bank_calculator.py
+│   └── spark_gap_designer.py
+├── operations/
+│   ├── preshot_checklist.py
+│   └── postshot_analyzer.py
+├── integration/
+│   └── cad_interface.py
+└── component_library/
+    ├── capacitors.json
+    └── switches.json
+```"]
+        end
+
+        subgraph ENGINEER_HOW["🔨 HOW: Create design tools"]
+            ENGINEER_EXAMPLE["```python
+# ✅ tools/engineering/design/capacitor_bank_calculator.py
+from dataclasses import dataclass
+from typing import List, Tuple
+import math
+
+@dataclass
+class Capacitor:
+    capacitance_uF: float
+    voltage_rating_kV: float
+    esr_mohm: float
+    inductance_nH: float
+    cost_usd: float
+
+class CapacitorBankDesigner:
+    '''Design tool for DPF capacitor banks.'''
+    
+    def __init__(self, target_energy_kJ: float, target_voltage_kV: float):
+        self.target_energy = target_energy_kJ * 1000  # Convert to J
+        self.target_voltage = target_voltage_kV * 1000  # Convert to V
+    
+    def calculate_required_capacitance(self) -> float:
+        '''C = 2*E / V^2'''
+        return 2 * self.target_energy / (self.target_voltage ** 2)
+    
+    def design_bank(
+        self, 
+        available_caps: List[Capacitor],
+        max_parallel: int = 10,
+        max_series: int = 4
+    ) -> Tuple[int, int, Capacitor, float]:
+        '''Find optimal series/parallel configuration.'''
+        # Implementation for optimal bank design
+        ...
+
+# Usage:
+designer = CapacitorBankDesigner(target_energy_kJ=10, target_voltage_kV=25)
+print(f'Required capacitance: {designer.calculate_required_capacitance()*1e6:.1f} μF')
+```"]
+        end
+
+        ENGINEER_STRUCTURE --> ENGINEER_EXAMPLE
+    end
+
+    %% =====================================================
+    %% PERSONA: SENIOR SCIENTIST REQUIREMENTS
+    %% =====================================================
+    subgraph PERSONA_SCIENTIST["🔬 SENIOR SCIENTIST REQUIREMENTS"]
+        direction TB
+        
+        subgraph SCIENTIST_WHERE["📍 WHERE: src/dpf2/advanced_physics/ + validation/"]
+            SCIENTIST_STRUCTURE["```
+src/dpf2/advanced_physics/
+├── hall_mhd/
+│   ├── hall_solver.py
+│   ├── constrained_transport.py
+│   └── whistler_dispersion.py
+├── kinetic/
+│   ├── hybrid_pic.py
+│   └── beam_target_fusion.py
+├── radiation/
+│   └── multigroup_transport.py
+└── atomic/
+    └── nlte_ionization.py
+
+validation/
+├── facility_data/
+│   ├── pf1000/
+│   └── pf400j/
+├── uq_pipeline/
+│   ├── sensitivity_analysis.py
+│   └── bayesian_inference.py
+└── synthetic_diagnostics/
+    ├── pinhole_camera.py
+    └── neutron_tof.py
+```"]
+        end
+
+        subgraph SCIENTIST_HOW["🔨 HOW: Implement physics + validation"]
+            SCIENTIST_EXAMPLE["```python
+# ✅ validation/uq_pipeline/sensitivity_analysis.py
+import numpy as np
+from SALib.sample import saltelli
+from SALib.analyze import sobol
+from typing import Dict, List, Callable
+
+class SensitivityAnalyzer:
+    '''Global sensitivity analysis for DPF simulations.'''
+    
+    def __init__(self, model: Callable, parameters: Dict[str, tuple]):
+        '''
+        model: Function mapping parameter dict -> output dict
+        parameters: {'param_name': (min, max), ...}
+        '''
+        self.model = model
+        self.problem = {
+            'num_vars': len(parameters),
+            'names': list(parameters.keys()),
+            'bounds': list(parameters.values())
+        }
+    
+    def run_sobol_analysis(self, n_samples: int = 1024) -> Dict:
+        '''Run Sobol sensitivity analysis.'''
+        # Generate samples
+        param_values = saltelli.sample(self.problem, n_samples)
+        
+        # Run model for each sample
+        Y = np.array([self.model(dict(zip(self.problem['names'], x))) 
+                      for x in param_values])
+        
+        # Analyze
+        Si = sobol.analyze(self.problem, Y)
+        return {
+            'first_order': dict(zip(self.problem['names'], Si['S1'])),
+            'total_order': dict(zip(self.problem['names'], Si['ST'])),
+            'confidence': Si['S1_conf']
+        }
+
+# Usage for neutron yield sensitivity:
+analyzer = SensitivityAnalyzer(
+    model=run_dpf_simulation,
+    parameters={
+        'pressure_mbar': (1, 10),
+        'voltage_kV': (15, 30),
+        'anode_radius_cm': (0.5, 2.0)
+    }
+)
+results = analyzer.run_sobol_analysis(n_samples=2048)
+```"]
+        end
+
+        SCIENTIST_STRUCTURE --> SCIENTIST_EXAMPLE
+    end
+
+    %% =====================================================
+    %% DEPENDENCIES & TIMELINE
+    %% =====================================================
+    
+    %% Phase connections
+    ISSUE1 --> ISSUE2
+    ISSUE2 --> ISSUE6
+    ISSUE6 --> ISSUE7
+    ISSUE7 --> ISSUE8
+    
+    ISSUE4 --> ISSUE5
+    
+    ISSUE9 --> ISSUE10
+    
+    %% Persona connections to infrastructure
+    ISSUE5 --> PERSONA_ENGINEER
+    ISSUE3 --> PERSONA_SCIENTIST
+    
+    %% =====================================================
+    %% TIMELINE SUMMARY
+    %% =====================================================
+    subgraph TIMELINE["⏱️ IMPLEMENTATION TIMELINE"]
+        direction LR
+        T1["Week 1-2<br/>─────────<br/>Security Fixes<br/>(Issues 1-2, 6-8)"]
+        T2["Month 1-2<br/>─────────<br/>Infrastructure<br/>(Issues 4-5, 9-10)"]
+        T3["Month 3-8<br/>─────────<br/>Physics Core<br/>(Issue 3)"]
+        T4["Month 9+<br/>─────────<br/>Personas<br/>(Student/Eng/Sci)"]
+        
+        T1 --> T2 --> T3 --> T4
+    end
+
+    %% =====================================================
+    %% PRIORITY MATRIX
+    %% =====================================================
+    subgraph PRIORITY["📊 PRIORITY MATRIX"]
+        direction TB
+        P1["🔴 CRITICAL (Do First)<br/>───────────────────<br/>• Issue 1: JWT Auth<br/>• Issue 2: Credentials<br/>• Issue 3: Physics Caps"]
+        P2["🟡 HIGH (Week 1-4)<br/>───────────────────<br/>• Issue 4: API Contracts<br/>• Issue 5: HPC Dispatch<br/>• Issue 6: Endpoint Auth"]
+        P3["🟢 MEDIUM (Month 1-2)<br/>───────────────────<br/>• Issue 7: UUIDs<br/>• Issue 8: Rate Limits<br/>• Issue 9: WebSocket<br/>• Issue 10: Error Handling"]
+    end
+
+    %% Styling
+    classDef critical fill:#ffcccc,stroke:#cc0000,color:#000
+    classDef high fill:#fff3cd,stroke:#ffc107,color:#000
+    classDef medium fill:#d4edda,stroke:#28a745,color:#000
+    classDef persona fill:#e8f4f8,stroke:#17a2b8,color:#000
+    classDef timeline fill:#f8f9fa,stroke:#6c757d,color:#000
+    
+    class ISSUE1,ISSUE2,ISSUE3 critical
+    class ISSUE4,ISSUE5,ISSUE6 high
+    class ISSUE7,ISSUE8,ISSUE9,ISSUE10 medium
+    class PERSONA_STUDENT,PERSONA_ENGINEER,PERSONA_SCIENTIST persona
+    class TIMELINE,PRIORITY timeline

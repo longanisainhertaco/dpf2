@@ -357,6 +357,16 @@ The Mermaid.js diagram in `CRITICAL_ANALYSIS_RESOLUTION_PLAN.mmd` can be viewed:
 3. **VS Code:** With Mermaid extension
 4. **MkDocs:** Include in documentation with mermaid plugin
 
+### Implementation Guide with Code Snippets
+
+For detailed implementation guidance with specific code snippets showing **where**, **how**, and **what** to change for each issue, see `CRITICAL_ANALYSIS_IMPLEMENTATION_GUIDE.mmd`. This file provides:
+
+- Exact file locations and line numbers for each issue
+- Before/after code examples with correct implementations
+- Step-by-step task checklists for each fix
+- Persona-specific implementation examples (Student, Engineer, Senior Scientist)
+- Timeline and priority matrix for implementation
+
 ---
 
 ## Persona-Specific Requirements
