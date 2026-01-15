@@ -6,7 +6,7 @@ import os
 import re
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import asyncio
 import random
@@ -48,7 +48,12 @@ logging.basicConfig(level=logging.INFO, filename=str(AUDIT_LOG), format="%(ascti
 logger = logging.getLogger("dpf-web")
 
 # JWT Configuration
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", secrets.token_urlsafe(32))
+_env_secret = os.environ.get("JWT_SECRET_KEY")
+if _env_secret:
+    SECRET_KEY = _env_secret
+else:
+    SECRET_KEY = secrets.token_urlsafe(32)
+    logger.warning("JWT_SECRET_KEY not set, using generated secret (tokens will be invalid after restart)")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
@@ -89,6 +94,8 @@ def _init_admin_user():
     """Initialize admin user from environment variable if not exists."""
     admin_password = os.environ.get("DPF2_ADMIN_PASSWORD")
     if admin_password:
+        if len(admin_password) < 12:
+            logger.warning("DPF2_ADMIN_PASSWORD should be at least 12 characters for security")
         db = SessionLocal()
         try:
             existing = db.query(User).filter(User.username == "admin").first()
@@ -126,8 +133,9 @@ regime_clients: set[WebSocket] = set()
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
-    to_encode.update({"exp": expire, "iat": datetime.utcnow()})
+    now = datetime.now(timezone.utc)
+    expire = now + (expires_delta or timedelta(minutes=15))
+    to_encode.update({"exp": expire, "iat": now})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -355,8 +363,8 @@ async def save_snapshot(request: Request, req: SnapshotRequest, user=Depends(get
 
 @app.get("/snapshot/{snap_id}")
 async def get_snapshot(snap_id: str, user=Depends(get_current_user)):
-    # Validate snap_id format to prevent path traversal
-    if not re.match(r"^snap-[a-f0-9]+$", snap_id):
+    # Validate snap_id format to prevent path traversal (UUID4 hex format)
+    if not re.match(r"^snap-[a-f0-9]{32}$", snap_id):
         raise HTTPException(status_code=400, detail="Invalid snapshot ID format")
     path = SNAPSHOT_DIR / f"{snap_id}.json"
     if not path.exists():
