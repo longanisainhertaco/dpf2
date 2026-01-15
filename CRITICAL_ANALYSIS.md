@@ -363,6 +363,8 @@ The Mermaid.js diagram in `CRITICAL_ANALYSIS_RESOLUTION_PLAN.mmd` can be viewed:
 
 This section outlines the specific needs and requirements for three key user personas: students learning DPF physics, engineers developing and operating DPF systems, and senior scientists conducting advanced research.
 
+**Methodology:** These requirements were identified through analysis of the existing codebase gaps, review of comparable plasma physics simulation tools (Lee Model, MACH2, WarpX), literature on DPF research community needs, and domain expertise in pulsed power and plasma physics engineering. The three personas represent the primary user archetypes in the DPF research community based on facility operational experience and academic collaboration patterns.
+
 ### What's Needed for a Student
 
 Students approaching Dense Plasma Focus technology need a structured learning path that builds from fundamental physics to operational understanding. The current project has gaps that must be addressed for effective educational use.
@@ -414,14 +416,22 @@ docs/education/
 │   ├── radiation_awareness.md
 │   └── lab_protocols.md
 ├── exercises/
-│   ├── circuit_analysis.ipynb
-│   ├── sheath_dynamics.ipynb
-│   ├── parameter_sweeps.ipynb
-│   └── validation_against_data.ipynb
+│   ├── beginner/
+│   │   ├── circuit_analysis.ipynb
+│   │   └── basic_parameters.ipynb
+│   ├── intermediate/
+│   │   ├── sheath_dynamics.ipynb
+│   │   └── parameter_sweeps.ipynb
+│   └── advanced/
+│       ├── validation_against_data.ipynb
+│       └── instability_analysis.ipynb
 └── assessments/
-    ├── quiz_plasma_basics.md
-    ├── quiz_circuit_coupling.md
-    └── project_templates.md
+    ├── beginner/
+    │   └── quiz_plasma_basics.md
+    ├── intermediate/
+    │   └── quiz_circuit_coupling.md
+    └── advanced/
+        └── project_templates.md
 ```
 
 ---
@@ -468,8 +478,10 @@ Engineers require practical tools for designing, building, commissioning, and op
 
 #### Engineering-Focused Infrastructure Needs
 
-| Component | Description | Effort |
-|-----------|-------------|--------|
+*Note: Effort estimates assume a team of 2 full-time developers with plasma physics background. Calendar months shown; actual person-months are approximately 2× the calendar estimate.*
+
+| Component | Description | Effort (Calendar) |
+|-----------|-------------|-------------------|
 | Component Library | Database of commercial capacitors, switches, cables with parasitic models | 2 months |
 | Design Wizard | Step-by-step workflow for new DPF system design | 3 months |
 | Commissioning Suite | Automated checkout procedures and acceptance tests | 2 months |
@@ -579,22 +591,29 @@ Senior scientists require advanced physics fidelity, rigorous validation against
 
 ```
 src/advanced_physics/
+├── __init__.py
 ├── hall_mhd/
+│   ├── __init__.py
 │   ├── hall_solver.py
 │   ├── constrained_transport.py
 │   └── whistler_dispersion.py
 ├── kinetic/
+│   ├── __init__.py
 │   ├── hybrid_pic.py
 │   ├── ecsim_pusher.py
 │   └── beam_target_fusion.py
 ├── radiation/
+│   ├── __init__.py
 │   ├── multigroup_transport.py
-│   ├── opacity_tables.py
 │   └── xray_diagnostics.py
-└── atomic/
-    ├── nlte_ionization.py
-    ├── cre_kinetics.py
-    └── eos_tables.py
+├── atomic/
+│   ├── __init__.py
+│   ├── nlte_ionization.py
+│   └── cre_kinetics.py
+└── data/
+    ├── opacity_tables/
+    ├── eos_tables/
+    └── cross_sections/
 
 validation/
 ├── facility_data/
@@ -616,13 +635,15 @@ validation/
 
 #### Research Roadmap for Scientific Credibility
 
-| Phase | Milestone | Timeline | Validation Target |
-|-------|-----------|----------|-------------------|
-| 1 | Hall-MHD operational | Months 3-8 | Whistler wave benchmarks |
-| 2 | Hybrid PIC integration | Months 9-18 | Beam-target fusion yields |
-| 3 | Full radiation transport | Months 12-24 | X-ray emission spectra |
-| 4 | UQ pipeline operational | Months 18-30 | Published uncertainty analysis |
-| 5 | Multi-facility validation | Months 24-36 | Peer-reviewed comparisons |
+*Note: Phases 2-3 and 3-4 overlap intentionally to allow parallel development tracks. Hall-MHD development can proceed independently of radiation transport; hybrid PIC can begin once Hall-MHD foundations are stable. Dependencies are noted where phases must be sequential.*
+
+| Phase | Milestone | Timeline | Validation Target | Dependencies |
+|-------|-----------|----------|-------------------|--------------|
+| 1 | Hall-MHD operational | Months 3-8 | Whistler wave benchmarks | Phase 0 (infrastructure) |
+| 2 | Hybrid PIC integration | Months 9-18 | Beam-target fusion yields | Phase 1 (Hall-MHD core) |
+| 3 | Full radiation transport | Months 12-24 | X-ray emission spectra | Can parallel Phase 2 |
+| 4 | UQ pipeline operational | Months 18-30 | Published uncertainty analysis | Phases 1-3 complete |
+| 5 | Multi-facility validation | Months 24-36 | Peer-reviewed comparisons | All prior phases |
 
 ---
 
