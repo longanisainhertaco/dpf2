@@ -1,0 +1,199 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9', 'primaryTextColor': '#fff', 'primaryBorderColor': '#2d5986', 'lineColor': '#5b9bd5', 'secondaryColor': '#006400', 'tertiaryColor': '#fff', 'background': '#f5f5f5'}}}%%
+
+flowchart TB
+    subgraph TITLE["DPF2 CRITICAL ANALYSIS RESOLUTION PLAN"]
+        direction TB
+    end
+
+    %% =====================================================
+    %% PHASE 0: CRITICAL SECURITY FIXES (Immediate)
+    %% =====================================================
+    subgraph PHASE0["🔴 PHASE 0: CRITICAL SECURITY FIXES (Week 1-2)"]
+        direction TB
+        
+        SEC1["🔒 SEC-1: Replace Auth System<br/>─────────────────────<br/>• Implement JWT tokens<br/>• Add signing & expiration<br/>• Remove username-as-token<br/>Impact: CRITICAL"]
+        
+        SEC2["🔒 SEC-2: Secure Credentials<br/>─────────────────────<br/>• Remove hardcoded passwords<br/>• Implement bcrypt hashing<br/>• Use environment variables<br/>Impact: CRITICAL"]
+        
+        SEC3["🔒 SEC-3: Add Authentication<br/>─────────────────────<br/>• Protect snapshot endpoints<br/>• Validate file uploads<br/>• Add size limits & types<br/>Impact: HIGH"]
+        
+        SEC4["🔒 SEC-4: Secure Identifiers<br/>─────────────────────<br/>• Replace timestamp IDs<br/>• Use UUID4 for run_id<br/>• Prevent enumeration<br/>Impact: MEDIUM"]
+        
+        SEC5["🔒 SEC-5: Rate Limiting<br/>─────────────────────<br/>• Add API throttling<br/>• Prevent brute force<br/>• Protect against DoS<br/>Impact: MEDIUM"]
+        
+        SEC1 --> SEC2
+        SEC2 --> SEC3
+        SEC3 --> SEC4
+        SEC4 --> SEC5
+    end
+
+    %% =====================================================
+    %% PHASE 1: INFRASTRUCTURE FOUNDATION (Months 1-2)
+    %% =====================================================
+    subgraph PHASE1["🟡 PHASE 1: INFRASTRUCTURE FOUNDATION (Months 1-2)"]
+        direction TB
+        
+        INFRA1["🗄️ INFRA-1: Database Layer<br/>─────────────────────<br/>• Implement PostgreSQL/SQLite<br/>• User management tables<br/>• Session storage<br/>• Results persistence<br/>Impact: HIGH"]
+        
+        INFRA2["⚙️ INFRA-2: CI/CD Pipeline<br/>─────────────────────<br/>• GitHub Actions workflows<br/>• Automated testing<br/>• Coverage reporting<br/>• Linting & formatting<br/>Impact: HIGH"]
+        
+        INFRA3["📝 INFRA-3: Error Handling<br/>─────────────────────<br/>• Comprehensive try/except<br/>• File operation guards<br/>• Proper HTTP error codes<br/>• Logging improvements<br/>Impact: MEDIUM"]
+        
+        INFRA4["📦 INFRA-4: API Corrections<br/>─────────────────────<br/>• Fix /results endpoint<br/>• Separate config vs results<br/>• Implement real HPC dispatch<br/>• Document API contracts<br/>Impact: HIGH"]
+        
+        INFRA1 --> INFRA2
+        INFRA2 --> INFRA3
+        INFRA3 --> INFRA4
+    end
+
+    %% =====================================================
+    %% PHASE 2: PHYSICS ENGINE CORE (Months 3-8)
+    %% =====================================================
+    subgraph PHASE2["🟢 PHASE 2: PHYSICS ENGINE CORE (Months 3-8)"]
+        direction TB
+        
+        PHYS1["⚛️ PHYS-1: Hall-MHD Solver<br/>─────────────────────<br/>• Implement 3D resistive Hall-MHD<br/>• Braginskii transport<br/>• Constrained transport (CT)<br/>• AMReX integration<br/>Impact: CRITICAL"]
+        
+        PHYS2["🔌 PHYS-2: Circuit Coupling<br/>─────────────────────<br/>• Dynamic inductance L(t)<br/>• Back-EMF modeling<br/>• PETSc ODE integration<br/>• Multi-stage RLC support<br/>Impact: HIGH"]
+        
+        PHYS3["📊 PHYS-3: EOS & Ionization<br/>─────────────────────<br/>• SESAME/LEOS tables<br/>• Saha ionization model<br/>• CR rate coefficients<br/>• Mixture thermodynamics<br/>Impact: HIGH"]
+        
+        PHYS4["☢️ PHYS-4: Radiation Module<br/>─────────────────────<br/>• Optically thin losses<br/>• Gray FLD transport<br/>• Multigroup capability<br/>• Non-LTE corrections<br/>Impact: MEDIUM"]
+        
+        PHYS1 --> PHYS2
+        PHYS2 --> PHYS3
+        PHYS3 --> PHYS4
+    end
+
+    %% =====================================================
+    %% PHASE 3: ADVANCED PHYSICS (Months 9-18)
+    %% =====================================================
+    subgraph PHASE3["🔵 PHASE 3: ADVANCED PHYSICS (Months 9-18)"]
+        direction TB
+        
+        ADV1["🌀 ADV-1: Instability Modeling<br/>─────────────────────<br/>• m=0 sausage modes<br/>• m=1 kink modes<br/>• Growth rate tracking<br/>• Anomalous resistivity<br/>Impact: HIGH"]
+        
+        ADV2["🌫️ ADV-2: Neutral Gas<br/>─────────────────────<br/>• DSMC/hybrid fluid<br/>• Neutral-plasma coupling<br/>• Puff timing control<br/>• LXCat validation<br/>Impact: MEDIUM"]
+        
+        ADV3["⚡ ADV-3: Hybrid PIC<br/>─────────────────────<br/>• WarpX PIC window<br/>• Fast ion kinetics<br/>• Beam-target fusion<br/>• Energy distribution<br/>Impact: MEDIUM"]
+        
+        ADV4["🛡️ ADV-4: Vacuum EM<br/>─────────────────────<br/>• FDTD vacuum solver<br/>• Return path modeling<br/>• Boundary impedance<br/>• EM field coupling<br/>Impact: MEDIUM"]
+        
+        ADV1 --> ADV2
+        ADV2 --> ADV3
+        ADV3 --> ADV4
+    end
+
+    %% =====================================================
+    %% PHASE 4: HPC & PERFORMANCE (Months 12-24)
+    %% =====================================================
+    subgraph PHASE4["🟣 PHASE 4: HPC & PERFORMANCE (Months 12-24)"]
+        direction TB
+        
+        HPC1["🖥️ HPC-1: GPU Acceleration<br/>─────────────────────<br/>• CUDA kernel development<br/>• AMReX GPU backend<br/>• Memory optimization<br/>• Multi-GPU support<br/>Impact: HIGH"]
+        
+        HPC2["🔗 HPC-2: MPI Scaling<br/>─────────────────────<br/>• Domain decomposition<br/>• Load balancing<br/>• Communication optimization<br/>• Strong/weak scaling tests<br/>Impact: HIGH"]
+        
+        HPC3["📁 HPC-3: I/O & Checkpoints<br/>─────────────────────<br/>• HDF5/openPMD output<br/>• Parallel I/O<br/>• Restart capabilities<br/>• Provenance tracking<br/>Impact: MEDIUM"]
+        
+        HPC4["📦 HPC-4: Containers<br/>─────────────────────<br/>• Docker/Singularity images<br/>• Reproducible builds<br/>• Documented dependencies<br/>• HPC deployment guides<br/>Impact: MEDIUM"]
+        
+        HPC1 --> HPC2
+        HPC2 --> HPC3
+        HPC3 --> HPC4
+    end
+
+    %% =====================================================
+    %% PHASE 5: VALIDATION & VERIFICATION (Months 18-36)
+    %% =====================================================
+    subgraph PHASE5["⬜ PHASE 5: VALIDATION & VERIFICATION (Months 18-36)"]
+        direction TB
+        
+        VV1["✅ VV-1: Numerics Verification<br/>─────────────────────<br/>• Brio-Wu shock tests<br/>• Orszag-Tang vortex<br/>• MMS convergence tests<br/>• Order of accuracy checks<br/>Impact: HIGH"]
+        
+        VV2["📈 VV-2: Synthetic Diagnostics<br/>─────────────────────<br/>• Neutron TOF spectra<br/>• X-ray imaging<br/>• Interferometry<br/>• B-dot probes<br/>Impact: HIGH"]
+        
+        VV3["🔬 VV-3: Facility Validation<br/>─────────────────────<br/>• PF-400 benchmarks<br/>• PF-1000 datasets<br/>• I(t) matching ±10%<br/>• Neutron yield ×2<br/>Impact: CRITICAL"]
+        
+        VV4["📊 VV-4: UQ Pipeline<br/>─────────────────────<br/>• Bayesian calibration<br/>• Sensitivity analysis<br/>• Surrogate models<br/>• Confidence intervals<br/>Impact: MEDIUM"]
+        
+        VV1 --> VV2
+        VV2 --> VV3
+        VV3 --> VV4
+    end
+
+    %% =====================================================
+    %% PHASE 6: UX & WORKFLOW (Ongoing)
+    %% =====================================================
+    subgraph PHASE6["⬛ PHASE 6: UX & WORKFLOW (Ongoing)"]
+        direction TB
+        
+        UX1["💻 UX-1: CLI Enhancement<br/>─────────────────────<br/>• Parameter sweep commands<br/>• Batch execution support<br/>• Progress visualization<br/>• Result comparison tools<br/>Impact: MEDIUM"]
+        
+        UX2["🎨 UX-2: GUI Improvements<br/>─────────────────────<br/>• Project management<br/>• Multi-run comparison<br/>• Real-time dashboards<br/>• Educational overlays<br/>Impact: MEDIUM"]
+        
+        UX3["📚 UX-3: Documentation<br/>─────────────────────<br/>• API reference<br/>• Physics theory guides<br/>• Tutorial notebooks<br/>• Deployment guides<br/>Impact: HIGH"]
+        
+        UX4["🔄 UX-4: Optimization<br/>─────────────────────<br/>• Multi-objective optimizer<br/>• Yield optimization<br/>• Design space exploration<br/>• Pareto front analysis<br/>Impact: LOW"]
+        
+        UX1 --> UX2
+        UX2 --> UX3
+        UX3 --> UX4
+    end
+
+    %% =====================================================
+    %% PHASE DEPENDENCIES
+    %% =====================================================
+    
+    %% Security must come first
+    PHASE0 --> PHASE1
+    
+    %% Infrastructure enables physics
+    PHASE1 --> PHASE2
+    
+    %% Physics core enables advanced physics
+    PHASE2 --> PHASE3
+    
+    %% Physics enables HPC optimization
+    PHASE2 --> PHASE4
+    
+    %% Advanced physics and HPC enable V&V
+    PHASE3 --> PHASE5
+    PHASE4 --> PHASE5
+    
+    %% V&V informs UX (but UX is ongoing)
+    PHASE5 --> PHASE6
+    PHASE1 -.-> PHASE6
+
+    %% =====================================================
+    %% LEGEND
+    %% =====================================================
+    subgraph LEGEND["📋 LEGEND"]
+        direction LR
+        L1["🔴 CRITICAL<br/>Blocking"]
+        L2["🟡 HIGH<br/>Priority"]
+        L3["🟢 MEDIUM<br/>Important"]
+        L4["🔵 LOW<br/>Enhancement"]
+    end
+
+    %% =====================================================
+    %% CURRENT STATE SUMMARY
+    %% =====================================================
+    subgraph SUMMARY["📊 CURRENT PROJECT STATE"]
+        direction LR
+        S1["Overall Grade: D<br/>─────────────────<br/>Security: F<br/>Physics: F<br/>Infrastructure: D<br/>Documentation: C-<br/>Testing: C"]
+        S2["Critical Issues: 10<br/>─────────────────<br/>Security Flaws: 7<br/>Physics Gaps: 16<br/>Missing Tests: 20+<br/>Incomplete APIs: 5"]
+        S3["Risk Level: HIGH<br/>─────────────────<br/>Not production ready<br/>Auth bypass exists<br/>No real HPC dispatch<br/>Limited validation"]
+    end
+
+    %% Styling
+    classDef critical fill:#ff6b6b,stroke:#c92a2a,color:#fff
+    classDef high fill:#ffd43b,stroke:#fab005,color:#000
+    classDef medium fill:#69db7c,stroke:#37b24d,color:#000
+    classDef low fill:#74c0fc,stroke:#339af0,color:#000
+    classDef phase fill:#e9ecef,stroke:#adb5bd,color:#000
+    
+    class SEC1,SEC2,PHYS1,VV3 critical
+    class SEC3,INFRA1,INFRA2,INFRA4,PHYS2,PHYS3,ADV1,HPC1,HPC2,VV1,VV2,UX3 high
+    class SEC4,SEC5,INFRA3,PHYS4,ADV2,ADV3,ADV4,HPC3,HPC4,VV4,UX1,UX2 medium
+    class UX4 low
