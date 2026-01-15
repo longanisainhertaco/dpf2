@@ -12,7 +12,7 @@ from pathlib import Path
 import asyncio
 import random
 import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import bcrypt
 import jwt
@@ -48,6 +48,16 @@ UPLOAD_DIR = BASE_DIR / "uploads"
 SNAPSHOT_DIR = BASE_DIR / "snapshots"
 logging.basicConfig(level=logging.INFO, filename=str(AUDIT_LOG), format="%(asctime)s %(message)s")
 logger = logging.getLogger("dpf-web")
+
+# Validation patterns
+RUN_ID_PATTERN = re.compile(r"^run-[a-f0-9]{32}$")
+SNAP_ID_PATTERN = re.compile(r"^snap-[a-f0-9]{32}$")
+
+
+def validate_run_id(run_id: str) -> None:
+    """Validate run_id format to prevent path traversal."""
+    if not RUN_ID_PATTERN.match(run_id):
+        raise HTTPException(status_code=400, detail="Invalid run ID format")
 
 
 # --- Safe File I/O Helpers (Issue 10) ---
@@ -99,7 +109,7 @@ class ConnectionManager:
     """Thread-safe WebSocket connection manager with asyncio.Lock."""
     
     def __init__(self) -> None:
-        self._connections: Dict[str, set[WebSocket]] = {}
+        self._connections: Dict[str, Set[WebSocket]] = {}
         self._lock = asyncio.Lock()
     
     async def add_client(self, key: str, websocket: WebSocket) -> None:
@@ -141,7 +151,7 @@ class GlobalConnectionManager:
     """Thread-safe WebSocket connection manager for global broadcasts (no key)."""
     
     def __init__(self) -> None:
-        self._connections: set[WebSocket] = set()
+        self._connections: Set[WebSocket] = set()
         self._lock = asyncio.Lock()
     
     async def add_client(self, websocket: WebSocket) -> None:
@@ -476,9 +486,7 @@ def dispatch_to_hpc(cfg: DPFConfig, username: str) -> str:
 @app.get("/runs/{run_id}/config")
 def get_run_config(run_id: str, user=Depends(get_current_user)):
     """Get the configuration for a specific run."""
-    # Validate run_id format
-    if not re.match(r"^run-[a-f0-9]{32}$", run_id):
-        raise HTTPException(status_code=400, detail="Invalid run ID format")
+    validate_run_id(run_id)
     path = UPLOAD_DIR / f"{run_id}.json"
     logger.info("action=get_config user=%s run_id=%s", user["username"], run_id)
     return safe_read_json(path)
@@ -487,9 +495,7 @@ def get_run_config(run_id: str, user=Depends(get_current_user)):
 @app.get("/runs/{run_id}/results")
 def get_run_results(run_id: str, user=Depends(get_current_user)):
     """Get the simulation results for a specific run."""
-    # Validate run_id format
-    if not re.match(r"^run-[a-f0-9]{32}$", run_id):
-        raise HTTPException(status_code=400, detail="Invalid run ID format")
+    validate_run_id(run_id)
     path = RESULTS_DIR / f"{run_id}.json"
     logger.info("action=get_results user=%s run_id=%s", user["username"], run_id)
     return safe_read_json(path)
@@ -498,9 +504,7 @@ def get_run_results(run_id: str, user=Depends(get_current_user)):
 @app.get("/runs/{run_id}/status")
 def get_run_status(run_id: str, user=Depends(get_current_user)):
     """Get the status of a simulation run."""
-    # Validate run_id format
-    if not re.match(r"^run-[a-f0-9]{32}$", run_id):
-        raise HTTPException(status_code=400, detail="Invalid run ID format")
+    validate_run_id(run_id)
     status_info = get_job_status(run_id)
     if status_info.get("status") == "not_found":
         raise HTTPException(status_code=404, detail="Run not found")
@@ -517,9 +521,7 @@ def get_results_legacy(run_id: str, user=Depends(require_role("admin"))):
     This endpoint is kept for backward compatibility but returns config data.
     For actual results, use /runs/{run_id}/results.
     """
-    # Validate run_id format
-    if not re.match(r"^run-[a-f0-9]{32}$", run_id):
-        raise HTTPException(status_code=400, detail="Invalid run ID format")
+    validate_run_id(run_id)
     path = UPLOAD_DIR / f"{run_id}.json"
     logger.info("action=get_results_legacy user=%s run_id=%s", user["username"], run_id)
     return safe_read_json(path)
@@ -544,7 +546,7 @@ async def save_snapshot(request: Request, req: SnapshotRequest, user=Depends(get
 @app.get("/snapshot/{snap_id}")
 async def get_snapshot(snap_id: str, user=Depends(get_current_user)):
     # Validate snap_id format to prevent path traversal (UUID4 hex format)
-    if not re.match(r"^snap-[a-f0-9]{32}$", snap_id):
+    if not SNAP_ID_PATTERN.match(snap_id):
         raise HTTPException(status_code=400, detail="Invalid snapshot ID format")
     path = SNAPSHOT_DIR / f"{snap_id}.json"
     logger.info("action=get_snapshot user=%s id=%s", user["username"], snap_id)
