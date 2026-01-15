@@ -11,3 +11,9 @@ tqdm
 fastapi
 uvicorn
 python-multipart
+PyJWT
+bcrypt
+sqlalchemy
+slowapi
+celery
+redis
