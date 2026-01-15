@@ -19,3 +19,5 @@ web/uploads/
 # Benchmark artifacts
 docs/performance/*.png
 docs/performance/run_manifest.json
+*.db
+*.egg-info/

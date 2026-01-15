@@ -1,5 +1,0 @@
-Simulation
-cad_interface
-dpf2
-hybrid_core
-pydantic
