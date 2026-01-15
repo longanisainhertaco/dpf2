@@ -179,8 +179,10 @@ def bosch_hale_reactivity(
         )
 
     numerator = C1 * theta * np.sqrt(xi / (mc2 * T_safe ** 3)) * np.exp(-3.0 * xi)
-    denominator = 1.0 + T_safe * (C2 + T_safe * (C4 + T_safe * C6))
-    denominator = denominator + T_safe * (C3 + T_safe * (C5 + T_safe * C7))
+    # Bosch-Hale denominator: (1 + T*(C2 + T*(C4 + T*C6))) * (1 + T*(C3 + T*(C5 + T*C7)))
+    denom1 = 1.0 + T_safe * (C2 + T_safe * (C4 + T_safe * C6))
+    denom2 = 1.0 + T_safe * (C3 + T_safe * (C5 + T_safe * C7))
+    denominator = denom1 * denom2
 
     reactivity = numerator / denominator
 

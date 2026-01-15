@@ -269,13 +269,20 @@ class MultigroupRadiationSolver:
                 kappa[idx] = self.opacity_func(rho[idx], T[idx], E)
             return kappa
 
+        # Default opacity model: simplified Kramers-like scaling
+        # kappa ~ rho / (E^3 * (1 - exp(-E/kT)))
+        # This is a simplified model suitable for testing and provides
+        # correct qualitative behavior (decreasing with photon energy).
+        # For production use, provide a custom opacity_func with proper
+        # atomic physics or use tabulated opacities from FLYCHK/OpenADAS.
         E = self.groups[group_index].E_center
-        E_J = E * 1.602176634e-19
+        E_J = E * 1.602176634e-19  # Convert eV to J
 
-        kappa_0 = 1e4
+        kappa_0 = 1e4  # Scaling constant [m^2/kg * eV^3]
 
         x = E_J / (k_B * np.maximum(T, 1.0))
 
+        # Kramers-like opacity with stimulated emission correction
         kappa = kappa_0 * rho * (1.0 - np.exp(-x)) / np.maximum(x ** 3, 1e-30)
 
         return np.maximum(kappa, 1e-10)

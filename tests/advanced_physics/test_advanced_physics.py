@@ -140,13 +140,14 @@ class TestHallMHDSolver3D:
         solver = HallMHDSolver3D(grid=grid, eta=1e-4)
 
         # Create initial state
+        mu_0 = 4e-7 * np.pi  # Permeability of free space
         rho = np.ones(grid.shape)
         mom = np.zeros(grid.shape + (3,))
         B = np.zeros(grid.shape + (3,))
         B[..., 2] = 1.0
         # Proper energy with thermal + magnetic
         thermal_e = 1e5 / (5.0/3.0 - 1)
-        mag_e = 1.0**2 / (2 * 4e-7 * np.pi)
+        mag_e = 1.0**2 / (2 * mu_0)
         energy = np.ones(grid.shape) * (thermal_e + mag_e)
 
         state = MHDState3D(rho=rho, mom=mom, energy=energy, B=B)

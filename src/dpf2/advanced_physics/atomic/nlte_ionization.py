@@ -197,7 +197,12 @@ class NLTEIonization:
                 S[z] = 0.0
                 continue
 
-            a = 4.5e-14
+            # Lotz formula coefficient for electron impact ionization
+            # Units: m^3/s when I_z is in eV
+            # Reference: W. Lotz, "Electron-impact ionization cross-sections and
+            # ionization rate coefficients for atoms and ions", Z. Physik 216, 241 (1968)
+            # Valid for temperatures where kT >> ionization energy is not satisfied
+            a = 4.5e-14  # [m^3 eV^2 / s]
 
             S[z] = a * np.log(1.0 + u) / (u * I_z ** 2) * np.exp(-I_z / kT_eV)
 

@@ -42,7 +42,10 @@ def ion_inertial_length(n_e: float) -> float:
     float
         Ion inertial length [m].
     """
-    omega_pi = np.sqrt(n_e * q_e ** 2 / (m_p * mu_0 * c_light ** 2)) * c_light
+    # omega_pi = sqrt(n_i * q_e^2 / (m_p * epsilon_0)) where epsilon_0 = 1/(mu_0 * c^2)
+    # Simplifies to: omega_pi = sqrt(n_e * q_e^2 * mu_0 * c^2 / m_p) = c * sqrt(n_e * q_e^2 * mu_0 / m_p)
+    epsilon_0 = 1.0 / (mu_0 * c_light ** 2)
+    omega_pi = np.sqrt(n_e * q_e ** 2 / (m_p * epsilon_0))
     return c_light / max(omega_pi, 1e-30)
 
 
