@@ -12,6 +12,11 @@ This document provides a comprehensive critical analysis of the DPF2 (Dense Plas
 4. [Resolution Plan Overview](#resolution-plan-overview)
 5. [Risk Assessment](#risk-assessment)
 6. [Recommendations](#recommendations)
+7. [Persona-Specific Requirements](#persona-specific-requirements)
+   - [What's Needed for a Student](#whats-needed-for-a-student)
+   - [What's Needed for an Engineer](#whats-needed-for-an-engineer)
+   - [What's Needed for a Senior Scientist](#whats-needed-for-a-senior-scientist)
+8. [Cross-Cutting Needs Across All Personas](#cross-cutting-needs-across-all-personas)
 
 ---
 
@@ -354,6 +359,302 @@ The Mermaid.js diagram in `CRITICAL_ANALYSIS_RESOLUTION_PLAN.mmd` can be viewed:
 
 ---
 
+## Persona-Specific Requirements
+
+This section outlines the specific needs and requirements for three key user personas: students learning DPF physics, engineers developing and operating DPF systems, and senior scientists conducting advanced research.
+
+### What's Needed for a Student
+
+Students approaching Dense Plasma Focus technology need a structured learning path that builds from fundamental physics to operational understanding. The current project has gaps that must be addressed for effective educational use.
+
+#### Foundational Knowledge Requirements
+
+| Topic | Current State | What's Needed | Priority |
+|-------|---------------|---------------|----------|
+| Basic plasma physics | Partial docs | Complete primer on ionization, magnetic confinement, plasma parameters | High |
+| Circuit fundamentals | Basic coverage | Interactive tutorials on RLC circuits, energy storage, impedance matching | High |
+| MHD introduction | Theory doc exists | Step-by-step derivations with physical intuition | Medium |
+| Dimensional analysis | Missing | Exercises on scaling laws (Bennett relation, pinch dynamics) | Medium |
+| Safety awareness | Missing | Electrical safety, radiation awareness, lab protocols | Critical |
+
+#### Educational Gaps to Address
+
+1. **Conceptual Visualization Tools**
+   - Need animated visualizations of sheath dynamics (rundown, lift-off, radial collapse)
+   - Interactive parameter exploration showing cause-effect relationships
+   - 3D representations of magnetic field topology during pinch formation
+
+2. **Progressive Complexity Curriculum**
+   - Level 1: Snowplow model with ideal assumptions
+   - Level 2: Circuit coupling and real inductance effects
+   - Level 3: Introduction to instabilities (m=0, m=1 modes)
+   - Level 4: Radiation and fusion product generation
+
+3. **Hands-on Learning Modules**
+   - Jupyter notebooks with guided experiments
+   - Comparison exercises between simulation and published experimental data
+   - Parameter sensitivity studies (pressure, voltage, electrode geometry)
+
+4. **Assessment and Validation**
+   - Self-check quizzes embedded in tutorials
+   - Benchmark problems with known solutions for student verification
+   - Peer comparison dashboards for classroom settings
+
+#### Recommended Student-Focused Additions
+
+```
+docs/education/
+├── plasma_fundamentals/
+│   ├── ionization_primer.md
+│   ├── magnetic_pressure.md
+│   ├── bennett_relation.md
+│   └── scaling_laws.md
+├── safety/
+│   ├── electrical_hazards.md
+│   ├── radiation_awareness.md
+│   └── lab_protocols.md
+├── exercises/
+│   ├── circuit_analysis.ipynb
+│   ├── sheath_dynamics.ipynb
+│   ├── parameter_sweeps.ipynb
+│   └── validation_against_data.ipynb
+└── assessments/
+    ├── quiz_plasma_basics.md
+    ├── quiz_circuit_coupling.md
+    └── project_templates.md
+```
+
+---
+
+### What's Needed for an Engineer
+
+Engineers require practical tools for designing, building, commissioning, and optimizing DPF systems. The current project lacks critical engineering-focused capabilities.
+
+#### Engineering Tool Requirements
+
+| Capability | Current State | What's Needed | Priority |
+|------------|---------------|---------------|----------|
+| Component sizing | Missing | Calculators for capacitors, spark gaps, electrodes | Critical |
+| Stress analysis integration | Missing | Thermal/mechanical stress from pulsed operation | High |
+| Impedance matching | Partial | Transmission line modeling, stray inductance | High |
+| Diagnostic interface | Basic | Data acquisition integration (oscilloscopes, PMTs, neutron detectors) | High |
+| Reliability modeling | Missing | Lifetime predictions, failure mode analysis | Medium |
+| Cost estimation | Missing | BOM generation, trade study support | Medium |
+
+#### Critical Engineering Gaps
+
+1. **Design Automation Tools**
+   - Electrode geometry optimization based on Lee model scaling
+   - Capacitor bank configuration optimizer (series/parallel trade-offs)
+   - Spark gap and switch timing calculators
+   - Insulator design guidelines (creepage, breakdown margins)
+
+2. **Operational Support Features**
+   - Pre-shot checklist automation
+   - Real-time monitoring dashboards during operation
+   - Post-shot analysis pipelines (peak current, timing, yield extraction)
+   - Maintenance scheduling based on shot count
+
+3. **Integration Interfaces**
+   - CAD import/export for electrode geometries (STEP, IGES support)
+   - Data export to engineering analysis tools (ANSYS, COMSOL)
+   - PLC/control system integration protocols
+   - Standardized data formats for inter-facility comparison
+
+4. **Hardware-in-the-Loop Simulation**
+   - Circuit simulation with real component parasitic models
+   - Trigger timing optimization with jitter models
+   - Fault condition simulation (prefire, misfire, crowbar events)
+
+#### Engineering-Focused Infrastructure Needs
+
+| Component | Description | Effort |
+|-----------|-------------|--------|
+| Component Library | Database of commercial capacitors, switches, cables with parasitic models | 2 months |
+| Design Wizard | Step-by-step workflow for new DPF system design | 3 months |
+| Commissioning Suite | Automated checkout procedures and acceptance tests | 2 months |
+| Performance Monitor | Real-time operational health dashboard | 1 month |
+| Maintenance Tracker | Shot counting, component lifetime tracking | 1 month |
+
+#### Recommended Engineer-Focused Additions
+
+```
+tools/engineering/
+├── design/
+│   ├── electrode_optimizer.py
+│   ├── capacitor_bank_calculator.py
+│   ├── impedance_matcher.py
+│   └── spark_gap_designer.py
+├── operations/
+│   ├── preshot_checklist.py
+│   ├── realtime_monitor.py
+│   ├── postshot_analyzer.py
+│   └── maintenance_scheduler.py
+├── integration/
+│   ├── cad_interface.py
+│   ├── daq_drivers/
+│   ├── control_system_api.py
+│   └── data_export.py
+└── component_library/
+    ├── capacitors.json
+    ├── switches.json
+    ├── cables.json
+    └── electrodes.json
+```
+
+---
+
+### What's Needed for a Senior Scientist
+
+Senior scientists require advanced physics fidelity, rigorous validation against experiments, and tools for hypothesis testing and publication-quality analysis. The current project has substantial gaps in these areas.
+
+#### Advanced Physics Requirements
+
+| Capability | Current State | What's Needed | Priority |
+|------------|---------------|---------------|----------|
+| Hall-MHD | Documented, not implemented | Full 3D Hall-MHD solver with constrained transport | Critical |
+| Kinetic ion physics | Missing | Hybrid PIC for beam-target fusion modeling | Critical |
+| Radiation transport | Missing | Multi-group transport for X-ray yield prediction | High |
+| Ionization kinetics | Missing | Non-LTE atomic physics, NLTE EOS tables | High |
+| Instability analysis | Partial docs | Linear stability analysis, eigenmode decomposition | High |
+| Relativistic effects | Missing | Relativistic electron beam modeling | Medium |
+
+#### Validation and Verification Gaps
+
+1. **Experimental Benchmark Suite**
+   - PF-1000 (IPPLM Warsaw) validation cases
+   - PF-400J (CCHEN Chile) small-scale benchmarks
+   - UNU/ICTP-PFF facility comparison data
+   - PACO series neutron yield validation
+   - Published instability growth rate comparisons
+
+2. **Code-to-Code Verification**
+   - Comparison with Lee Model 5-phase results
+   - Cross-validation with MACH2, TRAC-II outputs
+   - Benchmark against published analytic solutions (Bennett, Gratton-Vargas)
+
+3. **Uncertainty Quantification Pipeline**
+   - Sensitivity analysis for key parameters
+   - Monte Carlo uncertainty propagation
+   - Bayesian inference for parameter estimation
+   - Ensemble runs with experimental uncertainty bounds
+
+#### Scientific Analysis Tools Needed
+
+| Tool | Purpose | Status |
+|------|---------|--------|
+| Synthetic diagnostics | Compare simulation to real diagnostic signals | Partial |
+| Spectral analysis | Mode decomposition, instability characterization | Missing |
+| Correlation analysis | Cross-correlate multiple signals for timing | Missing |
+| Publication graphics | Generate camera-ready plots with uncertainty bands | Basic |
+| Data archival | Long-term storage with full provenance | Missing |
+
+#### Research Infrastructure Requirements
+
+1. **High-Fidelity Physics Modules**
+   - Implicit Hall-MHD solver for stiff magnetic diffusion
+   - Energy-conserving semi-implicit method (ECSIM) for hybrid PIC
+   - Monte Carlo radiation transport with opacity tables
+   - Collisional-radiative equilibrium (CRE) atomic kinetics
+
+2. **Advanced Diagnostic Synthesis**
+   - Soft X-ray pinhole camera simulation
+   - Interferometry/schlieren image synthesis
+   - Neutron time-of-flight spectrum generation
+   - Hard X-ray dose and spectrum prediction
+
+3. **Multi-Physics Coupling**
+   - Circuit-MHD coupling with dynamic inductance L(t) feedback
+   - Neutral gas dynamics for breakdown modeling
+   - Electrode ablation and impurity injection models
+   - Vacuum electromagnetic wave propagation
+
+4. **Computational Performance**
+   - GPU-accelerated field solvers (CUDA/HIP)
+   - Distributed memory MPI parallelism for 3D simulations
+   - Adaptive mesh refinement near current sheath
+   - Checkpoint/restart for long-running campaigns
+
+#### Recommended Scientist-Focused Additions
+
+```
+src/advanced_physics/
+├── hall_mhd/
+│   ├── hall_solver.py
+│   ├── constrained_transport.py
+│   └── whistler_dispersion.py
+├── kinetic/
+│   ├── hybrid_pic.py
+│   ├── ecsim_pusher.py
+│   └── beam_target_fusion.py
+├── radiation/
+│   ├── multigroup_transport.py
+│   ├── opacity_tables.py
+│   └── xray_diagnostics.py
+└── atomic/
+    ├── nlte_ionization.py
+    ├── cre_kinetics.py
+    └── eos_tables.py
+
+validation/
+├── facility_data/
+│   ├── pf1000/
+│   ├── pf400j/
+│   └── unu_ictp/
+├── code_comparison/
+│   ├── lee_model/
+│   └── mach2/
+├── uq_pipeline/
+│   ├── sensitivity_analysis.py
+│   ├── monte_carlo.py
+│   └── bayesian_inference.py
+└── synthetic_diagnostics/
+    ├── pinhole_camera.py
+    ├── interferometry.py
+    └── neutron_tof.py
+```
+
+#### Research Roadmap for Scientific Credibility
+
+| Phase | Milestone | Timeline | Validation Target |
+|-------|-----------|----------|-------------------|
+| 1 | Hall-MHD operational | Months 3-8 | Whistler wave benchmarks |
+| 2 | Hybrid PIC integration | Months 9-18 | Beam-target fusion yields |
+| 3 | Full radiation transport | Months 12-24 | X-ray emission spectra |
+| 4 | UQ pipeline operational | Months 18-30 | Published uncertainty analysis |
+| 5 | Multi-facility validation | Months 24-36 | Peer-reviewed comparisons |
+
+---
+
+## Cross-Cutting Needs Across All Personas
+
+### Documentation Requirements
+
+| Audience | Need | Current Gap |
+|----------|------|-------------|
+| All | Getting started guide | Exists but needs expansion |
+| Student | Conceptual explanations | Partial, needs more depth |
+| Engineer | Practical how-to guides | Minimal |
+| Scientist | Theory manual with derivations | Partial, lacks rigor |
+
+### Community and Support
+
+1. **Discussion Forum**: Q&A platform for users across all levels
+2. **Issue Templates**: Structured bug reports, feature requests, physics questions
+3. **Contributing Guide**: How to add new physics, validation cases, documentation
+4. **Governance Model**: Scientific advisory board for physics decisions
+
+### Quality Assurance for All Personas
+
+| Check | Student Impact | Engineer Impact | Scientist Impact |
+|-------|----------------|-----------------|------------------|
+| Unit tests | Ensures examples work | Validates tools | Confirms physics modules |
+| Integration tests | End-to-end tutorials | Workflow validation | Multi-physics coupling |
+| Regression tests | Stable learning materials | Reproducible designs | Publication-quality results |
+| Performance tests | Responsive UI | Operational speed | HPC scalability |
+
+---
+
 ## Conclusion
 
 The DPF2 project has a solid foundation in terms of code structure and testing infrastructure, but requires significant work before it can be considered production-ready or scientifically credible. The critical security vulnerabilities must be addressed immediately, followed by systematic implementation of the physics engine capabilities.
@@ -366,6 +667,7 @@ The provided resolution plan offers a phased approach that prioritizes security,
 
 ---
 
-*Document Version: 1.0*  
+*Document Version: 2.0*  
 *Analysis Date: 2026-01-15*  
+*Updated: 2026-01-15 - Added Persona-Specific Requirements (Student, Engineer, Senior Scientist)*  
 *Visualization: See `CRITICAL_ANALYSIS_RESOLUTION_PLAN.mmd`*
