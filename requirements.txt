@@ -11,3 +11,5 @@ tqdm
 fastapi
 uvicorn
 python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
